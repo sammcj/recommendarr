@@ -9,6 +9,23 @@
     
     <div v-else>
       <div class="actions">
+        <div class="recommendations-settings">
+          <div class="count-selector">
+            <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
+            <div class="slider-container">
+              <input 
+                type="range" 
+                id="recommendationsSlider"
+                v-model.number="numRecommendations"
+                min="1" 
+                max="50"
+                class="count-slider"
+                @change="saveRecommendationCount"
+              >
+            </div>
+          </div>
+        </div>
+        
         <button 
           @click="getRecommendations" 
           :disabled="loading"
@@ -118,7 +135,8 @@ export default {
       error: null,
       recommendationsRequested: false,
       posters: new Map(), // Using a reactive Map for poster URLs
-      loadingPosters: new Map() // Track which posters are being loaded
+      loadingPosters: new Map(), // Track which posters are being loaded
+      numRecommendations: 5 // Default number of recommendations to request
     };
   },
   methods: {
@@ -214,6 +232,11 @@ export default {
       }
       return Math.abs(hash);
     },
+    // Save recommendation count to localStorage
+    saveRecommendationCount() {
+      localStorage.setItem('numRecommendations', this.numRecommendations);
+    },
+    
     async getRecommendations() {
       // Verify we have a series list and OpenAI is configured
       if (!this.sonarrConfigured) {
@@ -236,8 +259,8 @@ export default {
       this.recommendationsRequested = true;
       
       try {
-        // Get recommendations from OpenAI based on Sonarr library
-        this.recommendations = await openAIService.getRecommendations(this.series);
+        // Get recommendations from OpenAI based on Sonarr library with the user-selected count
+        this.recommendations = await openAIService.getRecommendations(this.series, this.numRecommendations);
         
         // Fetch posters for each recommendation
         this.fetchPosters();
@@ -286,6 +309,18 @@ export default {
   mounted() {
     // Check if OpenAI is already configured
     this.openaiConfigured = openAIService.isConfigured();
+    
+    // Restore saved recommendation count from localStorage (if exists)
+    const savedCount = localStorage.getItem('numRecommendations');
+    if (savedCount) {
+      this.numRecommendations = parseInt(savedCount, 10);
+      // Validate the value is within range
+      if (isNaN(this.numRecommendations) || this.numRecommendations < 1) {
+        this.numRecommendations = 1;
+      } else if (this.numRecommendations > 50) {
+        this.numRecommendations = 50;
+      }
+    }
   }
 };
 </script>
@@ -314,7 +349,124 @@ h2 {
 .actions {
   margin-bottom: 20px;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.recommendations-settings {
+  display: flex;
   justify-content: center;
+  margin-bottom: 5px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.count-selector {
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f5f5;
+  padding: 15px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.count-selector label {
+  font-size: 14px;
+  color: #555;
+  font-weight: 500;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.slider-container {
+  width: 100%;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.count-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 5px;
+  background: #ddd;
+  outline: none;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.count-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s, transform 0.2s;
+  margin-top: -7px; /* Fix vertical alignment */
+}
+
+.count-slider::-webkit-slider-thumb:hover {
+  background: #43a047;
+  transform: scale(1.1);
+}
+
+.count-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s, transform 0.2s;
+  border: none;
+}
+
+.count-slider::-moz-range-thumb:hover {
+  background: #43a047;
+  transform: scale(1.1);
+}
+
+.count-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  background: #ddd;
+  border-radius: 5px;
+  margin: 0;
+  padding: 0;
+}
+
+.count-slider::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  background: #ddd;
+  border-radius: 5px;
+  margin: 0;
+  padding: 0;
+}
+
+.count-display {
+  font-size: 16px;
+  font-weight: bold;
+  min-width: 25px;
+  text-align: center;
+  color: #4CAF50;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-left: 10px;
 }
 
 .action-button {
@@ -326,6 +478,7 @@ h2 {
   cursor: pointer;
   font-weight: bold;
   font-size: 16px;
+  min-width: 200px;
 }
 
 .action-button:disabled {

@@ -62,9 +62,10 @@ class OpenAIService {
   /**
    * Get show recommendations based on current library
    * @param {Array} series - List of TV shows from Sonarr
+   * @param {number} [count=5] - Number of recommendations to generate
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series) {
+  async getRecommendations(series, count = 5) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -72,6 +73,9 @@ class OpenAIService {
     try {
       // Only extract show titles to minimize token usage
       const showTitles = series.map(show => show.title).join(', ');
+      
+      // Ensure count is within reasonable bounds
+      const recommendationCount = Math.min(Math.max(count, 1), 50);
 
       const messages = [
         {
@@ -80,7 +84,7 @@ class OpenAIService {
         },
         {
           role: "user",
-          content: `Based on my TV show library, recommend 5 new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section. Do not use any markdown formatting like bold or italic. Format each recommendation as: \n1. [Show Title]: Description: [brief description]. Why you might like it: [short reason based on my current shows]. Available on: [streaming service].\n\nMy current shows: ${showTitles}`
+          content: `Based on my TV show library, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section. Do not use any markdown formatting like bold or italic. Format each recommendation as: \n1. [Show Title]: Description: [brief description]. Why you might like it: [short reason based on my current shows]. Available on: [streaming service].\n\nMy current shows: ${showTitles}`
         }
       ];
 

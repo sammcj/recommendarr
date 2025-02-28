@@ -17,6 +17,14 @@
           Recommendations
         </button>
       </li>
+      <li>
+        <button 
+          @click="$emit('navigate', 'settings')" 
+          :class="{ active: activeTab === 'settings' }"
+        >
+          Settings
+        </button>
+      </li>
       <li class="logout-container">
         <button 
           @click="$emit('logout')" 

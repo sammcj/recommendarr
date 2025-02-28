@@ -4,19 +4,50 @@ class OpenAIService {
   constructor() {
     // Try to restore from localStorage on initialization
     this.apiKey = localStorage.getItem('openaiApiKey') || '';
-    this.apiUrl = 'https://api.openai.com/v1/chat/completions';
+    this.baseUrl = localStorage.getItem('aiApiUrl') || 'https://api.openai.com/v1';
     this.model = localStorage.getItem('openaiModel') || 'gpt-3.5-turbo';
+    this.maxTokens = parseInt(localStorage.getItem('aiMaxTokens') || '800');
+    this.temperature = parseFloat(localStorage.getItem('aiTemperature') || '0.5');
+    
+    // Ensure the chat completions endpoint
+    this.apiUrl = this.getCompletionsUrl();
   }
 
   /**
-   * Configure the OpenAI service with API key
-   * @param {string} apiKey - Your OpenAI API key
-   * @param {string} model - The model to use (default: gpt-3.5-turbo)
+   * Get the chat completions URL based on the base URL
+   * @returns {string} - The full URL for chat completions
    */
-  configure(apiKey, model = 'gpt-3.5-turbo') {
+  getCompletionsUrl() {
+    const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+    return `${baseUrl}/chat/completions`;
+  }
+
+  /**
+   * Configure the OpenAI service with full parameters
+   * @param {string} apiKey - Your API key
+   * @param {string} model - The model to use
+   * @param {string} baseUrl - The base API URL
+   * @param {number} maxTokens - Maximum tokens for completion
+   * @param {number} temperature - Temperature for randomness
+   */
+  configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null) {
     this.apiKey = apiKey;
+    
     if (model) {
       this.model = model;
+    }
+    
+    if (baseUrl) {
+      this.baseUrl = baseUrl;
+      this.apiUrl = this.getCompletionsUrl();
+    }
+    
+    if (maxTokens !== null) {
+      this.maxTokens = maxTokens;
+    }
+    
+    if (temperature !== null) {
+      this.temperature = temperature;
     }
   }
 
@@ -58,8 +89,8 @@ class OpenAIService {
         {
           model: this.model,
           messages: messages,
-          temperature: 0.5,  // Lower temperature for more predictable responses
-          max_tokens: 800,   // Reduced token limit
+          temperature: this.temperature,
+          max_tokens: this.maxTokens,
           presence_penalty: 0.1,  // Slightly discourage repetition
           frequency_penalty: 0.1  // Slightly encourage diversity
         },

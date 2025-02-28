@@ -26,6 +26,11 @@
             :series="series"
             :sonarrConfigured="sonarrConnected"
           />
+          
+          <AISettings
+            v-if="activeTab === 'settings'"
+            @settings-updated="handleSettingsUpdated"
+          />
         </div>
       </div>
     </main>
@@ -37,6 +42,7 @@ import SonarrConnection from './components/SonarrConnection.vue'
 import SeriesList from './components/SeriesList.vue'
 import AppNavigation from './components/Navigation.vue'
 import ShowRecommendations from './components/Recommendations.vue'
+import AISettings from './components/AISettings.vue'
 import sonarrService from './services/SonarrService'
 
 export default {
@@ -45,7 +51,8 @@ export default {
     SonarrConnection,
     SeriesList,
     AppNavigation,
-    ShowRecommendations
+    ShowRecommendations,
+    AISettings
   },
   data() {
     return {
@@ -95,6 +102,10 @@ export default {
       } catch (error) {
         console.error('Failed to fetch series data for recommendations:', error);
       }
+    },
+    handleSettingsUpdated() {
+      // When settings are updated, show a brief notification or just stay on the settings page
+      console.log('AI settings updated successfully');
     },
     handleLogout() {
       // Clear all stored credentials

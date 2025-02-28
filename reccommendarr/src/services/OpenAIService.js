@@ -80,11 +80,24 @@ class OpenAIService {
       const messages = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. Format each recommendation with exactly these sections: Description, Why you might like it, Available on."
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
         },
         {
           role: "user",
-          content: `Based on my TV show library, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section. Do not use any markdown formatting like bold or italic. Format each recommendation as: \n1. [Show Title]: Description: [brief description]. Why you might like it: [short reason based on my current shows]. Available on: [streaming service].\n\nMy current shows: ${showTitles}`
+          content: `Based on my TV show library, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.
+
+Format each recommendation EXACTLY as follows (using the exact section titles):
+1. [Show Title]: 
+Description: [brief description] 
+Why you might like it: [short reason based on my current shows] 
+Available on: [streaming service]
+
+2. [Next Show Title]:
+...and so on.
+
+Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per show.
+
+My current shows: ${showTitles}`
         }
       ];
 
@@ -163,17 +176,25 @@ class OpenAIService {
           }
         }
         
-        // Skip if the title looks like an introduction rather than a show name
+        // Skip if the title looks like an introduction or section header rather than a show name
         if (title.toLowerCase().includes("here are") || 
             title.toLowerCase().includes("recommendation") ||
+            title.toLowerCase().includes("available on") ||
+            title.toLowerCase() === "why you might like it" ||
+            title.toLowerCase() === "description" ||
             title.length > 50) {
           continue;
         }
         
         // Extract common fields using helper method
-        const description = this.extractFieldFromText(details, 'Description', 'Why');
+        const description = this.extractFieldFromText(details, 'Description', 'Why you might like it');
         const reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Available on');
         const streaming = this.extractFieldFromText(details, 'Available on', null);
+        
+        // Skip entries where we couldn't extract meaningful content
+        if (!description && !reasoning && !streaming) {
+          continue;
+        }
         
         recommendations.push({
           title,
@@ -205,16 +226,39 @@ class OpenAIService {
    * @returns {string|null} - The extracted field or null if not found
    */
   extractFieldFromText(text, startMarker, endMarker) {
-    let startIndex = text.indexOf(startMarker);
+    // Use case-insensitive search for reliability
+    const lowerText = text.toLowerCase();
+    const lowerStartMarker = startMarker.toLowerCase();
+    const lowerEndMarker = endMarker ? endMarker.toLowerCase() : null;
+    
+    let startIndex = lowerText.indexOf(lowerStartMarker);
     if (startIndex === -1) return null;
     
-    startIndex += startMarker.length;
-    if (text[startIndex] === ':') startIndex++; // Skip colon if present
+    // Get the actual case from the original text
+    const actualStartMarker = text.substring(startIndex, startIndex + startMarker.length);
+    startIndex += actualStartMarker.length;
     
-    let endIndex = endMarker ? text.indexOf(endMarker, startIndex) : text.length;
-    if (endIndex === -1) endIndex = text.length;
+    // Skip colon and whitespace if present
+    if (text[startIndex] === ':') startIndex++;
+    while (startIndex < text.length && /\s/.test(text[startIndex])) startIndex++;
     
-    return text.substring(startIndex, endIndex).trim();
+    let endIndex;
+    if (lowerEndMarker) {
+      endIndex = lowerText.indexOf(lowerEndMarker, startIndex);
+      if (endIndex === -1) endIndex = text.length;
+    } else {
+      endIndex = text.length;
+    }
+    
+    // Get result, ensuring we don't grab section markers
+    const result = text.substring(startIndex, endIndex).trim();
+    
+    // Sanity check - if result is too short or just punctuation, return null
+    if (result.length < 2 || /^[.,;:\s]*$/.test(result)) {
+      return null;
+    }
+    
+    return result;
   }
 }
 

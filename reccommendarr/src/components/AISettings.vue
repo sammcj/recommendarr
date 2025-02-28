@@ -39,7 +39,12 @@
             :disabled="!apiKey || isLoading"
             class="action-button"
           >
-            {{ isLoading ? 'Loading...' : 'Fetch Models' }}
+            <span class="button-icon" v-if="isLoading">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+              </svg>
+            </span>
+            {{ isLoading ? 'Loading Models...' : 'Fetch Available Models' }}
           </button>
         </div>
         
@@ -47,21 +52,37 @@
           {{ fetchError }}
         </div>
         
-        <div v-if="models.length > 0" class="models-list">
-          <div v-for="model in models" :key="model.id" class="model-option">
+        <div v-if="models.length > 0" class="models-container">
+          <div class="search-box">
             <input 
-              type="radio" 
-              :id="model.id" 
-              :value="model.id" 
-              v-model="selectedModel" 
-              name="model" 
+              type="text" 
+              v-model="modelSearch" 
+              placeholder="Search models..." 
+              class="model-search"
             />
-            <label :for="model.id">{{ model.id }}</label>
+            <span class="model-count">{{ filteredModels.length }} models</span>
+          </div>
+          
+          <div class="models-list">
+            <div v-for="model in filteredModels" :key="model.id" class="model-option">
+              <input 
+                type="radio" 
+                :id="model.id" 
+                :value="model.id" 
+                v-model="selectedModel" 
+                name="model" 
+              />
+              <label :for="model.id" :title="model.id">{{ model.id }}</label>
+            </div>
+            
+            <div v-if="filteredModels.length === 0" class="no-results">
+              <p>No models match your search</p>
+            </div>
           </div>
         </div>
         
         <div v-else-if="!fetchError && !isLoading" class="no-models">
-          <p>Click "Fetch Models" to load available models</p>
+          <p>Click "Fetch Available Models" to load models from the API</p>
         </div>
       </div>
       
@@ -120,6 +141,7 @@ export default {
       apiKey: '',
       selectedModel: '',
       models: [],
+      modelSearch: '',
       showApiKey: false,
       isLoading: false,
       fetchError: null,
@@ -128,6 +150,18 @@ export default {
       maxTokens: 800,
       temperature: 0.5
     };
+  },
+  computed: {
+    filteredModels() {
+      if (!this.modelSearch) {
+        return this.models;
+      }
+      
+      const search = this.modelSearch.toLowerCase();
+      return this.models.filter(model => 
+        model.id.toLowerCase().includes(search)
+      );
+    }
   },
   created() {
     // Load saved settings
@@ -288,13 +322,27 @@ input[type="password"] {
   cursor: pointer;
 }
 
+.model-actions {
+  margin-bottom: 10px;
+}
+
 .action-button {
   background-color: #007bff;
   color: white;
   border: none;
   border-radius: 4px;
-  padding: 8px 16px;
+  padding: 10px 16px;
   cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+}
+
+.action-button:hover:not(:disabled) {
+  background-color: #0069d9;
 }
 
 .action-button:disabled {
@@ -302,24 +350,106 @@ input[type="password"] {
   cursor: not-allowed;
 }
 
+.button-icon {
+  display: inline-flex;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.models-container {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  justify-content: space-between;
+}
+
+.model-search {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+}
+
+.model-count {
+  margin-left: 10px;
+  font-size: 13px;
+  color: #666;
+  background-color: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
 .models-list {
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 10px;
-  margin-top: 10px;
   background-color: white;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 5px;
+  scrollbar-width: thin;
+}
+
+.models-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.models-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.models-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.models-list::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 
 .model-option {
-  margin-bottom: 8px;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.model-option:hover {
+  background-color: #f0f0f0;
+}
+
+.model-option input[type="radio"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .model-option label {
   font-weight: normal;
-  margin-left: 8px;
+  margin-left: 10px;
   cursor: pointer;
+  display: inline-block;
+  padding: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
 .slider-container {
@@ -337,16 +467,23 @@ input[type="password"] {
   text-align: center;
 }
 
-.no-models, .error-message {
+.no-models, .error-message, .no-results {
   padding: 15px;
   border-radius: 4px;
   margin-top: 10px;
 }
 
-.no-models {
+.no-models, .no-results {
   background-color: #f8f9fa;
   color: #6c757d;
   text-align: center;
+}
+
+.no-results {
+  grid-column: 1 / -1; /* Span all columns */
+  margin-top: 0;
+  padding: 20px;
+  background-color: rgba(248, 249, 250, 0.7);
 }
 
 .error-message {

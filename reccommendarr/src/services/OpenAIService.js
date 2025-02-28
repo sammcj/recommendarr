@@ -76,11 +76,11 @@ class OpenAIService {
       const messages = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library. Be concise and to the point. Format each recommendation with exactly these sections: Description, Why you might like it, Available on."
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. Format each recommendation with exactly these sections: Description, Why you might like it, Available on."
         },
         {
           role: "user",
-          content: `Based on my TV show library, recommend 5 new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section. Format each recommendation as: \n1. [Show Title]: Description: [brief description]. Why you might like it: [short reason based on my current shows]. Available on: [streaming service].\n\nMy current shows: ${showTitles}`
+          content: `Based on my TV show library, recommend 5 new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section. Do not use any markdown formatting like bold or italic. Format each recommendation as: \n1. [Show Title]: Description: [brief description]. Why you might like it: [short reason based on my current shows]. Available on: [streaming service].\n\nMy current shows: ${showTitles}`
         }
       ];
 
@@ -126,6 +126,13 @@ class OpenAIService {
     if (sections.length > 0) {
       // Process each section
       for (const section of sections) {
+        // Skip intro text like "Here are five recommendations..."
+        if (section.toLowerCase().includes("here are") && 
+            (section.toLowerCase().includes("recommendation") || 
+             section.toLowerCase().includes("tv show"))) {
+          continue;
+        }
+        
         // Extract title (first line or up to first colon)
         let title = '';
         let details = section;
@@ -133,17 +140,30 @@ class OpenAIService {
         if (section.includes(':')) {
           const firstColonIndex = section.indexOf(':');
           title = section.substring(0, firstColonIndex).trim();
+          // Remove any markdown formatting (like ** for bold)
+          title = title.replace(/\*\*/g, '').trim();
           details = section.substring(firstColonIndex + 1).trim();
         } else {
           // If no colon, try to get the first line
           const firstLineBreak = section.indexOf('\n');
           if (firstLineBreak > 0) {
             title = section.substring(0, firstLineBreak).trim();
+            // Remove any markdown formatting (like ** for bold)
+            title = title.replace(/\*\*/g, '').trim();
             details = section.substring(firstLineBreak + 1).trim();
           } else {
             title = section.trim();
+            // Remove any markdown formatting (like ** for bold)
+            title = title.replace(/\*\*/g, '').trim();
             details = '';
           }
+        }
+        
+        // Skip if the title looks like an introduction rather than a show name
+        if (title.toLowerCase().includes("here are") || 
+            title.toLowerCase().includes("recommendation") ||
+            title.length > 50) {
+          continue;
         }
         
         // Extract common fields using helper method

@@ -27,13 +27,13 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ```bash
 # Pull the image
-docker pull recommendarr/recommendarr:latest
+docker pull tannermiddleton/recommendarr:latest
 
 # Run the container
 docker run -d \
   --name recommendarr \
   -p 3030:80 \
-  recommendarr/recommendarr:latest
+  tannermiddleton/recommendarr:latest
 ```
 
 Then visit `http://localhost:3030` in your browser.

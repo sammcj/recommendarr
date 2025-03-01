@@ -66,9 +66,10 @@ class OpenAIService {
    * @param {Array} series - List of TV shows from Sonarr
    * @param {number} [count=5] - Number of recommendations to generate
    * @param {string} [genre=''] - Optional genre preference
+   * @param {Array} [previousRecommendations=[]] - List of shows to exclude from recommendations
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5, genre = '') {
+  async getRecommendations(series, count = 5, genre = '', previousRecommendations = []) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -86,6 +87,11 @@ class OpenAIService {
       // Add genre preference if specified
       if (genre) {
         userPrompt += ` Focus specifically on recommending shows in the ${genre} genre.`;
+      }
+      
+      // Add exclusion list for previous recommendations
+      if (previousRecommendations && previousRecommendations.length > 0) {
+        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these shows that I've already seen or been recommended before: ${previousRecommendations.join(', ')}`;
       }
       
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
@@ -124,9 +130,10 @@ My current shows: ${showTitles}`;
    * @param {Array} movies - List of movies from Radarr
    * @param {number} [count=5] - Number of recommendations to generate
    * @param {string} [genre=''] - Optional genre preference
+   * @param {Array} [previousRecommendations=[]] - List of movies to exclude from recommendations
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5, genre = '') {
+  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = []) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -144,6 +151,11 @@ My current shows: ${showTitles}`;
       // Add genre preference if specified
       if (genre) {
         userPrompt += ` Focus specifically on recommending movies in the ${genre} genre.`;
+      }
+      
+      // Add exclusion list for previous recommendations
+      if (previousRecommendations && previousRecommendations.length > 0) {
+        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these movies that I've already seen or been recommended before: ${previousRecommendations.join(', ')}`;
       }
       
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):

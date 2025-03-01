@@ -54,6 +54,18 @@
                 </select>
                 <div class="select-arrow">▼</div>
               </div>
+              
+              <div class="history-info">
+                <small>{{ previousRecommendations.length }} movies in history</small>
+                <button 
+                  v-if="previousRecommendations.length > 0" 
+                  @click="clearRecommendationHistory" 
+                  class="clear-history-button"
+                  title="Clear recommendation history"
+                >
+                  Clear History
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -190,7 +202,9 @@ export default {
       numRecommendations: 5, // Default number of recommendations to request
       selectedGenre: '', // Default to all genres
       requestingMovie: null, // Track which movie is being requested
-      requestStatus: {}, // Track request status for each movie
+      requestStatus: {}, // Track request status for each movie,
+      previousRecommendations: [], // Track previous recommendations to avoid duplicates
+      maxStoredRecommendations: 125 // Maximum number of previous recommendations to store
     };
   },
   methods: {
@@ -296,6 +310,44 @@ export default {
       localStorage.setItem('movieGenrePreference', this.selectedGenre);
     },
     
+    // Save previous recommendations to localStorage
+    savePreviousRecommendations() {
+      localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousRecommendations));
+    },
+    
+    // Add current recommendations to the history
+    addToRecommendationHistory(newRecommendations) {
+      // Extract just the titles for storage
+      const titlesToAdd = newRecommendations.map(rec => rec.title);
+      
+      // Combine with existing recommendations, remove duplicates
+      const combinedRecommendations = [...this.previousRecommendations, ...titlesToAdd];
+      
+      // Keep only unique recommendations
+      const uniqueRecommendations = [...new Set(combinedRecommendations)];
+      
+      // If over the limit, remove oldest recommendations
+      if (uniqueRecommendations.length > this.maxStoredRecommendations) {
+        this.previousRecommendations = uniqueRecommendations.slice(
+          uniqueRecommendations.length - this.maxStoredRecommendations
+        );
+      } else {
+        this.previousRecommendations = uniqueRecommendations;
+      }
+      
+      // Save to localStorage
+      this.savePreviousRecommendations();
+    },
+    
+    // Clear recommendation history
+    clearRecommendationHistory() {
+      // Ask for confirmation
+      if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended movies?`)) {
+        this.previousRecommendations = [];
+        this.savePreviousRecommendations();
+      }
+    },
+    
     async getRecommendations() {
       // Verify we have a movies list and OpenAI is configured
       if (!this.radarrConfigured) {
@@ -319,10 +371,12 @@ export default {
       
       try {
         // Get recommendations from OpenAI based on Radarr library with user preferences
+        // Pass the previous recommendations to be excluded
         this.recommendations = await openAIService.getMovieRecommendations(
           this.movies, 
           this.numRecommendations,
-          this.selectedGenre
+          this.selectedGenre,
+          this.previousRecommendations
         );
         
         // Update loading message to include genre if selected
@@ -330,6 +384,9 @@ export default {
         if (loadingMessage && this.selectedGenre) {
           loadingMessage.textContent = `Analyzing your movie library and generating ${this.selectedGenre} recommendations...`;
         }
+        
+        // Add new recommendations to history
+        this.addToRecommendationHistory(this.recommendations);
         
         // Fetch posters for each recommendation
         this.fetchPosters();
@@ -456,6 +513,22 @@ export default {
     if (savedGenre) {
       this.selectedGenre = savedGenre;
     }
+    
+    // Load previous movie recommendations from localStorage
+    const savedPreviousRecommendations = localStorage.getItem('previousMovieRecommendations');
+    if (savedPreviousRecommendations) {
+      try {
+        this.previousRecommendations = JSON.parse(savedPreviousRecommendations);
+      } catch (error) {
+        console.error('Error parsing previous movie recommendations:', error);
+        this.previousRecommendations = [];
+      }
+    }
+  },
+  
+  // Save previous recommendations when component is destroyed
+  beforeUnmount() {
+    this.savePreviousRecommendations();
   }
 };
 </script>
@@ -894,6 +967,32 @@ select:hover {
 
 .description, .reasoning, .streaming {
   margin-bottom: 15px;
+}
+
+.history-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 15px;
+  font-size: 13px;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.clear-history-button {
+  background: none;
+  border: none;
+  color: #f44336;
+  font-size: 13px;
+  padding: 2px 6px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.clear-history-button:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 .no-recommendations {

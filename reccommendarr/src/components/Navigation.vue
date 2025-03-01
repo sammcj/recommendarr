@@ -46,12 +46,12 @@
         </button>
         
         <button 
-          @click="$emit('logout')" 
+          @click="confirmClearData" 
           class="action-button logout-button"
-          title="Logout"
+          title="Clear all saved data"
         >
-          <span class="nav-icon">🚪</span>
-          <span class="action-text">Logout</span>
+          <span class="nav-icon">🗑️</span>
+          <span class="action-text">Clear Data</span>
         </button>
       </div>
       
@@ -104,11 +104,11 @@
         </button>
         
         <button 
-          @click="$emit('logout')" 
+          @click="confirmClearData" 
           class="mobile-action logout-button"
         >
-          <span class="nav-icon">🚪</span>
-          <span>Logout</span>
+          <span class="nav-icon">🗑️</span>
+          <span>Clear Data</span>
         </button>
       </div>
     </div>
@@ -154,6 +154,11 @@ export default {
     navigateMobile(tab) {
       this.$emit('navigate', tab);
       this.mobileMenuOpen = false; // Close mobile menu after navigation
+    },
+    confirmClearData() {
+      if (confirm('Are you sure you want to clear all saved data? This will remove all your API keys and settings.')) {
+        this.$emit('logout');
+      }
     }
   }
 };

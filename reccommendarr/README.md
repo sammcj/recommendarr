@@ -1,8 +1,9 @@
 # Recommendarr
 
-![Recommendarr Logo](./public/favicon.ico) 
-
 Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
+
+![recommendations](https://github.com/user-attachments/assets/8e0e7abe-ef79-4408-9257-437bf309b32f)
+
 
 ## 🌟 Features
 
@@ -26,13 +27,13 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ```bash
 # Pull the image
-docker pull recommendarr/recommendarr:latest
+docker pull tannermiddleton/recommendarr:latest
 
 # Run the container
 docker run -d \
   --name recommendarr \
   -p 3030:80 \
-  recommendarr/recommendarr:latest
+  tannermiddleton/recommendarr:latest
 ```
 
 Then visit `http://localhost:3030` in your browser.
@@ -41,7 +42,7 @@ Then visit `http://localhost:3030` in your browser.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/recommendarr.git
+git clone https://github.com/fingerthief/recommendarr.git
 cd recommendarr
 ```
 

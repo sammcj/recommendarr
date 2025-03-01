@@ -238,6 +238,11 @@ export default {
         
         this.recentlyWatchedMovies = moviesResponse;
         this.recentlyWatchedShows = showsResponse;
+        
+        console.log('Fetched Plex watch history:', {
+          movies: this.recentlyWatchedMovies,
+          shows: this.recentlyWatchedShows
+        });
       } catch (error) {
         console.error('Failed to fetch Plex watch history:', error);
       }

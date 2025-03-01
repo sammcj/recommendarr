@@ -798,6 +798,8 @@ export default {
           
         // Pass the previous recommendations to be excluded and liked/disliked lists
         // Include recently watched movies from Plex if available
+        console.log('Using Plex history for recommendations:', this.plexConfigured ? this.recentlyWatchedMovies : 'Not configured');
+        
         this.recommendations = await openAIService.getMovieRecommendations(
           this.movies, 
           this.numRecommendations,

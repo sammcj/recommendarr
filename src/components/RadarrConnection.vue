@@ -20,7 +20,7 @@
           id="apiKey" 
           v-model="apiKey" 
           type="password" 
-          placeholder="Your Sonarr API key"
+          placeholder="Your Radarr API key"
           required
         />
       </div>

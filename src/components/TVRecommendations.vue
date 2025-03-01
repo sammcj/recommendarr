@@ -18,6 +18,9 @@
       <div class="actions">
         <div class="recommendations-settings">
           <div class="settings-container">
+            <div class="model-info">
+              <span class="current-model">Current model: <strong>{{ currentModel }}</strong></span>
+            </div>
             <div class="count-selector">
               <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
               <div class="slider-container">
@@ -34,25 +37,23 @@
             </div>
             
             <div class="genre-selector">
-              <label for="genreSelect">Genre preference:</label>
-              <div class="select-container">
-                <select id="genreSelect" v-model="selectedGenre" @change="saveGenrePreference">
-                  <option value="">All genres (based on your library)</option>
-                  <option value="action">Action</option>
-                  <option value="adventure">Adventure</option>
-                  <option value="animation">Animation</option>
-                  <option value="comedy">Comedy</option>
-                  <option value="crime">Crime</option>
-                  <option value="documentary">Documentary</option>
-                  <option value="drama">Drama</option>
-                  <option value="fantasy">Fantasy</option>
-                  <option value="horror">Horror</option>
-                  <option value="mystery">Mystery</option>
-                  <option value="romance">Romance</option>
-                  <option value="sci-fi">Sci-Fi</option>
-                  <option value="thriller">Thriller</option>
-                </select>
-                <div class="select-arrow">▼</div>
+              <label>Genre preferences:</label>
+              <div class="genre-checkboxes">
+                <div class="genre-checkbox-item" v-for="genre in availableGenres" :key="genre.value">
+                  <label class="checkbox-label">
+                    <input 
+                      type="checkbox" 
+                      :value="genre.value" 
+                      v-model="selectedGenres"
+                      @change="saveGenrePreference"
+                    >
+                    {{ genre.label }}
+                  </label>
+                </div>
+                <div v-if="selectedGenres.length > 0" class="selected-genres-summary">
+                  <div class="selected-genres-count">{{ selectedGenres.length }} genre{{ selectedGenres.length > 1 ? 's' : '' }} selected</div>
+                  <button @click="clearGenres" class="clear-genres-button">Clear All</button>
+                </div>
               </div>
               
               <div class="history-info">
@@ -256,14 +257,30 @@ export default {
       posters: new Map(), // Using a reactive Map for poster URLs
       loadingPosters: new Map(), // Track which posters are being loaded
       numRecommendations: 5, // Default number of recommendations to request
-      selectedGenre: '', // Default to all genres
+      selectedGenres: [], // Multiple genre selections 
+      availableGenres: [
+        { value: 'action', label: 'Action' },
+        { value: 'adventure', label: 'Adventure' },
+        { value: 'animation', label: 'Animation' },
+        { value: 'comedy', label: 'Comedy' },
+        { value: 'crime', label: 'Crime' },
+        { value: 'documentary', label: 'Documentary' },
+        { value: 'drama', label: 'Drama' },
+        { value: 'fantasy', label: 'Fantasy' },
+        { value: 'horror', label: 'Horror' },
+        { value: 'mystery', label: 'Mystery' },
+        { value: 'romance', label: 'Romance' },
+        { value: 'sci-fi', label: 'Sci-Fi' },
+        { value: 'thriller', label: 'Thriller' }
+      ],
       requestingSeries: null, // Track which series is being requested
       requestStatus: {}, // Track request status for each series
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
       maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
       showSeasonModal: false, // Control visibility of season selection modal
       currentSeries: null, // Current series being added
-      selectedSeasons: [] // Selected seasons for the current series
+      selectedSeasons: [], // Selected seasons for the current series
+      currentModel: 'Loading...' // Current model being used
     };
   },
   methods: {
@@ -364,9 +381,15 @@ export default {
       localStorage.setItem('numRecommendations', this.numRecommendations);
     },
     
-    // Save genre preference to localStorage when it changes
+    // Save genre preferences to localStorage when they change
     saveGenrePreference() {
-      localStorage.setItem('tvGenrePreference', this.selectedGenre);
+      localStorage.setItem('tvGenrePreferences', JSON.stringify(this.selectedGenres));
+    },
+    
+    // Clear all selected genres
+    clearGenres() {
+      this.selectedGenres = [];
+      this.saveGenrePreference();
     },
     
     // Save previous recommendations to localStorage
@@ -430,18 +453,23 @@ export default {
       
       try {
         // Get recommendations from OpenAI based on Sonarr library with user preferences
+        // Convert selectedGenres array to a comma-separated string for the API
+        const genreString = this.selectedGenres.length > 0 
+          ? this.selectedGenres.join(', ')
+          : '';
+        
         // Pass the previous recommendations to be excluded
         this.recommendations = await openAIService.getRecommendations(
           this.series, 
           this.numRecommendations,
-          this.selectedGenre,
+          genreString,
           this.previousRecommendations
         );
         
-        // Update loading message to include genre if selected
+        // Update loading message to include genres if selected
         const loadingMessage = document.querySelector('.loading p');
-        if (loadingMessage && this.selectedGenre) {
-          loadingMessage.textContent = `Analyzing your TV library and generating ${this.selectedGenre} recommendations...`;
+        if (loadingMessage && this.selectedGenres.length > 0) {
+          loadingMessage.textContent = `Analyzing your TV library and generating ${genreString} recommendations...`;
         }
         
         // Add new recommendations to history
@@ -646,6 +674,13 @@ export default {
     // Check if OpenAI is already configured
     this.openaiConfigured = openAIService.isConfigured();
     
+    // Get current model from OpenAIService
+    if (this.openaiConfigured) {
+      this.currentModel = openAIService.model || 'Unknown';
+    } else {
+      this.currentModel = 'Not configured';
+    }
+    
     // Restore saved recommendation count from localStorage (if exists)
     const savedCount = localStorage.getItem('numRecommendations');
     if (savedCount) {
@@ -658,10 +693,15 @@ export default {
       }
     }
     
-    // Restore saved genre preference if exists
-    const savedGenre = localStorage.getItem('tvGenrePreference');
-    if (savedGenre) {
-      this.selectedGenre = savedGenre;
+    // Restore saved genre preferences if they exist
+    const savedGenres = localStorage.getItem('tvGenrePreferences');
+    if (savedGenres) {
+      try {
+        this.selectedGenres = JSON.parse(savedGenres);
+      } catch (error) {
+        console.error('Error parsing saved genres:', error);
+        this.selectedGenres = [];
+      }
     }
     
     // Load previous TV recommendations from localStorage
@@ -767,6 +807,89 @@ h2 {
   box-sizing: border-box;
   padding: 20px;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.model-info {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  font-size: 14px;
+  border-left: 3px solid var(--button-primary-bg);
+}
+
+.current-model {
+  color: var(--text-color);
+  transition: color var(--transition-speed);
+}
+
+.current-model strong {
+  color: var(--header-color);
+  transition: color var(--transition-speed);
+}
+
+.genre-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background-color: var(--input-bg);
+}
+
+.genre-checkbox-item {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: normal;
+  margin: 0;
+  font-size: 14px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.selected-genres-summary {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.selected-genres-count {
+  font-size: 13px;
+  color: var(--button-primary-bg);
+  font-weight: 500;
+}
+
+.clear-genres-button {
+  background: none;
+  border: none;
+  color: #f44336;
+  font-size: 13px;
+  padding: 2px 6px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.clear-genres-button:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 .count-selector, .genre-selector {

@@ -69,28 +69,108 @@ class PlexService {
         }
       });
 
-      // Parse the XML response
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(response.data, "text/xml");
-      const videoNodes = xmlDoc.querySelectorAll('Video');
+      // Log response type and structure for debugging
+      console.log('Plex movie response type:', typeof response.data);
       
-      console.log(`Found ${videoNodes.length} recently watched movies in Plex history`);
+      // Try to handle both XML and JSON responses
+      let movies = [];
       
-      // Extract movie info from XML
-      const movies = Array.from(videoNodes).map(node => {
-        return {
-          title: node.getAttribute('title'),
-          year: node.getAttribute('year'),
-          viewedAt: node.getAttribute('viewedAt'),
-          ratingKey: node.getAttribute('ratingKey')
-        };
-      });
-
-      // Filter duplicates by title
-      const uniqueMovies = movies.filter((movie, index, self) => 
+      if (typeof response.data === 'object') {
+        // Handle JSON response
+        console.log('Processing Plex movie response as JSON');
+        if (response.data.MediaContainer && response.data.MediaContainer.Metadata) {
+          const metadata = response.data.MediaContainer.Metadata;
+          console.log(`Found ${metadata.length} movies in Plex JSON response`);
+          
+          movies = metadata.map(item => {
+            // For movies, we need to make sure we're not getting TV episodes
+            // Check if this is actually a movie by checking for the absence of grandparentTitle
+            // and parentIndex (which would indicate it's part of a TV series)
+            const isMovie = !item.grandparentTitle && !item.parentIndex;
+            
+            if (isMovie) {
+              return {
+                title: item.title,
+                year: item.year,
+                viewedAt: item.lastViewedAt || item.viewedAt,
+                ratingKey: item.ratingKey
+              };
+            } else {
+              // If this is a TV episode, we'll filter it out later
+              return {
+                title: null // This will be filtered out
+              };
+            }
+          });
+        }
+      } else if (typeof response.data === 'string') {
+        // Handle XML response
+        console.log('Processing Plex movie response as XML');
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(response.data, "text/xml");
+        
+        // Look for MediaContainer first
+        const mediaContainer = xmlDoc.querySelector('MediaContainer');
+        if (mediaContainer) {
+          // Try to find Metadata elements
+          const metadataNodes = mediaContainer.querySelectorAll('Metadata');
+          if (metadataNodes.length > 0) {
+            console.log(`Found ${metadataNodes.length} movie Metadata nodes in XML`);
+            movies = Array.from(metadataNodes).map(node => {
+              // For movies, we need to make sure we're not getting TV episodes
+              // Check if this is actually a movie by checking for the absence of grandparentTitle
+              const hasGrandparentTitle = node.getAttribute('grandparentTitle');
+              const hasParentIndex = node.getAttribute('parentIndex');
+              const isMovie = !hasGrandparentTitle && !hasParentIndex;
+              
+              if (isMovie) {
+                return {
+                  title: node.getAttribute('title'),
+                  year: node.getAttribute('year'),
+                  viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
+                  ratingKey: node.getAttribute('ratingKey')
+                };
+              } else {
+                // If this is a TV episode, we'll filter it out later
+                return {
+                  title: null
+                };
+              }
+            });
+          } else {
+            // Fall back to Video nodes
+            const videoNodes = xmlDoc.querySelectorAll('Video');
+            console.log(`Found ${videoNodes.length} movie Video nodes in XML`);
+            movies = Array.from(videoNodes).map(node => {
+              // For movies, check if this is actually a movie by looking for absence of TV show attributes
+              const hasGrandparentTitle = node.getAttribute('grandparentTitle');
+              const hasParentIndex = node.getAttribute('parentIndex');
+              const isMovie = !hasGrandparentTitle && !hasParentIndex;
+              
+              if (isMovie) {
+                return {
+                  title: node.getAttribute('title'),
+                  year: node.getAttribute('year'),
+                  viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
+                  ratingKey: node.getAttribute('ratingKey')
+                };
+              } else {
+                // If this is a TV episode, return null title to filter it out
+                return {
+                  title: null
+                };
+              }
+            });
+          }
+        }
+      }
+      
+      // Filter out items without titles and remove duplicates
+      const validMovies = movies.filter(movie => movie.title);
+      const uniqueMovies = validMovies.filter((movie, index, self) => 
         index === self.findIndex((m) => m.title === movie.title)
       );
-
+      
       console.log(`Returning ${uniqueMovies.length} unique recently watched movies`);
       return uniqueMovies;
     } catch (error) {
@@ -120,31 +200,86 @@ class PlexService {
         }
       });
 
-      // Parse the XML response
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(response.data, "text/xml");
-      const episodeNodes = xmlDoc.querySelectorAll('Video');
+      // Log response type and structure for debugging
+      console.log('Plex TV response type:', typeof response.data);
       
-      console.log(`Found ${episodeNodes.length} recently watched TV episodes in Plex history`);
-      
-      // Extract show info from XML (grouping by show)
+      // Store unique shows with a Map
       const showMap = new Map();
       
-      Array.from(episodeNodes).forEach(node => {
-        const grandparentTitle = node.getAttribute('grandparentTitle'); // Show title
-        if (grandparentTitle) {
-          if (!showMap.has(grandparentTitle)) {
-            showMap.set(grandparentTitle, {
-              title: grandparentTitle,
-              year: node.getAttribute('parentYear') || node.getAttribute('year'),
-              viewedAt: node.getAttribute('viewedAt'),
-              ratingKey: node.getAttribute('grandparentRatingKey')
+      if (typeof response.data === 'object') {
+        // Handle JSON response
+        console.log('Processing Plex TV response as JSON');
+        if (response.data.MediaContainer && response.data.MediaContainer.Metadata) {
+          const metadata = response.data.MediaContainer.Metadata;
+          console.log(`Found ${metadata.length} episodes in Plex JSON response`);
+          
+          // Process each episode and extract show information
+          metadata.forEach(item => {
+            // Always prioritize grandparentTitle for TV shows, since that's the series name
+            const showTitle = item.grandparentTitle;
+            
+            // Only proceed if we have a valid show title
+            if (showTitle && !showMap.has(showTitle)) {
+              showMap.set(showTitle, {
+                title: showTitle,
+                year: item.parentYear || item.year,
+                viewedAt: item.lastViewedAt || item.viewedAt,
+                ratingKey: item.grandparentRatingKey || item.ratingKey
+              });
+            }
+          });
+        }
+      } else if (typeof response.data === 'string') {
+        // Handle XML response
+        console.log('Processing Plex TV response as XML');
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(response.data, "text/xml");
+        
+        // Look for MediaContainer first
+        const mediaContainer = xmlDoc.querySelector('MediaContainer');
+        if (mediaContainer) {
+          // Try to find Metadata elements
+          const metadataNodes = mediaContainer.querySelectorAll('Metadata');
+          if (metadataNodes.length > 0) {
+            console.log(`Found ${metadataNodes.length} episode Metadata nodes in XML`);
+            
+            // Process each episode metadata node
+            Array.from(metadataNodes).forEach(node => {
+              // Always prioritize grandparentTitle for TV shows
+              const showTitle = node.getAttribute('grandparentTitle');
+              
+              // Only proceed if we have a valid show title
+              if (showTitle && !showMap.has(showTitle)) {
+                showMap.set(showTitle, {
+                  title: showTitle,
+                  year: node.getAttribute('parentYear') || node.getAttribute('year'),
+                  viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
+                  ratingKey: node.getAttribute('grandparentRatingKey') || node.getAttribute('ratingKey')
+                });
+              }
+            });
+          } else {
+            // Fall back to Video nodes
+            const videoNodes = xmlDoc.querySelectorAll('Video');
+            console.log(`Found ${videoNodes.length} episode Video nodes in XML`);
+            
+            // Process each video node
+            Array.from(videoNodes).forEach(node => {
+              const showTitle = node.getAttribute('grandparentTitle');
+              if (showTitle && !showMap.has(showTitle)) {
+                showMap.set(showTitle, {
+                  title: showTitle,
+                  year: node.getAttribute('parentYear') || node.getAttribute('year'),
+                  viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
+                  ratingKey: node.getAttribute('grandparentRatingKey')
+                });
+              }
             });
           }
         }
-      });
-
-      // Convert map to array
+      }
+      
+      // Convert the Map to an array
       const shows = Array.from(showMap.values());
       console.log(`Returning ${shows.length} unique recently watched TV shows`);
       return shows;

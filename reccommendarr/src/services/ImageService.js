@@ -1,4 +1,5 @@
 import sonarrService from './SonarrService';
+import radarrService from './RadarrService';
 
 class ImageService {
   constructor() {
@@ -64,6 +65,67 @@ class ImageService {
       return posterUrl;
     } catch (error) {
       console.error(`Error fetching poster for "${title}":`, error);
+      return null;
+    }
+  }
+  
+  /**
+   * Get a poster URL for a movie by title
+   * @param {string} title - The movie title
+   * @param {boolean} [skipCache=false] - Whether to skip the cache
+   * @returns {Promise<string|null>} - The poster URL or null if not found
+   */
+  async getPosterForMovie(title, skipCache = false) {
+    // Clean the title for consistent cache keys
+    const cleanTitle = title.replace(/[:.!?]+$/, '').trim();
+    const cacheKey = `movie_${cleanTitle}`;
+    
+    // Check cache first unless skipCache is true
+    if (!skipCache && this.posterCache.has(cacheKey)) {
+      return this.posterCache.get(cacheKey);
+    }
+    
+    // If skipCache is true and we're retrying, clear the cache for this title
+    if (skipCache && this.posterCache.has(cacheKey)) {
+      this.posterCache.delete(cacheKey);
+    }
+    
+    try {
+      // Use Radarr to find the movie info
+      let movieInfo = await radarrService.findMovieByTitle(title);
+      
+      // If first attempt fails, try with a simplified title (remove everything after ":")
+      if (!movieInfo && title.includes(':')) {
+        const simplifiedTitle = title.split(':')[0].trim();
+        movieInfo = await radarrService.findMovieByTitle(simplifiedTitle);
+      }
+      
+      // If still no results, try without special characters
+      if (!movieInfo) {
+        const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
+        if (alphanumericTitle !== title) {
+          movieInfo = await radarrService.findMovieByTitle(alphanumericTitle);
+        }
+      }
+      
+      if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
+        return null;
+      }
+      
+      // Find the poster image
+      const poster = movieInfo.images.find(img => img.coverType === 'poster');
+      
+      if (!poster) {
+        return null;
+      }
+      
+      // Store in cache for future requests
+      const posterUrl = poster.remoteUrl;
+      this.posterCache.set(cacheKey, posterUrl);
+      
+      return posterUrl;
+    } catch (error) {
+      console.error(`Error fetching movie poster for "${title}":`, error);
       return null;
     }
   }

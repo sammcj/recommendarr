@@ -207,8 +207,8 @@ export default {
       this.loadingPosters.set(clean, true);
       
       try {
-        // Try to get the poster with cache disabled
-        const posterUrl = await imageService.getPosterForShow(clean, true);
+        // Try to get the movie poster with cache disabled
+        const posterUrl = await imageService.getPosterForMovie(clean, true);
         
         if (posterUrl) {
           // Update poster in state
@@ -332,7 +332,7 @@ export default {
           // Extract clean title (removing any punctuation at the end)
           const cleanTitle = rec.title.replace(/[:.!?]+$/, '').trim();
           
-          const posterUrl = await imageService.getPosterForShow(cleanTitle);
+          const posterUrl = await imageService.getPosterForMovie(cleanTitle);
           
           if (posterUrl) {
             // Update posters state using Map methods

@@ -42,7 +42,7 @@ Then visit `http://localhost:3030` in your browser.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/recommendarr.git
+git clone https://github.com/fingerthief/recommendarr.git
 cd recommendarr
 ```
 

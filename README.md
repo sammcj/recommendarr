@@ -1,6 +1,6 @@
 # Recommendarr
 
-![recommendations](https://github.com/user-attachments/assets/8e0e7abe-ef79-4408-9257-437bf309b32f)
+![image](https://github.com/user-attachments/assets/50197f67-7810-48be-b23b-7899500055c4)
 
 Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
 

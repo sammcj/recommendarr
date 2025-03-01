@@ -21,12 +21,13 @@
             <div class="settings-header" v-if="loading || recommendations.length > 0" @click="toggleSettings">
               <h3>Configuration <span class="toggle-icon">{{ settingsExpanded ? '▼' : '▶' }}</span></h3>
               <button 
-                v-if="!settingsExpanded && recommendations.length > 0"
+                v-if="!settingsExpanded"
                 @click.stop="getRecommendations" 
                 :disabled="loading"
                 class="action-button small-action-button"
               >
-                {{ loading ? 'Getting...' : 'Get Recommendations' }}
+                <span class="desktop-text">{{ loading ? 'Getting...' : 'Get Recommendations' }}</span>
+                <span class="mobile-text">{{ loading ? '...' : 'Get Recs' }}</span>
               </button>
             </div>
             <div class="settings-content" :class="{ 'collapsed': !settingsExpanded && (loading || recommendations.length > 0) }" v-if="true">
@@ -320,8 +321,12 @@ export default {
   },
   computed: {
     gridStyle() {
+      // Use a different column count for mobile screens
+      const isMobile = window.innerWidth <= 600;
+      const effectiveColumnCount = isMobile ? 1 : this.columnsCount;
+      
       return {
-        gridTemplateColumns: `repeat(${this.columnsCount}, 1fr)`
+        gridTemplateColumns: `repeat(${effectiveColumnCount}, 1fr)`
       };
     }
   },
@@ -904,6 +909,14 @@ export default {
         // Clear requesting state
         this.requestingMovie = null;
       }
+    },
+    
+    /**
+     * Handle window resize events to update the grid layout
+     */
+    handleResize() {
+      // Force a re-computation of the gridStyle computed property
+      this.$forceUpdate();
     }
   },
   mounted() {
@@ -917,6 +930,9 @@ export default {
     this.customModel = currentModel;
     this.selectedModel = 'custom';
     this.isCustomModel = true;
+    
+    // Add window resize listener to update grid style when screen size changes
+    window.addEventListener('resize', this.handleResize);
     
     // Initialize temperature from localStorage or OpenAIService
     const savedTemp = localStorage.getItem('aiTemperature');
@@ -1026,6 +1042,8 @@ export default {
   beforeUnmount() {
     this.savePreviousRecommendations();
     this.saveLikedDislikedLists();
+    // Remove event listener
+    window.removeEventListener('resize', this.handleResize);
   }
 };
 </script>
@@ -1169,6 +1187,56 @@ h2 {
   padding: 6px 12px;
   border-radius: 4px;
   min-width: 160px;
+}
+
+@media (max-width: 600px) {
+  .small-action-button {
+    font-size: 12px;
+    padding: 4px 8px;
+    min-width: 0 !important;
+    max-width: 140px !important; 
+    width: 140px !important;
+    line-height: 1.3;
+    overflow: hidden;
+  }
+  
+  .loading {
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  .loading p {
+    font-size: 14px;
+    margin: 0;
+    flex: 1;
+  }
+  
+  .desktop-text {
+    display: none;
+  }
+  
+  .mobile-text {
+    display: inline;
+  }
+  
+  .settings-header {
+    padding: 8px;
+    gap: 5px;
+  }
+  
+  .settings-header h3 {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 601px) {
+  .desktop-text {
+    display: inline;
+  }
+  
+  .mobile-text {
+    display: none;
+  }
 }
 
 .settings-header h3 {
@@ -1632,6 +1700,15 @@ h2 {
   border-left-color: #4CAF50;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+  }
 }
 
 @keyframes spin {
@@ -2068,5 +2145,16 @@ h2 {
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-right: 8px;
+}
+
+.mini-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  box-sizing: border-box;
 }
 </style>

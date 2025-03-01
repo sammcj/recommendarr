@@ -67,9 +67,11 @@ class OpenAIService {
    * @param {number} [count=5] - Number of recommendations to generate
    * @param {string} [genre=''] - Optional genre preference
    * @param {Array} [previousRecommendations=[]] - List of shows to exclude from recommendations
+   * @param {Array} [likedRecommendations=[]] - List of shows the user has liked
+   * @param {Array} [dislikedRecommendations=[]] - List of shows the user has disliked
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5, genre = '', previousRecommendations = []) {
+  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = []) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -77,6 +79,11 @@ class OpenAIService {
     try {
       // Only extract show titles to minimize token usage
       const showTitles = series.map(show => show.title).join(', ');
+      
+      // Add liked shows to the current library for the AI to consider
+      const allShowTitles = likedRecommendations.length > 0 
+        ? `${showTitles}, ${likedRecommendations.join(', ')}`
+        : showTitles;
       
       // Ensure count is within reasonable bounds
       const recommendationCount = Math.min(Math.max(count, 1), 50);
@@ -90,9 +97,15 @@ class OpenAIService {
         userPrompt += ` Focus specifically on recommending shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
-      // Add exclusion list for previous recommendations
-      if (previousRecommendations && previousRecommendations.length > 0) {
-        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these shows that I've already seen or been recommended before: ${previousRecommendations.join(', ')}`;
+      // Add exclusion list for previous recommendations and disliked shows
+      const exclusions = [...previousRecommendations, ...dislikedRecommendations];
+      if (exclusions.length > 0) {
+        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these shows that I've already seen, been recommended before, or disliked: ${exclusions.join(', ')}`;
+      }
+      
+      // Add disliked shows as explicit negative examples
+      if (dislikedRecommendations.length > 0) {
+        userPrompt += `\n\nI specifically dislike these shows, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
@@ -106,7 +119,7 @@ Available on: [streaming service]
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per show.
 
-My current shows: ${showTitles}`;
+My current shows: ${allShowTitles}`;
 
       const messages = [
         {
@@ -132,9 +145,11 @@ My current shows: ${showTitles}`;
    * @param {number} [count=5] - Number of recommendations to generate
    * @param {string} [genre=''] - Optional genre preference
    * @param {Array} [previousRecommendations=[]] - List of movies to exclude from recommendations
+   * @param {Array} [likedRecommendations=[]] - List of movies the user has liked
+   * @param {Array} [dislikedRecommendations=[]] - List of movies the user has disliked
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = []) {
+  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = []) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -142,6 +157,11 @@ My current shows: ${showTitles}`;
     try {
       // Only extract movie titles to minimize token usage
       const movieTitles = movies.map(movie => movie.title).join(', ');
+      
+      // Add liked movies to the current library for the AI to consider
+      const allMovieTitles = likedRecommendations.length > 0 
+        ? `${movieTitles}, ${likedRecommendations.join(', ')}`
+        : movieTitles;
       
       // Ensure count is within reasonable bounds
       const recommendationCount = Math.min(Math.max(count, 1), 50);
@@ -155,9 +175,15 @@ My current shows: ${showTitles}`;
         userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
-      // Add exclusion list for previous recommendations
-      if (previousRecommendations && previousRecommendations.length > 0) {
-        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these movies that I've already seen or been recommended before: ${previousRecommendations.join(', ')}`;
+      // Add exclusion list for previous recommendations and disliked movies
+      const exclusions = [...previousRecommendations, ...dislikedRecommendations];
+      if (exclusions.length > 0) {
+        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these movies that I've already seen, been recommended before, or disliked: ${exclusions.join(', ')}`;
+      }
+      
+      // Add disliked movies as explicit negative examples
+      if (dislikedRecommendations.length > 0) {
+        userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
@@ -171,7 +197,7 @@ Available on: [streaming service]
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per movie.
 
-My current movies: ${movieTitles}`;
+My current movies: ${allMovieTitles}`;
 
       const messages = [
         {

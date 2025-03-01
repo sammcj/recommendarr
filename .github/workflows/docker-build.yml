@@ -36,5 +36,5 @@ jobs:
           platforms: linux/arm64,linux/amd64
           push: true
           tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME}}/mapproxy-docker:${{ github.sha }}
-            ${{ secrets.DOCKER_HUB_USERNAME}}/mapproxy-docker:latest
+            ${{ secrets.DOCKER_HUB_USERNAME}}/recommendarr:${{ github.sha }}
+            ${{ secrets.DOCKER_HUB_USERNAME}}/recommendarr:latest

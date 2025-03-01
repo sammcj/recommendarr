@@ -112,12 +112,18 @@ class OpenAIService {
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
+Recommendarr Rating: [score]% - [brief qualitative assessment]
 Available on: [streaming service]
+
+For the Recommendarr Rating, silently calculate a score from 0-100% by privately considering available ratings from sources like IMDB, Rotten Tomatoes, TVDB, Metacritic, and other audience ratings. Then provide:
+- Just a single percentage number (e.g., "85%")
+- A brief qualitative assessment of the show/movie that explains its strengths/weaknesses
+DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Show Title]:
 ...and so on.
 
-Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per show.
+Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per show.
 
 My current shows: ${allShowTitles}`;
 
@@ -190,12 +196,18 @@ My current shows: ${allShowTitles}`;
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
+Recommendarr Rating: [score]% - [brief qualitative assessment]
 Available on: [streaming service]
+
+For the Recommendarr Rating, silently calculate a score from 0-100% by privately considering available ratings from sources like IMDB, Rotten Tomatoes, TVDB, Metacritic, and other audience ratings. Then provide:
+- Just a single percentage number (e.g., "85%")
+- A brief qualitative assessment of the movie that explains its strengths/weaknesses
+DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Movie Title]:
 ...and so on.
 
-Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per movie.
+Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per movie.
 
 My current movies: ${allMovieTitles}`;
 
@@ -321,7 +333,8 @@ My current movies: ${allMovieTitles}`;
         
         // Extract common fields using helper method
         const description = this.extractFieldFromText(details, 'Description', 'Why you might like it');
-        const reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Available on');
+        const reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Recommendarr Rating');
+        const rating = this.extractFieldFromText(details, 'Recommendarr Rating', 'Available on');
         const streaming = this.extractFieldFromText(details, 'Available on', null);
         
         // Skip entries where we couldn't extract meaningful content
@@ -333,6 +346,7 @@ My current movies: ${allMovieTitles}`;
           title,
           description: description || '',
           reasoning: reasoning || '',
+          rating: rating || 'N/A',
           streaming: streaming || 'Unknown',
           fullText: section.trim()
         });
@@ -343,6 +357,7 @@ My current movies: ${allMovieTitles}`;
         title: 'Recommendations',
         description: '',
         reasoning: '',
+        rating: 'N/A',
         streaming: '',
         fullText: content.trim()
       });

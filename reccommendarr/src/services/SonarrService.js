@@ -109,6 +109,116 @@ class SonarrService {
       return false;
     }
   }
+
+  /**
+   * Get quality profiles from Sonarr
+   * @returns {Promise<Array>} - List of quality profiles
+   */
+  async getQualityProfiles() {
+    if (!this.isConfigured()) {
+      throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
+    }
+
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/v3/qualityprofile`, {
+        params: { apiKey: this.apiKey }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching quality profiles from Sonarr:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get root folders from Sonarr
+   * @returns {Promise<Array>} - List of root folders
+   */
+  async getRootFolders() {
+    if (!this.isConfigured()) {
+      throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
+    }
+
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/v3/rootfolder`, {
+        params: { apiKey: this.apiKey }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching root folders from Sonarr:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a series to Sonarr
+   * @param {string} title - The series title to search for
+   * @returns {Promise<Object>} - The added series object
+   */
+  async addSeries(title) {
+    if (!this.isConfigured()) {
+      throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
+    }
+    
+    try {
+      // 1. Look up the series to get details
+      const cleanTitle = title.trim();
+      const encodedTitle = encodeURIComponent(cleanTitle);
+      const lookupUrl = `${this.baseUrl}/api/v3/series/lookup?apiKey=${this.apiKey}&term=${encodedTitle}`;
+      const lookupResponse = await axios.get(lookupUrl);
+      
+      if (!lookupResponse.data || lookupResponse.data.length === 0) {
+        throw new Error(`Series "${title}" not found in Sonarr lookup.`);
+      }
+      
+      const seriesData = lookupResponse.data[0];
+      
+      // 2. Get the first quality profile and root folder
+      const [qualityProfiles, rootFolders] = await Promise.all([
+        this.getQualityProfiles(),
+        this.getRootFolders()
+      ]);
+      
+      if (!qualityProfiles.length) {
+        throw new Error('No quality profiles found in Sonarr.');
+      }
+      
+      if (!rootFolders.length) {
+        throw new Error('No root folders found in Sonarr.');
+      }
+      
+      const qualityProfileId = qualityProfiles[0].id;
+      const rootFolderPath = rootFolders[0].path;
+      
+      // 3. Prepare payload for adding the series
+      const payload = {
+        title: seriesData.title,
+        tvdbId: seriesData.tvdbId,
+        qualityProfileId: qualityProfileId,
+        rootFolderPath: rootFolderPath,
+        monitored: true,
+        seasonFolder: true,
+        seriesType: 'standard',
+        seasons: seriesData.seasons.map(season => ({
+          seasonNumber: season.seasonNumber,
+          monitored: true
+        })),
+        addOptions: {
+          searchForMissingEpisodes: true
+        }
+      };
+      
+      // 4. Add the series
+      const response = await axios.post(`${this.baseUrl}/api/v3/series`, payload, {
+        params: { apiKey: this.apiKey }
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error adding series "${title}" to Sonarr:`, error);
+      throw error;
+    }
+  }
 }
 
 // Create a singleton instance

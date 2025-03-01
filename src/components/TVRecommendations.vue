@@ -171,7 +171,7 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>Analyzing your TV show library and generating recommendations...</p>
+        <p>{{ plexConfigured ? 'Analyzing your TV show library and Plex watch history...' : 'Analyzing your TV show library and generating recommendations...' }}</p>
       </div>
       
       <div v-else-if="error" class="error">
@@ -373,6 +373,14 @@ export default {
     sonarrConfigured: {
       type: Boolean,
       required: true
+    },
+    recentlyWatchedShows: {
+      type: Array,
+      default: () => []
+    },
+    plexConfigured: {
+      type: Boolean,
+      default: false
     }
   },
   computed: {
@@ -848,13 +856,15 @@ export default {
           : '';
         
         // Pass the previous recommendations to be excluded and liked/disliked lists
+        // Include recently watched shows from Plex if available
         this.recommendations = await openAIService.getRecommendations(
           this.series, 
           this.numRecommendations,
           genreString,
           this.previousRecommendations,
           this.likedRecommendations,
-          this.dislikedRecommendations
+          this.dislikedRecommendations,
+          this.recentlyWatchedShows
         );
         
         // Update loading message to include genres if selected

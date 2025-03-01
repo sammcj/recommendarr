@@ -171,7 +171,7 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>Analyzing your movie library and generating recommendations...</p>
+        <p>{{ plexConfigured ? 'Analyzing your movie library and Plex watch history...' : 'Analyzing your movie library and generating recommendations...' }}</p>
       </div>
       
       <div v-else-if="error" class="error">
@@ -317,6 +317,14 @@ export default {
     radarrConfigured: {
       type: Boolean,
       required: true
+    },
+    recentlyWatchedMovies: {
+      type: Array,
+      default: () => []
+    },
+    plexConfigured: {
+      type: Boolean,
+      default: false
     }
   },
   computed: {
@@ -789,13 +797,15 @@ export default {
           : '';
           
         // Pass the previous recommendations to be excluded and liked/disliked lists
+        // Include recently watched movies from Plex if available
         this.recommendations = await openAIService.getMovieRecommendations(
           this.movies, 
           this.numRecommendations,
           genreString,
           this.previousRecommendations,
           this.likedRecommendations,
-          this.dislikedRecommendations
+          this.dislikedRecommendations,
+          this.recentlyWatchedMovies
         );
         
         // Update loading message to include genres if selected

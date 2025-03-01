@@ -437,12 +437,20 @@ export default {
       try {
         // Use normalized URL for models endpoint
         const modelsEndpoint = `${this.aiSettings.apiUrl}/models`;
+        
+        // Set up headers based on the API endpoint
+        const headers = {};
+        
+        // Add authentication header based on the API endpoint
+        if (this.aiSettings.apiUrl === 'https://api.anthropic.com/v1') {
+          headers['x-api-key'] = this.aiSettings.apiKey;
+          headers['anthropic-dangerous-direct-browser-access'] = 'true';
+          headers['anthropic-version'] = '2023-06-01';
+        } else {
+          headers['Authorization'] = `Bearer ${this.aiSettings.apiKey}`;
+        }
           
-        const response = await axios.get(modelsEndpoint, {
-          headers: {
-            'Authorization': `Bearer ${this.aiSettings.apiKey}`
-          }
-        });
+        const response = await axios.get(modelsEndpoint, { headers });
         
         if (response.data && response.data.data) {
           // Minimal filtering to include more models

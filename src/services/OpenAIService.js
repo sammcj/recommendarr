@@ -86,7 +86,8 @@ class OpenAIService {
       
       // Add genre preference if specified
       if (genre) {
-        userPrompt += ` Focus specifically on recommending shows in the ${genre} genre.`;
+        const genreList = genre.includes(',') ? genre : `the ${genre}`;
+        userPrompt += ` Focus specifically on recommending shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
       // Add exclusion list for previous recommendations
@@ -150,7 +151,8 @@ My current shows: ${showTitles}`;
       
       // Add genre preference if specified
       if (genre) {
-        userPrompt += ` Focus specifically on recommending movies in the ${genre} genre.`;
+        const genreList = genre.includes(',') ? genre : `the ${genre}`;
+        userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
       // Add exclusion list for previous recommendations

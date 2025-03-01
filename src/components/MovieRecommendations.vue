@@ -23,7 +23,36 @@
                 <div class="info-section">
                   <h3 class="info-section-title">Current Configuration</h3>
                   <div class="model-info">
-                    <span class="current-model">Model: <strong>{{ currentModel }}</strong></span>
+                    <div class="model-header">
+                      <span class="current-model">Model:</span>
+                      <button 
+                        @click="fetchModels" 
+                        class="fetch-models-button"
+                        :disabled="fetchingModels"
+                        title="Refresh models from API"
+                      >
+                        <span v-if="fetchingModels" class="loading-icon">⟳</span>
+                        <span v-else>⟳</span>
+                      </button>
+                    </div>
+                    <div class="model-select-container">
+                      <select v-model="selectedModel" @change="updateModel" class="model-select">
+                        <option value="" disabled>{{ modelOptions.length === 0 ? 'No models available' : 'Select a model' }}</option>
+                        <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
+                        <option value="custom">Custom/Other...</option>
+                      </select>
+                      <div v-if="fetchError" class="fetch-error">{{ fetchError }}</div>
+                      <div class="model-select-custom" v-if="isCustomModel">
+                        <input 
+                          type="text" 
+                          v-model="customModel" 
+                          placeholder="Enter model name" 
+                          class="custom-model-input"
+                          @blur="updateCustomModel"
+                          @keyup.enter="updateCustomModel"
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div class="history-info">
                     <span>{{ previousRecommendations.length }} movies in history</span>
@@ -201,6 +230,7 @@
 import openAIService from '../services/OpenAIService';
 import imageService from '../services/ImageService';
 import radarrService from '../services/RadarrService';
+import axios from 'axios';
 
 export default {
   name: 'MovieRecommendations',
@@ -254,7 +284,12 @@ export default {
       requestStatus: {}, // Track request status for each movie,
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
       maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
-      currentModel: 'Loading...' // Current model being used
+      selectedModel: '', // Current selected model
+      customModel: '', // For custom model input
+      isCustomModel: false, // Whether the custom model input is visible
+      modelOptions: [], // Available models from API
+      fetchingModels: false, // Loading state for fetching models
+      fetchError: null // Error when fetching models
     };
   },
   methods: {
@@ -406,6 +441,76 @@ export default {
       if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended movies?`)) {
         this.previousRecommendations = [];
         this.savePreviousRecommendations();
+      }
+    },
+    
+    // Update the model selection
+    updateModel() {
+      if (this.selectedModel === 'custom') {
+        this.isCustomModel = true;
+        // If we already have a custom model set, use that as the initial value
+        if (openAIService.model && !this.availableModels.includes(openAIService.model)) {
+          this.customModel = openAIService.model;
+        }
+      } else {
+        this.isCustomModel = false;
+        // Save the selected model
+        localStorage.setItem('openaiModel', this.selectedModel);
+        openAIService.model = this.selectedModel;
+      }
+    },
+    
+    // Update the custom model name
+    updateCustomModel() {
+      if (this.customModel.trim()) {
+        localStorage.setItem('openaiModel', this.customModel);
+        openAIService.model = this.customModel;
+      }
+    },
+    
+    // Fetch available models from the API
+    async fetchModels() {
+      if (!openAIService.isConfigured()) {
+        this.fetchError = 'API service is not configured. Please set up your API key first.';
+        return;
+      }
+      
+      this.fetchingModels = true;
+      this.fetchError = null;
+      
+      try {
+        // Use the baseUrl from OpenAIService to build the models endpoint
+        const modelsEndpoint = `${openAIService.baseUrl}/models`;
+        
+        // Set up headers based on the API endpoint
+        const headers = {};
+        
+        // Add authentication header based on the API endpoint
+        if (openAIService.baseUrl === 'https://api.anthropic.com/v1') {
+          headers['x-api-key'] = openAIService.apiKey;
+          headers['anthropic-dangerous-direct-browser-access'] = 'true';
+          headers['anthropic-version'] = '2023-06-01';
+        } else {
+          headers['Authorization'] = `Bearer ${openAIService.apiKey}`;
+        }
+        
+        const response = await axios.get(modelsEndpoint, { headers });
+        
+        if (response.data && response.data.data) {
+          // Get the list of models
+          this.modelOptions = response.data.data;
+          
+          // Sort models alphabetically
+          this.modelOptions.sort((a, b) => a.id.localeCompare(b.id));
+        } else {
+          this.fetchError = 'Invalid response format from API';
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error);
+        this.fetchError = error.response?.data?.error?.message || 
+                         'Failed to fetch models. Check your API key and URL.';
+      } finally {
+        this.fetchingModels = false;
       }
     },
     
@@ -562,11 +667,26 @@ export default {
     // Check if OpenAI is already configured
     this.openaiConfigured = openAIService.isConfigured();
     
-    // Get current model from OpenAIService
-    if (this.openaiConfigured) {
-      this.currentModel = openAIService.model || 'Unknown';
-    } else {
-      this.currentModel = 'Not configured';
+    // Initialize model selection
+    const currentModel = openAIService.model || 'gpt-3.5-turbo';
+    
+    // Set to custom by default, we'll update once models are fetched
+    this.customModel = currentModel;
+    this.selectedModel = 'custom';
+    this.isCustomModel = true;
+    
+    // Fetch models if API is configured
+    if (openAIService.isConfigured()) {
+      this.fetchModels().then(() => {
+        // Check if the current model is in the fetched models
+        const modelExists = this.modelOptions.some(model => model.id === currentModel);
+        
+        if (modelExists) {
+          // If current model exists in options, select it
+          this.selectedModel = currentModel;
+          this.isCustomModel = false;
+        }
+      });
     }
     
     // Restore saved recommendation count from localStorage (if exists)
@@ -758,11 +878,86 @@ h2 {
 .current-model {
   color: var(--text-color);
   transition: color var(--transition-speed);
+  font-weight: 500;
 }
 
-.current-model strong {
-  color: var(--header-color);
-  transition: color var(--transition-speed);
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.fetch-models-button {
+  background: none;
+  border: none;
+  color: var(--button-primary-bg);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.fetch-models-button:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.fetch-models-button:disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+.loading-icon {
+  display: inline-block;
+  animation: spin 1s infinite linear;
+}
+
+.fetch-error {
+  color: #f44336;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.model-select-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-select {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.model-select:focus {
+  border-color: var(--button-primary-bg);
+  outline: none;
+}
+
+.model-select-custom {
+  margin-top: 5px;
+}
+
+.custom-model-input {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+  width: 100%;
+}
+
+.custom-model-input:focus {
+  border-color: var(--button-primary-bg);
+  outline: none;
 }
 
 .count-selector, .genre-selector {

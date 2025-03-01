@@ -6,9 +6,24 @@
     </header>
     
     <main>
-      <SonarrConnection v-if="!sonarrConnected" @connected="handleSonarrConnected" />
+      <div v-if="!sonarrConnected && !radarrConnected">
+        <p class="choose-service">Choose a service to connect to:</p>
+        <div class="service-buttons">
+          <button class="service-button" @click="showSonarrConnect = true">
+            Connect to Sonarr
+            <small>For TV recommendations</small>
+          </button>
+          <button class="service-button" @click="showRadarrConnect = true">
+            Connect to Radarr
+            <small>For movie recommendations</small>
+          </button>
+        </div>
+      </div>
       
-      <div v-if="sonarrConnected">
+      <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" />
+      <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" />
+      
+      <div v-if="sonarrConnected || radarrConnected">
         <AppNavigation 
           :activeTab="activeTab" 
           @navigate="handleNavigate"
@@ -16,16 +31,25 @@
         />
         
         <div class="content">
-          <ShowRecommendations 
-            v-if="activeTab === 'recommendations'" 
+          <TVRecommendations 
+            v-if="activeTab === 'tv-recommendations'" 
             :series="series"
             :sonarrConfigured="sonarrConnected"
+            @navigate="handleNavigate" 
+          />
+          
+          <MovieRecommendations 
+            v-if="activeTab === 'movie-recommendations'" 
+            :movies="movies"
+            :radarrConfigured="radarrConnected"
             @navigate="handleNavigate" 
           />
           
           <AISettings
             v-if="activeTab === 'settings'"
             @settings-updated="handleSettingsUpdated"
+            @sonarr-settings-updated="handleSonarrSettingsUpdated"
+            @radarr-settings-updated="handleRadarrSettingsUpdated"
           />
         </div>
       </div>
@@ -35,31 +59,44 @@
 
 <script>
 import SonarrConnection from './components/SonarrConnection.vue'
-// SeriesList removed - focusing on recommendations only
+import RadarrConnection from './components/RadarrConnection.vue'
 import AppNavigation from './components/Navigation.vue'
-import ShowRecommendations from './components/Recommendations.vue'
+import TVRecommendations from './components/TVRecommendations.vue'
+import MovieRecommendations from './components/MovieRecommendations.vue'
 import AISettings from './components/AISettings.vue'
 import sonarrService from './services/SonarrService'
+import radarrService from './services/RadarrService'
 
 export default {
   name: 'App',
   components: {
     SonarrConnection,
+    RadarrConnection,
     AppNavigation,
-    ShowRecommendations,
+    TVRecommendations,
+    MovieRecommendations,
     AISettings
   },
   data() {
     return {
       sonarrConnected: false,
-      activeTab: 'recommendations',
-      series: []
+      radarrConnected: false,
+      showSonarrConnect: false,
+      showRadarrConnect: false,
+      activeTab: 'tv-recommendations',
+      series: [],
+      movies: []
     }
   },
   created() {
     // Check if Sonarr is already configured on startup
     if (sonarrService.isConfigured()) {
       this.checkSonarrConnection();
+    }
+    
+    // Check if Radarr is already configured on startup
+    if (radarrService.isConfigured()) {
+      this.checkRadarrConnection();
     }
   },
   methods: {
@@ -69,21 +106,53 @@ export default {
         if (success) {
           this.sonarrConnected = true;
           this.fetchSeriesData();
+          if (this.activeTab === 'movie-recommendations' && !this.radarrConnected) {
+            this.activeTab = 'tv-recommendations';
+          }
         }
       } catch (error) {
         console.error('Failed to connect with stored Sonarr credentials:', error);
       }
     },
+    
+    async checkRadarrConnection() {
+      try {
+        const success = await radarrService.testConnection();
+        if (success) {
+          this.radarrConnected = true;
+          this.fetchMoviesData();
+          if (this.activeTab === 'tv-recommendations' && !this.sonarrConnected) {
+            this.activeTab = 'movie-recommendations';
+          }
+        }
+      } catch (error) {
+        console.error('Failed to connect with stored Radarr credentials:', error);
+      }
+    },
     handleSonarrConnected() {
       this.sonarrConnected = true;
+      this.showSonarrConnect = false;
       this.fetchSeriesData();
+      this.activeTab = 'tv-recommendations';
+    },
+    
+    handleRadarrConnected() {
+      this.radarrConnected = true;
+      this.showRadarrConnect = false;
+      this.fetchMoviesData();
+      this.activeTab = 'movie-recommendations';
     },
     handleNavigate(tab) {
       this.activeTab = tab;
       
-      // If we're switching to recommendations, ensure we have series data
-      if (tab === 'recommendations' && this.series.length === 0) {
+      // If we're switching to TV recommendations, ensure we have series data
+      if (tab === 'tv-recommendations' && this.series.length === 0 && this.sonarrConnected) {
         this.fetchSeriesData();
+      }
+      
+      // If we're switching to movie recommendations, ensure we have movies data
+      if (tab === 'movie-recommendations' && this.movies.length === 0 && this.radarrConnected) {
+        this.fetchMoviesData();
       }
     },
     async fetchSeriesData() {
@@ -93,24 +162,51 @@ export default {
         console.error('Failed to fetch series data for recommendations:', error);
       }
     },
+    
+    async fetchMoviesData() {
+      try {
+        this.movies = await radarrService.getMovies();
+      } catch (error) {
+        console.error('Failed to fetch movies data for recommendations:', error);
+      }
+    },
     handleSettingsUpdated() {
-      // When settings are updated, show a brief notification or just stay on the settings page
+      // When AI settings are updated, show a brief notification or just stay on the settings page
       console.log('AI settings updated successfully');
+    },
+    
+    handleSonarrSettingsUpdated() {
+      // Check the Sonarr connection with the new settings
+      this.checkSonarrConnection();
+      console.log('Sonarr settings updated, testing connection');
+    },
+    
+    handleRadarrSettingsUpdated() {
+      // Check the Radarr connection with the new settings
+      this.checkRadarrConnection();
+      console.log('Radarr settings updated, testing connection');
     },
     handleLogout() {
       // Clear all stored credentials
       localStorage.removeItem('sonarrBaseUrl');
       localStorage.removeItem('sonarrApiKey');
+      localStorage.removeItem('radarrBaseUrl');
+      localStorage.removeItem('radarrApiKey');
       localStorage.removeItem('openaiApiKey');
       localStorage.removeItem('openaiModel');
       
       // Reset service configurations
       sonarrService.configure('', '');
+      radarrService.configure('', '');
       
       // Reset UI state
       this.sonarrConnected = false;
+      this.radarrConnected = false;
       this.series = [];
-      this.activeTab = 'recommendations';
+      this.movies = [];
+      this.showSonarrConnect = false;
+      this.showRadarrConnect = false;
+      this.activeTab = 'tv-recommendations';
     }
   }
 }
@@ -220,5 +316,49 @@ main {
 
 .content {
   min-height: 400px;
+}
+
+.choose-service {
+  text-align: center;
+  margin: 30px 0 20px;
+  font-size: 18px;
+  color: var(--text-color);
+}
+
+.service-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.service-button {
+  background-color: var(--card-bg-color);
+  border: 2px solid var(--button-primary-bg);
+  border-radius: 8px;
+  padding: 20px 30px;
+  color: var(--text-color);
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 200px;
+}
+
+.service-button:hover {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.service-button small {
+  font-weight: normal;
+  opacity: 0.8;
+  margin-top: 5px;
+  font-size: 12px;
 }
 </style>

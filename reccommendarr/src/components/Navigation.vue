@@ -3,10 +3,18 @@
     <ul class="nav-links">
       <li>
         <button 
-          @click="$emit('navigate', 'recommendations')" 
-          :class="{ active: activeTab === 'recommendations' }"
+          @click="$emit('navigate', 'tv-recommendations')" 
+          :class="{ active: activeTab === 'tv-recommendations' }"
         >
-          Recommendations
+          TV Recommendations
+        </button>
+      </li>
+      <li>
+        <button 
+          @click="$emit('navigate', 'movie-recommendations')" 
+          :class="{ active: activeTab === 'movie-recommendations' }"
+        >
+          Movie Recommendations
         </button>
       </li>
       <li>

@@ -1,151 +1,282 @@
 <template>
   <div class="ai-settings">
-    <h2>AI Service Settings</h2>
+    <h2>Settings</h2>
     
-    <div class="settings-intro">
-      <p>Enter your AI service details below to enable TV show recommendations. Your API key will be stored locally in your browser and never sent to our servers.</p>
-      <p>You can use <strong>any AI service</strong> with an OpenAI-compatible API format, including OpenAI, local models, or other providers.</p>
+    <!-- Settings Tabs -->
+    <div class="settings-tabs">
+      <button 
+        @click="activeTab = 'ai'" 
+        :class="{ active: activeTab === 'ai' }" 
+        class="tab-button"
+      >
+        AI Service
+      </button>
+      <button 
+        @click="activeTab = 'sonarr'" 
+        :class="{ active: activeTab === 'sonarr' }" 
+        class="tab-button"
+      >
+        Sonarr
+      </button>
+      <button 
+        @click="activeTab = 'radarr'" 
+        :class="{ active: activeTab === 'radarr' }" 
+        class="tab-button"
+      >
+        Radarr
+      </button>
     </div>
     
-    <div class="settings-form">
-      <div class="form-group">
-        <label for="apiUrl">API URL:</label>
-        <input 
-          id="apiUrl" 
-          v-model="apiUrl" 
-          type="text" 
-          placeholder="https://api.openai.com/v1 or http://localhost:1234/v1"
-          required
-        />
-        <div class="field-hint">The base URL of the AI service (OpenAI, local server, etc.)</div>
+    <!-- AI Service Settings Tab -->
+    <div v-if="activeTab === 'ai'" class="settings-section">
+      <div class="settings-intro">
+        <p>Enter your AI service details below to enable media recommendations. Your API key will be stored locally in your browser and never sent to our servers.</p>
+        <p>You can use <strong>any AI service</strong> with an OpenAI-compatible API format, including OpenAI, local models, or other providers.</p>
       </div>
       
-      <div class="form-group">
-        <label for="apiKey">API Key:</label>
-        <div class="api-key-input">
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="apiUrl">API URL:</label>
           <input 
-            id="apiKey" 
-            v-model="apiKey" 
-            :type="showApiKey ? 'text' : 'password'" 
-            placeholder="Your API key"
+            id="apiUrl" 
+            v-model="aiSettings.apiUrl" 
+            type="text" 
+            placeholder="https://api.openai.com/v1 or http://localhost:1234/v1"
             required
           />
-          <button type="button" class="toggle-button" @click="showApiKey = !showApiKey">
-            {{ showApiKey ? 'Hide' : 'Show' }}
-          </button>
-        </div>
-        <div class="field-hint">The API key for authentication (not needed for some local servers)</div>
-      </div>
-      
-      <div class="form-group">
-        <label>Available Models:</label>
-        <div class="model-actions">
-          <button 
-            type="button" 
-            @click="fetchModels" 
-            :disabled="!apiKey || isLoading"
-            class="action-button"
-          >
-            <span class="button-icon" v-if="isLoading">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-              </svg>
-            </span>
-            {{ isLoading ? 'Loading Models...' : 'Fetch Available Models' }}
-          </button>
+          <div class="field-hint">The base URL of the AI service (OpenAI, local server, etc.)</div>
         </div>
         
-        <div v-if="fetchError" class="error-message">
-          {{ fetchError }}
-        </div>
-        
-        <div v-if="models.length > 0" class="models-container">
-          <div class="search-box">
+        <div class="form-group">
+          <label for="apiKey">API Key:</label>
+          <div class="api-key-input">
             <input 
-              type="text" 
-              v-model="modelSearch" 
-              placeholder="Search models..." 
-              class="model-search"
+              id="apiKey" 
+              v-model="aiSettings.apiKey" 
+              :type="showApiKey ? 'text' : 'password'" 
+              placeholder="Your API key"
+              required
             />
-            <span class="model-count">{{ filteredModels.length }} models</span>
+            <button type="button" class="toggle-button" @click="showApiKey = !showApiKey">
+              {{ showApiKey ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">The API key for authentication (not needed for some local servers)</div>
+        </div>
+        
+        <div class="form-group">
+          <label>Available Models:</label>
+          <div class="model-actions">
+            <button 
+              type="button" 
+              @click="fetchModels" 
+              :disabled="!aiSettings.apiKey || isLoading"
+              class="action-button"
+            >
+              <span class="button-icon" v-if="isLoading">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                </svg>
+              </span>
+              {{ isLoading ? 'Loading Models...' : 'Fetch Available Models' }}
+            </button>
           </div>
           
-          <div class="models-list">
-            <div v-for="model in filteredModels" :key="model.id" class="model-option">
+          <div v-if="fetchError" class="error-message">
+            {{ fetchError }}
+          </div>
+          
+          <div v-if="models.length > 0" class="models-container">
+            <div class="search-box">
               <input 
-                type="radio" 
-                :id="model.id" 
-                :value="model.id" 
-                v-model="selectedModel" 
-                name="model" 
+                type="text" 
+                v-model="modelSearch" 
+                placeholder="Search models..." 
+                class="model-search"
               />
-              <label :for="model.id" :title="model.id">{{ model.id }}</label>
+              <span class="model-count">{{ filteredModels.length }} models</span>
             </div>
             
-            <div v-if="filteredModels.length === 0" class="no-results">
-              <p>No models match your search</p>
+            <div class="models-list">
+              <div v-for="model in filteredModels" :key="model.id" class="model-option">
+                <input 
+                  type="radio" 
+                  :id="model.id" 
+                  :value="model.id" 
+                  v-model="aiSettings.selectedModel" 
+                  name="model" 
+                />
+                <label :for="model.id" :title="model.id">{{ model.id }}</label>
+              </div>
+              
+              <div v-if="filteredModels.length === 0" class="no-results">
+                <p>No models match your search</p>
+              </div>
             </div>
+          </div>
+          
+          <div v-else-if="!fetchError && !isLoading" class="no-models">
+            <p>Click "Fetch Available Models" to load models from the API</p>
           </div>
         </div>
         
-        <div v-else-if="!fetchError && !isLoading" class="no-models">
-          <p>Click "Fetch Available Models" to load models from the API</p>
+        <div class="form-group">
+          <label for="max-tokens">Max Tokens:</label>
+          <div class="slider-container">
+            <input 
+              id="max-tokens" 
+              v-model.number="aiSettings.maxTokens" 
+              type="range" 
+              min="100" 
+              max="4000" 
+              step="100" 
+            />
+            <span class="slider-value">{{ aiSettings.maxTokens }}</span>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="temperature">Temperature:</label>
+          <div class="slider-container">
+            <input 
+              id="temperature" 
+              v-model.number="aiSettings.temperature" 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="0.1" 
+            />
+            <span class="slider-value">{{ aiSettings.temperature }}</span>
+          </div>
+        </div>
+        
+        <div class="actions">
+          <button type="button" @click="saveAISettings" class="save-button">
+            Save AI Settings
+          </button>
+        </div>
+        
+        <div class="settings-help">
+          <h3>Compatible AI Services</h3>
+          <p>You can use any of these services with an OpenAI-compatible API:</p>
+          <ul>
+            <li><strong>OpenAI:</strong> Default URL (https://api.openai.com/v1) with your <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API key</a></li> 
+            <li><strong>LM Studio:</strong> Local URL (e.g., http://localhost:1234/v1) running models on your computer</li>
+            <li><strong>Ollama:</strong> Local URL (e.g., http://localhost:11434/v1) for locally hosted models</li>
+            <li><strong>Anthropic Claude:</strong> Anthropic's API with proper base URL</li>
+            <li><strong>Self-hosted:</strong> Your own LLM API server with OpenAI compatibility</li>
+            <li><strong>Mistral, Groq, Cohere:</strong> Most AI providers with OpenAI-compatible endpoints</li>
+          </ul>
+          <p class="api-note">Note: The API format must be compatible with OpenAI's chat completions endpoint.</p>
         </div>
       </div>
+    </div>
+
+    <!-- Sonarr Settings Tab -->
+    <div v-if="activeTab === 'sonarr'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to your Sonarr server to enable TV show recommendations. Your server details will be stored locally in your browser.</p>
+      </div>
       
-      <div class="form-group">
-        <label for="max-tokens">Max Tokens:</label>
-        <div class="slider-container">
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="sonarrUrl">Sonarr URL:</label>
           <input 
-            id="max-tokens" 
-            v-model.number="maxTokens" 
-            type="range" 
-            min="100" 
-            max="4000" 
-            step="100" 
+            id="sonarrUrl" 
+            v-model="sonarrSettings.baseUrl" 
+            type="text" 
+            placeholder="http://localhost:8989"
+            required
           />
-          <span class="slider-value">{{ maxTokens }}</span>
+          <div class="field-hint">The URL of your Sonarr server (e.g., http://localhost:8989 or https://sonarr.yourdomain.com)</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="sonarrApiKey">API Key:</label>
+          <div class="api-key-input">
+            <input 
+              id="sonarrApiKey" 
+              v-model="sonarrSettings.apiKey" 
+              :type="showSonarrApiKey ? 'text' : 'password'" 
+              placeholder="Your Sonarr API key"
+              required
+            />
+            <button type="button" class="toggle-button" @click="showSonarrApiKey = !showSonarrApiKey">
+              {{ showSonarrApiKey ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">Found in Settings > General in your Sonarr interface</div>
+        </div>
+        
+        <div class="actions">
+          <button type="button" @click="testSonarrConnection" class="test-button" :disabled="testingSonarr">
+            {{ testingSonarr ? 'Testing...' : 'Test Connection' }}
+          </button>
+          <button type="button" @click="saveSonarrSettings" class="save-button" :disabled="testingSonarr">
+            Save Sonarr Settings
+          </button>
+        </div>
+        
+        <div v-if="sonarrConnectionMessage" class="connection-message" :class="{ 'success': sonarrConnectionStatus, 'error': !sonarrConnectionStatus }">
+          {{ sonarrConnectionMessage }}
         </div>
       </div>
+    </div>
+
+    <!-- Radarr Settings Tab -->
+    <div v-if="activeTab === 'radarr'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to your Radarr server to enable movie recommendations. Your server details will be stored locally in your browser.</p>
+      </div>
       
-      <div class="form-group">
-        <label for="temperature">Temperature:</label>
-        <div class="slider-container">
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="radarrUrl">Radarr URL:</label>
           <input 
-            id="temperature" 
-            v-model.number="temperature" 
-            type="range" 
-            min="0" 
-            max="1" 
-            step="0.1" 
+            id="radarrUrl" 
+            v-model="radarrSettings.baseUrl" 
+            type="text" 
+            placeholder="http://localhost:7878"
+            required
           />
-          <span class="slider-value">{{ temperature }}</span>
+          <div class="field-hint">The URL of your Radarr server (e.g., http://localhost:7878 or https://radarr.yourdomain.com)</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="radarrApiKey">API Key:</label>
+          <div class="api-key-input">
+            <input 
+              id="radarrApiKey" 
+              v-model="radarrSettings.apiKey" 
+              :type="showRadarrApiKey ? 'text' : 'password'" 
+              placeholder="Your Radarr API key"
+              required
+            />
+            <button type="button" class="toggle-button" @click="showRadarrApiKey = !showRadarrApiKey">
+              {{ showRadarrApiKey ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">Found in Settings > General in your Radarr interface</div>
+        </div>
+        
+        <div class="actions">
+          <button type="button" @click="testRadarrConnection" class="test-button" :disabled="testingRadarr">
+            {{ testingRadarr ? 'Testing...' : 'Test Connection' }}
+          </button>
+          <button type="button" @click="saveRadarrSettings" class="save-button" :disabled="testingRadarr">
+            Save Radarr Settings
+          </button>
+        </div>
+        
+        <div v-if="radarrConnectionMessage" class="connection-message" :class="{ 'success': radarrConnectionStatus, 'error': !radarrConnectionStatus }">
+          {{ radarrConnectionMessage }}
         </div>
       </div>
-      
-      <div class="actions">
-        <button type="button" @click="saveSettings" class="save-button">
-          Save Settings
-        </button>
-      </div>
-      
-      <div v-if="saveMessage" class="save-message" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
-        {{ saveMessage }}
-      </div>
-      
-      <div class="settings-help">
-        <h3>Compatible AI Services</h3>
-        <p>You can use any of these services with an OpenAI-compatible API:</p>
-        <ul>
-          <li><strong>OpenAI:</strong> Default URL (https://api.openai.com/v1) with your <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API key</a></li> 
-          <li><strong>LM Studio:</strong> Local URL (e.g., http://localhost:1234/v1) running models on your computer</li>
-          <li><strong>Ollama:</strong> Local URL (e.g., http://localhost:11434/v1) for locally hosted models</li>
-          <li><strong>Anthropic Claude:</strong> Anthropic's API with proper base URL</li>
-          <li><strong>Self-hosted:</strong> Your own LLM API server with OpenAI compatibility</li>
-          <li><strong>Mistral, Groq, Cohere:</strong> Most AI providers with OpenAI-compatible endpoints</li>
-        </ul>
-        <p class="api-note">Note: The API format must be compatible with OpenAI's chat completions endpoint.</p>
-      </div>
+    </div>
+    
+    <!-- Common Save Message -->
+    <div v-if="saveMessage" class="save-message" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
+      {{ saveMessage }}
     </div>
   </div>
 </template>
@@ -153,23 +284,52 @@
 <script>
 import axios from 'axios';
 import openAIService from '../services/OpenAIService';
+import sonarrService from '../services/SonarrService';
+import radarrService from '../services/RadarrService';
 
 export default {
   name: 'AIServiceSettings',
   data() {
     return {
-      apiUrl: '',
-      apiKey: '',
-      selectedModel: '',
+      activeTab: 'ai',
+      
+      // AI Settings
+      aiSettings: {
+        apiUrl: '',
+        apiKey: '',
+        selectedModel: '',
+        maxTokens: 800,
+        temperature: 0.5
+      },
       models: [],
       modelSearch: '',
       showApiKey: false,
       isLoading: false,
       fetchError: null,
+      
+      // Sonarr Settings
+      sonarrSettings: {
+        baseUrl: '',
+        apiKey: ''
+      },
+      showSonarrApiKey: false,
+      testingSonarr: false,
+      sonarrConnectionMessage: '',
+      sonarrConnectionStatus: false,
+      
+      // Radarr Settings
+      radarrSettings: {
+        baseUrl: '',
+        apiKey: ''
+      },
+      showRadarrApiKey: false,
+      testingRadarr: false,
+      radarrConnectionMessage: '',
+      radarrConnectionStatus: false,
+      
+      // Common
       saveMessage: '',
-      saveSuccess: false,
-      maxTokens: 800,
-      temperature: 0.5
+      saveSuccess: false
     };
   },
   computed: {
@@ -186,18 +346,29 @@ export default {
   },
   created() {
     // Load saved settings
-    this.loadSettings();
+    this.loadAllSettings();
   },
   methods: {
-    loadSettings() {
-      this.apiUrl = localStorage.getItem('aiApiUrl') || 'https://api.openai.com/v1';
-      this.apiKey = localStorage.getItem('openaiApiKey') || '';
-      this.selectedModel = localStorage.getItem('openaiModel') || 'gpt-3.5-turbo';
-      this.maxTokens = parseInt(localStorage.getItem('aiMaxTokens') || '800');
-      this.temperature = parseFloat(localStorage.getItem('aiTemperature') || '0.5');
+    loadAllSettings() {
+      // Load AI Settings
+      this.aiSettings.apiUrl = localStorage.getItem('aiApiUrl') || 'https://api.openai.com/v1';
+      this.aiSettings.apiKey = localStorage.getItem('openaiApiKey') || '';
+      this.aiSettings.selectedModel = localStorage.getItem('openaiModel') || 'gpt-3.5-turbo';
+      this.aiSettings.maxTokens = parseInt(localStorage.getItem('aiMaxTokens') || '800');
+      this.aiSettings.temperature = parseFloat(localStorage.getItem('aiTemperature') || '0.5');
+      
+      // Load Sonarr Settings
+      this.sonarrSettings.baseUrl = localStorage.getItem('sonarrBaseUrl') || '';
+      this.sonarrSettings.apiKey = localStorage.getItem('sonarrApiKey') || '';
+      
+      // Load Radarr Settings
+      this.radarrSettings.baseUrl = localStorage.getItem('radarrBaseUrl') || '';
+      this.radarrSettings.apiKey = localStorage.getItem('radarrApiKey') || '';
     },
+    
+    // AI Service Methods
     async fetchModels() {
-      if (!this.apiKey) {
+      if (!this.aiSettings.apiKey) {
         this.fetchError = 'API key is required to fetch models';
         return;
       }
@@ -208,13 +379,13 @@ export default {
       
       try {
         // Determine the correct endpoint for models based on API URL
-        const modelsEndpoint = this.apiUrl.endsWith('/') 
-          ? `${this.apiUrl}models` 
-          : `${this.apiUrl}/models`;
+        const modelsEndpoint = this.aiSettings.apiUrl.endsWith('/') 
+          ? `${this.aiSettings.apiUrl}models` 
+          : `${this.aiSettings.apiUrl}/models`;
           
         const response = await axios.get(modelsEndpoint, {
           headers: {
-            'Authorization': `Bearer ${this.apiKey}`
+            'Authorization': `Bearer ${this.aiSettings.apiKey}`
           }
         });
         
@@ -231,8 +402,8 @@ export default {
           this.models.sort((a, b) => a.id.localeCompare(b.id));
           
           // If no model is selected, select the first one
-          if (!this.selectedModel && this.models.length > 0) {
-            this.selectedModel = this.models[0].id;
+          if (!this.aiSettings.selectedModel && this.models.length > 0) {
+            this.aiSettings.selectedModel = this.models[0].id;
           }
         } else {
           this.fetchError = 'Invalid response format from API';
@@ -245,39 +416,195 @@ export default {
         this.isLoading = false;
       }
     },
-    saveSettings() {
+    
+    saveAISettings() {
       try {
         // Save to localStorage
-        localStorage.setItem('aiApiUrl', this.apiUrl);
-        localStorage.setItem('openaiApiKey', this.apiKey);
-        localStorage.setItem('openaiModel', this.selectedModel);
-        localStorage.setItem('aiMaxTokens', this.maxTokens.toString());
-        localStorage.setItem('aiTemperature', this.temperature.toString());
+        localStorage.setItem('aiApiUrl', this.aiSettings.apiUrl);
+        localStorage.setItem('openaiApiKey', this.aiSettings.apiKey);
+        localStorage.setItem('openaiModel', this.aiSettings.selectedModel);
+        localStorage.setItem('aiMaxTokens', this.aiSettings.maxTokens.toString());
+        localStorage.setItem('aiTemperature', this.aiSettings.temperature.toString());
         
         // Update the service
         openAIService.configure(
-          this.apiKey, 
-          this.selectedModel,
-          this.apiUrl,
-          this.maxTokens,
-          this.temperature
+          this.aiSettings.apiKey, 
+          this.aiSettings.selectedModel,
+          this.aiSettings.apiUrl,
+          this.aiSettings.maxTokens,
+          this.aiSettings.temperature
         );
         
         this.saveSuccess = true;
-        this.saveMessage = 'Settings saved successfully!';
+        this.saveMessage = 'AI settings saved successfully!';
         
         // Emit event to notify parent component
         this.$emit('settings-updated');
         
         // Clear message after a delay
-        setTimeout(() => {
-          this.saveMessage = '';
-        }, 3000);
+        this.clearSaveMessage();
       } catch (error) {
-        console.error('Error saving settings:', error);
+        console.error('Error saving AI settings:', error);
         this.saveSuccess = false;
-        this.saveMessage = 'Failed to save settings';
+        this.saveMessage = 'Failed to save AI settings';
+        this.clearSaveMessage();
       }
+    },
+    
+    // Sonarr Service Methods
+    async testSonarrConnection() {
+      if (!this.sonarrSettings.baseUrl || !this.sonarrSettings.apiKey) {
+        this.sonarrConnectionStatus = false;
+        this.sonarrConnectionMessage = 'URL and API key are required';
+        return;
+      }
+      
+      this.testingSonarr = true;
+      this.sonarrConnectionMessage = '';
+      
+      try {
+        // Configure the service with provided details
+        sonarrService.configure(this.sonarrSettings.baseUrl, this.sonarrSettings.apiKey);
+        
+        // Test the connection
+        const success = await sonarrService.testConnection();
+        
+        // Update status based on response
+        this.sonarrConnectionStatus = success;
+        this.sonarrConnectionMessage = success 
+          ? 'Connected successfully!'
+          : 'Connection failed. Please check your URL and API key.';
+          
+        // If successful, save the settings
+        if (success) {
+          // Save to localStorage
+          localStorage.setItem('sonarrBaseUrl', this.sonarrSettings.baseUrl);
+          localStorage.setItem('sonarrApiKey', this.sonarrSettings.apiKey);
+          
+          // Emit event to notify parent component that Sonarr settings were updated
+          this.$emit('sonarr-settings-updated');
+        }
+          
+      } catch (error) {
+        console.error('Error connecting to Sonarr:', error);
+        this.sonarrConnectionStatus = false;
+        this.sonarrConnectionMessage = 'Connection error. Please check your URL and API key.';
+      } finally {
+        this.testingSonarr = false;
+      }
+    },
+    
+    saveSonarrSettings() {
+      try {
+        if (!this.sonarrSettings.baseUrl || !this.sonarrSettings.apiKey) {
+          this.saveSuccess = false;
+          this.saveMessage = 'Sonarr URL and API key are required';
+          this.clearSaveMessage();
+          return;
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('sonarrBaseUrl', this.sonarrSettings.baseUrl);
+        localStorage.setItem('sonarrApiKey', this.sonarrSettings.apiKey);
+        
+        // Configure the service
+        sonarrService.configure(this.sonarrSettings.baseUrl, this.sonarrSettings.apiKey);
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Sonarr settings saved successfully!';
+        
+        // Emit event to notify parent component that Sonarr settings were updated
+        this.$emit('sonarr-settings-updated');
+        
+        this.clearSaveMessage();
+      } catch (error) {
+        console.error('Error saving Sonarr settings:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Sonarr settings';
+        this.clearSaveMessage();
+      }
+    },
+    
+    // Radarr Service Methods
+    async testRadarrConnection() {
+      if (!this.radarrSettings.baseUrl || !this.radarrSettings.apiKey) {
+        this.radarrConnectionStatus = false;
+        this.radarrConnectionMessage = 'URL and API key are required';
+        return;
+      }
+      
+      this.testingRadarr = true;
+      this.radarrConnectionMessage = '';
+      
+      try {
+        // Configure the service with provided details
+        radarrService.configure(this.radarrSettings.baseUrl, this.radarrSettings.apiKey);
+        
+        // Test the connection
+        const success = await radarrService.testConnection();
+        
+        // Update status based on response
+        this.radarrConnectionStatus = success;
+        this.radarrConnectionMessage = success 
+          ? 'Connected successfully!'
+          : 'Connection failed. Please check your URL and API key.';
+        
+        // If successful, save the settings
+        if (success) {
+          // Save to localStorage
+          localStorage.setItem('radarrBaseUrl', this.radarrSettings.baseUrl);
+          localStorage.setItem('radarrApiKey', this.radarrSettings.apiKey);
+          
+          // Emit event to notify parent component that Radarr settings were updated
+          this.$emit('radarr-settings-updated');
+        }
+          
+      } catch (error) {
+        console.error('Error connecting to Radarr:', error);
+        this.radarrConnectionStatus = false;
+        this.radarrConnectionMessage = 'Connection error. Please check your URL and API key.';
+      } finally {
+        this.testingRadarr = false;
+      }
+    },
+    
+    saveRadarrSettings() {
+      try {
+        if (!this.radarrSettings.baseUrl || !this.radarrSettings.apiKey) {
+          this.saveSuccess = false;
+          this.saveMessage = 'Radarr URL and API key are required';
+          this.clearSaveMessage();
+          return;
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('radarrBaseUrl', this.radarrSettings.baseUrl);
+        localStorage.setItem('radarrApiKey', this.radarrSettings.apiKey);
+        
+        // Configure the service
+        radarrService.configure(this.radarrSettings.baseUrl, this.radarrSettings.apiKey);
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Radarr settings saved successfully!';
+        
+        // Emit event to notify parent component that Radarr settings were updated
+        this.$emit('radarr-settings-updated');
+        
+        this.clearSaveMessage();
+      } catch (error) {
+        console.error('Error saving Radarr settings:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Radarr settings';
+        this.clearSaveMessage();
+      }
+    },
+    
+    // Helper Methods
+    clearSaveMessage() {
+      // Clear message after a delay
+      setTimeout(() => {
+        this.saveMessage = '';
+      }, 3000);
     }
   }
 };
@@ -286,8 +613,59 @@ export default {
 <style scoped>
 .ai-settings {
   padding: 20px;
-  max-width: 600px;
+  max-width: 650px;
   margin: 0 auto;
+}
+
+h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: var(--header-color);
+  text-align: center;
+  transition: color var(--transition-speed);
+}
+
+/* Tabs Styling */
+.settings-tabs {
+  display: flex;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+  transition: border-color var(--transition-speed);
+}
+
+.tab-button {
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-color);
+  transition: all 0.3s ease;
+  flex: 1;
+  text-align: center;
+}
+
+.tab-button:hover {
+  background-color: var(--nav-hover-bg);
+  transition: background-color var(--transition-speed);
+}
+
+.tab-button.active {
+  color: var(--button-primary-bg);
+  border-bottom: 3px solid var(--button-primary-bg);
+  transition: color var(--transition-speed), border-color var(--transition-speed);
+}
+
+/* Common Settings Section Styling */
+.settings-section {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .settings-intro {
@@ -315,14 +693,6 @@ export default {
 
 .settings-intro a:hover {
   text-decoration: underline;
-}
-
-h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  color: var(--header-color);
-  text-align: center;
-  transition: color var(--transition-speed);
 }
 
 .settings-form {
@@ -378,11 +748,12 @@ input[type="password"] {
   cursor: pointer;
 }
 
+/* Button Styles */
 .model-actions {
   margin-bottom: 10px;
 }
 
-.action-button {
+.action-button, .test-button {
   background-color: #007bff;
   color: white;
   border: none;
@@ -397,12 +768,36 @@ input[type="password"] {
   transition: background-color 0.2s;
 }
 
-.action-button:hover:not(:disabled) {
+.action-button:hover:not(:disabled),
+.test-button:hover:not(:disabled) {
   background-color: #0069d9;
 }
 
-.action-button:disabled {
+.action-button:disabled,
+.test-button:disabled {
   background-color: #b0b0b0;
+  cursor: not-allowed;
+}
+
+.save-button {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-left: 10px;
+  flex: 1;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+.save-button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.save-button:disabled {
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
@@ -415,6 +810,13 @@ input[type="password"] {
   to { transform: rotate(360deg); }
 }
 
+/* Action Buttons Container */
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Models List Styling */
 .models-container {
   display: flex;
   flex-direction: column;
@@ -518,6 +920,7 @@ input[type="password"] {
   flex: 1;
 }
 
+/* Slider Styling */
 .slider-container {
   display: flex;
   align-items: center;
@@ -533,6 +936,7 @@ input[type="password"] {
   text-align: center;
 }
 
+/* Message Styling */
 .no-models, .error-message, .no-results {
   padding: 15px;
   border-radius: 4px;
@@ -557,24 +961,15 @@ input[type="password"] {
   color: #721c24;
 }
 
-.save-button {
-  background-color: var(--button-primary-bg);
-  color: var(--button-primary-text);
-  border: none;
-  border-radius: 4px;
-  padding: 10px 20px;
-  cursor: pointer;
-  font-size: 16px;
-  width: 100%;
-  transition: background-color var(--transition-speed), color var(--transition-speed);
-}
-
-.save-button:hover {
-  filter: brightness(1.1);
-}
-
 .save-message {
-  margin-top: 10px;
+  margin-top: 20px;
+  padding: 10px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.connection-message {
+  margin-top: 15px;
   padding: 10px;
   border-radius: 4px;
   text-align: center;
@@ -592,6 +987,7 @@ input[type="password"] {
   transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
+/* Help Section */
 .settings-help {
   margin-top: 30px;
   padding: 15px;

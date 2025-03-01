@@ -100,7 +100,70 @@ Do not add extra text, headings, or any formatting. Only use each section title 
 My current shows: ${showTitles}`
         }
       ];
+      
+      return this.getFormattedRecommendations(messages);
+    } catch (error) {
+      console.error('Error getting TV show recommendations:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get movie recommendations based on current library
+   * @param {Array} movies - List of movies from Radarr
+   * @param {number} [count=5] - Number of recommendations to generate
+   * @returns {Promise<Array>} - List of recommended movies
+   */
+  async getMovieRecommendations(movies, count = 5) {
+    if (!this.isConfigured()) {
+      throw new Error('OpenAI service is not configured. Please set apiKey.');
+    }
 
+    try {
+      // Only extract movie titles to minimize token usage
+      const movieTitles = movies.map(movie => movie.title).join(', ');
+      
+      // Ensure count is within reasonable bounds
+      const recommendationCount = Math.min(Math.max(count, 1), 50);
+
+      const messages = [
+        {
+          role: "system",
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
+        },
+        {
+          role: "user",
+          content: `Based on my movie library, recommend ${recommendationCount} new movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.
+
+Format each recommendation EXACTLY as follows (using the exact section titles):
+1. [Movie Title]: 
+Description: [brief description] 
+Why you might like it: [short reason based on my current movies] 
+Available on: [streaming service]
+
+2. [Next Movie Title]:
+...and so on.
+
+Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per movie.
+
+My current movies: ${movieTitles}`
+        }
+      ];
+      
+      return this.getFormattedRecommendations(messages);
+    } catch (error) {
+      console.error('Error getting movie recommendations:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Generic method to get recommendations from AI with formatted messages
+   * @param {Array} messages - Chat messages to send to the AI
+   * @returns {Promise<Array>} - List of formatted recommendations
+   */
+  async getFormattedRecommendations(messages) {
+    try {
       const response = await axios.post(
         this.apiUrl,
         {
@@ -123,7 +186,7 @@ My current shows: ${showTitles}`
       const recommendations = this.parseRecommendations(response.data.choices[0].message.content);
       return recommendations;
     } catch (error) {
-      console.error('Error getting recommendations from OpenAI:', error);
+      console.error('Error getting recommendations from AI:', error);
       throw error;
     }
   }
@@ -146,7 +209,8 @@ My current shows: ${showTitles}`
         // Skip intro text like "Here are five recommendations..."
         if (section.toLowerCase().includes("here are") && 
             (section.toLowerCase().includes("recommendation") || 
-             section.toLowerCase().includes("tv show"))) {
+             section.toLowerCase().includes("tv show") ||
+             section.toLowerCase().includes("movie"))) {
           continue;
         }
         

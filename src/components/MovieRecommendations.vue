@@ -18,66 +18,77 @@
       <div class="actions">
         <div class="recommendations-settings">
           <div class="settings-container">
-            <div class="model-info">
-              <span class="current-model">Current model: <strong>{{ currentModel }}</strong></span>
-            </div>
-            <div class="count-selector">
-              <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
-              <div class="slider-container">
-                <input 
-                  type="range" 
-                  id="recommendationsSlider"
-                  v-model.number="numRecommendations"
-                  min="1" 
-                  max="50"
-                  class="count-slider"
-                  @change="saveRecommendationCount"
-                >
-              </div>
-            </div>
-            
-            <div class="genre-selector">
-              <label>Genre preferences:</label>
-              <div class="genre-checkboxes">
-                <div class="genre-checkbox-item" v-for="genre in availableGenres" :key="genre.value">
-                  <label class="checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      :value="genre.value" 
-                      v-model="selectedGenres"
-                      @change="saveGenrePreference"
+            <div class="settings-layout">
+              <div class="settings-left">
+                <div class="info-section">
+                  <h3 class="info-section-title">Current Configuration</h3>
+                  <div class="model-info">
+                    <span class="current-model">Model: <strong>{{ currentModel }}</strong></span>
+                  </div>
+                  <div class="history-info">
+                    <span>{{ previousRecommendations.length }} movies in history</span>
+                    <button 
+                      v-if="previousRecommendations.length > 0" 
+                      @click="clearRecommendationHistory" 
+                      class="clear-history-button"
+                      title="Clear recommendation history"
                     >
-                    {{ genre.label }}
-                  </label>
+                      Clear History
+                    </button>
+                  </div>
                 </div>
-                <div v-if="selectedGenres.length > 0" class="selected-genres-summary">
-                  <div class="selected-genres-count">{{ selectedGenres.length }} genre{{ selectedGenres.length > 1 ? 's' : '' }} selected</div>
-                  <button @click="clearGenres" class="clear-genres-button">Clear All</button>
+                
+                <div class="count-selector">
+                  <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
+                  <div class="slider-container">
+                    <input 
+                      type="range" 
+                      id="recommendationsSlider"
+                      v-model.number="numRecommendations"
+                      min="1" 
+                      max="50"
+                      class="count-slider"
+                      @change="saveRecommendationCount"
+                    >
+                  </div>
                 </div>
               </div>
               
-              <div class="history-info">
-                <small>{{ previousRecommendations.length }} movies in history</small>
-                <button 
-                  v-if="previousRecommendations.length > 0" 
-                  @click="clearRecommendationHistory" 
-                  class="clear-history-button"
-                  title="Clear recommendation history"
-                >
-                  Clear History
-                </button>
+              <div class="settings-right">
+                <div class="genre-selector">
+                  <label>Genre preferences:</label>
+                  <div class="genre-checkboxes">
+                    <div class="genre-checkbox-item" v-for="genre in availableGenres" :key="genre.value">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          :value="genre.value" 
+                          v-model="selectedGenres"
+                          @change="saveGenrePreference"
+                        >
+                        {{ genre.label }}
+                      </label>
+                    </div>
+                    <div v-if="selectedGenres.length > 0" class="selected-genres-summary">
+                      <div class="selected-genres-count">{{ selectedGenres.length }} genre{{ selectedGenres.length > 1 ? 's' : '' }} selected</div>
+                      <button @click="clearGenres" class="clear-genres-button">Clear All</button>
+                    </div>
+                  </div>
+                </div>
               </div>
+            </div>
+            
+            <div class="action-button-container">
+              <button 
+                @click="getRecommendations" 
+                :disabled="loading"
+                class="action-button"
+              >
+                {{ loading ? 'Getting Recommendations...' : 'Get Recommendations' }}
+              </button>
             </div>
           </div>
         </div>
-        
-        <button 
-          @click="getRecommendations" 
-          :disabled="loading"
-          class="action-button"
-        >
-          {{ loading ? 'Getting Recommendations...' : 'Get Recommendations' }}
-        </button>
       </div>
       
       <div v-if="loading" class="loading">
@@ -646,7 +657,7 @@ h2 {
   align-items: center;
   margin-bottom: 15px;
   width: 100%;
-  max-width: 500px;
+  max-width: 1000px;
 }
 
 .settings-container {
@@ -659,13 +670,50 @@ h2 {
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
 }
 
-.model-info {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 8px 12px;
-  border-radius: 6px;
+.settings-layout {
+  display: flex;
+  gap: 20px;
   margin-bottom: 15px;
+}
+
+.settings-left, .settings-right {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .settings-layout {
+    flex-direction: column;
+  }
+}
+
+.action-button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.info-section {
+  background-color: rgba(0, 0, 0, 0.03);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.info-section-title {
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  color: var(--header-color);
+  font-weight: 600;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.model-info {
+  padding: 6px 0;
   font-size: 14px;
-  border-left: 3px solid var(--button-primary-bg);
+  margin-bottom: 8px;
 }
 
 .current-model {
@@ -694,14 +742,14 @@ h2 {
 
 .genre-checkboxes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-  max-height: 200px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 5px;
+  max-height: 180px;
   overflow-y: auto;
   padding: 10px;
   border: 1px solid var(--input-border);
   border-radius: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   background-color: var(--input-bg);
 }
 
@@ -877,18 +925,26 @@ h2 {
 
 .loading {
   text-align: center;
-  padding: 30px;
+  padding: 15px;
+  margin: 15px auto;
+  max-width: 1000px;
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
 }
 
 .spinner {
   display: inline-block;
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
   border-left-color: #4CAF50;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 15px;
 }
 
 @keyframes spin {
@@ -1064,10 +1120,9 @@ h2 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 15px;
-  font-size: 13px;
+  padding: 6px 0;
+  font-size: 14px;
   color: var(--text-color);
-  opacity: 0.7;
 }
 
 .clear-history-button {

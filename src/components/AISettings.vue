@@ -410,13 +410,9 @@ export default {
         });
         
         if (response.data && response.data.data) {
-          // Filter for chat models
-          this.models = response.data.data.filter(model => 
-            model.id.includes('gpt') || 
-            model.id.includes('claude') || 
-            model.id.includes('llama') ||
-            model.id.includes('chat')
-          );
+          // Minimal filtering to include more models
+          // We assume most models returned by the API are valid for chat
+          this.models = response.data.data;
           
           // Sort models alphabetically
           this.models.sort((a, b) => a.id.localeCompare(b.id));

@@ -18,7 +18,8 @@ class OpenAIService {
    * @returns {string} - The full URL for chat completions
    */
   getCompletionsUrl() {
-    const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+    // Normalize the base URL by removing trailing slashes
+    const baseUrl = this.baseUrl ? this.baseUrl.replace(/\/+$/, '') : '';
     return `${baseUrl}/chat/completions`;
   }
 
@@ -38,7 +39,8 @@ class OpenAIService {
     }
     
     if (baseUrl) {
-      this.baseUrl = baseUrl;
+      // Normalize the base URL by removing trailing slashes
+      this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
       this.apiUrl = this.getCompletionsUrl();
     }
     

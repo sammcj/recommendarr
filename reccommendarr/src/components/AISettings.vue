@@ -373,15 +373,35 @@ export default {
         return;
       }
       
+      // Normalize the API URL
+      if (this.aiSettings.apiUrl) {
+        // Ensure URL starts with http:// or https://
+        if (!this.aiSettings.apiUrl.match(/^https?:\/\//)) {
+          this.aiSettings.apiUrl = 'http://' + this.aiSettings.apiUrl;
+        }
+        
+        // Remove trailing slashes
+        this.aiSettings.apiUrl = this.aiSettings.apiUrl.replace(/\/+$/, '');
+        
+        // Validate URL format
+        try {
+          new URL(this.aiSettings.apiUrl);
+        } catch (e) {
+          this.fetchError = 'Invalid API URL format';
+          return;
+        }
+      } else {
+        this.fetchError = 'API URL is required';
+        return;
+      }
+      
       this.isLoading = true;
       this.fetchError = null;
       this.models = [];
       
       try {
-        // Determine the correct endpoint for models based on API URL
-        const modelsEndpoint = this.aiSettings.apiUrl.endsWith('/') 
-          ? `${this.aiSettings.apiUrl}models` 
-          : `${this.aiSettings.apiUrl}/models`;
+        // Use normalized URL for models endpoint
+        const modelsEndpoint = `${this.aiSettings.apiUrl}/models`;
           
         const response = await axios.get(modelsEndpoint, {
           headers: {
@@ -419,6 +439,27 @@ export default {
     
     saveAISettings() {
       try {
+        // Validate the API URL
+        if (this.aiSettings.apiUrl) {
+          // Normalize API URL by ensuring it starts with http:// or https://
+          if (!this.aiSettings.apiUrl.match(/^https?:\/\//)) {
+            this.aiSettings.apiUrl = 'http://' + this.aiSettings.apiUrl;
+          }
+          
+          // Remove trailing slashes
+          this.aiSettings.apiUrl = this.aiSettings.apiUrl.replace(/\/+$/, '');
+          
+          // Basic URL validation
+          try {
+            new URL(this.aiSettings.apiUrl);
+          } catch (e) {
+            this.saveSuccess = false;
+            this.saveMessage = 'Invalid API URL format';
+            this.clearSaveMessage();
+            return;
+          }
+        }
+        
         // Save to localStorage
         localStorage.setItem('aiApiUrl', this.aiSettings.apiUrl);
         localStorage.setItem('openaiApiKey', this.aiSettings.apiKey);

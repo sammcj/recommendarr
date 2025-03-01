@@ -13,7 +13,8 @@ class RadarrService {
    * @param {string} apiKey - Your Radarr API key
    */
   configure(baseUrl, apiKey) {
-    this.baseUrl = baseUrl;
+    // Normalize the URL by removing trailing slashes
+    this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.apiKey = apiKey;
   }
 

@@ -71,6 +71,13 @@ export default {
       this.connecting = true;
       
       try {
+        // Validate and normalize the URL
+        if (!this.validateUrl()) {
+          // Clear invalid credentials
+          this.clearStoredCredentials();
+          return;
+        }
+        
         // Configure the service with saved details
         sonarrService.configure(this.baseUrl, this.apiKey);
         
@@ -79,6 +86,8 @@ export default {
         
         // Only emit event if successful
         if (success) {
+          // Update the URL in case it was normalized
+          this.saveCredentials();
           this.$emit('connected');
         } else {
           // Clear invalid credentials
@@ -97,6 +106,12 @@ export default {
       this.connectionStatus = null;
       
       try {
+        // Validate and normalize the URL
+        if (!this.validateUrl()) {
+          this.connectionStatus = 'error';
+          return;
+        }
+        
         // Configure the service with provided details
         sonarrService.configure(this.baseUrl, this.apiKey);
         
@@ -118,6 +133,31 @@ export default {
         this.connecting = false;
       }
     },
+    
+    validateUrl() {
+      try {
+        // Validate URL format
+        if (!this.baseUrl) {
+          return false;
+        }
+        
+        // Make sure URL starts with http:// or https://
+        if (!this.baseUrl.match(/^https?:\/\//)) {
+          this.baseUrl = 'http://' + this.baseUrl;
+        }
+        
+        // Normalize URL by removing trailing slashes
+        this.baseUrl = this.baseUrl.replace(/\/+$/, '');
+        
+        // Basic validation that it looks like a URL
+        new URL(this.baseUrl);
+        return true;
+      } catch (e) {
+        console.error('Invalid URL format:', e);
+        return false;
+      }
+    },
+    
     saveCredentials() {
       localStorage.setItem('sonarrBaseUrl', this.baseUrl);
       localStorage.setItem('sonarrApiKey', this.apiKey);

@@ -218,7 +218,18 @@
         </div>
         
         <div v-if="sonarrConnectionMessage" class="connection-message" :class="{ 'success': sonarrConnectionStatus, 'error': !sonarrConnectionStatus }">
-          {{ sonarrConnectionMessage }}
+          <div class="notification-content">
+            <span class="notification-icon">
+              <svg v-if="sonarrConnectionStatus" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </span>
+            {{ sonarrConnectionMessage }}
+          </div>
         </div>
       </div>
     </div>
@@ -269,14 +280,38 @@
         </div>
         
         <div v-if="radarrConnectionMessage" class="connection-message" :class="{ 'success': radarrConnectionStatus, 'error': !radarrConnectionStatus }">
-          {{ radarrConnectionMessage }}
+          <div class="notification-content">
+            <span class="notification-icon">
+              <svg v-if="radarrConnectionStatus" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </span>
+            {{ radarrConnectionMessage }}
+          </div>
         </div>
       </div>
     </div>
     
-    <!-- Common Save Message -->
-    <div v-if="saveMessage" class="save-message" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
-      {{ saveMessage }}
+    <!-- Fixed Position Notification Toast -->
+    <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
+      <div class="notification-content">
+        <span class="notification-icon">
+          <svg v-if="saveSuccess" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </span>
+        {{ saveMessage }}
+      </div>
     </div>
   </div>
 </template>
@@ -410,13 +445,9 @@ export default {
         });
         
         if (response.data && response.data.data) {
-          // Filter for chat models
-          this.models = response.data.data.filter(model => 
-            model.id.includes('gpt') || 
-            model.id.includes('claude') || 
-            model.id.includes('llama') ||
-            model.id.includes('chat')
-          );
+          // Minimal filtering to include more models
+          // We assume most models returned by the API are valid for chat
+          this.models = response.data.data;
           
           // Sort models alphabetically
           this.models.sort((a, b) => a.id.localeCompare(b.id));
@@ -642,10 +673,10 @@ export default {
     
     // Helper Methods
     clearSaveMessage() {
-      // Clear message after a delay
+      // Clear message after a longer delay (matching animation duration)
       setTimeout(() => {
         this.saveMessage = '';
-      }, 3000);
+      }, 3500);
     }
   }
 };
@@ -1022,30 +1053,73 @@ input[type="password"] {
   color: #721c24;
 }
 
-.save-message {
-  margin-top: 20px;
-  padding: 10px;
-  border-radius: 4px;
+.save-notification {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  border-radius: 8px;
   text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 280px;
+  max-width: 400px;
+  animation: slideUp 0.3s ease, pulse 0.5s ease 1s, fadeOut 0.5s ease 3s forwards;
+}
+
+.notification-content {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-weight: 500;
+}
+
+.notification-icon {
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+}
+
+@keyframes slideUp {
+  from { transform: translate(-50%, 20px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes pulse {
+  0% { transform: translate(-50%, 0) scale(1); }
+  50% { transform: translate(-50%, 0) scale(1.05); }
+  100% { transform: translate(-50%, 0) scale(1); }
 }
 
 .connection-message {
   margin-top: 15px;
-  padding: 10px;
-  border-radius: 4px;
+  padding: 12px;
+  border-radius: 8px;
   text-align: center;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  animation: scaleIn 0.3s ease-out;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 .success {
-  background-color: rgba(76, 175, 80, 0.2);
-  color: var(--button-primary-bg);
-  transition: background-color var(--transition-speed), color var(--transition-speed);
+  background-color: #4caf50;
+  color: white;
 }
 
 .error {
-  background-color: rgba(244, 67, 54, 0.1);
-  color: #f44336;
-  transition: background-color var(--transition-speed), color var(--transition-speed);
+  background-color: #f44336;
+  color: white;
 }
 
 /* Help Section */

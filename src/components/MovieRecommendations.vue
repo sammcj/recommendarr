@@ -54,6 +54,18 @@
                 </select>
                 <div class="select-arrow">▼</div>
               </div>
+              
+              <div class="history-info">
+                <small>{{ previousRecommendations.length }} movies in history</small>
+                <button 
+                  v-if="previousRecommendations.length > 0" 
+                  @click="clearRecommendationHistory" 
+                  class="clear-history-button"
+                  title="Clear recommendation history"
+                >
+                  Clear History
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -127,6 +139,26 @@
               <div v-if="!rec.description && !rec.reasoning" class="full-text">
                 <p>{{ rec.fullText }}</p>
               </div>
+              
+              <div class="action-buttons">
+                <button 
+                  @click="requestMovie(rec.title)" 
+                  class="request-button"
+                  :class="{'loading': requestingMovie === rec.title, 'requested': requestStatus[rec.title]?.success}"
+                  :disabled="requestingMovie || requestStatus[rec.title]?.success">
+                  <span v-if="requestingMovie === rec.title">
+                    <div class="small-spinner"></div>
+                    Adding to Radarr...
+                  </span>
+                  <span v-else-if="requestStatus[rec.title]?.success">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Added to Radarr
+                  </span>
+                  <span v-else>Add to Radarr</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -142,6 +174,7 @@
 <script>
 import openAIService from '../services/OpenAIService';
 import imageService from '../services/ImageService';
+import radarrService from '../services/RadarrService';
 
 export default {
   name: 'MovieRecommendations',
@@ -167,7 +200,11 @@ export default {
       posters: new Map(), // Using a reactive Map for poster URLs
       loadingPosters: new Map(), // Track which posters are being loaded
       numRecommendations: 5, // Default number of recommendations to request
-      selectedGenre: '' // Default to all genres
+      selectedGenre: '', // Default to all genres
+      requestingMovie: null, // Track which movie is being requested
+      requestStatus: {}, // Track request status for each movie,
+      previousRecommendations: [], // Track previous recommendations to avoid duplicates
+      maxStoredRecommendations: 500 // Maximum number of previous recommendations to store
     };
   },
   methods: {
@@ -273,6 +310,44 @@ export default {
       localStorage.setItem('movieGenrePreference', this.selectedGenre);
     },
     
+    // Save previous recommendations to localStorage
+    savePreviousRecommendations() {
+      localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousRecommendations));
+    },
+    
+    // Add current recommendations to the history
+    addToRecommendationHistory(newRecommendations) {
+      // Extract just the titles for storage
+      const titlesToAdd = newRecommendations.map(rec => rec.title);
+      
+      // Combine with existing recommendations, remove duplicates
+      const combinedRecommendations = [...this.previousRecommendations, ...titlesToAdd];
+      
+      // Keep only unique recommendations
+      const uniqueRecommendations = [...new Set(combinedRecommendations)];
+      
+      // If over the limit, remove oldest recommendations
+      if (uniqueRecommendations.length > this.maxStoredRecommendations) {
+        this.previousRecommendations = uniqueRecommendations.slice(
+          uniqueRecommendations.length - this.maxStoredRecommendations
+        );
+      } else {
+        this.previousRecommendations = uniqueRecommendations;
+      }
+      
+      // Save to localStorage
+      this.savePreviousRecommendations();
+    },
+    
+    // Clear recommendation history
+    clearRecommendationHistory() {
+      // Ask for confirmation
+      if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended movies?`)) {
+        this.previousRecommendations = [];
+        this.savePreviousRecommendations();
+      }
+    },
+    
     async getRecommendations() {
       // Verify we have a movies list and OpenAI is configured
       if (!this.radarrConfigured) {
@@ -296,10 +371,12 @@ export default {
       
       try {
         // Get recommendations from OpenAI based on Radarr library with user preferences
+        // Pass the previous recommendations to be excluded
         this.recommendations = await openAIService.getMovieRecommendations(
           this.movies, 
           this.numRecommendations,
-          this.selectedGenre
+          this.selectedGenre,
+          this.previousRecommendations
         );
         
         // Update loading message to include genre if selected
@@ -307,6 +384,9 @@ export default {
         if (loadingMessage && this.selectedGenre) {
           loadingMessage.textContent = `Analyzing your movie library and generating ${this.selectedGenre} recommendations...`;
         }
+        
+        // Add new recommendations to history
+        this.addToRecommendationHistory(this.recommendations);
         
         // Fetch posters for each recommendation
         this.fetchPosters();
@@ -350,6 +430,66 @@ export default {
       
       // Wait for all requests to complete
       await Promise.all(posterPromises);
+    },
+    
+    /**
+     * Request a movie to be added to Radarr
+     * @param {string} title - The movie title to add
+     */
+    async requestMovie(title) {
+      if (!radarrService.isConfigured()) {
+        this.error = 'Radarr service is not configured.';
+        return;
+      }
+
+      // Set requesting state for this movie
+      this.requestingMovie = title;
+      
+      try {
+        // Check if movie already exists in Radarr
+        const existingMovie = await radarrService.findMovieByTitle(title);
+        
+        if (existingMovie && existingMovie.id) {
+          // Movie already exists in library
+          this.requestStatus[title] = {
+            success: true,
+            message: 'Movie already exists in your Radarr library',
+            alreadyExists: true
+          };
+          
+          // Movie already exists - button state will show this
+          
+          return;
+        }
+        
+        // Add movie to Radarr
+        const response = await radarrService.addMovie(title);
+        
+        // Store success response
+        this.requestStatus[title] = {
+          success: true,
+          message: 'Successfully added to Radarr',
+          details: response
+        };
+        
+        // Show success toast
+        // Success will be shown by button state
+        
+      } catch (error) {
+        console.error(`Error requesting movie "${title}":`, error);
+        
+        // Store error
+        this.requestStatus[title] = {
+          success: false,
+          message: `Error: ${error.message || 'Unknown error'}`
+        };
+        
+        // Show error toast
+        console.error(`Failed to add "${title}" to Radarr: ${error.message || 'Unknown error'}`);
+      } finally {
+        // Clear requesting state
+        this.requestingMovie = null;
+      }
     }
   },
   mounted() {
@@ -373,6 +513,22 @@ export default {
     if (savedGenre) {
       this.selectedGenre = savedGenre;
     }
+    
+    // Load previous movie recommendations from localStorage
+    const savedPreviousRecommendations = localStorage.getItem('previousMovieRecommendations');
+    if (savedPreviousRecommendations) {
+      try {
+        this.previousRecommendations = JSON.parse(savedPreviousRecommendations);
+      } catch (error) {
+        console.error('Error parsing previous movie recommendations:', error);
+        this.previousRecommendations = [];
+      }
+    }
+  },
+  
+  // Save previous recommendations when component is destroyed
+  beforeUnmount() {
+    this.savePreviousRecommendations();
   }
 };
 </script>
@@ -813,11 +969,90 @@ select:hover {
   margin-bottom: 15px;
 }
 
+.history-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 15px;
+  font-size: 13px;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.clear-history-button {
+  background: none;
+  border: none;
+  color: #f44336;
+  font-size: 13px;
+  padding: 2px 6px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.clear-history-button:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 .no-recommendations {
   text-align: center;
   padding: 30px;
   color: var(--text-color);
   opacity: 0.7;
   transition: color var(--transition-speed);
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.request-button {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.request-button:hover:not(:disabled) {
+  background-color: #1976D2;
+}
+
+.request-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.request-button.loading {
+  background-color: #64B5F6;
+}
+
+.request-button.requested {
+  background-color: #4CAF50;
+  cursor: default;
+}
+
+.small-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
 }
 </style>

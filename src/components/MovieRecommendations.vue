@@ -16,140 +16,153 @@
     
     <div v-else>
       <div class="actions">
-        <div class="recommendations-settings">
+        <div class="recommendations-settings" :class="{ 'collapsed': loading || recommendations.length > 0 }">
           <div class="settings-container">
-            <div class="settings-layout">
-              <div class="settings-left">
-                <div class="info-section">
-                  <h3 class="info-section-title">Current Configuration</h3>
-                  <div class="model-info">
-                    <div class="model-header">
-                      <span class="current-model">Model:</span>
+            <div class="settings-header" v-if="loading || recommendations.length > 0" @click="toggleSettings">
+              <h3>Configuration <span class="toggle-icon">{{ settingsExpanded ? '▼' : '▶' }}</span></h3>
+              <button 
+                v-if="!settingsExpanded && recommendations.length > 0"
+                @click.stop="getRecommendations" 
+                :disabled="loading"
+                class="action-button small-action-button"
+              >
+                {{ loading ? 'Getting...' : 'Get Recommendations' }}
+              </button>
+            </div>
+            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded && (loading || recommendations.length > 0) }" v-if="true">
+              <div class="settings-layout">
+                <div class="settings-left">
+                  <div class="info-section">
+                    <h3 class="info-section-title">Current Configuration</h3>
+                    <div class="model-info">
+                      <div class="model-header">
+                        <span class="current-model">Model:</span>
+                        <button 
+                          @click="fetchModels" 
+                          class="fetch-models-button"
+                          :disabled="fetchingModels"
+                          title="Refresh models from API"
+                        >
+                          <span v-if="fetchingModels" class="loading-icon">⟳</span>
+                          <span v-else>⟳</span>
+                        </button>
+                      </div>
+                      <div class="model-select-container">
+                        <select v-model="selectedModel" @change="updateModel" class="model-select">
+                          <option value="" disabled>{{ modelOptions.length === 0 ? 'No models available' : 'Select a model' }}</option>
+                          <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
+                          <option value="custom">Custom/Other...</option>
+                        </select>
+                        <div v-if="fetchError" class="fetch-error">{{ fetchError }}</div>
+                        <div class="model-select-custom" v-if="isCustomModel">
+                          <input 
+                            type="text" 
+                            v-model="customModel" 
+                            placeholder="Enter model name" 
+                            class="custom-model-input"
+                            @blur="updateCustomModel"
+                            @keyup.enter="updateCustomModel"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div class="temperature-control">
+                        <label for="temperature-slider">Temperature: <span class="temp-value">{{ temperature.toFixed(1) }}</span></label>
+                        <div class="slider-container">
+                          <div class="temp-labels">
+                            <div class="temp-label-right">Creative</div>
+                            <input 
+                            type="range" 
+                            id="temperature-slider"
+                            v-model.number="temperature"
+                            min="0" 
+                            max="1"
+                            step="0.1"
+                            class="temp-slider"
+                            @change="updateTemperature"
+                          />
+                          <div class="temp-label-left">Precise</div>
+                        </div>
+                          </div>
+                      </div>
+                    </div>
+                    <div class="history-info">
+                      <span>{{ previousRecommendations.length }} movies in history</span>
                       <button 
-                        @click="fetchModels" 
-                        class="fetch-models-button"
-                        :disabled="fetchingModels"
-                        title="Refresh models from API"
+                        v-if="previousRecommendations.length > 0" 
+                        @click="clearRecommendationHistory" 
+                        class="clear-history-button"
+                        title="Clear recommendation history"
                       >
-                        <span v-if="fetchingModels" class="loading-icon">⟳</span>
-                        <span v-else>⟳</span>
+                        Clear History
                       </button>
                     </div>
-                    <div class="model-select-container">
-                      <select v-model="selectedModel" @change="updateModel" class="model-select">
-                        <option value="" disabled>{{ modelOptions.length === 0 ? 'No models available' : 'Select a model' }}</option>
-                        <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
-                        <option value="custom">Custom/Other...</option>
-                      </select>
-                      <div v-if="fetchError" class="fetch-error">{{ fetchError }}</div>
-                      <div class="model-select-custom" v-if="isCustomModel">
-                        <input 
-                          type="text" 
-                          v-model="customModel" 
-                          placeholder="Enter model name" 
-                          class="custom-model-input"
-                          @blur="updateCustomModel"
-                          @keyup.enter="updateCustomModel"
-                        />
-                      </div>
+                  </div>
+                  
+                  <div class="count-selector">
+                    <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
+                    <div class="slider-container">
+                      <input 
+                        type="range" 
+                        id="recommendationsSlider"
+                        v-model.number="numRecommendations"
+                        min="1" 
+                        max="50"
+                        class="count-slider"
+                        @change="saveRecommendationCount"
+                      >
                     </div>
-                    
-                    <div class="temperature-control">
-                      <label for="temperature-slider">Temperature: <span class="temp-value">{{ temperature.toFixed(1) }}</span></label>
-                      <div class="slider-container">
-                        <div class="temp-labels">
-                          <div class="temp-label-right">Creative</div>
+                  </div>
+                  
+                  <div class="count-selector">
+                    <label for="columnsSlider">Posters per row: <span class="count-display">{{ columnsCount }}</span></label>
+                    <div class="slider-container">
+                      <input 
+                        type="range" 
+                        id="columnsSlider"
+                        v-model.number="columnsCount"
+                        min="1" 
+                        max="4"
+                        class="count-slider"
+                        @change="saveColumnsCount"
+                      >
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="settings-right">
+                  <div class="genre-selector">
+                    <label>Genre preferences:</label>
+                    <div class="genre-checkboxes">
+                      <div class="genre-checkbox-item" v-for="genre in availableGenres" :key="genre.value">
+                        <label class="checkbox-label">
                           <input 
-                          type="range" 
-                          id="temperature-slider"
-                          v-model.number="temperature"
-                          min="0" 
-                          max="1"
-                          step="0.1"
-                          class="temp-slider"
-                          @change="updateTemperature"
-                        />
-                        <div class="temp-label-left">Precise</div>
+                            type="checkbox" 
+                            :value="genre.value" 
+                            v-model="selectedGenres"
+                            @change="saveGenrePreference"
+                          >
+                          {{ genre.label }}
+                        </label>
                       </div>
-                        </div>
+                      <div v-if="selectedGenres.length > 0" class="selected-genres-summary">
+                        <div class="selected-genres-count">{{ selectedGenres.length }} genre{{ selectedGenres.length > 1 ? 's' : '' }} selected</div>
+                        <button @click="clearGenres" class="clear-genres-button">Clear All</button>
+                      </div>
                     </div>
-                  </div>
-                  <div class="history-info">
-                    <span>{{ previousRecommendations.length }} movies in history</span>
-                    <button 
-                      v-if="previousRecommendations.length > 0" 
-                      @click="clearRecommendationHistory" 
-                      class="clear-history-button"
-                      title="Clear recommendation history"
-                    >
-                      Clear History
-                    </button>
-                  </div>
-                </div>
-                
-                <div class="count-selector">
-                  <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
-                  <div class="slider-container">
-                    <input 
-                      type="range" 
-                      id="recommendationsSlider"
-                      v-model.number="numRecommendations"
-                      min="1" 
-                      max="50"
-                      class="count-slider"
-                      @change="saveRecommendationCount"
-                    >
-                  </div>
-                </div>
-                
-                <div class="count-selector">
-                  <label for="columnsSlider">Posters per row: <span class="count-display">{{ columnsCount }}</span></label>
-                  <div class="slider-container">
-                    <input 
-                      type="range" 
-                      id="columnsSlider"
-                      v-model.number="columnsCount"
-                      min="1" 
-                      max="4"
-                      class="count-slider"
-                      @change="saveColumnsCount"
-                    >
                   </div>
                 </div>
               </div>
               
-              <div class="settings-right">
-                <div class="genre-selector">
-                  <label>Genre preferences:</label>
-                  <div class="genre-checkboxes">
-                    <div class="genre-checkbox-item" v-for="genre in availableGenres" :key="genre.value">
-                      <label class="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          :value="genre.value" 
-                          v-model="selectedGenres"
-                          @change="saveGenrePreference"
-                        >
-                        {{ genre.label }}
-                      </label>
-                    </div>
-                    <div v-if="selectedGenres.length > 0" class="selected-genres-summary">
-                      <div class="selected-genres-count">{{ selectedGenres.length }} genre{{ selectedGenres.length > 1 ? 's' : '' }} selected</div>
-                      <button @click="clearGenres" class="clear-genres-button">Clear All</button>
-                    </div>
-                  </div>
-                </div>
+              <div class="action-button-container">
+                <button 
+                  @click="getRecommendations" 
+                  :disabled="loading"
+                  class="action-button"
+                >
+                  {{ loading ? 'Getting Recommendations...' : 'Get Recommendations' }}
+                </button>
               </div>
-            </div>
-            
-            <div class="action-button-container">
-              <button 
-                @click="getRecommendations" 
-                :disabled="loading"
-                class="action-button"
-              >
-                {{ loading ? 'Getting Recommendations...' : 'Get Recommendations' }}
-              </button>
             </div>
           </div>
         </div>
@@ -353,7 +366,8 @@ export default {
       modelOptions: [], // Available models from API
       fetchingModels: false, // Loading state for fetching models
       fetchError: null, // Error when fetching models
-      temperature: 0.5 // AI temperature parameter
+      temperature: 0.5, // AI temperature parameter
+      settingsExpanded: false // Controls visibility of settings panel
     };
   },
   methods: {
@@ -697,6 +711,31 @@ export default {
       localStorage.setItem('dislikedMovieRecommendations', JSON.stringify(this.dislikedRecommendations));
     },
     
+    toggleSettings() {
+      this.settingsExpanded = !this.settingsExpanded;
+      
+      // Add animation classes
+      if (this.settingsExpanded) {
+        // Animate opening
+        const settingsPanel = document.querySelector('.settings-content');
+        if (settingsPanel) {
+          settingsPanel.style.transition = 'max-height 0.3s ease-in, opacity 0.3s ease-in, transform 0.3s ease-in';
+          settingsPanel.style.maxHeight = '2000px';
+          settingsPanel.style.opacity = '1';
+          settingsPanel.style.transform = 'translateY(0)';
+        }
+      } else {
+        // Animate closing
+        const settingsPanel = document.querySelector('.settings-content');
+        if (settingsPanel) {
+          settingsPanel.style.transition = 'max-height 0.3s ease-out, opacity 0.3s ease-out, transform 0.3s ease-out';
+          settingsPanel.style.maxHeight = '0';
+          settingsPanel.style.opacity = '0';
+          settingsPanel.style.transform = 'translateY(-20px)';
+        }
+      }
+    },
+
     async getRecommendations() {
       // Verify we have a movies list and OpenAI is configured
       if (!this.radarrConfigured) {
@@ -717,6 +756,25 @@ export default {
       this.loading = true;
       this.error = null;
       this.recommendationsRequested = true;
+      this.settingsExpanded = false; // Collapse settings when getting recommendations
+      
+      // Scroll to the top of the loading section
+      setTimeout(() => {
+        const loadingElement = document.querySelector('.loading');
+        if (loadingElement) {
+          loadingElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+      
+      // Add a nice closing animation to the settings panel
+      const settingsPanel = document.querySelector('.settings-content');
+      if (settingsPanel) {
+        settingsPanel.style.transition = 'max-height 0.3s ease-out, opacity 0.3s ease-out, transform 0.3s ease-out';
+        settingsPanel.style.overflow = 'hidden';
+        settingsPanel.style.maxHeight = '0';
+        settingsPanel.style.opacity = '0';
+        settingsPanel.style.transform = 'translateY(-20px)';
+      }
       
       try {
         // Get recommendations from OpenAI based on Radarr library with user preferences
@@ -872,6 +930,13 @@ export default {
       }
     } else if (openAIService.temperature) {
       this.temperature = openAIService.temperature;
+    }
+    
+    // If there are already recommendations, collapse the settings by default
+    if (this.recommendations.length > 0) {
+      this.settingsExpanded = false;
+    } else {
+      this.settingsExpanded = true;
     }
     
     // Fetch models if API is configured
@@ -1038,7 +1103,7 @@ h2 {
   align-items: center;
   margin-bottom: 15px;
   width: 100%;
-  max-width: 1000px;
+  max-width: 1600px;
 }
 
 .settings-container {
@@ -1057,8 +1122,18 @@ h2 {
   margin-bottom: 15px;
 }
 
-.settings-left, .settings-right {
-  flex: 1;
+.settings-left {
+  flex: 0 0 40%;
+}
+
+.settings-right {
+  flex: 0 0 60%;
+}
+
+@media (max-width: 1200px) {
+  .settings-left, .settings-right {
+    flex: 1;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1070,12 +1145,73 @@ h2 {
 .action-button-container {
   display: flex;
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 20px;
+}
+
+.settings-header {
+  cursor: pointer;
+  padding: 12px 15px;
+  background-color: var(--card-bg-color);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s;
+  border-radius: 8px 8px 0 0;
+}
+
+.settings-header:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.small-action-button {
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  min-width: 160px;
+}
+
+.settings-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--header-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-icon {
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.collapsed .settings-container {
+  border-radius: 8px;
+}
+
+.recommendations-settings.collapsed {
+  margin-bottom: 25px;
+}
+
+.settings-content {
+  padding: 20px;
+  transition: max-height 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
+  max-height: 2000px; /* Large enough to fit all content */
+  opacity: 1;
+  transform: translateY(0);
+  overflow: hidden;
+}
+
+.settings-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-20px);
+  padding: 0 20px;
 }
 
 .info-section {
   background-color: rgba(0, 0, 0, 0.03);
-  padding: 12px;
+  padding: 15px;
   border-radius: 8px;
   margin-bottom: 20px;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -1148,7 +1284,7 @@ h2 {
 }
 
 .model-select {
-  padding: 6px 10px;
+  padding: 10px 12px;
   border-radius: 4px;
   border: 1px solid var(--input-border);
   background-color: var(--input-bg);
@@ -1168,7 +1304,7 @@ h2 {
 }
 
 .custom-model-input {
-  padding: 6px 10px;
+  padding: 10px 12px;
   border-radius: 4px;
   border: 1px solid var(--input-border);
   background-color: var(--input-bg);
@@ -1280,6 +1416,9 @@ h2 {
   width: 100%;
   box-sizing: border-box;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
 }
 
 .count-selector {
@@ -1290,11 +1429,11 @@ h2 {
 
 .genre-checkboxes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 5px;
-  max-height: 180px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  max-height: 220px;
   overflow-y: auto;
-  padding: 10px;
+  padding: 15px;
   border: 1px solid var(--input-border);
   border-radius: 4px;
   margin-bottom: 8px;

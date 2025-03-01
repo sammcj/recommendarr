@@ -94,10 +94,6 @@
                 <p>{{ rec.reasoning }}</p>
               </div>
               
-              <div v-if="rec.streaming" class="streaming">
-                <h4>Available on:</h4>
-                <p>{{ rec.streaming }}</p>
-              </div>
               
               <div v-if="!rec.description && !rec.reasoning" class="full-text">
                 <p>{{ rec.fullText }}</p>
@@ -569,12 +565,26 @@ h2 {
   margin-top: 20px;
 }
 
+@media (max-width: 600px) {
+  .recommendation-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 400px) {
+  .recommendation-list {
+    gap: 15px;
+    padding: 0 5px;
+  }
+}
+
 .recommendation-card {
   background-color: var(--card-bg-color);
   border-radius: 8px;
   box-shadow: var(--card-shadow);
-  overflow: hidden;
+  overflow: visible;
   transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
+  min-height: 275px;
 }
 
 .recommendation-card:hover {
@@ -586,9 +596,25 @@ h2 {
   display: flex;
 }
 
+@media (max-width: 600px) {
+  .card-content {
+    flex-direction: column;
+  }
+}
+
 .poster-container {
   flex: 0 0 150px;
   position: relative;
+}
+
+@media (max-width: 600px) {
+  .poster-container {
+    flex: 0 0 auto;
+    width: 100%;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: center;
+  }
 }
 
 .poster {
@@ -600,6 +626,14 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 600px) {
+  .poster {
+    width: 180px;
+    height: 270px;
+    border-radius: 4px;
+  }
 }
 
 .title-fallback {
@@ -656,7 +690,13 @@ h2 {
 .details-container {
   flex: 1;
   padding: 20px;
-  overflow: hidden;
+  overflow: visible;
+}
+
+@media (max-width: 600px) {
+  .details-container {
+    padding: 15px 12px;
+  }
 }
 
 .recommendation-card h3 {
@@ -665,10 +705,9 @@ h2 {
   color: var(--header-color);
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 10px;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   transition: color var(--transition-speed), border-color var(--transition-speed);
+  line-height: 1.3;
 }
 
 .recommendation-card h4 {
@@ -684,6 +723,12 @@ h2 {
   color: var(--text-color);
   line-height: 1.5;
   transition: color var(--transition-speed);
+}
+
+@media (max-width: 600px) {
+  .recommendation-card p {
+    font-size: 15px;
+  }
 }
 
 .description, .reasoning, .streaming {

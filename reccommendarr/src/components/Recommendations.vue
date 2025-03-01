@@ -3,8 +3,15 @@
     <h2>TV Show Recommendations</h2>
     
     <div v-if="!openaiConfigured" class="setup-section">
-      <p class="info-message">First, connect to OpenAI to get personalized recommendations.</p>
-      <OpenAIConnection @configured="handleOpenAIConfigured" />
+      <h3 class="setup-title">AI Connection Required</h3>
+      <p class="info-message">To generate TV show recommendations, you need to configure an AI service first.</p>
+      <p class="setup-details">You can use OpenAI, local models (like Ollama or LM Studio), or any OpenAI-compatible API.</p>
+      <button 
+        @click="goToSettings" 
+        class="action-button settings-button"
+      >
+        Configure AI Service
+      </button>
     </div>
     
     <div v-else>
@@ -108,14 +115,12 @@
 </template>
 
 <script>
-import OpenAIConnection from './OpenAIConnection.vue';
 import openAIService from '../services/OpenAIService';
 import imageService from '../services/ImageService';
 
 export default {
   name: 'ShowRecommendations',
   components: {
-    OpenAIConnection
   },
   props: {
     series: {
@@ -140,8 +145,8 @@ export default {
     };
   },
   methods: {
-    handleOpenAIConfigured() {
-      this.openaiConfigured = true;
+    goToSettings() {
+      this.$emit('navigate', 'settings');
     },
     // Clean title for consistent poster lookup
     cleanTitle(title) {
@@ -333,17 +338,55 @@ export default {
 h2 {
   margin-top: 0;
   margin-bottom: 20px;
-  color: #2c3e50;
+  color: var(--header-color);
+  transition: color var(--transition-speed);
 }
 
 .setup-section {
   margin-bottom: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: var(--card-bg-color);
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  max-width: 600px;
+  margin: 0 auto 30px;
+  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.setup-title {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--header-color);
+  font-size: 20px;
+  text-align: center;
+  transition: color var(--transition-speed);
 }
 
 .info-message {
-  margin-bottom: 15px;
+  margin-bottom: 10px;
   font-size: 16px;
-  color: #555;
+  color: var(--text-color);
+  opacity: 0.9;
+  text-align: center;
+  transition: color var(--transition-speed);
+}
+
+.setup-details {
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: var(--text-color);
+  opacity: 0.7;
+  text-align: center;
+  transition: color var(--transition-speed);
+}
+
+.settings-button {
+  min-width: 200px;
+  margin-top: 10px;
+  font-size: 15px;
 }
 
 .actions {
@@ -365,22 +408,24 @@ h2 {
 .count-selector {
   display: flex;
   flex-direction: column;
-  background-color: #f5f5f5;
+  background-color: var(--card-bg-color);
   padding: 15px;
   border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--card-shadow);
   width: 100%;
   box-sizing: border-box;
+  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
 }
 
 .count-selector label {
   font-size: 14px;
-  color: #555;
+  color: var(--text-color);
   font-weight: 500;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  transition: color var(--transition-speed);
 }
 
 .slider-container {
@@ -470,8 +515,8 @@ h2 {
 }
 
 .action-button {
-  background-color: #4CAF50;
-  color: white;
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
   padding: 10px 20px;
   border: none;
   border-radius: 4px;
@@ -479,6 +524,11 @@ h2 {
   font-weight: bold;
   font-size: 16px;
   min-width: 200px;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+.action-button:hover:not(:disabled) {
+  filter: brightness(1.1);
 }
 
 .action-button:disabled {
@@ -520,16 +570,16 @@ h2 {
 }
 
 .recommendation-card {
-  background-color: white;
+  background-color: var(--card-bg-color);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--card-shadow);
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
 }
 
 .recommendation-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
 .card-content {
@@ -612,24 +662,28 @@ h2 {
 .recommendation-card h3 {
   margin-top: 0;
   margin-bottom: 15px;
-  color: #2c3e50;
-  border-bottom: 1px solid #eee;
+  color: var(--header-color);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color var(--transition-speed), border-color var(--transition-speed);
 }
 
 .recommendation-card h4 {
   margin: 15px 0 5px 0;
-  color: #555;
+  color: var(--text-color);
+  opacity: 0.8;
   font-size: 14px;
+  transition: color var(--transition-speed);
 }
 
 .recommendation-card p {
   margin: 0;
-  color: #666;
+  color: var(--text-color);
   line-height: 1.5;
+  transition: color var(--transition-speed);
 }
 
 .description, .reasoning, .streaming {
@@ -639,6 +693,8 @@ h2 {
 .no-recommendations {
   text-align: center;
   padding: 30px;
-  color: #666;
+  color: var(--text-color);
+  opacity: 0.7;
+  transition: color var(--transition-speed);
 }
 </style>

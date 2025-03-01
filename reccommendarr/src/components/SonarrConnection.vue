@@ -135,14 +135,19 @@ export default {
   max-width: 500px;
   margin: 0 auto;
   padding: 20px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background-color: #f9f9f9;
+  background-color: var(--card-bg-color);
+  box-shadow: var(--card-shadow);
+  transition: background-color var(--transition-speed), 
+              border-color var(--transition-speed),
+              box-shadow var(--transition-speed);
 }
 
 h2 {
   margin-top: 0;
-  color: #2c3e50;
+  color: var(--header-color);
+  transition: color var(--transition-speed);
 }
 
 .form-group {
@@ -153,24 +158,38 @@ label {
   display: block;
   margin-bottom: 5px;
   font-weight: bold;
+  color: var(--text-color);
+  transition: color var(--transition-speed);
 }
 
 input {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   box-sizing: border-box;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  transition: background-color var(--transition-speed), 
+              border-color var(--transition-speed),
+              color var(--transition-speed);
 }
 
 button {
-  background-color: #4CAF50;
-  color: white;
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
   padding: 10px 15px;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
+  transition: background-color var(--transition-speed), 
+              color var(--transition-speed),
+              filter 0.2s;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.1);
 }
 
 button:disabled {
@@ -185,10 +204,12 @@ button:disabled {
 }
 
 .success {
-  color: #4CAF50;
+  color: var(--button-primary-bg);
+  transition: color var(--transition-speed);
 }
 
 .error {
   color: #f44336;
+  transition: color var(--transition-speed);
 }
 </style>

@@ -2,6 +2,11 @@
   <div class="ai-settings">
     <h2>AI Service Settings</h2>
     
+    <div class="settings-intro">
+      <p>Enter your AI service details below to enable TV show recommendations. Your API key will be stored locally in your browser and never sent to our servers.</p>
+      <p>You can use <strong>any AI service</strong> with an OpenAI-compatible API format, including OpenAI, local models, or other providers.</p>
+    </div>
+    
     <div class="settings-form">
       <div class="form-group">
         <label for="apiUrl">API URL:</label>
@@ -9,9 +14,10 @@
           id="apiUrl" 
           v-model="apiUrl" 
           type="text" 
-          placeholder="https://api.openai.com/v1"
+          placeholder="https://api.openai.com/v1 or http://localhost:1234/v1"
           required
         />
+        <div class="field-hint">The base URL of the AI service (OpenAI, local server, etc.)</div>
       </div>
       
       <div class="form-group">
@@ -28,6 +34,7 @@
             {{ showApiKey ? 'Hide' : 'Show' }}
           </button>
         </div>
+        <div class="field-hint">The API key for authentication (not needed for some local servers)</div>
       </div>
       
       <div class="form-group">
@@ -124,6 +131,20 @@
       
       <div v-if="saveMessage" class="save-message" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
         {{ saveMessage }}
+      </div>
+      
+      <div class="settings-help">
+        <h3>Compatible AI Services</h3>
+        <p>You can use any of these services with an OpenAI-compatible API:</p>
+        <ul>
+          <li><strong>OpenAI:</strong> Default URL (https://api.openai.com/v1) with your <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API key</a></li> 
+          <li><strong>LM Studio:</strong> Local URL (e.g., http://localhost:1234/v1) running models on your computer</li>
+          <li><strong>Ollama:</strong> Local URL (e.g., http://localhost:11434/v1) for locally hosted models</li>
+          <li><strong>Anthropic Claude:</strong> Anthropic's API with proper base URL</li>
+          <li><strong>Self-hosted:</strong> Your own LLM API server with OpenAI compatibility</li>
+          <li><strong>Mistral, Groq, Cohere:</strong> Most AI providers with OpenAI-compatible endpoints</li>
+        </ul>
+        <p class="api-note">Note: The API format must be compatible with OpenAI's chat completions endpoint.</p>
       </div>
     </div>
   </div>
@@ -269,18 +290,47 @@ export default {
   margin: 0 auto;
 }
 
+.settings-intro {
+  margin-bottom: 20px;
+  background-color: var(--card-bg-color);
+  padding: 15px 20px;
+  border-radius: 8px;
+  border-left: 4px solid var(--button-primary-bg);
+  box-shadow: var(--card-shadow);
+  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.settings-intro p {
+  margin: 8px 0;
+  color: var(--text-color);
+  transition: color var(--transition-speed);
+}
+
+.settings-intro a {
+  color: var(--button-primary-bg);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--transition-speed);
+}
+
+.settings-intro a:hover {
+  text-decoration: underline;
+}
+
 h2 {
   margin-top: 0;
   margin-bottom: 20px;
-  color: #2c3e50;
+  color: var(--header-color);
   text-align: center;
+  transition: color var(--transition-speed);
 }
 
 .settings-form {
-  background-color: #f9f9f9;
+  background-color: var(--card-bg-color);
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--card-shadow);
+  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
 }
 
 .form-group {
@@ -291,17 +341,23 @@ label {
   display: block;
   margin-bottom: 8px;
   font-weight: bold;
-  color: #333;
+  color: var(--text-color);
+  transition: color var(--transition-speed);
 }
 
 input[type="text"],
 input[type="password"] {
   width: 100%;
   padding: 10px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 14px;
   box-sizing: border-box;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  transition: background-color var(--transition-speed), 
+              color var(--transition-speed),
+              border-color var(--transition-speed);
 }
 
 .api-key-input {
@@ -375,32 +431,39 @@ input[type="password"] {
 .model-search {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 14px;
-  background-color: white;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  transition: background-color var(--transition-speed), 
+              border-color var(--transition-speed),
+              color var(--transition-speed);
 }
 
 .model-count {
   margin-left: 10px;
   font-size: 13px;
-  color: #666;
-  background-color: #f0f0f0;
+  color: var(--text-color);
+  background-color: var(--bg-color);
   padding: 4px 8px;
   border-radius: 4px;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
 .models-list {
   max-height: 250px;
   overflow-y: auto;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 10px;
-  background-color: white;
+  background-color: var(--card-bg-color);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 5px;
   scrollbar-width: thin;
+  transition: background-color var(--transition-speed), 
+              border-color var(--transition-speed);
 }
 
 .models-list::-webkit-scrollbar {
@@ -408,17 +471,19 @@ input[type="password"] {
 }
 
 .models-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--bg-color);
   border-radius: 4px;
+  transition: background-color var(--transition-speed);
 }
 
 .models-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border-color);
   border-radius: 4px;
+  transition: background-color var(--transition-speed);
 }
 
 .models-list::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: var(--nav-text-color);
 }
 
 .model-option {
@@ -430,7 +495,8 @@ input[type="password"] {
 }
 
 .model-option:hover {
-  background-color: #f0f0f0;
+  background-color: var(--nav-hover-bg);
+  transition: background-color var(--transition-speed);
 }
 
 .model-option input[type="radio"] {
@@ -492,14 +558,19 @@ input[type="password"] {
 }
 
 .save-button {
-  background-color: #28a745;
-  color: white;
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
   border: none;
   border-radius: 4px;
   padding: 10px 20px;
   cursor: pointer;
   font-size: 16px;
   width: 100%;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+.save-button:hover {
+  filter: brightness(1.1);
 }
 
 .save-message {
@@ -510,12 +581,78 @@ input[type="password"] {
 }
 
 .success {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: rgba(76, 175, 80, 0.2);
+  color: var(--button-primary-bg);
+  transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
 .error {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+.settings-help {
+  margin-top: 30px;
+  padding: 15px;
+  border-top: 1px solid var(--border-color);
+  transition: border-color var(--transition-speed);
+}
+
+.settings-help h3 {
+  font-size: 16px;
+  color: var(--header-color);
+  margin-top: 0;
+  margin-bottom: 10px;
+  transition: color var(--transition-speed);
+}
+
+.settings-help p {
+  margin: 8px 0;
+  color: var(--text-color);
+  font-size: 14px;
+  transition: color var(--transition-speed);
+}
+
+.settings-help ul {
+  padding-left: 20px;
+  margin: 10px 0;
+}
+
+.settings-help li {
+  margin-bottom: 8px;
+  color: var(--text-color);
+  font-size: 14px;
+  transition: color var(--transition-speed);
+}
+
+.settings-help strong {
+  color: var(--header-color);
+  transition: color var(--transition-speed);
+}
+
+.settings-help a {
+  color: var(--button-primary-bg);
+  text-decoration: none;
+  transition: color var(--transition-speed);
+}
+
+.settings-help a:hover {
+  text-decoration: underline;
+}
+
+.api-note {
+  font-style: italic;
+  opacity: 0.8;
+  font-size: 13px !important;
+  margin-top: 15px !important;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.7;
+  margin-top: 4px;
+  transition: color var(--transition-speed);
 }
 </style>

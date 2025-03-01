@@ -151,17 +151,16 @@ class SonarrService {
   }
 
   /**
-   * Add a series to Sonarr
-   * @param {string} title - The series title to search for
-   * @returns {Promise<Object>} - The added series object
+   * Look up a series by title in Sonarr API
+   * @param {string} title - The title to search for
+   * @returns {Promise<Object>} - Series details from the lookup
    */
-  async addSeries(title) {
+  async lookupSeries(title) {
     if (!this.isConfigured()) {
       throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
     }
     
     try {
-      // 1. Look up the series to get details
       const cleanTitle = title.trim();
       const encodedTitle = encodeURIComponent(cleanTitle);
       const lookupUrl = `${this.baseUrl}/api/v3/series/lookup?apiKey=${this.apiKey}&term=${encodedTitle}`;
@@ -171,7 +170,27 @@ class SonarrService {
         throw new Error(`Series "${title}" not found in Sonarr lookup.`);
       }
       
-      const seriesData = lookupResponse.data[0];
+      return lookupResponse.data[0];
+    } catch (error) {
+      console.error(`Error looking up series "${title}" in Sonarr:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Add a series to Sonarr
+   * @param {string} title - The series title to search for
+   * @param {Array} [selectedSeasons] - Array of season numbers to monitor (optional)
+   * @returns {Promise<Object>} - The added series object
+   */
+  async addSeries(title, selectedSeasons = null) {
+    if (!this.isConfigured()) {
+      throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
+    }
+    
+    try {
+      // 1. Look up the series to get details
+      const seriesData = await this.lookupSeries(title);
       
       // 2. Get the first quality profile and root folder
       const [qualityProfiles, rootFolders] = await Promise.all([
@@ -190,7 +209,14 @@ class SonarrService {
       const qualityProfileId = qualityProfiles[0].id;
       const rootFolderPath = rootFolders[0].path;
       
-      // 3. Prepare payload for adding the series
+      // 3. Prepare seasons configuration
+      // If specific seasons were selected, only monitor those
+      const seasons = seriesData.seasons.map(season => ({
+        seasonNumber: season.seasonNumber,
+        monitored: selectedSeasons ? selectedSeasons.includes(season.seasonNumber) : true
+      }));
+      
+      // 4. Prepare payload for adding the series
       const payload = {
         title: seriesData.title,
         tvdbId: seriesData.tvdbId,
@@ -199,16 +225,13 @@ class SonarrService {
         monitored: true,
         seasonFolder: true,
         seriesType: 'standard',
-        seasons: seriesData.seasons.map(season => ({
-          seasonNumber: season.seasonNumber,
-          monitored: true
-        })),
+        seasons: seasons,
         addOptions: {
           searchForMissingEpisodes: true
         }
       };
       
-      // 4. Add the series
+      // 5. Add the series
       const response = await axios.post(`${this.baseUrl}/api/v3/series`, payload, {
         params: { apiKey: this.apiKey }
       });

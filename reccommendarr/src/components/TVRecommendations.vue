@@ -169,7 +169,63 @@
       </div>
     </div>
   </div>
-</template>
+    <!-- Season Selection Modal -->
+    <div v-if="showSeasonModal && currentSeries" class="modal-overlay">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3>Add "{{ currentSeries.title }}" to Sonarr</h3>
+          <button class="modal-close" @click="closeSeasonModal">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <h4>Select seasons to monitor:</h4>
+          
+          <div class="select-all">
+            <label>
+              <input 
+                type="checkbox" 
+                :checked="selectedSeasons.length === currentSeries.seasons.length"
+                @click="toggleAllSeasons"
+              > 
+              Select All Seasons
+            </label>
+          </div>
+          
+          <div class="seasons-grid">
+            <div 
+              v-for="season in currentSeries.seasons" 
+              :key="season.seasonNumber"
+              class="season-item"
+            >
+              <label>
+                <input 
+                  type="checkbox" 
+                  :value="season.seasonNumber"
+                  :checked="selectedSeasons.includes(season.seasonNumber)"
+                  @click="toggleSeason(season.seasonNumber)"
+                >
+                Season {{ season.seasonNumber }}
+                <span v-if="season.statistics" class="episode-count">
+                  ({{ season.statistics.episodeCount }} episodes)
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="cancel-button" @click="closeSeasonModal">Cancel</button>
+          <button 
+            class="confirm-button" 
+            @click="confirmAddSeries"
+            :disabled="!selectedSeasons.length"
+          >
+            Add to Sonarr
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
 
 <script>
 import openAIService from '../services/OpenAIService';
@@ -204,7 +260,10 @@ export default {
       requestingSeries: null, // Track which series is being requested
       requestStatus: {}, // Track request status for each series
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
-      maxStoredRecommendations: 125 // Maximum number of previous recommendations to store
+      maxStoredRecommendations: 125, // Maximum number of previous recommendations to store
+      showSeasonModal: false, // Control visibility of season selection modal
+      currentSeries: null, // Current series being added
+      selectedSeasons: [] // Selected seasons for the current series
     };
   },
   methods: {
@@ -433,19 +492,19 @@ export default {
     },
     
     /**
-     * Request a series to be added to Sonarr
-     * @param {string} title - The series title to add
+     * Open season selection modal for a series
+     * @param {string} title - The series title to request
      */
-    async requestSeries(title) {
+    async openSeasonSelector(title) {
       if (!sonarrService.isConfigured()) {
         this.error = 'Sonarr service is not configured.';
         return;
       }
       
-      // Set requesting state for this series
-      this.requestingSeries = title;
-      
       try {
+        // Set requesting state for this series
+        this.requestingSeries = title;
+        
         // Check if series already exists in Sonarr
         const existingSeries = await sonarrService.findSeriesByTitle(title);
         
@@ -457,26 +516,32 @@ export default {
             alreadyExists: true
           };
           
-          // Series already exists - button state will show this
-          
+          this.requestingSeries = null;
           return;
         }
         
-        // Add series to Sonarr
-        const response = await sonarrService.addSeries(title);
+        // Look up series info to get seasons
+        const seriesInfo = await sonarrService.lookupSeries(title);
         
-        // Store success response
-        this.requestStatus[title] = {
-          success: true,
-          message: 'Successfully added to Sonarr',
-          details: response
+        // Set current series and seasons for modal
+        this.currentSeries = {
+          title: title,
+          seasons: seriesInfo.seasons
+            .filter(season => season.seasonNumber > 0) // Filter out specials (season 0)
+            .sort((a, b) => a.seasonNumber - b.seasonNumber) // Sort by season number
         };
         
-        // Show success toast
-        // Success will be shown by button state
+        // Set all seasons selected by default
+        this.selectedSeasons = this.currentSeries.seasons.map(s => s.seasonNumber);
+        
+        // Show modal
+        this.showSeasonModal = true;
+        
+        // Clear requesting state since modal is now open
+        this.requestingSeries = null;
         
       } catch (error) {
-        console.error(`Error requesting series "${title}":`, error);
+        console.error(`Error preparing series "${title}" for Sonarr:`, error);
         
         // Store error
         this.requestStatus[title] = {
@@ -484,12 +549,97 @@ export default {
           message: `Error: ${error.message || 'Unknown error'}`
         };
         
-        // Show error toast
-        console.error(`Failed to add "${title}" to Sonarr: ${error.message || 'Unknown error'}`);
-      } finally {
         // Clear requesting state
         this.requestingSeries = null;
       }
+    },
+    
+    /**
+     * Toggle selection of a season
+     * @param {number} seasonNumber - The season number to toggle
+     */
+    toggleSeason(seasonNumber) {
+      const index = this.selectedSeasons.indexOf(seasonNumber);
+      if (index === -1) {
+        this.selectedSeasons.push(seasonNumber);
+      } else {
+        this.selectedSeasons.splice(index, 1);
+      }
+    },
+    
+    /**
+     * Toggle selection of all seasons
+     */
+    toggleAllSeasons() {
+      if (this.selectedSeasons.length === this.currentSeries.seasons.length) {
+        // If all are selected, deselect all
+        this.selectedSeasons = [];
+      } else {
+        // Otherwise, select all
+        this.selectedSeasons = this.currentSeries.seasons.map(s => s.seasonNumber);
+      }
+    },
+    
+    /**
+     * Close the season selection modal
+     */
+    closeSeasonModal() {
+      this.showSeasonModal = false;
+      this.currentSeries = null;
+      this.selectedSeasons = [];
+    },
+    
+    /**
+     * Request a series to be added to Sonarr with selected seasons
+     */
+    async confirmAddSeries() {
+      if (!this.currentSeries || !this.selectedSeasons.length) {
+        return;
+      }
+      
+      try {
+        // Set requesting state
+        this.requestingSeries = this.currentSeries.title;
+        
+        // Close modal
+        this.showSeasonModal = false;
+        
+        // Add series to Sonarr with selected seasons
+        const response = await sonarrService.addSeries(
+          this.currentSeries.title, 
+          this.selectedSeasons
+        );
+        
+        // Store success response
+        this.requestStatus[this.currentSeries.title] = {
+          success: true,
+          message: 'Successfully added to Sonarr',
+          details: response
+        };
+        
+      } catch (error) {
+        console.error(`Error adding series "${this.currentSeries.title}" to Sonarr:`, error);
+        
+        // Store error
+        this.requestStatus[this.currentSeries.title] = {
+          success: false,
+          message: `Error: ${error.message || 'Unknown error'}`
+        };
+        
+      } finally {
+        // Clear requesting state and current series
+        this.requestingSeries = null;
+        this.currentSeries = null;
+        this.selectedSeasons = [];
+      }
+    },
+    
+    /**
+     * Request a series to be added to Sonarr (entry point)
+     * @param {string} title - The series title to add
+     */
+    requestSeries(title) {
+      this.openSeasonSelector(title);
     }
   },
   mounted() {
@@ -993,6 +1143,136 @@ select:hover {
 .clear-history-button:hover {
   opacity: 1;
   text-decoration: underline;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+}
+
+.modal-header {
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--header-color);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.modal-close:hover {
+  opacity: 1;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-body h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: var(--text-color);
+}
+
+.select-all {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.seasons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.season-item {
+  padding: 5px;
+}
+
+.season-item label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.season-item input {
+  margin-right: 8px;
+}
+
+.episode-count {
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.7;
+  margin-left: 5px;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cancel-button {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.confirm-button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.confirm-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .no-recommendations {

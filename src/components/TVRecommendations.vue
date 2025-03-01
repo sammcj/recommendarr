@@ -388,6 +388,7 @@ export default {
         { value: 'action', label: 'Action' },
         { value: 'adventure', label: 'Adventure' },
         { value: 'animation', label: 'Animation' },
+        { value: 'anime', label: 'Anime' },
         { value: 'comedy', label: 'Comedy' },
         { value: 'crime', label: 'Crime' },
         { value: 'documentary', label: 'Documentary' },
@@ -395,6 +396,7 @@ export default {
         { value: 'fantasy', label: 'Fantasy' },
         { value: 'horror', label: 'Horror' },
         { value: 'mystery', label: 'Mystery' },
+        { value: 'niche', label: 'Niche' },
         { value: 'romance', label: 'Romance' },
         { value: 'sci-fi', label: 'Sci-Fi' },
         { value: 'thriller', label: 'Thriller' }

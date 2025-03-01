@@ -247,6 +247,27 @@
                   <p>{{ rec.reasoning }}</p>
                 </div>
                 
+                <div v-if="rec.rating" class="rating">
+                  <div class="rating-header">
+                    <span class="label">
+                      Recommendarr Rating:
+                      <span class="info-tooltip" title="This is an experimental AI-generated rating based on various sources and not an official score.">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="16" x2="12" y2="12"></line>
+                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                      </span>
+                    </span>
+                    <div class="rating-score" :class="getScoreClass(rec.rating)">
+                      {{ extractScore(rec.rating) }}%
+                    </div>
+                  </div>
+                  <div class="rating-details">
+                    {{ extractRatingDetails(rec.rating) }}
+                  </div>
+                </div>
+                
                 <div v-if="rec.streaming" class="streaming">
                   <span class="label">Available on:</span>
                   <p>{{ rec.streaming }}</p>
@@ -367,6 +388,7 @@ export default {
         { value: 'action', label: 'Action' },
         { value: 'adventure', label: 'Adventure' },
         { value: 'animation', label: 'Animation' },
+        { value: 'anime', label: 'Anime' },
         { value: 'comedy', label: 'Comedy' },
         { value: 'crime', label: 'Crime' },
         { value: 'documentary', label: 'Documentary' },
@@ -374,6 +396,7 @@ export default {
         { value: 'fantasy', label: 'Fantasy' },
         { value: 'horror', label: 'Horror' },
         { value: 'mystery', label: 'Mystery' },
+        { value: 'niche', label: 'Niche' },
         { value: 'romance', label: 'Romance' },
         { value: 'sci-fi', label: 'Sci-Fi' },
         { value: 'thriller', label: 'Thriller' }
@@ -488,6 +511,62 @@ export default {
         hash |= 0; // Convert to 32bit integer
       }
       return Math.abs(hash);
+    },
+    
+    // Extract just the numeric score from the rating text
+    extractScore(ratingText) {
+      if (!ratingText || ratingText === 'N/A') {
+        return '??';
+      }
+      
+      // Try to extract score percentage
+      const scoreMatch = ratingText.match(/(\d+)%/);
+      if (!scoreMatch) {
+        return '??';
+      }
+      
+      return scoreMatch[1];
+    },
+    
+    // Extract the details portion of the rating
+    extractRatingDetails(ratingText) {
+      if (!ratingText || ratingText === 'N/A') {
+        return 'No rating information available';
+      }
+      
+      // Find everything after the percentage
+      const detailsMatch = ratingText.match(/\d+%\s*-\s*(.*)/);
+      if (detailsMatch && detailsMatch[1]) {
+        return detailsMatch[1].trim();
+      }
+      
+      return ratingText;
+    },
+    
+    // Determine CSS class for Recommendarr Rating
+    getScoreClass(scoreText) {
+      if (!scoreText || scoreText === 'N/A') {
+        return 'score-unknown';
+      }
+      
+      // Try to extract score percentage
+      const scoreMatch = scoreText.match(/(\d+)%/);
+      if (!scoreMatch) {
+        return 'score-unknown';
+      }
+      
+      const score = parseInt(scoreMatch[1], 10);
+      
+      // Apply our rating scale
+      if (score >= 90) {
+        return 'score-certified'; // Excellent
+      } else if (score >= 70) {
+        return 'score-fresh'; // Good
+      } else if (score >= 50) {
+        return 'score-rotten'; // Average
+      } else {
+        return 'score-unknown'; // Below average
+      }
     },
     // Save recommendation count to localStorage
     saveRecommendationCount() {
@@ -1629,7 +1708,7 @@ select:hover {
   box-shadow: var(--card-shadow);
   overflow: hidden;
   transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
-  height: 225px; /* Fixed height for consistent cards */
+  height: 275px; /* Increased height to show more content */
 }
 
 .recommendation-card:hover {
@@ -1655,7 +1734,7 @@ select:hover {
 
 .poster {
   width: 150px;
-  height: 225px;
+  height: 275px;
   background-size: cover;
   background-position: center;
   position: relative;
@@ -1795,7 +1874,7 @@ select:hover {
 .content-container {
   overflow-y: auto;
   flex: 1;
-  max-height: 160px; /* Allow scrolling for long content */
+  max-height: 210px; /* Increased to allow more content to be visible */
   scrollbar-width: thin;
 }
 
@@ -1818,6 +1897,21 @@ select:hover {
   color: var(--text-color);
   opacity: 0.9;
   margin-right: 5px;
+  display: flex;
+  align-items: center;
+}
+
+.info-tooltip {
+  display: inline-flex;
+  margin-left: 4px;
+  color: var(--text-color);
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  position: relative;
+}
+
+.info-tooltip:hover {
+  opacity: 1;
 }
 
 .recommendation-card p {
@@ -1828,11 +1922,68 @@ select:hover {
   font-size: 14px;
 }
 
-.description, .reasoning, .streaming {
+.description, .reasoning, .rating, .streaming {
   margin-bottom: 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.rating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.rating-score {
+  font-weight: bold;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  color: #2196F3;
+  padding: 4px 10px 4px 8px;
+  border-radius: 4px;
+  width: fit-content;
+  line-height: 1;
+  margin-top: 4px;
+  vertical-align: middle;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.rating-details {
+  font-size: 13px;
+  margin-top: 6px;
+  color: var(--text-color);
+  line-height: 1.4;
+  opacity: 0.85;
+  padding-left: 2px;
+}
+
+.rating-score {
+  padding: 4px 12px;
+  font-size: 16px;
+}
+
+.score-fresh {
+  color: #2196F3;
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+.score-certified {
+  color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.2);
+  font-weight: 700;
+}
+
+.score-rotten {
+  color: #FF9800;
+  background-color: rgba(255, 152, 0, 0.1);
+}
+
+.score-unknown {
+  color: #838383;
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .history-info {

@@ -564,9 +564,15 @@ h2 {
 
 .recommendation-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
   margin-top: 20px;
+}
+
+@media (min-width: 768px) {
+  .recommendation-list {
+    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+  }
 }
 
 .recommendation-card {
@@ -584,22 +590,47 @@ h2 {
 
 .card-content {
   display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 480px) {
+  .card-content {
+    flex-direction: row;
+  }
 }
 
 .poster-container {
-  flex: 0 0 150px;
   position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+
+@media (min-width: 480px) {
+  .poster-container {
+    flex: 0 0 150px;
+    padding: 0;
+    width: auto;
+  }
 }
 
 .poster {
-  width: 150px;
-  height: 225px;
+  width: 120px;
+  height: 180px;
   background-size: cover;
   background-position: center;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (min-width: 480px) {
+  .poster {
+    width: 150px;
+    height: 225px;
+  }
 }
 
 .title-fallback {

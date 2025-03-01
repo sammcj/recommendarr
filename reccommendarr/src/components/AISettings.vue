@@ -628,23 +628,32 @@ h2 {
 /* Tabs Styling */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap;
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border-color);
   transition: border-color var(--transition-speed);
 }
 
 .tab-button {
-  padding: 10px 20px;
+  padding: 10px;
   background: transparent;
   border: none;
   border-bottom: 3px solid transparent;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
   transition: all 0.3s ease;
   flex: 1;
   text-align: center;
+  white-space: nowrap;
+}
+
+@media (min-width: 480px) {
+  .tab-button {
+    padding: 10px 20px;
+    font-size: 16px;
+  }
 }
 
 .tab-button:hover {
@@ -813,7 +822,18 @@ input[type="password"] {
 /* Action Buttons Container */
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column;
+  }
+  
+  .save-button {
+    margin-left: 0 !important;
+  }
 }
 
 /* Models List Styling */

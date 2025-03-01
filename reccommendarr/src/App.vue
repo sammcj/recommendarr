@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
-    <header>
-      <img alt="Vue logo" src="./assets/logo.png" class="logo">
+    <header class="app-header">
+      <img alt="App logo" src="./assets/logo.png" class="logo">
       <h1>Reccommendarr</h1>
     </header>
     
@@ -278,21 +278,44 @@ body {
 
 .app-container {
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
-  padding: 20px;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
-header {
+@media (min-width: 480px) {
+  .app-container {
+    padding: 20px;
+  }
+}
+
+.app-header {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  padding: 20px 0 0 0;
+}
+
+@media (min-width: 480px) {
+  .app-header {
+    margin-bottom: 30px;
+  }
 }
 
 .logo {
-  height: 60px;
-  margin-right: 15px;
+  height: 40px;
+  margin-right: 10px;
   transition: filter var(--transition-speed);
+}
+
+@media (min-width: 480px) {
+  .logo {
+    height: 60px;
+    margin-right: 15px;
+  }
 }
 
 body.dark-theme .logo {
@@ -301,9 +324,16 @@ body.dark-theme .logo {
 
 h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 22px;
   color: var(--header-color);
   transition: color var(--transition-speed);
+  font-weight: 600;
+}
+
+@media (min-width: 480px) {
+  h1 {
+    font-size: 28px;
+  }
 }
 
 main {
@@ -327,6 +357,7 @@ main {
 
 .service-buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 20px;
   margin-bottom: 30px;
@@ -336,16 +367,25 @@ main {
   background-color: var(--card-bg-color);
   border: 2px solid var(--button-primary-bg);
   border-radius: 8px;
-  padding: 20px 30px;
+  padding: 15px;
   color: var(--text-color);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 200px;
+  min-width: 150px;
+  flex: 1;
+  max-width: 250px;
+}
+
+@media (min-width: 480px) {
+  .service-button {
+    padding: 20px 30px;
+    font-size: 16px;
+  }
 }
 
 .service-button:hover {

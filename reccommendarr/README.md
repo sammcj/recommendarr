@@ -2,20 +2,21 @@
 
 ![Reccommendarr Logo](./public/favicon.ico) 
 
-Reccommendarr is a web application that generates personalized TV show recommendations based on your Sonarr library using AI.
+Reccommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
 
 ## 🌟 Features
 
-- **AI-Powered Recommendations**: Get personalized TV show suggestions based on your existing library
-- **Sonarr Integration**: Connects directly to your Sonarr instance to analyze your TV collection
+- **AI-Powered Recommendations**: Get personalized TV show and movie suggestions based on your existing library
+- **Sonarr & Radarr Integration**: Connects directly to your media servers to analyze your TV and movie collections
 - **Flexible AI Support**: Works with OpenAI, local models (Ollama/LM Studio), or any OpenAI-compatible API
 - **Customization Options**: Adjust recommendation count, model parameters, and more
 - **Dark/Light Mode**: Toggle between themes based on your preference
-- **Poster Images**: Displays TV show posters with fallback generation
+- **Poster Images**: Displays media posters with fallback generation
 
 ## 📋 Prerequisites
 
-- [Sonarr](https://sonarr.tv/) instance with API access
+- [Sonarr](https://sonarr.tv/) instance with API access (for TV recommendations)
+- [Radarr](https://radarr.video/) instance with API access (for movie recommendations)
 - An OpenAI API key or any OpenAI-compatible API (like local LLM servers)
 - Node.js (v14+) and npm for development
 
@@ -58,29 +59,37 @@ npm run serve
 
 ## 🔧 Configuration
 
-### 1. Connect to Sonarr
+### 1. Connect to Sonarr and/or Radarr
 
-1. When you first open Reccommendarr, you'll be prompted to connect to Sonarr
-2. Enter your Sonarr URL (e.g., `http://localhost:8989` or `https://sonarr.yourdomain.com`)
-3. Enter your Sonarr API key (found in Sonarr under Settings → General)
-4. Click "Connect"
+1. When you first open Reccommendarr, you'll be prompted to connect to either Sonarr or Radarr
+2. For Sonarr (TV shows):
+   - Enter your Sonarr URL (e.g., `http://localhost:8989` or `https://sonarr.yourdomain.com`)
+   - Enter your Sonarr API key (found in Sonarr under Settings → General)
+   - Click "Connect"
+3. For Radarr (Movies):
+   - Enter your Radarr URL (e.g., `http://localhost:7878` or `https://radarr.yourdomain.com`)
+   - Enter your Radarr API key (found in Radarr under Settings → General)
+   - Click "Connect"
+
+You can connect to both services or just one, depending on your needs.
 
 ### 2. Set Up AI Service
 
 1. Navigate to Settings
-2. Enter your AI service details:
+2. Select the AI Service tab
+3. Enter your AI service details:
    - **API URL**: For OpenAI, use `https://api.openai.com/v1`. For local models, use your server URL (e.g., `http://localhost:1234/v1`)
    - **API Key**: Your OpenAI API key or appropriate key for other services (not needed for some local servers)
    - **Model**: Select a model from the list or leave as default
    - **Parameters**: Adjust max tokens and temperature as needed
-3. Click "Save Settings"
+4. Click "Save Settings"
 
 ### 3. Get Recommendations
 
-1. Navigate to the Recommendations page
+1. Navigate to TV Recommendations or Movie Recommendations page
 2. Adjust the number of recommendations you'd like to receive using the slider
 3. Click "Get Recommendations"
-4. View your personalized TV show suggestions with posters and descriptions
+4. View your personalized media suggestions with posters and descriptions
 
 ## 🐋 Docker Support
 
@@ -124,12 +133,25 @@ Reccommendarr works with various AI services:
 - **Anthropic Claude**: Via OpenAI-compatible endpoints
 - **Self-hosted models**: Any service with OpenAI-compatible chat completions API
 
+## 🎬 TV and Movie Recommendations
+
+### TV Recommendations
+- Connect to your Sonarr instance to get personalized TV show recommendations
+- The AI analyzes your TV library to understand your preferences
+- Receives detailed recommendations with show descriptions and reasoning
+
+### Movie Recommendations
+- Connect to your Radarr instance to get personalized movie recommendations
+- The AI analyzes your movie collection to understand genres and preferences you enjoy
+- Get suggested movies with descriptions, reasoning, and poster images
+- Easily discover new films based on your existing collection
+
 ## 🔒 Privacy
 
 Your data never leaves your control:
-- Sonarr API credentials are stored in your browser's localStorage
+- Sonarr and Radarr API credentials are stored in your browser's localStorage
 - AI API keys are stored locally and used only for your requests
-- TV show data is sent only to the AI service you configure
+- Media library data is sent only to the AI service you configure
 - No analytics or tracking are included in the application
 
 ## 💻 Development
@@ -155,5 +177,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgements
 
 - [Vue.js](https://vuejs.org/) - The progressive JavaScript framework
-- [Sonarr](https://sonarr.tv/) - For the amazing API that makes this possible
-- [OpenAI](https://openai.com/) - For the API that powers recommendations
+- [Sonarr](https://sonarr.tv/) - For the amazing API that powers TV recommendations
+- [Radarr](https://radarr.video/) - For the API that enables movie recommendations
+- [OpenRouter](https://openrouter.ai/docs/quickstart) - For the API that powers AI-based suggestions

@@ -69,9 +69,10 @@ class OpenAIService {
    * @param {Array} [previousRecommendations=[]] - List of shows to exclude from recommendations
    * @param {Array} [likedRecommendations=[]] - List of shows the user has liked
    * @param {Array} [dislikedRecommendations=[]] - List of shows the user has disliked
+   * @param {Array} [recentlyWatchedShows=[]] - List of recently watched shows from Plex
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = []) {
+  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = []) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -108,6 +109,12 @@ class OpenAIService {
         userPrompt += `\n\nI specifically dislike these shows, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
+      // Add recently watched shows from Plex if available
+      if (recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+        const recentShowTitles = recentlyWatchedShows.map(show => show.title).join(', ');
+        userPrompt += `\n\nI've recently watched these shows on Plex, so please consider them for better recommendations: ${recentShowTitles}`;
+      }
+      
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
 1. [Show Title]: 
 Description: [brief description] 
@@ -130,7 +137,7 @@ My current shows: ${allShowTitles}`;
       const messages = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
         },
         {
           role: "user",
@@ -153,9 +160,10 @@ My current shows: ${allShowTitles}`;
    * @param {Array} [previousRecommendations=[]] - List of movies to exclude from recommendations
    * @param {Array} [likedRecommendations=[]] - List of movies the user has liked
    * @param {Array} [dislikedRecommendations=[]] - List of movies the user has disliked
+   * @param {Array} [recentlyWatchedMovies=[]] - List of recently watched movies from Plex
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = []) {
+  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = []) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -192,6 +200,12 @@ My current shows: ${allShowTitles}`;
         userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
+      // Add recently watched movies from Plex if available
+      if (recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
+        const recentMovieTitles = recentlyWatchedMovies.map(movie => movie.title).join(', ');
+        userPrompt += `\n\nI've recently watched these movies on Plex, so please consider them for better recommendations: ${recentMovieTitles}`;
+      }
+      
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
 1. [Movie Title]: 
 Description: [brief description] 
@@ -214,7 +228,7 @@ My current movies: ${allMovieTitles}`;
       const messages = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
         },
         {
           role: "user",

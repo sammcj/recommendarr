@@ -109,6 +109,111 @@ class RadarrService {
       return false;
     }
   }
+
+  /**
+   * Get quality profiles from Radarr
+   * @returns {Promise<Array>} - List of quality profiles
+   */
+  async getQualityProfiles() {
+    if (!this.isConfigured()) {
+      throw new Error('Radarr service is not configured. Please set baseUrl and apiKey.');
+    }
+
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/v3/qualityprofile`, {
+        params: { apiKey: this.apiKey }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching quality profiles from Radarr:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get root folders from Radarr
+   * @returns {Promise<Array>} - List of root folders
+   */
+  async getRootFolders() {
+    if (!this.isConfigured()) {
+      throw new Error('Radarr service is not configured. Please set baseUrl and apiKey.');
+    }
+
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/v3/rootfolder`, {
+        params: { apiKey: this.apiKey }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching root folders from Radarr:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a movie to Radarr
+   * @param {string} title - The movie title to search for
+   * @returns {Promise<Object>} - The added movie object
+   */
+  async addMovie(title) {
+    if (!this.isConfigured()) {
+      throw new Error('Radarr service is not configured. Please set baseUrl and apiKey.');
+    }
+    
+    try {
+      // 1. Look up the movie to get details
+      const cleanTitle = title.trim();
+      const encodedTitle = encodeURIComponent(cleanTitle);
+      const lookupUrl = `${this.baseUrl}/api/v3/movie/lookup?apiKey=${this.apiKey}&term=${encodedTitle}`;
+      const lookupResponse = await axios.get(lookupUrl);
+      
+      if (!lookupResponse.data || lookupResponse.data.length === 0) {
+        throw new Error(`Movie "${title}" not found in Radarr lookup.`);
+      }
+      
+      const movieData = lookupResponse.data[0];
+      
+      // 2. Get the first quality profile and root folder
+      const [qualityProfiles, rootFolders] = await Promise.all([
+        this.getQualityProfiles(),
+        this.getRootFolders()
+      ]);
+      
+      if (!qualityProfiles.length) {
+        throw new Error('No quality profiles found in Radarr.');
+      }
+      
+      if (!rootFolders.length) {
+        throw new Error('No root folders found in Radarr.');
+      }
+      
+      const qualityProfileId = qualityProfiles[0].id;
+      const rootFolderPath = rootFolders[0].path;
+      
+      // 3. Prepare payload for adding the movie
+      const payload = {
+        title: movieData.title,
+        tmdbId: movieData.tmdbId,
+        year: movieData.year,
+        qualityProfileId: qualityProfileId,
+        rootFolderPath: rootFolderPath,
+        monitored: true,
+        addOptions: {
+          searchForMovie: true
+        }
+      };
+      
+      // 4. Add the movie
+      const response = await axios.post(`${this.baseUrl}/api/v3/movie`, payload, {
+        params: { apiKey: this.apiKey }
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error adding movie "${title}" to Radarr:`, error);
+      throw error;
+    }
+  }
 }
 
 // Create a singleton instance

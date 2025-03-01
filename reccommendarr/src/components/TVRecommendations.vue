@@ -127,6 +127,26 @@
               <div v-if="!rec.description && !rec.reasoning" class="full-text">
                 <p>{{ rec.fullText }}</p>
               </div>
+              
+              <div class="action-buttons">
+                <button 
+                  @click="requestSeries(rec.title)" 
+                  class="request-button"
+                  :class="{'loading': requestingSeries === rec.title, 'requested': requestStatus[rec.title]?.success}"
+                  :disabled="requestingSeries || requestStatus[rec.title]?.success">
+                  <span v-if="requestingSeries === rec.title">
+                    <div class="small-spinner"></div>
+                    Adding to Sonarr...
+                  </span>
+                  <span v-else-if="requestStatus[rec.title]?.success">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Added to Sonarr
+                  </span>
+                  <span v-else>Add to Sonarr</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -142,6 +162,7 @@
 <script>
 import openAIService from '../services/OpenAIService';
 import imageService from '../services/ImageService';
+import sonarrService from '../services/SonarrService';
 
 export default {
   name: 'TVRecommendations',
@@ -167,7 +188,9 @@ export default {
       posters: new Map(), // Using a reactive Map for poster URLs
       loadingPosters: new Map(), // Track which posters are being loaded
       numRecommendations: 5, // Default number of recommendations to request
-      selectedGenre: '' // Default to all genres
+      selectedGenre: '', // Default to all genres
+      requestingSeries: null, // Track which series is being requested
+      requestStatus: {}, // Track request status for each series
     };
   },
   methods: {
@@ -350,6 +373,66 @@ export default {
       
       // Wait for all requests to complete
       await Promise.all(posterPromises);
+    },
+    
+    /**
+     * Request a series to be added to Sonarr
+     * @param {string} title - The series title to add
+     */
+    async requestSeries(title) {
+      if (!sonarrService.isConfigured()) {
+        this.error = 'Sonarr service is not configured.';
+        return;
+      }
+      
+      // Set requesting state for this series
+      this.requestingSeries = title;
+      
+      try {
+        // Check if series already exists in Sonarr
+        const existingSeries = await sonarrService.findSeriesByTitle(title);
+        
+        if (existingSeries && existingSeries.id) {
+          // Series already exists in library
+          this.requestStatus[title] = {
+            success: true,
+            message: 'Series already exists in your Sonarr library',
+            alreadyExists: true
+          };
+          
+          // Series already exists - button state will show this
+          
+          return;
+        }
+        
+        // Add series to Sonarr
+        const response = await sonarrService.addSeries(title);
+        
+        // Store success response
+        this.requestStatus[title] = {
+          success: true,
+          message: 'Successfully added to Sonarr',
+          details: response
+        };
+        
+        // Show success toast
+        // Success will be shown by button state
+        
+      } catch (error) {
+        console.error(`Error requesting series "${title}":`, error);
+        
+        // Store error
+        this.requestStatus[title] = {
+          success: false,
+          message: `Error: ${error.message || 'Unknown error'}`
+        };
+        
+        // Show error toast
+        console.error(`Failed to add "${title}" to Sonarr: ${error.message || 'Unknown error'}`);
+      } finally {
+        // Clear requesting state
+        this.requestingSeries = null;
+      }
     }
   },
   mounted() {
@@ -819,5 +902,58 @@ select:hover {
   color: var(--text-color);
   opacity: 0.7;
   transition: color var(--transition-speed);
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.request-button {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.request-button:hover:not(:disabled) {
+  background-color: #1976D2;
+}
+
+.request-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.request-button.loading {
+  background-color: #64B5F6;
+}
+
+.request-button.requested {
+  background-color: #4CAF50;
+  cursor: default;
+}
+
+.small-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
 }
 </style>

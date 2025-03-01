@@ -4,5 +4,5 @@ services:
     build: .
     container_name: reccommendarr
     ports:
-      - "8080:80"
+      - "3030:80"
     restart: unless-stopped

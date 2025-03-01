@@ -31,11 +31,11 @@ docker pull reccommendarr/reccommendarr:latest
 # Run the container
 docker run -d \
   --name reccommendarr \
-  -p 8080:80 \
+  -p 3030:80 \
   reccommendarr/reccommendarr:latest
 ```
 
-Then visit `http://localhost:8080` in your browser.
+Then visit `http://localhost:3030` in your browser.
 
 ### Option 2: Manual Installation
 
@@ -55,7 +55,7 @@ npm install
 npm run serve
 ```
 
-4. Visit `http://localhost:8080` in your browser.
+4. Visit `http://localhost:3030` in your browser.
 
 ## 🔧 Configuration
 
@@ -114,7 +114,7 @@ services:
     image: reccommendarr/reccommendarr:latest
     container_name: reccommendarr
     ports:
-      - "8080:80"
+      - "3030:80"
     restart: unless-stopped
 ```
 

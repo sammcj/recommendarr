@@ -1,9 +1,8 @@
 # Recommendarr
 
-Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
-
 ![recommendations](https://github.com/user-attachments/assets/8e0e7abe-ef79-4408-9257-437bf309b32f)
 
+Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
 
 ## 🌟 Features
 
@@ -25,6 +24,8 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ### Option 1: Docker (Recommended)
 
+Using our pre-built Docker image is the quickest way to get started:
+
 ```bash
 # Pull the image
 docker pull tannermiddleton/recommendarr:latest
@@ -37,6 +38,8 @@ docker run -d \
 ```
 
 Then visit `http://localhost:3030` in your browser.
+
+For more Docker options, see the [Docker Support](#-docker-support) section below.
 
 ### Option 2: Manual Installation
 
@@ -94,35 +97,58 @@ You can connect to both services or just one, depending on your needs.
 
 ## 🐋 Docker Support
 
-### Building the Docker Image
+### Option 1: Pull and Run Pre-built Image
+
+The easiest way to run Recommendarr:
 
 ```bash
+# Pull the image
+docker pull tannermiddleton/recommendarr:latest
+
+# Run the container
+docker run -d \
+  --name recommendarr \
+  -p 3030:80 \
+  tannermiddleton/recommendarr:latest
+```
+
+### Option 2: Build and Run Locally
+
+If you want to build the Docker image yourself:
+
+```bash
+# Clone the repository
+git clone https://github.com/fingerthief/recommendarr.git
+
 # Navigate to the project directory
 cd recommendarr
 
 # Build the Docker image
-docker build -t recommendarr/recommendarr:latest .
+docker build -t recommendarr:local .
+
+# Run the container
+docker run -d \
+  --name recommendarr \
+  -p 3030:80 \
+  recommendarr:local
 ```
 
-### Docker Compose
+### Option 3: Docker Compose
 
-Create a `docker-compose.yml` file:
+The repository includes a `docker-compose.yml` file. Simply run:
 
-```yaml
-version: '3'
-services:
-  recommendarr:
-    image: recommendarr/recommendarr:latest
-    container_name: recommendarr
-    ports:
-      - "3030:80"
-    restart: unless-stopped
-```
-
-Run with:
 ```bash
+# Clone the repository
+git clone https://github.com/fingerthief/recommendarr.git
+
+# Navigate to the project directory 
+cd recommendarr
+
+# Start with docker-compose
 docker-compose up -d
 ```
+
+This will build the image from the local Dockerfile and start the service on port 3030.
 
 ## 🖥️ Compatible AI Services
 

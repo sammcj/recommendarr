@@ -17,18 +17,43 @@
     <div v-else>
       <div class="actions">
         <div class="recommendations-settings">
-          <div class="count-selector">
-            <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
-            <div class="slider-container">
-              <input 
-                type="range" 
-                id="recommendationsSlider"
-                v-model.number="numRecommendations"
-                min="1" 
-                max="50"
-                class="count-slider"
-                @change="saveRecommendationCount"
-              >
+          <div class="settings-container">
+            <div class="count-selector">
+              <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
+              <div class="slider-container">
+                <input 
+                  type="range" 
+                  id="recommendationsSlider"
+                  v-model.number="numRecommendations"
+                  min="1" 
+                  max="50"
+                  class="count-slider"
+                  @change="saveRecommendationCount"
+                >
+              </div>
+            </div>
+            
+            <div class="genre-selector">
+              <label for="genreSelect">Genre preference:</label>
+              <div class="select-container">
+                <select id="genreSelect" v-model="selectedGenre" @change="saveGenrePreference">
+                  <option value="">All genres (based on your library)</option>
+                  <option value="action">Action</option>
+                  <option value="adventure">Adventure</option>
+                  <option value="animation">Animation</option>
+                  <option value="comedy">Comedy</option>
+                  <option value="crime">Crime</option>
+                  <option value="documentary">Documentary</option>
+                  <option value="drama">Drama</option>
+                  <option value="fantasy">Fantasy</option>
+                  <option value="horror">Horror</option>
+                  <option value="mystery">Mystery</option>
+                  <option value="romance">Romance</option>
+                  <option value="sci-fi">Sci-Fi</option>
+                  <option value="thriller">Thriller</option>
+                </select>
+                <div class="select-arrow">▼</div>
+              </div>
             </div>
           </div>
         </div>
@@ -44,7 +69,7 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>Analyzing your TV show library and generating recommendations...</p>
+        <p>Analyzing your movie library and generating recommendations...</p>
       </div>
       
       <div v-else-if="error" class="error">
@@ -141,7 +166,8 @@ export default {
       recommendationsRequested: false,
       posters: new Map(), // Using a reactive Map for poster URLs
       loadingPosters: new Map(), // Track which posters are being loaded
-      numRecommendations: 5 // Default number of recommendations to request
+      numRecommendations: 5, // Default number of recommendations to request
+      selectedGenre: '' // Default to all genres
     };
   },
   methods: {
@@ -242,6 +268,11 @@ export default {
       localStorage.setItem('numRecommendations', this.numRecommendations);
     },
     
+    // Save genre preference to localStorage when it changes
+    saveGenrePreference() {
+      localStorage.setItem('movieGenrePreference', this.selectedGenre);
+    },
+    
     async getRecommendations() {
       // Verify we have a movies list and OpenAI is configured
       if (!this.radarrConfigured) {
@@ -264,8 +295,18 @@ export default {
       this.recommendationsRequested = true;
       
       try {
-        // Get recommendations from OpenAI based on Radarr library with the user-selected count
-        this.recommendations = await openAIService.getMovieRecommendations(this.movies, this.numRecommendations);
+        // Get recommendations from OpenAI based on Radarr library with user preferences
+        this.recommendations = await openAIService.getMovieRecommendations(
+          this.movies, 
+          this.numRecommendations,
+          this.selectedGenre
+        );
+        
+        // Update loading message to include genre if selected
+        const loadingMessage = document.querySelector('.loading p');
+        if (loadingMessage && this.selectedGenre) {
+          loadingMessage.textContent = `Analyzing your movie library and generating ${this.selectedGenre} recommendations...`;
+        }
         
         // Fetch posters for each recommendation
         this.fetchPosters();
@@ -325,6 +366,12 @@ export default {
       } else if (this.numRecommendations > 50) {
         this.numRecommendations = 50;
       }
+    }
+    
+    // Restore saved genre preference if exists
+    const savedGenre = localStorage.getItem('movieGenrePreference');
+    if (savedGenre) {
+      this.selectedGenre = savedGenre;
     }
   }
 };
@@ -399,25 +446,70 @@ h2 {
 
 .recommendations-settings {
   display: flex;
-  justify-content: center;
-  margin-bottom: 5px;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 15px;
   width: 100%;
   max-width: 500px;
 }
 
-.count-selector {
+.settings-container {
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 20px;
+  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.count-selector, .genre-selector {
   display: flex;
   flex-direction: column;
-  background-color: var(--card-bg-color);
-  padding: 15px;
-  border-radius: 4px;
-  box-shadow: var(--card-shadow);
   width: 100%;
   box-sizing: border-box;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
 }
 
-.count-selector label {
+.count-selector {
+  margin-bottom: 25px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.select-container {
+  position: relative;
+  width: 100%;
+}
+
+select {
+  width: 100%;
+  padding: 10px;
+  appearance: none;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color var(--transition-speed), color var(--transition-speed);
+}
+
+select:hover {
+  border-color: var(--button-primary-bg);
+}
+
+.select-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 10px;
+  color: var(--input-text);
+}
+
+.count-selector label, .genre-selector label {
   font-size: 14px;
   color: var(--text-color);
   font-weight: 500;

@@ -63,9 +63,10 @@ class OpenAIService {
    * Get show recommendations based on current library
    * @param {Array} series - List of TV shows from Sonarr
    * @param {number} [count=5] - Number of recommendations to generate
+   * @param {string} [genre=''] - Optional genre preference
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5) {
+  async getRecommendations(series, count = 5, genre = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -77,16 +78,15 @@ class OpenAIService {
       // Ensure count is within reasonable bounds
       const recommendationCount = Math.min(Math.max(count, 1), 50);
 
-      const messages = [
-        {
-          role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
-        },
-        {
-          role: "user",
-          content: `Based on my TV show library, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.
-
-Format each recommendation EXACTLY as follows (using the exact section titles):
+      // Base prompt
+      let userPrompt = `Based on my TV show library, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      
+      // Add genre preference if specified
+      if (genre) {
+        userPrompt += ` Focus specifically on recommending shows in the ${genre} genre.`;
+      }
+      
+      userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
@@ -97,7 +97,16 @@ Available on: [streaming service]
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per show.
 
-My current shows: ${showTitles}`
+My current shows: ${showTitles}`;
+
+      const messages = [
+        {
+          role: "system",
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
+        },
+        {
+          role: "user",
+          content: userPrompt
         }
       ];
       
@@ -112,9 +121,10 @@ My current shows: ${showTitles}`
    * Get movie recommendations based on current library
    * @param {Array} movies - List of movies from Radarr
    * @param {number} [count=5] - Number of recommendations to generate
+   * @param {string} [genre=''] - Optional genre preference
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5) {
+  async getMovieRecommendations(movies, count = 5, genre = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -125,17 +135,16 @@ My current shows: ${showTitles}`
       
       // Ensure count is within reasonable bounds
       const recommendationCount = Math.min(Math.max(count, 1), 50);
-
-      const messages = [
-        {
-          role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
-        },
-        {
-          role: "user",
-          content: `Based on my movie library, recommend ${recommendationCount} new movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.
-
-Format each recommendation EXACTLY as follows (using the exact section titles):
+      
+      // Base prompt
+      let userPrompt = `Based on my movie library, recommend ${recommendationCount} new movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      
+      // Add genre preference if specified
+      if (genre) {
+        userPrompt += ` Focus specifically on recommending movies in the ${genre} genre.`;
+      }
+      
+      userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
@@ -146,7 +155,16 @@ Available on: [streaming service]
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Available on) exactly once per movie.
 
-My current movies: ${movieTitles}`
+My current movies: ${movieTitles}`;
+
+      const messages = [
+        {
+          role: "system",
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
+        },
+        {
+          role: "user",
+          content: userPrompt
         }
       ];
       

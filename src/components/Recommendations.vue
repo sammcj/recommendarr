@@ -94,10 +94,6 @@
                 <p>{{ rec.reasoning }}</p>
               </div>
               
-              <div v-if="rec.streaming" class="streaming">
-                <h4>Available on:</h4>
-                <p>{{ rec.streaming }}</p>
-              </div>
               
               <div v-if="!rec.description && !rec.reasoning" class="full-text">
                 <p>{{ rec.fullText }}</p>
@@ -573,8 +569,9 @@ h2 {
   background-color: var(--card-bg-color);
   border-radius: 8px;
   box-shadow: var(--card-shadow);
-  overflow: hidden;
+  overflow: visible;
   transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
+  min-height: 275px;
 }
 
 .recommendation-card:hover {
@@ -656,7 +653,7 @@ h2 {
 .details-container {
   flex: 1;
   padding: 20px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .recommendation-card h3 {
@@ -665,10 +662,9 @@ h2 {
   color: var(--header-color);
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 10px;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   transition: color var(--transition-speed), border-color var(--transition-speed);
+  line-height: 1.3;
 }
 
 .recommendation-card h4 {

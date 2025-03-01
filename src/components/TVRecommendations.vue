@@ -268,10 +268,6 @@
                   </div>
                 </div>
                 
-                <div v-if="rec.streaming" class="streaming">
-                  <span class="label">Available on:</span>
-                  <p>{{ rec.streaming }}</p>
-                </div>
                 
                 <div v-if="!rec.description && !rec.reasoning" class="full-text">
                   <p>{{ rec.fullText }}</p>
@@ -1706,9 +1702,9 @@ select:hover {
   background-color: var(--card-bg-color);
   border-radius: 8px;
   box-shadow: var(--card-shadow);
-  overflow: hidden;
+  overflow: visible;
   transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
-  height: 275px; /* Increased height to show more content */
+  min-height: 275px; /* Use min-height instead of fixed height to allow content to expand */
 }
 
 .recommendation-card:hover {
@@ -1719,7 +1715,7 @@ select:hover {
 .card-content {
   display: flex;
   flex-direction: row;
-  height: 100%;
+  min-height: 100%;
 }
 
 .poster-container {
@@ -1797,7 +1793,7 @@ select:hover {
 .details-container {
   flex: 1;
   padding: 15px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -1862,33 +1858,17 @@ select:hover {
 }
 
 .recommendation-card h3 {
-  margin: 0;
+  margin: 0 0 5px 0;
   color: var(--header-color);
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   transition: color var(--transition-speed);
   font-size: 18px;
+  line-height: 1.3;
 }
 
 .content-container {
-  overflow-y: auto;
   flex: 1;
-  max-height: 210px; /* Increased to allow more content to be visible */
-  scrollbar-width: thin;
-}
-
-.content-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.content-container::-webkit-scrollbar-thumb {
-  background-color: rgba(0,0,0,0.2);
-  border-radius: 3px;
-}
-
-.content-container::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.05);
+  overflow: visible;
 }
 
 .label {

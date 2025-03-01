@@ -52,6 +52,21 @@
                     >
                   </div>
                 </div>
+                
+                <div class="count-selector">
+                  <label for="columnsSlider">Posters per row: <span class="count-display">{{ columnsCount }}</span></label>
+                  <div class="slider-container">
+                    <input 
+                      type="range" 
+                      id="columnsSlider"
+                      v-model.number="columnsCount"
+                      min="1" 
+                      max="4"
+                      class="count-slider"
+                      @change="saveColumnsCount"
+                    >
+                  </div>
+                </div>
               </div>
               
               <div class="settings-right">
@@ -100,7 +115,7 @@
         {{ error }}
       </div>
       
-      <div v-else-if="recommendations.length > 0" class="recommendation-list">
+      <div v-else-if="recommendations.length > 0" class="recommendation-list" :style="gridStyle">
         <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card">
           <!-- Clean title for poster lookup -->
           <div class="card-content">
@@ -131,45 +146,44 @@
             </div>
             
             <div class="details-container">
-              <h3>{{ rec.title }}</h3>
-              
-              <div v-if="rec.description" class="description">
-                <h4>Description:</h4>
-                <p>{{ rec.description }}</p>
-              </div>
-              
-              <div v-if="rec.reasoning" class="reasoning">
-                <h4>Why you might like it:</h4>
-                <p>{{ rec.reasoning }}</p>
-              </div>
-              
-              <div v-if="rec.streaming" class="streaming">
-                <h4>Available on:</h4>
-                <p>{{ rec.streaming }}</p>
-              </div>
-              
-              <div v-if="!rec.description && !rec.reasoning" class="full-text">
-                <p>{{ rec.fullText }}</p>
-              </div>
-              
-              <div class="action-buttons">
+              <div class="card-header">
+                <h3>{{ rec.title }}</h3>
                 <button 
                   @click="requestMovie(rec.title)" 
-                  class="request-button"
+                  class="request-button compact"
                   :class="{'loading': requestingMovie === rec.title, 'requested': requestStatus[rec.title]?.success}"
                   :disabled="requestingMovie || requestStatus[rec.title]?.success">
                   <span v-if="requestingMovie === rec.title">
                     <div class="small-spinner"></div>
-                    Adding to Radarr...
                   </span>
                   <span v-else-if="requestStatus[rec.title]?.success">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
-                    Added to Radarr
                   </span>
-                  <span v-else>Add to Radarr</span>
+                  <span v-else>Add</span>
                 </button>
+              </div>
+              
+              <div class="content-container">
+                <div v-if="rec.description" class="description">
+                  <span class="label">Description:</span>
+                  <p>{{ rec.description }}</p>
+                </div>
+                
+                <div v-if="rec.reasoning" class="reasoning">
+                  <span class="label">Why you might like it:</span>
+                  <p>{{ rec.reasoning }}</p>
+                </div>
+                
+                <div v-if="rec.streaming" class="streaming">
+                  <span class="label">Available on:</span>
+                  <p>{{ rec.streaming }}</p>
+                </div>
+                
+                <div v-if="!rec.description && !rec.reasoning" class="full-text">
+                  <p>{{ rec.fullText }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -202,6 +216,13 @@ export default {
       required: true
     }
   },
+  computed: {
+    gridStyle() {
+      return {
+        gridTemplateColumns: `repeat(${this.columnsCount}, 1fr)`
+      };
+    }
+  },
   data() {
     return {
       openaiConfigured: false,
@@ -212,6 +233,7 @@ export default {
       posters: new Map(), // Using a reactive Map for poster URLs
       loadingPosters: new Map(), // Track which posters are being loaded
       numRecommendations: 5, // Default number of recommendations to request
+      columnsCount: 2, // Default number of posters per row
       selectedGenres: [], // Multiple genre selections
       availableGenres: [
         { value: 'action', label: 'Action' },
@@ -331,6 +353,11 @@ export default {
     // Save recommendation count to localStorage
     saveRecommendationCount() {
       localStorage.setItem('numRecommendations', this.numRecommendations);
+    },
+    
+    // Save columns count to localStorage
+    saveColumnsCount() {
+      localStorage.setItem('columnsCount', this.columnsCount);
     },
     
     // Save genre preferences to localStorage when they change
@@ -551,6 +578,18 @@ export default {
         this.numRecommendations = 1;
       } else if (this.numRecommendations > 50) {
         this.numRecommendations = 50;
+      }
+    }
+    
+    // Restore saved columns count from localStorage (if exists)
+    const savedColumnsCount = localStorage.getItem('columnsCount');
+    if (savedColumnsCount) {
+      this.columnsCount = parseInt(savedColumnsCount, 10);
+      // Validate the value is within range
+      if (isNaN(this.columnsCount) || this.columnsCount < 1) {
+        this.columnsCount = 2; // Default to 2 if invalid
+      } else if (this.columnsCount > 4) {
+        this.columnsCount = 4;
       }
     }
     
@@ -959,15 +998,13 @@ h2 {
 
 .recommendation-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
   margin-top: 20px;
+  grid-template-columns: 1fr;
 }
 
 @media (min-width: 768px) {
-  .recommendation-list {
-    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
-  }
+  /* Grid columns controlled by :style binding using the gridStyle computed property */
 }
 
 .recommendation-card {
@@ -976,56 +1013,39 @@ h2 {
   box-shadow: var(--card-shadow);
   overflow: hidden;
   transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
+  height: 225px; /* Fixed height for consistent cards */
 }
 
 .recommendation-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
 .card-content {
   display: flex;
-  flex-direction: column;
-}
-
-@media (min-width: 480px) {
-  .card-content {
-    flex-direction: row;
-  }
+  flex-direction: row;
+  height: 100%;
 }
 
 .poster-container {
   position: relative;
-  width: 100%;
   display: flex;
   justify-content: center;
-  padding: 10px 0;
-}
-
-@media (min-width: 480px) {
-  .poster-container {
-    flex: 0 0 150px;
-    padding: 0;
-    width: auto;
-  }
+  flex: 0 0 150px;
+  padding: 0;
+  width: auto;
+  height: 100%;
 }
 
 .poster {
-  width: 120px;
-  height: 180px;
+  width: 150px;
+  height: 225px;
   background-size: cover;
   background-position: center;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-@media (min-width: 480px) {
-  .poster {
-    width: 150px;
-    height: 225px;
-  }
 }
 
 .title-fallback {
@@ -1081,39 +1101,72 @@ h2 {
 
 .details-container {
   flex: 1;
-  padding: 20px;
+  padding: 15px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .recommendation-card h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
+  margin: 0;
   color: var(--header-color);
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color var(--transition-speed), border-color var(--transition-speed);
+  transition: color var(--transition-speed);
+  font-size: 18px;
 }
 
-.recommendation-card h4 {
-  margin: 15px 0 5px 0;
+.content-container {
+  overflow-y: auto;
+  flex: 1;
+  max-height: 160px; /* Allow scrolling for long content */
+  scrollbar-width: thin;
+}
+
+.content-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content-container::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+.content-container::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.05);
+}
+
+.label {
+  font-weight: 600;
+  font-size: 13px;
   color: var(--text-color);
-  opacity: 0.8;
-  font-size: 14px;
-  transition: color var(--transition-speed);
+  opacity: 0.9;
+  margin-right: 5px;
 }
 
 .recommendation-card p {
   margin: 0;
   color: var(--text-color);
-  line-height: 1.5;
+  line-height: 1.4;
   transition: color var(--transition-speed);
+  font-size: 14px;
 }
 
 .description, .reasoning, .streaming {
-  margin-bottom: 15px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .history-info {
@@ -1149,15 +1202,6 @@ h2 {
   transition: color var(--transition-speed);
 }
 
-.action-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid var(--border-color);
-}
-
 .request-button {
   background-color: #2196F3;
   color: white;
@@ -1171,6 +1215,13 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.request-button.compact {
+  padding: 5px 10px;
+  font-size: 12px;
+  min-width: 55px;
+  justify-content: center;
 }
 
 .request-button:hover:not(:disabled) {

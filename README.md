@@ -1,9 +1,8 @@
 # Recommendarr
 
-Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
-
 ![recommendations](https://github.com/user-attachments/assets/8e0e7abe-ef79-4408-9257-437bf309b32f)
 
+Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
 
 ## 🌟 Features
 
@@ -101,7 +100,7 @@ You can connect to both services or just one, depending on your needs.
 cd recommendarr
 
 # Build the Docker image
-docker build -t recommendarr/recommendarr:latest .
+docker build -t tannermiddleton/recommendarr:latest .
 ```
 
 ### Docker Compose
@@ -112,7 +111,7 @@ Create a `docker-compose.yml` file:
 version: '3'
 services:
   recommendarr:
-    image: recommendarr/recommendarr:latest
+    image: tannermiddleton/recommendarr:latest
     container_name: recommendarr
     ports:
       - "3030:80"

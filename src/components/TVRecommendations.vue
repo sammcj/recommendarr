@@ -53,6 +53,26 @@
                         />
                       </div>
                     </div>
+                    
+                    <div class="temperature-control">
+                      <label for="temperature-slider">Temperature: <span class="temp-value">{{ temperature.toFixed(1) }}</span></label>
+                      <div class="slider-container">
+                        <div class="temp-labels">
+                          <div class="temp-label-right">Creative</div>
+                          <input 
+                          type="range" 
+                          id="temperature-slider"
+                          v-model.number="temperature"
+                          min="0" 
+                          max="1"
+                          step="0.1"
+                          class="temp-slider"
+                          @change="updateTemperature"
+                        />
+                        <div class="temp-label-left">Precise</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div class="history-info">
                     <span>{{ previousRecommendations.length }} shows in history</span>
@@ -348,7 +368,8 @@ export default {
       isCustomModel: false, // Whether the custom model input is visible
       modelOptions: [], // Available models from API
       fetchingModels: false, // Loading state for fetching models
-      fetchError: null // Error when fetching models
+      fetchError: null, // Error when fetching models
+      temperature: 0.5 // AI temperature parameter
     };
   },
   methods: {
@@ -525,6 +546,15 @@ export default {
         localStorage.setItem('openaiModel', this.customModel);
         openAIService.model = this.customModel;
       }
+    },
+    
+    // Update temperature and save to localStorage
+    updateTemperature() {
+      // Save to localStorage
+      localStorage.setItem('aiTemperature', this.temperature.toString());
+      
+      // Update in OpenAI service
+      openAIService.temperature = this.temperature;
     },
     
     // Fetch available models from the API
@@ -825,6 +855,20 @@ export default {
     this.selectedModel = 'custom';
     this.isCustomModel = true;
     
+    // Initialize temperature from localStorage or OpenAIService
+    const savedTemp = localStorage.getItem('aiTemperature');
+    if (savedTemp) {
+      this.temperature = parseFloat(savedTemp);
+      // Validate the value is within range
+      if (isNaN(this.temperature) || this.temperature < 0) {
+        this.temperature = 0;
+      } else if (this.temperature > 1) {
+        this.temperature = 1;
+      }
+    } else if (openAIService.temperature) {
+      this.temperature = openAIService.temperature;
+    }
+    
     // Fetch models if API is configured
     if (openAIService.isConfigured()) {
       this.fetchModels().then(() => {
@@ -1108,6 +1152,98 @@ h2 {
 .custom-model-input:focus {
   border-color: var(--button-primary-bg);
   outline: none;
+}
+
+.temperature-control {
+  margin-top: 15px;
+}
+
+.temperature-control label {
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.temp-value {
+  font-weight: bold;
+  color: #4CAF50;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.temp-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 5px;
+  background: #ddd;
+  outline: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.temp-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 5px;
+}
+
+.temp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s, transform 0.2s;
+  margin-top: -6px;
+}
+
+.temp-slider::-webkit-slider-thumb:hover {
+  background: #43a047;
+  transform: scale(1.1);
+}
+
+.temp-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s, transform 0.2s;
+  border: none;
+}
+
+.temp-labels {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.7;
+  width: 100%;
+}
+
+.temp-label-left {
+  margin-left: 10px;
+  width: 50px;
+}
+
+.temp-label-right {
+  margin-right: 10px;
+  width: 50px;
+}
+
+.temp-slider {
+  flex: 1;
+  margin: 0 10px;
 }
 
 .genre-checkboxes {

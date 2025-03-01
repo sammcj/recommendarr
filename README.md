@@ -1,7 +1,5 @@
 # Recommendarr
 
-![Recommendarr Logo](./public/favicon.ico) 
-
 Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
 
 ## 🌟 Features

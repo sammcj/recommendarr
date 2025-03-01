@@ -23,7 +23,56 @@
                 <div class="info-section">
                   <h3 class="info-section-title">Current Configuration</h3>
                   <div class="model-info">
-                    <span class="current-model">Model: <strong>{{ currentModel }}</strong></span>
+                    <div class="model-header">
+                      <span class="current-model">Model:</span>
+                      <button 
+                        @click="fetchModels" 
+                        class="fetch-models-button"
+                        :disabled="fetchingModels"
+                        title="Refresh models from API"
+                      >
+                        <span v-if="fetchingModels" class="loading-icon">⟳</span>
+                        <span v-else>⟳</span>
+                      </button>
+                    </div>
+                    <div class="model-select-container">
+                      <select v-model="selectedModel" @change="updateModel" class="model-select">
+                        <option value="" disabled>{{ modelOptions.length === 0 ? 'No models available' : 'Select a model' }}</option>
+                        <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
+                        <option value="custom">Custom/Other...</option>
+                      </select>
+                      <div v-if="fetchError" class="fetch-error">{{ fetchError }}</div>
+                      <div class="model-select-custom" v-if="isCustomModel">
+                        <input 
+                          type="text" 
+                          v-model="customModel" 
+                          placeholder="Enter model name" 
+                          class="custom-model-input"
+                          @blur="updateCustomModel"
+                          @keyup.enter="updateCustomModel"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div class="temperature-control">
+                      <label for="temperature-slider">Temperature: <span class="temp-value">{{ temperature.toFixed(1) }}</span></label>
+                      <div class="slider-container">
+                        <div class="temp-labels">
+                          <div class="temp-label-right">Creative</div>
+                          <input 
+                          type="range" 
+                          id="temperature-slider"
+                          v-model.number="temperature"
+                          min="0" 
+                          max="1"
+                          step="0.1"
+                          class="temp-slider"
+                          @change="updateTemperature"
+                        />
+                        <div class="temp-label-left">Precise</div>
+                      </div>
+                        </div>
+                    </div>
                   </div>
                   <div class="history-info">
                     <span>{{ previousRecommendations.length }} movies in history</span>
@@ -49,6 +98,21 @@
                       max="50"
                       class="count-slider"
                       @change="saveRecommendationCount"
+                    >
+                  </div>
+                </div>
+                
+                <div class="count-selector">
+                  <label for="columnsSlider">Posters per row: <span class="count-display">{{ columnsCount }}</span></label>
+                  <div class="slider-container">
+                    <input 
+                      type="range" 
+                      id="columnsSlider"
+                      v-model.number="columnsCount"
+                      min="1" 
+                      max="4"
+                      class="count-slider"
+                      @change="saveColumnsCount"
                     >
                   </div>
                 </div>
@@ -100,7 +164,7 @@
         {{ error }}
       </div>
       
-      <div v-else-if="recommendations.length > 0" class="recommendation-list">
+      <div v-else-if="recommendations.length > 0" class="recommendation-list" :style="gridStyle">
         <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card">
           <!-- Clean title for poster lookup -->
           <div class="card-content">
@@ -131,45 +195,44 @@
             </div>
             
             <div class="details-container">
-              <h3>{{ rec.title }}</h3>
-              
-              <div v-if="rec.description" class="description">
-                <h4>Description:</h4>
-                <p>{{ rec.description }}</p>
-              </div>
-              
-              <div v-if="rec.reasoning" class="reasoning">
-                <h4>Why you might like it:</h4>
-                <p>{{ rec.reasoning }}</p>
-              </div>
-              
-              <div v-if="rec.streaming" class="streaming">
-                <h4>Available on:</h4>
-                <p>{{ rec.streaming }}</p>
-              </div>
-              
-              <div v-if="!rec.description && !rec.reasoning" class="full-text">
-                <p>{{ rec.fullText }}</p>
-              </div>
-              
-              <div class="action-buttons">
+              <div class="card-header">
+                <h3>{{ rec.title }}</h3>
                 <button 
                   @click="requestMovie(rec.title)" 
-                  class="request-button"
+                  class="request-button compact"
                   :class="{'loading': requestingMovie === rec.title, 'requested': requestStatus[rec.title]?.success}"
                   :disabled="requestingMovie || requestStatus[rec.title]?.success">
                   <span v-if="requestingMovie === rec.title">
                     <div class="small-spinner"></div>
-                    Adding to Radarr...
                   </span>
                   <span v-else-if="requestStatus[rec.title]?.success">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
-                    Added to Radarr
                   </span>
-                  <span v-else>Add to Radarr</span>
+                  <span v-else>Add</span>
                 </button>
+              </div>
+              
+              <div class="content-container">
+                <div v-if="rec.description" class="description">
+                  <span class="label">Description:</span>
+                  <p>{{ rec.description }}</p>
+                </div>
+                
+                <div v-if="rec.reasoning" class="reasoning">
+                  <span class="label">Why you might like it:</span>
+                  <p>{{ rec.reasoning }}</p>
+                </div>
+                
+                <div v-if="rec.streaming" class="streaming">
+                  <span class="label">Available on:</span>
+                  <p>{{ rec.streaming }}</p>
+                </div>
+                
+                <div v-if="!rec.description && !rec.reasoning" class="full-text">
+                  <p>{{ rec.fullText }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -187,6 +250,7 @@
 import openAIService from '../services/OpenAIService';
 import imageService from '../services/ImageService';
 import radarrService from '../services/RadarrService';
+import axios from 'axios';
 
 export default {
   name: 'MovieRecommendations',
@@ -202,6 +266,13 @@ export default {
       required: true
     }
   },
+  computed: {
+    gridStyle() {
+      return {
+        gridTemplateColumns: `repeat(${this.columnsCount}, 1fr)`
+      };
+    }
+  },
   data() {
     return {
       openaiConfigured: false,
@@ -212,6 +283,7 @@ export default {
       posters: new Map(), // Using a reactive Map for poster URLs
       loadingPosters: new Map(), // Track which posters are being loaded
       numRecommendations: 5, // Default number of recommendations to request
+      columnsCount: 2, // Default number of posters per row
       selectedGenres: [], // Multiple genre selections
       availableGenres: [
         { value: 'action', label: 'Action' },
@@ -232,7 +304,13 @@ export default {
       requestStatus: {}, // Track request status for each movie,
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
       maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
-      currentModel: 'Loading...' // Current model being used
+      selectedModel: '', // Current selected model
+      customModel: '', // For custom model input
+      isCustomModel: false, // Whether the custom model input is visible
+      modelOptions: [], // Available models from API
+      fetchingModels: false, // Loading state for fetching models
+      fetchError: null, // Error when fetching models
+      temperature: 0.5 // AI temperature parameter
     };
   },
   methods: {
@@ -333,6 +411,11 @@ export default {
       localStorage.setItem('numRecommendations', this.numRecommendations);
     },
     
+    // Save columns count to localStorage
+    saveColumnsCount() {
+      localStorage.setItem('columnsCount', this.columnsCount);
+    },
+    
     // Save genre preferences to localStorage when they change
     saveGenrePreference() {
       localStorage.setItem('movieGenrePreferences', JSON.stringify(this.selectedGenres));
@@ -379,6 +462,85 @@ export default {
       if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended movies?`)) {
         this.previousRecommendations = [];
         this.savePreviousRecommendations();
+      }
+    },
+    
+    // Update the model selection
+    updateModel() {
+      if (this.selectedModel === 'custom') {
+        this.isCustomModel = true;
+        // If we already have a custom model set, use that as the initial value
+        if (openAIService.model && !this.availableModels.includes(openAIService.model)) {
+          this.customModel = openAIService.model;
+        }
+      } else {
+        this.isCustomModel = false;
+        // Save the selected model
+        localStorage.setItem('openaiModel', this.selectedModel);
+        openAIService.model = this.selectedModel;
+      }
+    },
+    
+    // Update the custom model name
+    updateCustomModel() {
+      if (this.customModel.trim()) {
+        localStorage.setItem('openaiModel', this.customModel);
+        openAIService.model = this.customModel;
+      }
+    },
+    
+    // Update temperature and save to localStorage
+    updateTemperature() {
+      // Save to localStorage
+      localStorage.setItem('aiTemperature', this.temperature.toString());
+      
+      // Update in OpenAI service
+      openAIService.temperature = this.temperature;
+    },
+    
+    // Fetch available models from the API
+    async fetchModels() {
+      if (!openAIService.isConfigured()) {
+        this.fetchError = 'API service is not configured. Please set up your API key first.';
+        return;
+      }
+      
+      this.fetchingModels = true;
+      this.fetchError = null;
+      
+      try {
+        // Use the baseUrl from OpenAIService to build the models endpoint
+        const modelsEndpoint = `${openAIService.baseUrl}/models`;
+        
+        // Set up headers based on the API endpoint
+        const headers = {};
+        
+        // Add authentication header based on the API endpoint
+        if (openAIService.baseUrl === 'https://api.anthropic.com/v1') {
+          headers['x-api-key'] = openAIService.apiKey;
+          headers['anthropic-dangerous-direct-browser-access'] = 'true';
+          headers['anthropic-version'] = '2023-06-01';
+        } else {
+          headers['Authorization'] = `Bearer ${openAIService.apiKey}`;
+        }
+        
+        const response = await axios.get(modelsEndpoint, { headers });
+        
+        if (response.data && response.data.data) {
+          // Get the list of models
+          this.modelOptions = response.data.data;
+          
+          // Sort models alphabetically
+          this.modelOptions.sort((a, b) => a.id.localeCompare(b.id));
+        } else {
+          this.fetchError = 'Invalid response format from API';
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error);
+        this.fetchError = error.response?.data?.error?.message || 
+                         'Failed to fetch models. Check your API key and URL.';
+      } finally {
+        this.fetchingModels = false;
       }
     },
     
@@ -535,11 +697,40 @@ export default {
     // Check if OpenAI is already configured
     this.openaiConfigured = openAIService.isConfigured();
     
-    // Get current model from OpenAIService
-    if (this.openaiConfigured) {
-      this.currentModel = openAIService.model || 'Unknown';
-    } else {
-      this.currentModel = 'Not configured';
+    // Initialize model selection
+    const currentModel = openAIService.model || 'gpt-3.5-turbo';
+    
+    // Set to custom by default, we'll update once models are fetched
+    this.customModel = currentModel;
+    this.selectedModel = 'custom';
+    this.isCustomModel = true;
+    
+    // Initialize temperature from localStorage or OpenAIService
+    const savedTemp = localStorage.getItem('aiTemperature');
+    if (savedTemp) {
+      this.temperature = parseFloat(savedTemp);
+      // Validate the value is within range
+      if (isNaN(this.temperature) || this.temperature < 0) {
+        this.temperature = 0;
+      } else if (this.temperature > 1) {
+        this.temperature = 1;
+      }
+    } else if (openAIService.temperature) {
+      this.temperature = openAIService.temperature;
+    }
+    
+    // Fetch models if API is configured
+    if (openAIService.isConfigured()) {
+      this.fetchModels().then(() => {
+        // Check if the current model is in the fetched models
+        const modelExists = this.modelOptions.some(model => model.id === currentModel);
+        
+        if (modelExists) {
+          // If current model exists in options, select it
+          this.selectedModel = currentModel;
+          this.isCustomModel = false;
+        }
+      });
     }
     
     // Restore saved recommendation count from localStorage (if exists)
@@ -551,6 +742,18 @@ export default {
         this.numRecommendations = 1;
       } else if (this.numRecommendations > 50) {
         this.numRecommendations = 50;
+      }
+    }
+    
+    // Restore saved columns count from localStorage (if exists)
+    const savedColumnsCount = localStorage.getItem('columnsCount');
+    if (savedColumnsCount) {
+      this.columnsCount = parseInt(savedColumnsCount, 10);
+      // Validate the value is within range
+      if (isNaN(this.columnsCount) || this.columnsCount < 1) {
+        this.columnsCount = 2; // Default to 2 if invalid
+      } else if (this.columnsCount > 4) {
+        this.columnsCount = 4;
       }
     }
     
@@ -719,11 +922,178 @@ h2 {
 .current-model {
   color: var(--text-color);
   transition: color var(--transition-speed);
+  font-weight: 500;
 }
 
-.current-model strong {
-  color: var(--header-color);
-  transition: color var(--transition-speed);
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.fetch-models-button {
+  background: none;
+  border: none;
+  color: var(--button-primary-bg);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.fetch-models-button:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.fetch-models-button:disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+.loading-icon {
+  display: inline-block;
+  animation: spin 1s infinite linear;
+}
+
+.fetch-error {
+  color: #f44336;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.model-select-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-select {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.model-select:focus {
+  border-color: var(--button-primary-bg);
+  outline: none;
+}
+
+.model-select-custom {
+  margin-top: 5px;
+}
+
+.custom-model-input {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+  width: 100%;
+}
+
+.custom-model-input:focus {
+  border-color: var(--button-primary-bg);
+  outline: none;
+}
+
+.temperature-control {
+  margin-top: 15px;
+}
+
+.temperature-control label {
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.temp-value {
+  font-weight: bold;
+  color: #4CAF50;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.temp-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 5px;
+  background: #ddd;
+  outline: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.temp-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 5px;
+}
+
+.temp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s, transform 0.2s;
+  margin-top: -6px;
+}
+
+.temp-slider::-webkit-slider-thumb:hover {
+  background: #43a047;
+  transform: scale(1.1);
+}
+
+.temp-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s, transform 0.2s;
+  border: none;
+}
+
+.temp-labels {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.7;
+  width: 100%;
+}
+
+.temp-label-left {
+  margin-left: 10px;
+  width: 50px;
+}
+
+.temp-label-right {
+  margin-right: 10px;
+  width: 50px;
+}
+
+.temp-slider {
+  flex: 1;
+  margin: 0 10px;
 }
 
 .count-selector, .genre-selector {
@@ -959,15 +1329,13 @@ h2 {
 
 .recommendation-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
   margin-top: 20px;
+  grid-template-columns: 1fr;
 }
 
 @media (min-width: 768px) {
-  .recommendation-list {
-    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
-  }
+  /* Grid columns controlled by :style binding using the gridStyle computed property */
 }
 
 .recommendation-card {
@@ -976,56 +1344,39 @@ h2 {
   box-shadow: var(--card-shadow);
   overflow: hidden;
   transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
+  height: 225px; /* Fixed height for consistent cards */
 }
 
 .recommendation-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
 .card-content {
   display: flex;
-  flex-direction: column;
-}
-
-@media (min-width: 480px) {
-  .card-content {
-    flex-direction: row;
-  }
+  flex-direction: row;
+  height: 100%;
 }
 
 .poster-container {
   position: relative;
-  width: 100%;
   display: flex;
   justify-content: center;
-  padding: 10px 0;
-}
-
-@media (min-width: 480px) {
-  .poster-container {
-    flex: 0 0 150px;
-    padding: 0;
-    width: auto;
-  }
+  flex: 0 0 150px;
+  padding: 0;
+  width: auto;
+  height: 100%;
 }
 
 .poster {
-  width: 120px;
-  height: 180px;
+  width: 150px;
+  height: 225px;
   background-size: cover;
   background-position: center;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-@media (min-width: 480px) {
-  .poster {
-    width: 150px;
-    height: 225px;
-  }
 }
 
 .title-fallback {
@@ -1081,39 +1432,72 @@ h2 {
 
 .details-container {
   flex: 1;
-  padding: 20px;
+  padding: 15px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .recommendation-card h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
+  margin: 0;
   color: var(--header-color);
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color var(--transition-speed), border-color var(--transition-speed);
+  transition: color var(--transition-speed);
+  font-size: 18px;
 }
 
-.recommendation-card h4 {
-  margin: 15px 0 5px 0;
+.content-container {
+  overflow-y: auto;
+  flex: 1;
+  max-height: 160px; /* Allow scrolling for long content */
+  scrollbar-width: thin;
+}
+
+.content-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content-container::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+.content-container::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.05);
+}
+
+.label {
+  font-weight: 600;
+  font-size: 13px;
   color: var(--text-color);
-  opacity: 0.8;
-  font-size: 14px;
-  transition: color var(--transition-speed);
+  opacity: 0.9;
+  margin-right: 5px;
 }
 
 .recommendation-card p {
   margin: 0;
   color: var(--text-color);
-  line-height: 1.5;
+  line-height: 1.4;
   transition: color var(--transition-speed);
+  font-size: 14px;
 }
 
 .description, .reasoning, .streaming {
-  margin-bottom: 15px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .history-info {
@@ -1149,15 +1533,6 @@ h2 {
   transition: color var(--transition-speed);
 }
 
-.action-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid var(--border-color);
-}
-
 .request-button {
   background-color: #2196F3;
   color: white;
@@ -1171,6 +1546,13 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.request-button.compact {
+  padding: 5px 10px;
+  font-size: 12px;
+  min-width: 55px;
+  justify-content: center;
 }
 
 .request-button:hover:not(:disabled) {

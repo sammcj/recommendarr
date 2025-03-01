@@ -2,7 +2,7 @@
   <div class="app-container">
     <header class="app-header">
       <img alt="App logo" src="./assets/logo.png" class="logo">
-      <h1>Reccommendarr</h1>
+      <h1>Recommendarr</h1>
     </header>
     
     <main>

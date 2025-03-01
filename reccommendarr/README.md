@@ -1,8 +1,8 @@
-# Reccommendarr
+# Recommendarr
 
-![Reccommendarr Logo](./public/favicon.ico) 
+![Recommendarr Logo](./public/favicon.ico) 
 
-Reccommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
+Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr and Radarr libraries using AI.
 
 ## 🌟 Features
 
@@ -26,13 +26,13 @@ Reccommendarr is a web application that generates personalized TV show and movie
 
 ```bash
 # Pull the image
-docker pull reccommendarr/reccommendarr:latest
+docker pull recommendarr/recommendarr:latest
 
 # Run the container
 docker run -d \
-  --name reccommendarr \
+  --name recommendarr \
   -p 3030:80 \
-  reccommendarr/reccommendarr:latest
+  recommendarr/recommendarr:latest
 ```
 
 Then visit `http://localhost:3030` in your browser.
@@ -41,8 +41,8 @@ Then visit `http://localhost:3030` in your browser.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/reccommendarr.git
-cd reccommendarr
+git clone https://github.com/yourusername/recommendarr.git
+cd recommendarr
 ```
 
 2. Install dependencies:
@@ -61,7 +61,7 @@ npm run serve
 
 ### 1. Connect to Sonarr and/or Radarr
 
-1. When you first open Reccommendarr, you'll be prompted to connect to either Sonarr or Radarr
+1. When you first open Recommendarr, you'll be prompted to connect to either Sonarr or Radarr
 2. For Sonarr (TV shows):
    - Enter your Sonarr URL (e.g., `http://localhost:8989` or `https://sonarr.yourdomain.com`)
    - Enter your Sonarr API key (found in Sonarr under Settings → General)
@@ -97,10 +97,10 @@ You can connect to both services or just one, depending on your needs.
 
 ```bash
 # Navigate to the project directory
-cd reccommendarr
+cd recommendarr
 
 # Build the Docker image
-docker build -t reccommendarr/reccommendarr:latest .
+docker build -t recommendarr/recommendarr:latest .
 ```
 
 ### Docker Compose
@@ -110,9 +110,9 @@ Create a `docker-compose.yml` file:
 ```yaml
 version: '3'
 services:
-  reccommendarr:
-    image: reccommendarr/reccommendarr:latest
-    container_name: reccommendarr
+  recommendarr:
+    image: recommendarr/recommendarr:latest
+    container_name: recommendarr
     ports:
       - "3030:80"
     restart: unless-stopped
@@ -125,7 +125,7 @@ docker-compose up -d
 
 ## 🖥️ Compatible AI Services
 
-Reccommendarr works with various AI services:
+Recommendarr works with various AI services:
 
 - **OpenAI API**: Standard integration with models like GPT-3.5 and GPT-4
 - **Ollama**: Self-hosted models with OpenAI-compatible API

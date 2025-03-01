@@ -3,7 +3,7 @@
     <div class="nav-container">
       <div class="nav-brand">
         <span class="brand-icon">🎬</span>
-        <span class="brand-name">Reccommendarr</span>
+        <span class="brand-name">Recommendarr</span>
       </div>
       
       <div class="nav-menu">

@@ -1,8 +1,8 @@
 version: '3'
 services:
-  reccommendarr:
+  recommendarr:
     build: .
-    container_name: reccommendarr
+    container_name: recommendarr
     ports:
       - "3030:80"
     restart: unless-stopped

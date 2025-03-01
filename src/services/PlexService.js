@@ -74,6 +74,8 @@ class PlexService {
       const xmlDoc = parser.parseFromString(response.data, "text/xml");
       const videoNodes = xmlDoc.querySelectorAll('Video');
       
+      console.log(`Found ${videoNodes.length} recently watched movies in Plex history`);
+      
       // Extract movie info from XML
       const movies = Array.from(videoNodes).map(node => {
         return {
@@ -89,6 +91,7 @@ class PlexService {
         index === self.findIndex((m) => m.title === movie.title)
       );
 
+      console.log(`Returning ${uniqueMovies.length} unique recently watched movies`);
       return uniqueMovies;
     } catch (error) {
       console.error('Error fetching recently watched movies from Plex:', error);
@@ -122,6 +125,8 @@ class PlexService {
       const xmlDoc = parser.parseFromString(response.data, "text/xml");
       const episodeNodes = xmlDoc.querySelectorAll('Video');
       
+      console.log(`Found ${episodeNodes.length} recently watched TV episodes in Plex history`);
+      
       // Extract show info from XML (grouping by show)
       const showMap = new Map();
       
@@ -140,7 +145,9 @@ class PlexService {
       });
 
       // Convert map to array
-      return Array.from(showMap.values());
+      const shows = Array.from(showMap.values());
+      console.log(`Returning ${shows.length} unique recently watched TV shows`);
+      return shows;
     } catch (error) {
       console.error('Error fetching recently watched shows from Plex:', error);
       throw error;

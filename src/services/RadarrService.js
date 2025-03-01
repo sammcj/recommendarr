@@ -16,6 +16,10 @@ class RadarrService {
     // Normalize the URL by removing trailing slashes
     this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.apiKey = apiKey;
+    
+    // Save to localStorage for persistence
+    if (baseUrl) localStorage.setItem('radarrBaseUrl', this.baseUrl);
+    if (apiKey) localStorage.setItem('radarrApiKey', this.apiKey);
   }
 
   /**

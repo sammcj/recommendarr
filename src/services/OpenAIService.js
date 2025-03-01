@@ -113,6 +113,9 @@ class OpenAIService {
       if (recentlyWatchedShows && recentlyWatchedShows.length > 0) {
         const recentShowTitles = recentlyWatchedShows.map(show => show.title).join(', ');
         userPrompt += `\n\nI've recently watched these shows on Plex, so please consider them for better recommendations: ${recentShowTitles}`;
+        console.log('Adding recently watched shows to prompt:', recentShowTitles);
+      } else {
+        console.log('No recently watched shows to add to prompt');
       }
       
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
@@ -204,6 +207,9 @@ My current shows: ${allShowTitles}`;
       if (recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
         const recentMovieTitles = recentlyWatchedMovies.map(movie => movie.title).join(', ');
         userPrompt += `\n\nI've recently watched these movies on Plex, so please consider them for better recommendations: ${recentMovieTitles}`;
+        console.log('Adding recently watched movies to prompt:', recentMovieTitles);
+      } else {
+        console.log('No recently watched movies to add to prompt');
       }
       
       userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):

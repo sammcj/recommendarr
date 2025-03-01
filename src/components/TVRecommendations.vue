@@ -260,7 +260,7 @@ export default {
       requestingSeries: null, // Track which series is being requested
       requestStatus: {}, // Track request status for each series
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
-      maxStoredRecommendations: 125, // Maximum number of previous recommendations to store
+      maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
       showSeasonModal: false, // Control visibility of season selection modal
       currentSeries: null, // Current series being added
       selectedSeasons: [] // Selected seasons for the current series

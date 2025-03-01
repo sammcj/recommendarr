@@ -204,7 +204,7 @@ export default {
       requestingMovie: null, // Track which movie is being requested
       requestStatus: {}, // Track request status for each movie,
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
-      maxStoredRecommendations: 125 // Maximum number of previous recommendations to store
+      maxStoredRecommendations: 500 // Maximum number of previous recommendations to store
     };
   },
   methods: {

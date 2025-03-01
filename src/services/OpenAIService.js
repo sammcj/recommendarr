@@ -198,6 +198,20 @@ My current movies: ${movieTitles}`;
    */
   async getFormattedRecommendations(messages) {
     try {
+      // Define headers based on the API endpoint
+      const headers = {};
+      
+      // Add authentication header based on the API endpoint
+      if (this.baseUrl === 'https://api.anthropic.com/v1') {
+        headers['x-api-key'] = this.apiKey;
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+        headers['anthropic-version'] = '2023-06-01';
+      } else {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
+      
+      headers['Content-Type'] = 'application/json';
+
       const response = await axios.post(
         this.apiUrl,
         {
@@ -208,12 +222,7 @@ My current movies: ${movieTitles}`;
           presence_penalty: 0.1,  // Slightly discourage repetition
           frequency_penalty: 0.1  // Slightly encourage diversity
         },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`
-          }
-        }
+        { headers }
       );
 
       // Parse the recommendations from the response

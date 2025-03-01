@@ -197,21 +197,43 @@
             <div class="details-container">
               <div class="card-header">
                 <h3>{{ rec.title }}</h3>
-                <button 
-                  @click="requestMovie(rec.title)" 
-                  class="request-button compact"
-                  :class="{'loading': requestingMovie === rec.title, 'requested': requestStatus[rec.title]?.success}"
-                  :disabled="requestingMovie || requestStatus[rec.title]?.success">
-                  <span v-if="requestingMovie === rec.title">
-                    <div class="small-spinner"></div>
-                  </span>
-                  <span v-else-if="requestStatus[rec.title]?.success">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  </span>
-                  <span v-else>Add</span>
-                </button>
+                <div class="card-actions">
+                  <div class="like-dislike-buttons">
+                    <button 
+                      @click="likeRecommendation(rec.title)" 
+                      class="action-btn like-btn"
+                      :class="{'active': isLiked(rec.title)}"
+                      title="Like this recommendation">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                      </svg>
+                    </button>
+                    <button 
+                      @click="dislikeRecommendation(rec.title)" 
+                      class="action-btn dislike-btn"
+                      :class="{'active': isDisliked(rec.title)}"
+                      title="Dislike this recommendation">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm10-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  <button 
+                    @click="requestMovie(rec.title)" 
+                    class="request-button compact"
+                    :class="{'loading': requestingMovie === rec.title, 'requested': requestStatus[rec.title]?.success}"
+                    :disabled="requestingMovie || requestStatus[rec.title]?.success">
+                    <span v-if="requestingMovie === rec.title">
+                      <div class="small-spinner"></div>
+                    </span>
+                    <span v-else-if="requestStatus[rec.title]?.success">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </span>
+                    <span v-else>Add</span>
+                  </button>
+                </div>
               </div>
               
               <div class="content-container">
@@ -303,6 +325,8 @@ export default {
       requestingMovie: null, // Track which movie is being requested
       requestStatus: {}, // Track request status for each movie,
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
+      likedRecommendations: [], // Movies that user has liked
+      dislikedRecommendations: [], // Movies that user has disliked
       maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
       selectedModel: '', // Current selected model
       customModel: '', // For custom model input
@@ -544,6 +568,60 @@ export default {
       }
     },
     
+    // Like a movie recommendation
+    likeRecommendation(title) {
+      // If it's already liked, remove it from liked list (toggle behavior)
+      if (this.isLiked(title)) {
+        this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
+      } else {
+        // Add to liked list
+        this.likedRecommendations.push(title);
+        
+        // Remove from disliked list if it was there
+        if (this.isDisliked(title)) {
+          this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
+        }
+      }
+      
+      // Save to localStorage
+      this.saveLikedDislikedLists();
+    },
+    
+    // Dislike a movie recommendation
+    dislikeRecommendation(title) {
+      // If it's already disliked, remove it from disliked list (toggle behavior)
+      if (this.isDisliked(title)) {
+        this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
+      } else {
+        // Add to disliked list
+        this.dislikedRecommendations.push(title);
+        
+        // Remove from liked list if it was there
+        if (this.isLiked(title)) {
+          this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
+        }
+      }
+      
+      // Save to localStorage
+      this.saveLikedDislikedLists();
+    },
+    
+    // Check if a movie is liked
+    isLiked(title) {
+      return this.likedRecommendations.includes(title);
+    },
+    
+    // Check if a movie is disliked
+    isDisliked(title) {
+      return this.dislikedRecommendations.includes(title);
+    },
+    
+    // Save liked and disliked lists to localStorage
+    saveLikedDislikedLists() {
+      localStorage.setItem('likedMovieRecommendations', JSON.stringify(this.likedRecommendations));
+      localStorage.setItem('dislikedMovieRecommendations', JSON.stringify(this.dislikedRecommendations));
+    },
+    
     async getRecommendations() {
       // Verify we have a movies list and OpenAI is configured
       if (!this.radarrConfigured) {
@@ -572,12 +650,14 @@ export default {
           ? this.selectedGenres.join(', ')
           : '';
           
-        // Pass the previous recommendations to be excluded
+        // Pass the previous recommendations to be excluded and liked/disliked lists
         this.recommendations = await openAIService.getMovieRecommendations(
           this.movies, 
           this.numRecommendations,
           genreString,
-          this.previousRecommendations
+          this.previousRecommendations,
+          this.likedRecommendations,
+          this.dislikedRecommendations
         );
         
         // Update loading message to include genres if selected
@@ -778,11 +858,34 @@ export default {
         this.previousRecommendations = [];
       }
     }
+    
+    // Load liked movie recommendations from localStorage
+    const savedLikedRecommendations = localStorage.getItem('likedMovieRecommendations');
+    if (savedLikedRecommendations) {
+      try {
+        this.likedRecommendations = JSON.parse(savedLikedRecommendations);
+      } catch (error) {
+        console.error('Error parsing liked movie recommendations:', error);
+        this.likedRecommendations = [];
+      }
+    }
+    
+    // Load disliked movie recommendations from localStorage
+    const savedDislikedRecommendations = localStorage.getItem('dislikedMovieRecommendations');
+    if (savedDislikedRecommendations) {
+      try {
+        this.dislikedRecommendations = JSON.parse(savedDislikedRecommendations);
+      } catch (error) {
+        console.error('Error parsing disliked movie recommendations:', error);
+        this.dislikedRecommendations = [];
+      }
+    }
   },
   
-  // Save previous recommendations when component is destroyed
+  // Save state when component is destroyed
   beforeUnmount() {
     this.savePreviousRecommendations();
+    this.saveLikedDislikedLists();
   }
 };
 </script>
@@ -1445,6 +1548,56 @@ h2 {
   margin-bottom: 10px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-color);
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.like-dislike-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.action-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: var(--text-color);
+  width: 32px;
+  height: 32px;
+}
+
+.like-btn:hover {
+  background-color: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+  border-color: #4CAF50;
+}
+
+.dislike-btn:hover {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #F44336;
+  border-color: #F44336;
+}
+
+.like-btn.active {
+  background-color: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+.dislike-btn.active {
+  background-color: #F44336;
+  color: white;
+  border-color: #F44336;
 }
 
 .recommendation-card h3 {

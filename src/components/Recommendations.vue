@@ -565,6 +565,19 @@ h2 {
   margin-top: 20px;
 }
 
+@media (max-width: 600px) {
+  .recommendation-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 400px) {
+  .recommendation-list {
+    gap: 15px;
+    padding: 0 5px;
+  }
+}
+
 .recommendation-card {
   background-color: var(--card-bg-color);
   border-radius: 8px;
@@ -583,9 +596,25 @@ h2 {
   display: flex;
 }
 
+@media (max-width: 600px) {
+  .card-content {
+    flex-direction: column;
+  }
+}
+
 .poster-container {
   flex: 0 0 150px;
   position: relative;
+}
+
+@media (max-width: 600px) {
+  .poster-container {
+    flex: 0 0 auto;
+    width: 100%;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: center;
+  }
 }
 
 .poster {
@@ -597,6 +626,14 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 600px) {
+  .poster {
+    width: 180px;
+    height: 270px;
+    border-radius: 4px;
+  }
 }
 
 .title-fallback {
@@ -656,6 +693,12 @@ h2 {
   overflow: visible;
 }
 
+@media (max-width: 600px) {
+  .details-container {
+    padding: 15px 12px;
+  }
+}
+
 .recommendation-card h3 {
   margin-top: 0;
   margin-bottom: 15px;
@@ -680,6 +723,12 @@ h2 {
   color: var(--text-color);
   line-height: 1.5;
   transition: color var(--transition-speed);
+}
+
+@media (max-width: 600px) {
+  .recommendation-card p {
+    font-size: 15px;
+  }
 }
 
 .description, .reasoning, .streaming {

@@ -1698,6 +1698,13 @@ select:hover {
   /* Grid columns controlled by :style binding using the gridStyle computed property */
 }
 
+@media (max-width: 400px) {
+  .recommendation-list {
+    gap: 15px;
+    padding: 0 5px;
+  }
+}
+
 .recommendation-card {
   background-color: var(--card-bg-color);
   border-radius: 8px;
@@ -1718,6 +1725,12 @@ select:hover {
   min-height: 100%;
 }
 
+@media (max-width: 600px) {
+  .card-content {
+    flex-direction: column;
+  }
+}
+
 .poster-container {
   position: relative;
   display: flex;
@@ -1726,6 +1739,15 @@ select:hover {
   padding: 0;
   width: auto;
   height: 100%;
+}
+
+@media (max-width: 600px) {
+  .poster-container {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    margin-bottom: 10px;
+  }
 }
 
 .poster {
@@ -1737,6 +1759,14 @@ select:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 600px) {
+  .poster {
+    width: 180px;
+    height: 270px;
+    border-radius: 4px;
+  }
 }
 
 .title-fallback {
@@ -1798,6 +1828,12 @@ select:hover {
   flex-direction: column;
 }
 
+@media (max-width: 600px) {
+  .details-container {
+    padding: 12px;
+  }
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -1805,6 +1841,19 @@ select:hover {
   margin-bottom: 10px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-color);
+}
+
+@media (max-width: 600px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .card-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 .card-actions {
@@ -1900,6 +1949,12 @@ select:hover {
   line-height: 1.4;
   transition: color var(--transition-speed);
   font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .recommendation-card p {
+    font-size: 15px;
+  }
 }
 
 .description, .reasoning, .rating, .streaming {
@@ -2149,6 +2204,14 @@ select:hover {
   font-size: 12px;
   min-width: 55px;
   justify-content: center;
+}
+
+@media (max-width: 600px) {
+  .request-button.compact {
+    padding: 8px 12px;
+    font-size: 14px;
+    min-width: 65px;
+  }
 }
 
 .request-button:hover:not(:disabled) {

@@ -2,13 +2,13 @@
 
 ![image](https://github.com/user-attachments/assets/19d332af-f90d-4b6d-8750-4be07bc45161)
 
-Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr, Radarr, and Plex libraries using AI.
+Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr, Radarr, Plex, and Jellyfin libraries using AI.
 
 ## 🌟 Features
 
 - **AI-Powered Recommendations**: Get personalized TV show and movie suggestions based on your existing library
 - **Sonarr & Radarr Integration**: Connects directly to your media servers to analyze your TV and movie collections
-- **Plex Integration**: Analyzes your watch history to provide better recommendations based on what you've actually watched
+- **Plex & Jellyfin Integration**: Analyzes your watch history to provide better recommendations based on what you've actually watched
 - **Flexible AI Support**: Works with OpenAI, local models (Ollama/LM Studio), or any OpenAI-compatible API
 - **Customization Options**: Adjust recommendation count, model parameters, and more
 - **Dark/Light Mode**: Toggle between themes based on your preference
@@ -18,7 +18,7 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 - [Sonarr](https://sonarr.tv/) instance with API access (for TV recommendations)
 - [Radarr](https://radarr.video/) instance with API access (for movie recommendations)
-- [Plex](https://www.plex.tv/) instance with API access (for watch history analysis) - optional
+- [Plex](https://www.plex.tv/) or [Jellyfin](https://jellyfin.org/) instance with API access (for watch history analysis) - optional
 - An OpenAI API key or any OpenAI-compatible API (like local LLM servers)
 - Node.js (v14+) and npm for development
 
@@ -65,7 +65,7 @@ npm run serve
 
 ## 🔧 Configuration
 
-### 1. Connect to Sonarr, Radarr, and/or Plex
+### 1. Connect to Sonarr, Radarr, and/or Plex/Jellyfin
 
 1. When you first open Recommendarr, you'll be prompted to connect to your services
 2. For Sonarr (TV shows):
@@ -79,6 +79,11 @@ npm run serve
 4. For Plex (Optional - Watch History):
    - Enter your Plex URL (e.g., `http://localhost:32400` or `https://plex.yourdomain.com`)
    - Enter your Plex token (can be found by following [these instructions](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/))
+   - Click "Connect"
+5. For Jellyfin (Optional - Watch History):
+   - Enter your Jellyfin URL (e.g., `http://localhost:8096` or `https://jellyfin.yourdomain.com`)
+   - Enter your Jellyfin API key (found in Jellyfin under Dashboard → API Keys)
+   - Enter your Jellyfin user ID (found in Jellyfin user settings)
    - Click "Connect"
 
 You can connect to any combination of these services based on your needs.
@@ -192,20 +197,20 @@ For best results, try setting max tokens to 4000 and temperature between 0.6-0.8
 ### TV Recommendations
 - Connect to your Sonarr instance to get personalized TV show recommendations
 - The AI analyzes your TV library to understand your preferences
-- Optional Plex integration enhances recommendations based on what you've actually watched
+- Optional Plex or Jellyfin integration enhances recommendations based on what you've actually watched
 - Receives detailed recommendations with show descriptions and reasoning
 
 ### Movie Recommendations
 - Connect to your Radarr instance to get personalized movie recommendations
 - The AI analyzes your movie collection to understand genres and preferences you enjoy
-- Optional Plex integration provides watch history data for better personalization
+- Optional Plex or Jellyfin integration provides watch history data for better personalization
 - Get suggested movies with descriptions, reasoning, and poster images
 - Easily discover new films based on your existing collection
 
 ## 🔒 Privacy
 
 Your data never leaves your control:
-- Sonarr, Radarr, and Plex API credentials are stored in your browser's localStorage
+- Sonarr, Radarr, Plex, and Jellyfin API credentials are stored in your browser's localStorage
 - AI API keys are stored locally and used only for your requests
 - Media library and watch history data is sent only to the AI service you configure
 - No analytics or tracking are included in the application
@@ -236,4 +241,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Sonarr](https://sonarr.tv/) - For the amazing API that powers TV recommendations
 - [Radarr](https://radarr.video/) - For the API that enables movie recommendations
 - [Plex](https://www.plex.tv/) - For the API that provides watch history data
+- [Jellyfin](https://jellyfin.org/) - For the API that provides additional watch history data
 - [OpenRouter](https://openrouter.ai/docs/quickstart) - For the API that powers AI-based suggestions

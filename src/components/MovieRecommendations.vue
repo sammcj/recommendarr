@@ -16,9 +16,9 @@
     
     <div v-else>
       <div class="actions">
-        <div class="recommendations-settings" :class="{ 'collapsed': loading || recommendations.length > 0 }">
+        <div class="recommendations-settings" :class="{ 'collapsed': loading || recommendations.length > 0 || error || recommendationsRequested }">
           <div class="settings-container">
-            <div class="settings-header" v-if="loading || recommendations.length > 0" @click="toggleSettings">
+            <div class="settings-header" v-if="loading || recommendations.length > 0 || error || recommendationsRequested" @click="toggleSettings">
               <h3>Configuration <span class="toggle-icon">{{ settingsExpanded ? '▼' : '▶' }}</span></h3>
               <button 
                 v-if="!settingsExpanded"
@@ -30,7 +30,7 @@
                 <span class="mobile-text">{{ loading ? '...' : 'Get Recs' }}</span>
               </button>
             </div>
-            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded && (loading || recommendations.length > 0) }" v-if="true">
+            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded && (loading || recommendations.length > 0 || error || recommendationsRequested) }" v-if="true">
               <div class="settings-layout">
                 <div class="settings-left">
                   <div class="info-section">
@@ -210,7 +210,16 @@
       </div>
       
       <div v-else-if="error" class="error">
-        {{ error }}
+        <p>{{ error }}</p>
+        <div class="action-button-container">
+          <button 
+            @click="getRecommendations" 
+            :disabled="loading"
+            class="action-button retry-button"
+          >
+            Retry
+          </button>
+        </div>
       </div>
       
       <div v-else-if="recommendations.length > 0" class="recommendation-list" :style="gridStyle">
@@ -328,7 +337,16 @@
       </div>
       
       <div v-else-if="recommendationsRequested" class="no-recommendations">
-        <p>No recommendations could be generated. Try again or check your TV show library.</p>
+        <p>No recommendations could be generated. Try again or check your movie library.</p>
+        <div class="action-button-container">
+          <button 
+            @click="getRecommendations" 
+            :disabled="loading"
+            class="action-button retry-button"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -879,7 +897,14 @@ export default {
         this.fetchPosters();
       } catch (error) {
         console.error('Failed to get movie recommendations:', error);
-        this.error = 'Failed to get recommendations. Please check your AI API settings and try again.';
+        // Provide a more helpful error message based on the error
+        if (error.message && error.message.includes('API')) {
+          this.error = error.message;
+        } else if (error.response && error.response.data && error.response.data.error) {
+          this.error = `API Error: ${error.response.data.error.message || 'Unknown API error'}`;
+        } else {
+          this.error = 'Failed to get recommendations. Please check your AI API settings and try again.';
+        }
         this.recommendations = [];
       } finally {
         this.loading = false;
@@ -1297,6 +1322,19 @@ h2 {
   padding: 6px 12px;
   border-radius: 4px;
   min-width: 160px;
+}
+
+.retry-button {
+  margin-top: 15px;
+  background-color: #ff9800;
+  color: white;
+  font-size: 15px;
+  padding: 8px 20px;
+  min-width: 120px;
+}
+
+.retry-button:hover:not(:disabled) {
+  background-color: #f57c00;
 }
 
 @media (max-width: 600px) {
@@ -1826,9 +1864,19 @@ h2 {
 }
 
 .error {
-  padding: 15px;
+  padding: 20px;
   color: #f44336;
   text-align: center;
+  background-color: rgba(244, 67, 54, 0.05);
+  border-radius: 8px;
+  margin: 15px auto;
+  max-width: 1000px;
+  box-shadow: var(--card-shadow);
+}
+
+.error p {
+  margin-bottom: 15px;
+  font-size: 16px;
 }
 
 .recommendation-list {

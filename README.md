@@ -167,6 +167,26 @@ Recommendarr works with various AI services:
 - **Anthropic Claude**: Via OpenAI-compatible endpoints
 - **Self-hosted models**: Any service with OpenAI-compatible chat completions API
 
+### Recommended Models
+
+Here are some recommendations for models that work well with Recommendarr:
+
+#### Free/Low-Cost Options via OpenRouter
+- **Meta Llama 3.3 70B Instruct**: Great performance for free
+- **Gemini 2.0 models** (Flash/Pro/Thinking): Excellent recommendation quality
+- **DeepSeek R1 models**: Strong performance across variants
+
+#### Premium Models (Affordable via OpenRouter)
+- **Claude 3.7/3.5 Haiku**: Exceptional for understanding your library preferences
+- **GPT-4o mini**: Excellent balance of performance and cost
+- **Grok Beta**: Good recommendations at reasonable prices
+- **Amazon Nova Pro**: Strong media understanding capabilities
+
+#### Local Models
+- **DeepSeek R1 7B Qwen Distill**: Good performance for a smaller model (via LM Studio)
+
+For best results, try setting max tokens to 4000 and temperature between 0.6-0.8 depending on the model.
+
 ## 🎬 TV and Movie Recommendations
 
 ### TV Recommendations

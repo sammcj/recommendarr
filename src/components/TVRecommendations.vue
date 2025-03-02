@@ -86,6 +86,35 @@
                         </div>
                       </div>
                     </div>
+                    
+                    <div class="library-mode-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="useSampledLibrary" 
+                          @change="saveLibraryModePreference"
+                        >
+                        Use Sampled Library Mode
+                      </label>
+                      <div class="setting-description">
+                        Samples a subset of your library to reduce token usage while still providing relevant recommendations.
+                      </div>
+                      
+                      <div v-if="useSampledLibrary" class="sample-size-control">
+                        <label for="sampleSizeSlider">Sample size: <span class="count-display">{{ sampleSize }}</span></label>
+                        <div class="slider-container">
+                          <input 
+                            type="range" 
+                            id="sampleSizeSlider"
+                            v-model.number="sampleSize"
+                            min="5" 
+                            max="50"
+                            class="count-slider"
+                            @change="saveSampleSize"
+                          >
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div class="history-info">
                     <span>{{ previousRecommendations.length }} shows in history</span>
@@ -471,6 +500,8 @@ export default {
       selectedGenres: [], // Multiple genre selections
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
+      useSampledLibrary: false, // Whether to use sampled library or full library
+      sampleSize: 20, // Default sample size when using sampled library
       funLoadingMessages: [
         "Consulting with TV critics from alternate dimensions...",
         "Analyzing your taste in shows (don't worry, we won't judge)...",
@@ -807,6 +838,18 @@ export default {
       
       // Update in OpenAI service
       openAIService.temperature = this.temperature;
+    },
+    
+    // Save library mode preference to localStorage
+    saveLibraryModePreference() {
+      localStorage.setItem('useSampledLibrary', this.useSampledLibrary.toString());
+      openAIService.useSampledLibrary = this.useSampledLibrary;
+    },
+    
+    // Save sample size to localStorage
+    saveSampleSize() {
+      localStorage.setItem('librarySampleSize', this.sampleSize.toString());
+      openAIService.sampleSize = this.sampleSize;
     },
     
     // Fetch available models from the API
@@ -1398,6 +1441,10 @@ export default {
     } else if (openAIService.temperature) {
       this.temperature = openAIService.temperature;
     }
+    
+    // Initialize library mode preferences from service
+    this.useSampledLibrary = openAIService.useSampledLibrary;
+    this.sampleSize = openAIService.sampleSize;
     
     // If there are already recommendations, collapse the settings by default
     if (this.recommendations.length > 0) {
@@ -2640,6 +2687,26 @@ select:hover {
   cursor: pointer;
   opacity: 0.8;
   transition: opacity 0.2s;
+}
+
+.library-mode-toggle {
+  display: flex;
+  flex-direction: column;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.setting-description {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+.sample-size-control {
+  margin-top: 12px;
+  margin-left: 22px;
 }
 
 .clear-history-button:hover {

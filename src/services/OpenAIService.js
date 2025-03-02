@@ -121,11 +121,8 @@ class OpenAIService {
       }
       
       // Create combined exclusion list (everything that shouldn't be recommended)
-      if (!plexOnlyMode && series && series.length > 0) {
-        // We're adding these items to previousRecommendations to ensure they're excluded
-        const sonarrTitles = series.map(show => show.title);
-        previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
-      }
+      // We're not adding the library titles to the exclusion list to save tokens
+      // For the sampled approach, we're betting on the AI being varied enough to avoid extreme duplication.
       
       // Determine if we're using the full library or sampled approach
       if (this.useSampledLibrary) {
@@ -160,14 +157,9 @@ class OpenAIService {
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
         userPrompt += `\n\nHere are some examples from my library (${primarySource.length} shows total) to understand my taste: ${libraryTitles}`;
-      } else {
-        userPrompt += `\n\nMy current shows: ${libraryTitles}`;
-      }
-      
-      // Add CRITICAL instruction about exclusions
-      if (this.useSampledLibrary) {
         userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows that I already have in my library.`;
       } else {
+        userPrompt += `\n\nMy current shows: ${libraryTitles}`;
         userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
       }
       
@@ -275,11 +267,9 @@ STRICT RULES:
       }
       
       // Create combined exclusion list (everything that shouldn't be recommended)
-      if (!plexOnlyMode && movies && movies.length > 0) {
-        // We're adding these items to previousRecommendations to ensure they're excluded
-        const radarrTitles = movies.map(movie => movie.title);
-        previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
-      }
+      // We're not adding the library titles to the exclusion list to save tokens
+      // For the sampled approach, we're betting on the AI being smart enough to avoid recommending library items
+      // even without an explicit exclusion list
       
       // Determine if we're using the full library or sampled approach
       if (this.useSampledLibrary) {
@@ -314,14 +304,9 @@ STRICT RULES:
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
         userPrompt += `\n\nHere are some examples from my library (${primarySource.length} movies total) to understand my taste: ${libraryTitles}`;
-      } else {
-        userPrompt += `\n\nMy current movies: ${libraryTitles}`;
-      }
-      
-      // Add CRITICAL instruction about exclusions
-      if (this.useSampledLibrary) {
         userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies that I already have in my library.`;
       } else {
+        userPrompt += `\n\nMy current movies: ${libraryTitles}`;
         userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
       }
       

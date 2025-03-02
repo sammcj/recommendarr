@@ -267,9 +267,14 @@
                 <button 
                   @click="getRecommendations" 
                   :disabled="loading"
-                  class="action-button"
+                  class="action-button fun-button"
                 >
-                  {{ loading ? 'Getting Recommendations...' : 'Get Recommendations' }}
+                  <span class="button-content">
+                    <span class="button-icon">🎬</span>
+                    <span class="button-text">{{ loading ? 'Finding Magic in Movies...' : 'Discover Movie Magic!' }}</span>
+                    <span class="button-icon">✨</span>
+                  </span>
+                  <span class="button-glow"></span>
                 </button>
               </div>
             </div>
@@ -1665,6 +1670,7 @@ h2 {
   display: flex;
   justify-content: center;
   margin-top: 20px;
+  width: 100%;
 }
 
 .settings-header {
@@ -2181,6 +2187,81 @@ h2 {
   font-size: 16px;
   min-width: 200px;
   transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+.fun-button {
+  position: relative;
+  min-width: 300px;
+  width: 90%;
+  padding: 14px 24px;
+  background: linear-gradient(45deg, #2196F3, #4CAF50);
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: all 0.3s ease;
+}
+
+.fun-button:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(45deg, #1E88E5, #43A047);
+}
+
+.fun-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.fun-button:disabled {
+  opacity: 0.7;
+  background: linear-gradient(45deg, #9E9E9E, #757575);
+  transform: none;
+}
+
+.button-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.button-text {
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.button-icon {
+  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.button-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transform: translateX(-100%);
+  z-index: 1;
+}
+
+.fun-button:hover .button-glow {
+  animation: glow-effect 1.5s infinite;
+}
+
+@keyframes glow-effect {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .action-button:hover:not(:disabled) {

@@ -71,10 +71,10 @@
         </div>
       </div>
       
-      <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" />
-      <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" />
-      <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @limitChanged="handlePlexLimitChanged" />
-      <JellyfinConnection v-if="showJellyfinConnect && !jellyfinConnected" @connected="handleJellyfinConnected" @limitChanged="handleJellyfinLimitChanged" />
+      <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" @disconnected="handleSonarrDisconnected" />
+      <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" @disconnected="handleRadarrDisconnected" />
+      <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @disconnected="handlePlexDisconnected" @limitChanged="handlePlexLimitChanged" />
+      <JellyfinConnection v-if="showJellyfinConnect && !jellyfinConnected" @connected="handleJellyfinConnected" @disconnected="handleJellyfinDisconnected" @limitChanged="handleJellyfinLimitChanged" />
       
       <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected">
         <AppNavigation 
@@ -118,6 +118,10 @@
           
           <AISettings
             v-if="activeTab === 'settings'"
+            :sonarrConnected="sonarrConnected"
+            :radarrConnected="radarrConnected"
+            :plexConnected="plexConnected"
+            :jellyfinConnected="jellyfinConnected"
             @settings-updated="handleSettingsUpdated"
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
@@ -243,6 +247,45 @@ export default {
     }
   },
   methods: {
+    // Handler methods for disconnection events from connection components
+    handleSonarrDisconnected() {
+      this.sonarrConnected = false;
+      this.showSonarrConnect = true;
+      this.series = [];
+      
+      // If we're on the TV recommendations tab and no longer have Sonarr connected,
+      // switch to movie recommendations if Radarr is available
+      if (this.activeTab === 'tv-recommendations' && this.radarrConnected) {
+        this.activeTab = 'movie-recommendations';
+      }
+    },
+    
+    handleRadarrDisconnected() {
+      this.radarrConnected = false;
+      this.showRadarrConnect = true;
+      this.movies = [];
+      
+      // If we're on the movie recommendations tab and no longer have Radarr connected,
+      // switch to TV recommendations if Sonarr is available
+      if (this.activeTab === 'movie-recommendations' && this.sonarrConnected) {
+        this.activeTab = 'tv-recommendations';
+      }
+    },
+    
+    handlePlexDisconnected() {
+      this.plexConnected = false;
+      this.showPlexConnect = true;
+      this.recentlyWatchedMovies = [];
+      this.recentlyWatchedShows = [];
+    },
+    
+    handleJellyfinDisconnected() {
+      this.jellyfinConnected = false;
+      this.showJellyfinConnect = true;
+      this.jellyfinRecentlyWatchedMovies = [];
+      this.jellyfinRecentlyWatchedShows = [];
+    },
+    
     async openJellyfinUserSelect() {
       this.showJellyfinUserSelect = true;
       this.jellyfinUsersLoading = true;

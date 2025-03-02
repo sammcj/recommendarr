@@ -61,6 +61,12 @@
           </div>
         </div>
       </div>
+      
+      <div class="disconnection-section">
+        <button type="button" @click="disconnect" class="disconnect-btn">
+          Disconnect Plex
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -70,6 +76,12 @@ import plexService from '../services/PlexService';
 
 export default {
   name: 'PlexConnection',
+  props: {
+    connected: {
+      type: Boolean,
+      default: false
+    }
+  },
   data() {
     return {
       baseUrl: '',
@@ -85,11 +97,18 @@ export default {
     const savedToken = localStorage.getItem('plexToken');
     const savedRecentLimit = localStorage.getItem('plexRecentLimit');
     
+    // If connected prop is true, set connection status right away
+    if (this.connected) {
+      this.connectionStatus = 'success';
+    }
+    
     if (savedBaseUrl && savedToken) {
       this.baseUrl = savedBaseUrl;
       this.token = savedToken;
       // Try to automatically connect with saved credentials
-      this.autoConnect();
+      if (!this.connected) {
+        this.autoConnect();
+      }
     }
 
     if (savedRecentLimit) {
@@ -202,6 +221,19 @@ export default {
     clearStoredCredentials() {
       localStorage.removeItem('plexBaseUrl');
       localStorage.removeItem('plexToken');
+    },
+    
+    disconnect() {
+      // Clear stored credentials
+      this.clearStoredCredentials();
+      
+      // Reset component state
+      this.connectionStatus = null;
+      this.baseUrl = '';
+      this.token = '';
+      
+      // Notify parent components
+      this.$emit('disconnected');
     },
     increaseLimit() {
       if (this.recentLimit < 100) {
@@ -367,5 +399,25 @@ button:disabled {
 
 .recently-watched-options {
   margin-top: 15px;
+}
+
+.disconnection-section {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.disconnect-btn {
+  background-color: #f44336;
+  width: 100%;
+  color: white;
+  margin-top: 10px;
+  font-weight: bold;
+  padding: 12px;
+}
+
+.disconnect-btn:hover {
+  background-color: #d32f2f;
+  filter: brightness(1.1);
 }
 </style>

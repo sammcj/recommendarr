@@ -105,13 +105,22 @@ class OpenAIService {
       const recommendationCount = Math.min(Math.max(count, 1), 50);
 
       // Base prompt
-      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new shows I might enjoy that are CRITICALLY ACCLAIMED and HIGHLY RATED. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
         userPrompt += ` Focus specifically on recommending shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
+      
+      // Add instructions for diverse, high-quality recommendations
+      userPrompt += ` Prioritize shows that match these criteria:
+1. Highest overall quality and critical acclaim
+2. Strong thematic or stylistic connections to my current library
+3. Diverse in content (not just the most obvious recommendations)
+4. Include a mix of both popular and lesser-known hidden gems
+5. Focus on complete or ongoing shows with consistent quality, not canceled after 1-2 seasons`;
+      
       
       // Add exclusion list for previous recommendations, library content, and disliked shows
       // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
@@ -229,13 +238,22 @@ My current shows: ${sourceLibrary}`;
       const recommendationCount = Math.min(Math.max(count, 1), 50);
       
       // Base prompt
-      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new movies I might enjoy that are CRITICALLY ACCLAIMED and HIGHLY RATED. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
         userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
+      
+      // Add instructions for diverse, high-quality recommendations
+      userPrompt += ` Prioritize movies that match these criteria:
+1. Highest overall quality and critical acclaim
+2. Strong thematic or stylistic connections to my current library
+3. Diverse in content (not just the most obvious recommendations)
+4. Include a mix of both popular and lesser-known hidden gems
+5. Consider both classic and recent releases that have stood the test of time`;
+      
       
       // Add exclusion list for previous recommendations, library content, and disliked movies
       // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
@@ -421,13 +439,38 @@ My current movies: ${sourceLibrary}`;
           continue;
         }
         
-        // Extract common fields using helper method
-        const description = this.extractFieldFromText(details, 'Description', 'Why you might like it');
-        const reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Recommendarr Rating');
-        const rating = this.extractFieldFromText(details, 'Recommendarr Rating', 'Available on');
-        const streaming = this.extractFieldFromText(details, 'Available on', null);
+        // Extract common fields using helper method with fallbacks for flexibility
+        let description = this.extractFieldFromText(details, 'Description', 'Why you might like it');
+        let reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Recommendarr Rating');
+        let rating = this.extractFieldFromText(details, 'Recommendarr Rating', 'Available on');
+        let streaming = this.extractFieldFromText(details, 'Available on', null);
         
-        // Skip entries where we couldn't extract meaningful content
+        // Try alternative patterns if primary extraction failed
+        if (!description) {
+          description = this.extractFieldFromText(details, 'description', 'why you might like it') ||
+                        this.extractFieldFromText(details, 'Synopsis', 'Why') ||
+                        this.extractFieldFromText(details, 'About', 'Why');
+        }
+        
+        if (!reasoning) {
+          reasoning = this.extractFieldFromText(details, 'why you might like it', 'recommendarr rating') ||
+                      this.extractFieldFromText(details, 'Why', 'Rating') ||
+                      this.extractFieldFromText(details, 'Appeal', 'Rating');
+        }
+        
+        if (!rating) {
+          rating = this.extractFieldFromText(details, 'recommendarr rating', 'available on') ||
+                  this.extractFieldFromText(details, 'Rating', 'Available') ||
+                  this.extractFieldFromText(details, 'Score', 'Available');
+        }
+        
+        if (!streaming) {
+          streaming = this.extractFieldFromText(details, 'available on', null) ||
+                     this.extractFieldFromText(details, 'Streaming', null) ||
+                     this.extractFieldFromText(details, 'Watch on', null);
+        }
+        
+        // Skip entries where we couldn't extract meaningful content after fallbacks
         if (!description && !reasoning && !streaming) {
           continue;
         }

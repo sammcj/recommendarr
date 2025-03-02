@@ -206,7 +206,17 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p class="loading-message">{{ currentLoadingMessage }}</p>
+        <div class="loading-content">
+          <p class="loading-message">{{ currentLoadingMessage }}</p>
+          <p class="recommendation-counter" :class="{'initializing': recommendations.length === 0}">
+            <span v-if="recommendations.length > 0">
+              Found {{ recommendations.length }} of {{ numRecommendations }} recommendations
+            </span>
+            <span v-else>
+              Processing initial request...
+            </span>
+          </p>
+        </div>
       </div>
       
       <div v-else-if="error" class="error">
@@ -2012,13 +2022,45 @@ h2 {
   gap: 15px;
 }
 
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .loading-message {
-  margin-bottom: 15px;
+  margin-bottom: 8px;
   font-size: 16px;
   min-height: 24px;
   transition: opacity 0.4s ease-in-out;
   opacity: 1;
   animation: fadeInOut 10s infinite;
+}
+
+.recommendation-counter {
+  font-size: 14px;
+  color: #4CAF50;
+  margin: 5px 0 0 0;
+  font-weight: 500;
+  background-color: rgba(76, 175, 80, 0.1);
+  padding: 4px 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-width: 230px;
+  text-align: center;
+}
+
+.recommendation-counter.initializing {
+  color: #2196F3;
+  background-color: rgba(33, 150, 243, 0.1);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
 }
 
 @keyframes fadeInOut {

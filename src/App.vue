@@ -6,7 +6,7 @@
     </header>
     
     <main>
-      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected">
+      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected">
         <p class="choose-service">Choose a service to connect to:</p>
         <div class="service-buttons">
           <button class="service-button" @click="showSonarrConnect = true">
@@ -21,14 +21,19 @@
             Connect to Plex
             <small>For watch history integration</small>
           </button>
+          <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
+            Connect to Jellyfin
+            <small>For watch history integration</small>
+          </button>
         </div>
       </div>
       
       <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" />
       <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" />
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @limitChanged="handlePlexLimitChanged" />
+      <JellyfinConnection v-if="showJellyfinConnect && !jellyfinConnected" @connected="handleJellyfinConnected" @limitChanged="handleJellyfinLimitChanged" />
       
-      <div v-if="sonarrConnected || radarrConnected || plexConnected">
+      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected">
         <AppNavigation 
           :activeTab="activeTab" 
           @navigate="handleNavigate"
@@ -41,10 +46,14 @@
             :series="series"
             :sonarrConfigured="sonarrConnected"
             :recentlyWatchedShows="recentlyWatchedShows"
+            :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
             :plexConfigured="plexConnected"
+            :jellyfinConfigured="jellyfinConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
-            @plexOnlyModeChanged="handlePlexOnlyModeChanged" 
+            @plexOnlyModeChanged="handlePlexOnlyModeChanged"
+            @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
+            @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
           />
           
           <MovieRecommendations 
@@ -52,10 +61,14 @@
             :movies="movies"
             :radarrConfigured="radarrConnected"
             :recentlyWatchedMovies="recentlyWatchedMovies"
+            :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
             :plexConfigured="plexConnected"
+            :jellyfinConfigured="jellyfinConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
-            @plexOnlyModeChanged="handlePlexOnlyModeChanged" 
+            @plexOnlyModeChanged="handlePlexOnlyModeChanged"
+            @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
+            @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
           />
           
           <AISettings
@@ -64,6 +77,7 @@
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
             @plex-settings-updated="handlePlexSettingsUpdated"
+            @jellyfin-settings-updated="handleJellyfinSettingsUpdated"
           />
         </div>
       </div>
@@ -75,6 +89,7 @@
 import SonarrConnection from './components/SonarrConnection.vue'
 import RadarrConnection from './components/RadarrConnection.vue'
 import PlexConnection from './components/PlexConnection.vue'
+import JellyfinConnection from './components/JellyfinConnection.vue'
 import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/TVRecommendations.vue'
 import MovieRecommendations from './components/MovieRecommendations.vue'
@@ -82,6 +97,7 @@ import AISettings from './components/AISettings.vue'
 import sonarrService from './services/SonarrService'
 import radarrService from './services/RadarrService'
 import plexService from './services/PlexService'
+import jellyfinService from './services/JellyfinService'
 
 export default {
   name: 'App',
@@ -89,6 +105,7 @@ export default {
     SonarrConnection,
     RadarrConnection,
     PlexConnection,
+    JellyfinConnection,
     AppNavigation,
     TVRecommendations,
     MovieRecommendations,
@@ -99,17 +116,24 @@ export default {
       sonarrConnected: false,
       radarrConnected: false,
       plexConnected: false,
+      jellyfinConnected: false,
       showSonarrConnect: false,
       showRadarrConnect: false,
       showPlexConnect: false,
+      showJellyfinConnect: false,
       activeTab: 'tv-recommendations',
       series: [],
       movies: [],
       recentlyWatchedMovies: [],
       recentlyWatchedShows: [],
+      jellyfinRecentlyWatchedMovies: [],
+      jellyfinRecentlyWatchedShows: [],
       plexRecentLimit: 100,
+      jellyfinRecentLimit: 100,
       plexHistoryMode: 'all', // 'all' or 'recent'
-      plexOnlyMode: false // Whether to use only Plex history for recommendations
+      jellyfinHistoryMode: 'all', // 'all' or 'recent'
+      plexOnlyMode: false, // Whether to use only Plex history for recommendations
+      jellyfinOnlyMode: false // Whether to use only Jellyfin history for recommendations
     }
   },
   created() {
@@ -128,10 +152,21 @@ export default {
       this.checkPlexConnection();
     }
     
+    // Check if Jellyfin is already configured on startup
+    if (jellyfinService.isConfigured()) {
+      this.checkJellyfinConnection();
+    }
+    
     // Load Plex recent limit from localStorage if available
     const savedPlexLimit = localStorage.getItem('plexRecentLimit');
     if (savedPlexLimit) {
       this.plexRecentLimit = parseInt(savedPlexLimit, 10);
+    }
+    
+    // Load Jellyfin recent limit from localStorage if available
+    const savedJellyfinLimit = localStorage.getItem('jellyfinRecentLimit');
+    if (savedJellyfinLimit) {
+      this.jellyfinRecentLimit = parseInt(savedJellyfinLimit, 10);
     }
     
     // Load Plex history mode from localStorage if available
@@ -140,10 +175,22 @@ export default {
       this.plexHistoryMode = savedPlexHistoryMode;
     }
     
+    // Load Jellyfin history mode from localStorage if available
+    const savedJellyfinHistoryMode = localStorage.getItem('jellyfinHistoryMode');
+    if (savedJellyfinHistoryMode) {
+      this.jellyfinHistoryMode = savedJellyfinHistoryMode;
+    }
+    
     // Load Plex only mode from localStorage if available
     const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
     if (savedPlexOnlyMode) {
       this.plexOnlyMode = savedPlexOnlyMode === 'true';
+    }
+    
+    // Load Jellyfin only mode from localStorage if available
+    const savedJellyfinOnlyMode = localStorage.getItem('jellyfinOnlyMode');
+    if (savedJellyfinOnlyMode) {
+      this.jellyfinOnlyMode = savedJellyfinOnlyMode === 'true';
     }
   },
   methods: {
@@ -189,6 +236,18 @@ export default {
       }
     },
     
+    async checkJellyfinConnection() {
+      try {
+        const result = await jellyfinService.testConnection();
+        if (result.success) {
+          this.jellyfinConnected = true;
+          this.fetchJellyfinData();
+        }
+      } catch (error) {
+        console.error('Failed to connect with stored Jellyfin credentials:', error);
+      }
+    },
+    
     handleSonarrConnected() {
       this.sonarrConnected = true;
       this.showSonarrConnect = false;
@@ -209,9 +268,20 @@ export default {
       this.fetchPlexData();
     },
     
+    handleJellyfinConnected() {
+      this.jellyfinConnected = true;
+      this.showJellyfinConnect = false;
+      this.fetchJellyfinData();
+    },
+    
     handlePlexLimitChanged(limit) {
       this.plexRecentLimit = limit;
       this.fetchPlexData();
+    },
+    
+    handleJellyfinLimitChanged(limit) {
+      this.jellyfinRecentLimit = limit;
+      this.fetchJellyfinData();
     },
     
     handlePlexHistoryModeChanged(mode) {
@@ -219,8 +289,17 @@ export default {
       this.fetchPlexData();
     },
     
+    handleJellyfinHistoryModeChanged(mode) {
+      this.jellyfinHistoryMode = mode;
+      this.fetchJellyfinData();
+    },
+    
     handlePlexOnlyModeChanged(enabled) {
       this.plexOnlyMode = enabled;
+    },
+    
+    handleJellyfinOnlyModeChanged(enabled) {
+      this.jellyfinOnlyMode = enabled;
     },
     handleNavigate(tab) {
       this.activeTab = tab;
@@ -277,6 +356,33 @@ export default {
         console.error('Failed to fetch Plex watch history:', error);
       }
     },
+    
+    async fetchJellyfinData() {
+      if (!jellyfinService.isConfigured()) {
+        return;
+      }
+      
+      try {
+        // Determine if we should apply a days filter based on the history mode
+        const daysAgo = this.jellyfinHistoryMode === 'recent' ? 30 : 0;
+        
+        // Fetch both shows and movies in parallel for efficiency
+        const [moviesResponse, showsResponse] = await Promise.all([
+          jellyfinService.getRecentlyWatchedMovies(this.jellyfinRecentLimit, daysAgo),
+          jellyfinService.getRecentlyWatchedShows(this.jellyfinRecentLimit, daysAgo)
+        ]);
+        
+        this.jellyfinRecentlyWatchedMovies = moviesResponse;
+        this.jellyfinRecentlyWatchedShows = showsResponse;
+        
+        console.log('Fetched Jellyfin watch history:', {
+          movies: this.jellyfinRecentlyWatchedMovies,
+          shows: this.jellyfinRecentlyWatchedShows
+        });
+      } catch (error) {
+        console.error('Failed to fetch Jellyfin watch history:', error);
+      }
+    },
     handleSettingsUpdated() {
       // When AI settings are updated, show a brief notification or just stay on the settings page
       console.log('AI settings updated successfully');
@@ -299,6 +405,12 @@ export default {
       this.checkPlexConnection();
       console.log('Plex settings updated, testing connection');
     },
+    
+    handleJellyfinSettingsUpdated() {
+      // Check the Jellyfin connection with the new settings
+      this.checkJellyfinConnection();
+      console.log('Jellyfin settings updated, testing connection');
+    },
     handleLogout() {
       // Clear all stored credentials
       localStorage.removeItem('sonarrBaseUrl');
@@ -307,6 +419,9 @@ export default {
       localStorage.removeItem('radarrApiKey');
       localStorage.removeItem('plexBaseUrl');
       localStorage.removeItem('plexToken');
+      localStorage.removeItem('jellyfinBaseUrl');
+      localStorage.removeItem('jellyfinApiKey');
+      localStorage.removeItem('jellyfinUserId');
       localStorage.removeItem('openaiApiKey');
       localStorage.removeItem('openaiModel');
       
@@ -314,18 +429,23 @@ export default {
       sonarrService.configure('', '');
       radarrService.configure('', '');
       plexService.configure('', '');
+      jellyfinService.configure('', '', '');
       
       // Reset UI state
       this.sonarrConnected = false;
       this.radarrConnected = false;
       this.plexConnected = false;
+      this.jellyfinConnected = false;
       this.series = [];
       this.movies = [];
       this.recentlyWatchedMovies = [];
       this.recentlyWatchedShows = [];
+      this.jellyfinRecentlyWatchedMovies = [];
+      this.jellyfinRecentlyWatchedShows = [];
       this.showSonarrConnect = false;
       this.showRadarrConnect = false;
       this.showPlexConnect = false;
+      this.showJellyfinConnect = false;
       this.activeTab = 'tv-recommendations';
     }
   }
@@ -521,6 +641,14 @@ main {
 
 .service-button.plex-button:hover {
   background-color: #CC7B19;
+}
+
+.service-button.jellyfin-button {
+  border-color: #AA5CC3; /* Jellyfin purple color */
+}
+
+.service-button.jellyfin-button:hover {
+  background-color: #AA5CC3;
 }
 
 .service-button small {

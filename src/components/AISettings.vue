@@ -32,6 +32,13 @@
       >
         Plex
       </button>
+      <button 
+        @click="activeTab = 'jellyfin'" 
+        :class="{ active: activeTab === 'jellyfin' }" 
+        class="tab-button"
+      >
+        Jellyfin
+      </button>
     </div>
     
     <!-- AI Service Settings Tab -->
@@ -381,6 +388,96 @@
       </div>
     </div>
     
+    <!-- Jellyfin Settings Tab -->
+    <div v-if="activeTab === 'jellyfin'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to your Jellyfin server to include recently watched content in your recommendations. Your server details will be stored locally in your browser.</p>
+      </div>
+      
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="jellyfinUrl">Jellyfin URL:</label>
+          <input 
+            id="jellyfinUrl" 
+            v-model="jellyfinSettings.baseUrl" 
+            type="text" 
+            placeholder="http://localhost:8096"
+            required
+          />
+          <div class="field-hint">The URL of your Jellyfin server (e.g., http://localhost:8096 or https://jellyfin.yourdomain.com)</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="jellyfinApiKey">API Key:</label>
+          <div class="api-key-input">
+            <input 
+              id="jellyfinApiKey" 
+              v-model="jellyfinSettings.apiKey" 
+              :type="showJellyfinApiKey ? 'text' : 'password'" 
+              placeholder="Your Jellyfin API key"
+              required
+            />
+            <button type="button" class="toggle-button" @click="showJellyfinApiKey = !showJellyfinApiKey">
+              {{ showJellyfinApiKey ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">Found in Dashboard > API Keys in your Jellyfin admin interface</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="jellyfinUserId">User ID:</label>
+          <input 
+            id="jellyfinUserId" 
+            v-model="jellyfinSettings.userId" 
+            type="text" 
+            placeholder="Your Jellyfin user ID"
+            required
+          />
+          <div class="field-hint">Found in your profile settings under "Profile Information"</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="jellyfinRecentLimit">Number of recently watched items:</label>
+          <div class="slider-container">
+            <input 
+              id="jellyfinRecentLimit" 
+              v-model.number="jellyfinSettings.recentLimit" 
+              type="range" 
+              min="1" 
+              max="50" 
+              step="1" 
+            />
+            <span class="slider-value">{{ jellyfinSettings.recentLimit }}</span>
+          </div>
+          <div class="field-hint">How many recently watched items to include in recommendations</div>
+        </div>
+        
+        <div class="actions">
+          <button type="button" @click="testJellyfinConnection" class="test-button" :disabled="testingJellyfin">
+            {{ testingJellyfin ? 'Testing...' : 'Test Connection' }}
+          </button>
+          <button type="button" @click="saveJellyfinSettings" class="save-button" :disabled="testingJellyfin">
+            Save Jellyfin Settings
+          </button>
+        </div>
+        
+        <div v-if="jellyfinConnectionMessage" class="connection-message" :class="{ 'success': jellyfinConnectionStatus, 'error': !jellyfinConnectionStatus }">
+          <div class="notification-content">
+            <span class="notification-icon">
+              <svg v-if="jellyfinConnectionStatus" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </span>
+            {{ jellyfinConnectionMessage }}
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <!-- Fixed Position Notification Toast -->
     <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
       <div class="notification-content">
@@ -407,6 +504,7 @@ import openAIService from '../services/OpenAIService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import plexService from '../services/PlexService';
+import jellyfinService from '../services/JellyfinService';
 
 export default {
   name: 'AIServiceSettings',
@@ -459,6 +557,18 @@ export default {
       plexConnectionMessage: '',
       plexConnectionStatus: false,
       
+      // Jellyfin Settings
+      jellyfinSettings: {
+        baseUrl: '',
+        apiKey: '',
+        userId: '',
+        recentLimit: 10
+      },
+      showJellyfinApiKey: false,
+      testingJellyfin: false,
+      jellyfinConnectionMessage: '',
+      jellyfinConnectionStatus: false,
+      
       // Common
       saveMessage: '',
       saveSuccess: false
@@ -501,6 +611,12 @@ export default {
       this.plexSettings.baseUrl = localStorage.getItem('plexBaseUrl') || '';
       this.plexSettings.token = localStorage.getItem('plexToken') || '';
       this.plexSettings.recentLimit = parseInt(localStorage.getItem('plexRecentLimit') || '10');
+      
+      // Load Jellyfin Settings
+      this.jellyfinSettings.baseUrl = localStorage.getItem('jellyfinBaseUrl') || '';
+      this.jellyfinSettings.apiKey = localStorage.getItem('jellyfinApiKey') || '';
+      this.jellyfinSettings.userId = localStorage.getItem('jellyfinUserId') || '';
+      this.jellyfinSettings.recentLimit = parseInt(localStorage.getItem('jellyfinRecentLimit') || '10');
     },
     
     // AI Service Methods
@@ -853,6 +969,90 @@ export default {
         console.error('Error saving Plex settings:', error);
         this.saveSuccess = false;
         this.saveMessage = 'Failed to save Plex settings';
+        this.clearSaveMessage();
+      }
+    },
+    
+    // Jellyfin Service Methods
+    async testJellyfinConnection() {
+      if (!this.jellyfinSettings.baseUrl || !this.jellyfinSettings.apiKey || !this.jellyfinSettings.userId) {
+        this.jellyfinConnectionStatus = false;
+        this.jellyfinConnectionMessage = 'URL, API key, and User ID are required';
+        return;
+      }
+      
+      this.testingJellyfin = true;
+      this.jellyfinConnectionMessage = '';
+      
+      try {
+        // Configure the service with provided details
+        jellyfinService.configure(
+          this.jellyfinSettings.baseUrl, 
+          this.jellyfinSettings.apiKey,
+          this.jellyfinSettings.userId
+        );
+        
+        // Test the connection
+        const result = await jellyfinService.testConnection();
+        
+        // Update status based on response
+        this.jellyfinConnectionStatus = result.success;
+        this.jellyfinConnectionMessage = result.message;
+        
+        // If successful, save the settings
+        if (result.success) {
+          // Save to localStorage
+          localStorage.setItem('jellyfinBaseUrl', this.jellyfinSettings.baseUrl);
+          localStorage.setItem('jellyfinApiKey', this.jellyfinSettings.apiKey);
+          localStorage.setItem('jellyfinUserId', this.jellyfinSettings.userId);
+          localStorage.setItem('jellyfinRecentLimit', this.jellyfinSettings.recentLimit.toString());
+          
+          // Emit event to notify parent component
+          this.$emit('jellyfin-settings-updated');
+        }
+          
+      } catch (error) {
+        console.error('Error connecting to Jellyfin:', error);
+        this.jellyfinConnectionStatus = false;
+        this.jellyfinConnectionMessage = 'Connection error. Please check your URL and API key.';
+      } finally {
+        this.testingJellyfin = false;
+      }
+    },
+    
+    saveJellyfinSettings() {
+      try {
+        if (!this.jellyfinSettings.baseUrl || !this.jellyfinSettings.apiKey || !this.jellyfinSettings.userId) {
+          this.saveSuccess = false;
+          this.saveMessage = 'Jellyfin URL, API key, and User ID are required';
+          this.clearSaveMessage();
+          return;
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('jellyfinBaseUrl', this.jellyfinSettings.baseUrl);
+        localStorage.setItem('jellyfinApiKey', this.jellyfinSettings.apiKey);
+        localStorage.setItem('jellyfinUserId', this.jellyfinSettings.userId);
+        localStorage.setItem('jellyfinRecentLimit', this.jellyfinSettings.recentLimit.toString());
+        
+        // Configure the service
+        jellyfinService.configure(
+          this.jellyfinSettings.baseUrl, 
+          this.jellyfinSettings.apiKey,
+          this.jellyfinSettings.userId
+        );
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Jellyfin settings saved successfully!';
+        
+        // Emit event to notify parent component
+        this.$emit('jellyfin-settings-updated');
+        
+        this.clearSaveMessage();
+      } catch (error) {
+        console.error('Error saving Jellyfin settings:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Jellyfin settings';
         this.clearSaveMessage();
       }
     },

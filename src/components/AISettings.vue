@@ -25,6 +25,13 @@
       >
         Radarr
       </button>
+      <button 
+        @click="activeTab = 'plex'" 
+        :class="{ active: activeTab === 'plex' }" 
+        class="tab-button"
+      >
+        Plex
+      </button>
     </div>
     
     <!-- AI Service Settings Tab -->
@@ -296,6 +303,84 @@
       </div>
     </div>
     
+    <!-- Plex Settings Tab -->
+    <div v-if="activeTab === 'plex'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to your Plex server to include recently watched content in your recommendations. Your server details will be stored locally in your browser.</p>
+      </div>
+      
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="plexUrl">Plex URL:</label>
+          <input 
+            id="plexUrl" 
+            v-model="plexSettings.baseUrl" 
+            type="text" 
+            placeholder="http://localhost:32400"
+            required
+          />
+          <div class="field-hint">The URL of your Plex server (e.g., http://localhost:32400 or https://plex.yourdomain.com)</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="plexToken">Plex Token:</label>
+          <div class="api-key-input">
+            <input 
+              id="plexToken" 
+              v-model="plexSettings.token" 
+              :type="showPlexToken ? 'text' : 'password'" 
+              placeholder="Your Plex authentication token"
+              required
+            />
+            <button type="button" class="toggle-button" @click="showPlexToken = !showPlexToken">
+              {{ showPlexToken ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">Learn how to <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank">find your Plex token</a></div>
+        </div>
+        
+        <div class="form-group">
+          <label for="plexRecentLimit">Number of recently watched items:</label>
+          <div class="slider-container">
+            <input 
+              id="plexRecentLimit" 
+              v-model.number="plexSettings.recentLimit" 
+              type="range" 
+              min="1" 
+              max="50" 
+              step="1" 
+            />
+            <span class="slider-value">{{ plexSettings.recentLimit }}</span>
+          </div>
+          <div class="field-hint">How many recently watched items to include in recommendations</div>
+        </div>
+        
+        <div class="actions">
+          <button type="button" @click="testPlexConnection" class="test-button" :disabled="testingPlex">
+            {{ testingPlex ? 'Testing...' : 'Test Connection' }}
+          </button>
+          <button type="button" @click="savePlexSettings" class="save-button" :disabled="testingPlex">
+            Save Plex Settings
+          </button>
+        </div>
+        
+        <div v-if="plexConnectionMessage" class="connection-message" :class="{ 'success': plexConnectionStatus, 'error': !plexConnectionStatus }">
+          <div class="notification-content">
+            <span class="notification-icon">
+              <svg v-if="plexConnectionStatus" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </span>
+            {{ plexConnectionMessage }}
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <!-- Fixed Position Notification Toast -->
     <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
       <div class="notification-content">
@@ -321,6 +406,7 @@ import axios from 'axios';
 import openAIService from '../services/OpenAIService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
+import plexService from '../services/PlexService';
 
 export default {
   name: 'AIServiceSettings',
@@ -362,6 +448,17 @@ export default {
       radarrConnectionMessage: '',
       radarrConnectionStatus: false,
       
+      // Plex Settings
+      plexSettings: {
+        baseUrl: '',
+        token: '',
+        recentLimit: 10
+      },
+      showPlexToken: false,
+      testingPlex: false,
+      plexConnectionMessage: '',
+      plexConnectionStatus: false,
+      
       // Common
       saveMessage: '',
       saveSuccess: false
@@ -399,6 +496,11 @@ export default {
       // Load Radarr Settings
       this.radarrSettings.baseUrl = localStorage.getItem('radarrBaseUrl') || '';
       this.radarrSettings.apiKey = localStorage.getItem('radarrApiKey') || '';
+      
+      // Load Plex Settings
+      this.plexSettings.baseUrl = localStorage.getItem('plexBaseUrl') || '';
+      this.plexSettings.token = localStorage.getItem('plexToken') || '';
+      this.plexSettings.recentLimit = parseInt(localStorage.getItem('plexRecentLimit') || '10');
     },
     
     // AI Service Methods
@@ -675,6 +777,82 @@ export default {
         console.error('Error saving Radarr settings:', error);
         this.saveSuccess = false;
         this.saveMessage = 'Failed to save Radarr settings';
+        this.clearSaveMessage();
+      }
+    },
+    
+    // Plex Service Methods
+    async testPlexConnection() {
+      if (!this.plexSettings.baseUrl || !this.plexSettings.token) {
+        this.plexConnectionStatus = false;
+        this.plexConnectionMessage = 'URL and Plex token are required';
+        return;
+      }
+      
+      this.testingPlex = true;
+      this.plexConnectionMessage = '';
+      
+      try {
+        // Configure the service with provided details
+        plexService.configure(this.plexSettings.baseUrl, this.plexSettings.token);
+        
+        // Test the connection
+        const success = await plexService.testConnection();
+        
+        // Update status based on response
+        this.plexConnectionStatus = success;
+        this.plexConnectionMessage = success 
+          ? 'Connected successfully!'
+          : 'Connection failed. Please check your URL and Plex token.';
+        
+        // If successful, save the settings
+        if (success) {
+          // Save to localStorage
+          localStorage.setItem('plexBaseUrl', this.plexSettings.baseUrl);
+          localStorage.setItem('plexToken', this.plexSettings.token);
+          localStorage.setItem('plexRecentLimit', this.plexSettings.recentLimit.toString());
+          
+          // Emit event to notify parent component that Plex settings were updated
+          this.$emit('plex-settings-updated');
+        }
+          
+      } catch (error) {
+        console.error('Error connecting to Plex:', error);
+        this.plexConnectionStatus = false;
+        this.plexConnectionMessage = 'Connection error. Please check your URL and Plex token.';
+      } finally {
+        this.testingPlex = false;
+      }
+    },
+    
+    savePlexSettings() {
+      try {
+        if (!this.plexSettings.baseUrl || !this.plexSettings.token) {
+          this.saveSuccess = false;
+          this.saveMessage = 'Plex URL and token are required';
+          this.clearSaveMessage();
+          return;
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('plexBaseUrl', this.plexSettings.baseUrl);
+        localStorage.setItem('plexToken', this.plexSettings.token);
+        localStorage.setItem('plexRecentLimit', this.plexSettings.recentLimit.toString());
+        
+        // Configure the service
+        plexService.configure(this.plexSettings.baseUrl, this.plexSettings.token);
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Plex settings saved successfully!';
+        
+        // Emit event to notify parent component that Plex settings were updated
+        this.$emit('plex-settings-updated');
+        
+        this.clearSaveMessage();
+      } catch (error) {
+        console.error('Error saving Plex settings:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Plex settings';
         this.clearSaveMessage();
       }
     },

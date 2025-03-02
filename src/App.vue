@@ -6,7 +6,7 @@
     </header>
     
     <main>
-      <div v-if="!sonarrConnected && !radarrConnected">
+      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected">
         <p class="choose-service">Choose a service to connect to:</p>
         <div class="service-buttons">
           <button class="service-button" @click="showSonarrConnect = true">
@@ -17,13 +17,18 @@
             Connect to Radarr
             <small>For movie recommendations</small>
           </button>
+          <button class="service-button plex-button" @click="showPlexConnect = true">
+            Connect to Plex
+            <small>For watch history integration</small>
+          </button>
         </div>
       </div>
       
       <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" />
       <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" />
+      <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @limitChanged="handlePlexLimitChanged" />
       
-      <div v-if="sonarrConnected || radarrConnected">
+      <div v-if="sonarrConnected || radarrConnected || plexConnected">
         <AppNavigation 
           :activeTab="activeTab" 
           @navigate="handleNavigate"
@@ -35,14 +40,22 @@
             v-if="activeTab === 'tv-recommendations'" 
             :series="series"
             :sonarrConfigured="sonarrConnected"
+            :recentlyWatchedShows="recentlyWatchedShows"
+            :plexConfigured="plexConnected"
             @navigate="handleNavigate" 
+            @plexHistoryModeChanged="handlePlexHistoryModeChanged"
+            @plexOnlyModeChanged="handlePlexOnlyModeChanged" 
           />
           
           <MovieRecommendations 
             v-if="activeTab === 'movie-recommendations'" 
             :movies="movies"
             :radarrConfigured="radarrConnected"
+            :recentlyWatchedMovies="recentlyWatchedMovies"
+            :plexConfigured="plexConnected"
             @navigate="handleNavigate" 
+            @plexHistoryModeChanged="handlePlexHistoryModeChanged"
+            @plexOnlyModeChanged="handlePlexOnlyModeChanged" 
           />
           
           <AISettings
@@ -50,6 +63,7 @@
             @settings-updated="handleSettingsUpdated"
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
+            @plex-settings-updated="handlePlexSettingsUpdated"
           />
         </div>
       </div>
@@ -60,18 +74,21 @@
 <script>
 import SonarrConnection from './components/SonarrConnection.vue'
 import RadarrConnection from './components/RadarrConnection.vue'
+import PlexConnection from './components/PlexConnection.vue'
 import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/TVRecommendations.vue'
 import MovieRecommendations from './components/MovieRecommendations.vue'
 import AISettings from './components/AISettings.vue'
 import sonarrService from './services/SonarrService'
 import radarrService from './services/RadarrService'
+import plexService from './services/PlexService'
 
 export default {
   name: 'App',
   components: {
     SonarrConnection,
     RadarrConnection,
+    PlexConnection,
     AppNavigation,
     TVRecommendations,
     MovieRecommendations,
@@ -81,11 +98,18 @@ export default {
     return {
       sonarrConnected: false,
       radarrConnected: false,
+      plexConnected: false,
       showSonarrConnect: false,
       showRadarrConnect: false,
+      showPlexConnect: false,
       activeTab: 'tv-recommendations',
       series: [],
-      movies: []
+      movies: [],
+      recentlyWatchedMovies: [],
+      recentlyWatchedShows: [],
+      plexRecentLimit: 100,
+      plexHistoryMode: 'all', // 'all' or 'recent'
+      plexOnlyMode: false // Whether to use only Plex history for recommendations
     }
   },
   created() {
@@ -97,6 +121,29 @@ export default {
     // Check if Radarr is already configured on startup
     if (radarrService.isConfigured()) {
       this.checkRadarrConnection();
+    }
+    
+    // Check if Plex is already configured on startup
+    if (plexService.isConfigured()) {
+      this.checkPlexConnection();
+    }
+    
+    // Load Plex recent limit from localStorage if available
+    const savedPlexLimit = localStorage.getItem('plexRecentLimit');
+    if (savedPlexLimit) {
+      this.plexRecentLimit = parseInt(savedPlexLimit, 10);
+    }
+    
+    // Load Plex history mode from localStorage if available
+    const savedPlexHistoryMode = localStorage.getItem('plexHistoryMode');
+    if (savedPlexHistoryMode) {
+      this.plexHistoryMode = savedPlexHistoryMode;
+    }
+    
+    // Load Plex only mode from localStorage if available
+    const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
+    if (savedPlexOnlyMode) {
+      this.plexOnlyMode = savedPlexOnlyMode === 'true';
     }
   },
   methods: {
@@ -129,6 +176,19 @@ export default {
         console.error('Failed to connect with stored Radarr credentials:', error);
       }
     },
+    
+    async checkPlexConnection() {
+      try {
+        const success = await plexService.testConnection();
+        if (success) {
+          this.plexConnected = true;
+          this.fetchPlexData();
+        }
+      } catch (error) {
+        console.error('Failed to connect with stored Plex credentials:', error);
+      }
+    },
+    
     handleSonarrConnected() {
       this.sonarrConnected = true;
       this.showSonarrConnect = false;
@@ -141,6 +201,26 @@ export default {
       this.showRadarrConnect = false;
       this.fetchMoviesData();
       this.activeTab = 'movie-recommendations';
+    },
+    
+    handlePlexConnected() {
+      this.plexConnected = true;
+      this.showPlexConnect = false;
+      this.fetchPlexData();
+    },
+    
+    handlePlexLimitChanged(limit) {
+      this.plexRecentLimit = limit;
+      this.fetchPlexData();
+    },
+    
+    handlePlexHistoryModeChanged(mode) {
+      this.plexHistoryMode = mode;
+      this.fetchPlexData();
+    },
+    
+    handlePlexOnlyModeChanged(enabled) {
+      this.plexOnlyMode = enabled;
     },
     handleNavigate(tab) {
       this.activeTab = tab;
@@ -170,6 +250,33 @@ export default {
         console.error('Failed to fetch movies data for recommendations:', error);
       }
     },
+    
+    async fetchPlexData() {
+      if (!plexService.isConfigured()) {
+        return;
+      }
+      
+      try {
+        // Determine if we should apply a days filter based on the history mode
+        const daysAgo = this.plexHistoryMode === 'recent' ? 30 : 0;
+        
+        // Fetch both shows and movies in parallel for efficiency
+        const [moviesResponse, showsResponse] = await Promise.all([
+          plexService.getRecentlyWatchedMovies(this.plexRecentLimit, daysAgo),
+          plexService.getRecentlyWatchedShows(this.plexRecentLimit, daysAgo)
+        ]);
+        
+        this.recentlyWatchedMovies = moviesResponse;
+        this.recentlyWatchedShows = showsResponse;
+        
+        console.log('Fetched Plex watch history:', {
+          movies: this.recentlyWatchedMovies,
+          shows: this.recentlyWatchedShows
+        });
+      } catch (error) {
+        console.error('Failed to fetch Plex watch history:', error);
+      }
+    },
     handleSettingsUpdated() {
       // When AI settings are updated, show a brief notification or just stay on the settings page
       console.log('AI settings updated successfully');
@@ -186,26 +293,39 @@ export default {
       this.checkRadarrConnection();
       console.log('Radarr settings updated, testing connection');
     },
+    
+    handlePlexSettingsUpdated() {
+      // Check the Plex connection with the new settings
+      this.checkPlexConnection();
+      console.log('Plex settings updated, testing connection');
+    },
     handleLogout() {
       // Clear all stored credentials
       localStorage.removeItem('sonarrBaseUrl');
       localStorage.removeItem('sonarrApiKey');
       localStorage.removeItem('radarrBaseUrl');
       localStorage.removeItem('radarrApiKey');
+      localStorage.removeItem('plexBaseUrl');
+      localStorage.removeItem('plexToken');
       localStorage.removeItem('openaiApiKey');
       localStorage.removeItem('openaiModel');
       
       // Reset service configurations
       sonarrService.configure('', '');
       radarrService.configure('', '');
+      plexService.configure('', '');
       
       // Reset UI state
       this.sonarrConnected = false;
       this.radarrConnected = false;
+      this.plexConnected = false;
       this.series = [];
       this.movies = [];
+      this.recentlyWatchedMovies = [];
+      this.recentlyWatchedShows = [];
       this.showSonarrConnect = false;
       this.showRadarrConnect = false;
+      this.showPlexConnect = false;
       this.activeTab = 'tv-recommendations';
     }
   }
@@ -393,6 +513,14 @@ main {
   color: var(--button-primary-text);
   transform: translateY(-3px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.service-button.plex-button {
+  border-color: #CC7B19; /* Plex orange color */
+}
+
+.service-button.plex-button:hover {
+  background-color: #CC7B19;
 }
 
 .service-button small {

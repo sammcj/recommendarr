@@ -152,6 +152,41 @@
                       </div>
                     </div>
                   </div>
+                  
+                  <div v-if="plexConfigured" class="plex-options">
+                    <label>Plex Watch History:</label>
+                    <div class="plex-history-toggle">
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="plexHistoryMode" 
+                          value="all"
+                          @change="savePlexHistoryMode"
+                        >
+                        All watch history
+                      </label>
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="plexHistoryMode" 
+                          value="recent"
+                          @change="savePlexHistoryMode"
+                        >
+                        Recent (30 days)
+                      </label>
+                    </div>
+                    
+                    <div class="plex-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="plexOnlyMode" 
+                          @change="savePlexOnlyMode"
+                        >
+                        Use only Plex history for recommendations (ignore library)
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -171,7 +206,7 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>Analyzing your movie library and generating recommendations...</p>
+        <p>{{ plexOnlyMode ? 'Analyzing your Plex watch history...' : (plexConfigured ? 'Analyzing your movie library and Plex watch history...' : 'Analyzing your movie library and generating recommendations...') }}</p>
       </div>
       
       <div v-else-if="error" class="error">
@@ -317,6 +352,14 @@ export default {
     radarrConfigured: {
       type: Boolean,
       required: true
+    },
+    recentlyWatchedMovies: {
+      type: Array,
+      default: () => []
+    },
+    plexConfigured: {
+      type: Boolean,
+      default: false
     }
   },
   computed: {
@@ -342,6 +385,8 @@ export default {
       numRecommendations: 5, // Default number of recommendations to request
       columnsCount: 2, // Default number of posters per row
       selectedGenres: [], // Multiple genre selections
+      plexHistoryMode: 'all', // 'all' or 'recent'
+      plexOnlyMode: false, // Whether to use only Plex history for recommendations
       availableGenres: [
         { value: 'action', label: 'Action' },
         { value: 'adventure', label: 'Adventure' },
@@ -543,6 +588,18 @@ export default {
     clearGenres() {
       this.selectedGenres = [];
       this.saveGenrePreference();
+    },
+    
+    // Save Plex history mode preference
+    savePlexHistoryMode() {
+      localStorage.setItem('plexHistoryMode', this.plexHistoryMode);
+      this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
+    },
+    
+    // Save Plex only mode preference
+    savePlexOnlyMode() {
+      localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
+      this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
     },
     
     // Save previous recommendations to localStorage
@@ -789,19 +846,25 @@ export default {
           : '';
           
         // Pass the previous recommendations to be excluded and liked/disliked lists
+        // Include recently watched movies from Plex if available
+        console.log('Using Plex history for recommendations:', this.plexConfigured ? this.recentlyWatchedMovies : 'Not configured');
+        
         this.recommendations = await openAIService.getMovieRecommendations(
           this.movies, 
           this.numRecommendations,
           genreString,
           this.previousRecommendations,
           this.likedRecommendations,
-          this.dislikedRecommendations
+          this.dislikedRecommendations,
+          this.recentlyWatchedMovies,
+          this.plexOnlyMode
         );
         
         // Update loading message to include genres if selected
         const loadingMessage = document.querySelector('.loading p');
         if (loadingMessage && this.selectedGenres.length > 0) {
-          loadingMessage.textContent = `Analyzing your movie library and generating ${genreString} recommendations...`;
+          const source = this.plexOnlyMode ? 'Plex watch history' : 'movie library';
+          loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
         // Add new recommendations to history
@@ -1002,6 +1065,18 @@ export default {
         console.error('Error parsing saved genres:', error);
         this.selectedGenres = [];
       }
+    }
+    
+    // Restore saved Plex history mode if it exists
+    const savedPlexHistoryMode = localStorage.getItem('plexHistoryMode');
+    if (savedPlexHistoryMode) {
+      this.plexHistoryMode = savedPlexHistoryMode;
+    }
+    
+    // Restore saved Plex only mode if it exists
+    const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
+    if (savedPlexOnlyMode) {
+      this.plexOnlyMode = savedPlexOnlyMode === 'true';
     }
     
     // Load previous movie recommendations from localStorage
@@ -2086,6 +2161,39 @@ h2 {
   color: var(--text-color);
   opacity: 0.7;
   transition: color var(--transition-speed);
+}
+
+.plex-options {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+}
+
+.plex-history-toggle {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toggle-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+  font-size: 14px;
+}
+
+.toggle-option input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.plex-only-toggle {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .request-button {

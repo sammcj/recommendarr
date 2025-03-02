@@ -924,6 +924,11 @@ export default {
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
+        // Filter out shows that are already in the Sonarr library
+        if (this.recommendations.length > 0 && !this.plexOnlyMode) {
+          this.recommendations = await this.filterExistingShows(this.recommendations);
+        }
+        
         // Add new recommendations to history
         this.addToRecommendationHistory(this.recommendations);
         
@@ -935,6 +940,36 @@ export default {
         this.recommendations = [];
       } finally {
         this.loading = false;
+      }
+    },
+    
+    /**
+     * Filter out shows that already exist in the Sonarr library
+     * @param {Array} recommendations - The recommended shows
+     * @returns {Promise<Array>} - Filtered recommendations
+     */
+    async filterExistingShows(recommendations) {
+      if (!sonarrService.isConfigured() || !this.series.length) {
+        return recommendations;
+      }
+      
+      try {
+        // Create a normalized map of existing show titles in the library
+        const existingShowTitles = new Set(
+          this.series.map(show => show.title.toLowerCase())
+        );
+        
+        // Filter out recommendations that already exist in the library
+        const filteredRecommendations = recommendations.filter(rec => {
+          const normalizedTitle = rec.title.toLowerCase();
+          return !existingShowTitles.has(normalizedTitle);
+        });
+        
+        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} shows that already exist in the library`);
+        return filteredRecommendations;
+      } catch (error) {
+        console.error('Error filtering existing shows:', error);
+        return recommendations; // Return original list on error
       }
     },
     

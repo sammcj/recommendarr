@@ -206,7 +206,7 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>{{ plexOnlyMode ? 'Analyzing your Plex watch history...' : (plexConfigured ? 'Analyzing your movie library and Plex watch history...' : 'Analyzing your movie library and generating recommendations...') }}</p>
+        <p class="loading-message">{{ currentLoadingMessage }}</p>
       </div>
       
       <div v-else-if="error" class="error">
@@ -405,6 +405,30 @@ export default {
       selectedGenres: [], // Multiple genre selections
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
+      funLoadingMessages: [
+        "Consulting with film critics from another timeline...",
+        "Analyzing your cinematic taste (the good, the bad, and the guilty pleasures)...",
+        "Searching through director's cuts for hidden gems...",
+        "Calculating the perfect movie night formula...",
+        "Bribing theater projectionists for insider recommendations...",
+        "Converting popcorn into movie suggestions...",
+        "Scouring film festivals you didn't know existed...",
+        "Digging through the vaults for forgotten masterpieces...",
+        "Finding movies that will make you forget to check your phone...",
+        "Asking future you what movies you'll love...",
+        "Computing the perfect movie-to-snack ratio...",
+        "Traveling through movie history to find your next favorite...",
+        "Filtering out films with disappointing endings...",
+        "Calculating the statistical probability of your enjoyment...",
+        "Interviewing fictional movie characters about what to watch next...",
+        "Scanning the multiverse for perfect movie matches...",
+        "Teaching the AI to understand the concept of 'movie magic'...",
+        "Brewing a personalized movie recommendation potion...",
+        "Finding movies that will make you say 'Just one more scene'...",
+        "Cross-referencing your taste with parallel universe versions of you..."
+      ],
+      currentLoadingMessage: "",  // Current displayed loading message
+      loadingMessageInterval: null, // For rotating messages
       availableGenres: [
         { value: 'action', label: 'Action' },
         { value: 'adventure', label: 'Adventure' },
@@ -816,6 +840,54 @@ export default {
       }
     },
 
+    /**
+     * Start the rotating loading message animation
+     */
+    startLoadingMessages() {
+      // Set initial message
+      const baseMessage = this.plexOnlyMode 
+        ? 'Analyzing your Plex watch history...' 
+        : (this.plexConfigured 
+          ? 'Analyzing your movie library and Plex watch history...' 
+          : 'Analyzing your movie library and generating recommendations...');
+      
+      this.currentLoadingMessage = baseMessage;
+      
+      // Clear any existing interval
+      if (this.loadingMessageInterval) {
+        clearInterval(this.loadingMessageInterval);
+      }
+      
+      // Start a new interval to rotate through fun messages
+      let lastIndex = -1;
+      this.loadingMessageInterval = setInterval(() => {
+        // Every other time, show the base message
+        if (Math.random() > 0.5) {
+          this.currentLoadingMessage = baseMessage;
+          return;
+        }
+        
+        // Get a random fun message that's different from the last one
+        let randomIndex;
+        do {
+          randomIndex = Math.floor(Math.random() * this.funLoadingMessages.length);
+        } while (randomIndex === lastIndex && this.funLoadingMessages.length > 1);
+        
+        lastIndex = randomIndex;
+        this.currentLoadingMessage = this.funLoadingMessages[randomIndex];
+      }, 10000); // Change message every 10 seconds
+    },
+    
+    /**
+     * Stop the rotating loading message animation
+     */
+    stopLoadingMessages() {
+      if (this.loadingMessageInterval) {
+        clearInterval(this.loadingMessageInterval);
+        this.loadingMessageInterval = null;
+      }
+    },
+    
     async getRecommendations() {
       // Verify we have a movies list and OpenAI is configured
       if (!this.radarrConfigured) {
@@ -837,6 +909,9 @@ export default {
       this.error = null;
       this.recommendationsRequested = true;
       this.settingsExpanded = false; // Collapse settings when getting recommendations
+      
+      // Start the rotating loading messages
+      this.startLoadingMessages();
       
       // Scroll to the top of the loading section
       setTimeout(() => {
@@ -911,6 +986,8 @@ export default {
         }
         this.recommendations = [];
       } finally {
+        // Stop the rotating loading messages
+        this.stopLoadingMessages();
         this.loading = false;
       }
     },
@@ -926,11 +1003,9 @@ export default {
       
       console.log(`Getting ${additionalCount} additional movie recommendations after filtering (recursion depth: ${recursionDepth})`);
       
-      // Update loading message
-      const loadingMessage = document.querySelector('.loading p');
-      if (loadingMessage) {
-        loadingMessage.textContent = `Getting additional recommendations to match your request...`;
-      }
+      // Update base message for the message rotator to use
+      const baseMessage = `Getting additional recommendations to match your request...`;
+      this.currentLoadingMessage = baseMessage;
       
       try {
         // Get additional recommendations
@@ -1274,6 +1349,8 @@ export default {
     this.saveLikedDislikedLists();
     // Remove event listener
     window.removeEventListener('resize', this.handleResize);
+    // Clear any running intervals
+    this.stopLoadingMessages();
   }
 };
 </script>
@@ -1933,6 +2010,21 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 15px;
+}
+
+.loading-message {
+  margin-bottom: 15px;
+  font-size: 16px;
+  min-height: 24px;
+  transition: opacity 0.4s ease-in-out;
+  opacity: 1;
+  animation: fadeInOut 10s infinite;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
 }
 
 .spinner {

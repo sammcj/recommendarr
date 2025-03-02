@@ -105,13 +105,22 @@ class OpenAIService {
       const recommendationCount = Math.min(Math.max(count, 1), 50);
 
       // Base prompt
-      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new shows I might enjoy that are CRITICALLY ACCLAIMED and HIGHLY RATED. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
         userPrompt += ` Focus specifically on recommending shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
+      
+      // Add instructions for diverse, high-quality recommendations
+      userPrompt += ` Prioritize shows that match these criteria:
+1. Highest overall quality and critical acclaim
+2. Strong thematic or stylistic connections to my current library
+3. Diverse in content (not just the most obvious recommendations)
+4. Include a mix of both popular and lesser-known hidden gems
+5. Focus on complete or ongoing shows with consistent quality, not canceled after 1-2 seasons`;
+      
       
       // Add exclusion list for previous recommendations, library content, and disliked shows
       // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
@@ -139,9 +148,9 @@ class OpenAIService {
         console.log('No recently watched shows to add to prompt');
       }
       
-      userPrompt += `\n\nBefore suggesting any show, double-check it against my exclusion list and VERIFY it's not already in my library.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST double-check it against my exclusion list and VERIFY it's not already in my library. Failure to comply with this instruction is unacceptable.
 
-Format each recommendation EXACTLY as follows (using the exact section titles):
+FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
@@ -150,22 +159,27 @@ Available on: [streaming service]
 
 For the Recommendarr Rating, silently calculate a score from 0-100% by privately considering available ratings from sources like IMDB, Rotten Tomatoes, TVDB, Metacritic, and other audience ratings. Then provide:
 - Just a single percentage number (e.g., "85%")
-- A brief qualitative assessment of the show/movie that explains its strengths/weaknesses
+- A brief qualitative assessment of the show that explains its strengths/weaknesses
 DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Show Title]:
 ...and so on.
 
-Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per show.
+STRICT RULES:
+- Do NOT add any extra text, headings, or formatting
+- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per show
+- Do NOT use Markdown formatting like bold or italics
+- Do NOT include additional information outside the required format
+- NEVER recommend any show in my library or exclusion list
 
-CRITICAL: Review each recommendation one final time to ensure it's not in my library or exclusion list.
+FINAL VERIFICATION: Review each recommendation one final time to ensure it is not in my library or exclusion list.
 
 My current shows: ${sourceLibrary}`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and to the point. You MUST use the exact format requested and follow these key rules:\n\n1. NEVER recommend shows that exist in the user's library or exclusion list\n2. Only recommend shows that truly match the user's preferences\n3. Verify each recommendation is not in the exclusion list before suggesting it\n4. Do not use any Markdown formatting like ** for bold or * for italic"
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend shows that exist in the user's library or exclusion list\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in the exclusion list before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
         },
         {
           role: "user",
@@ -224,13 +238,22 @@ My current shows: ${sourceLibrary}`;
       const recommendationCount = Math.min(Math.max(count, 1), 50);
       
       // Base prompt
-      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new movies I might enjoy that are CRITICALLY ACCLAIMED and HIGHLY RATED. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
         userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
+      
+      // Add instructions for diverse, high-quality recommendations
+      userPrompt += ` Prioritize movies that match these criteria:
+1. Highest overall quality and critical acclaim
+2. Strong thematic or stylistic connections to my current library
+3. Diverse in content (not just the most obvious recommendations)
+4. Include a mix of both popular and lesser-known hidden gems
+5. Consider both classic and recent releases that have stood the test of time`;
+      
       
       // Add exclusion list for previous recommendations, library content, and disliked movies
       // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
@@ -258,9 +281,9 @@ My current shows: ${sourceLibrary}`;
         console.log('No recently watched movies to add to prompt');
       }
       
-      userPrompt += `\n\nBefore suggesting any movie, double-check it against my exclusion list and VERIFY it's not already in my library.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST double-check it against my exclusion list and VERIFY it's not already in my library. Failure to comply with this instruction is unacceptable.
 
-Format each recommendation EXACTLY as follows (using the exact section titles):
+FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
@@ -275,16 +298,21 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 2. [Next Movie Title]:
 ...and so on.
 
-Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per movie.
+STRICT RULES:
+- Do NOT add any extra text, headings, or formatting
+- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per movie
+- Do NOT use Markdown formatting like bold or italics
+- Do NOT include additional information outside the required format
+- NEVER recommend any movie in my library or exclusion list
 
-CRITICAL: Review each recommendation one final time to ensure it's not in my library or exclusion list.
+FINAL VERIFICATION: Review each recommendation one final time to ensure it is not in my library or exclusion list.
 
 My current movies: ${sourceLibrary}`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and to the point. You MUST use the exact format requested and follow these key rules:\n\n1. NEVER recommend movies that exist in the user's library or exclusion list\n2. Only recommend movies that truly match the user's preferences\n3. Verify each recommendation is not in the exclusion list before suggesting it\n4. Do not use any Markdown formatting like ** for bold or * for italic"
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend movies that exist in the user's library or exclusion list\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in the exclusion list before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
         },
         {
           role: "user",
@@ -333,6 +361,12 @@ My current movies: ${sourceLibrary}`;
         { headers }
       );
 
+      // Check if response contains expected data structure
+      if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+        console.error('Unexpected API response format:', response.data);
+        throw new Error('The AI API returned an unexpected response format. Please try again.');
+      }
+      
       // Parse the recommendations from the response
       const recommendations = this.parseRecommendations(response.data.choices[0].message.content);
       return recommendations;
@@ -350,6 +384,12 @@ My current movies: ${sourceLibrary}`;
   parseRecommendations(content) {
     // Optimized parsing method
     const recommendations = [];
+    
+    // Validate content
+    if (!content || typeof content !== 'string') {
+      console.error('Invalid content for parsing:', content);
+      return recommendations; // Return empty array instead of throwing
+    }
     
     // Split the response by numbered entries (1., 2., etc.)
     const sections = content.split(/\d+\.\s+/).filter(Boolean);
@@ -372,23 +412,33 @@ My current movies: ${sourceLibrary}`;
         if (section.includes(':')) {
           const firstColonIndex = section.indexOf(':');
           title = section.substring(0, firstColonIndex).trim();
-          // Remove any markdown formatting (like ** for bold)
+          // Remove any markdown formatting and brackets
           title = title.replace(/\*\*/g, '').trim();
+          title = title.replace(/^\[|\]$/g, '').trim();
           details = section.substring(firstColonIndex + 1).trim();
         } else {
           // If no colon, try to get the first line
           const firstLineBreak = section.indexOf('\n');
           if (firstLineBreak > 0) {
             title = section.substring(0, firstLineBreak).trim();
-            // Remove any markdown formatting (like ** for bold)
+            // Remove any markdown formatting and brackets
             title = title.replace(/\*\*/g, '').trim();
+            title = title.replace(/^\[|\]$/g, '').trim();
             details = section.substring(firstLineBreak + 1).trim();
           } else {
             title = section.trim();
-            // Remove any markdown formatting (like ** for bold)
+            // Remove any markdown formatting and brackets
             title = title.replace(/\*\*/g, '').trim();
+            title = title.replace(/^\[|\]$/g, '').trim();
             details = '';
           }
+        }
+        
+        // Handle case where title might be surrounded by brackets
+        // Some LLMs might return "[Title Name]:" instead of "Title Name:"
+        const bracketMatch = title.match(/^\[(.*)\]$/);
+        if (bracketMatch && bracketMatch[1]) {
+          title = bracketMatch[1].trim();
         }
         
         // Skip if the title looks like an introduction or section header rather than a show name
@@ -401,13 +451,52 @@ My current movies: ${sourceLibrary}`;
           continue;
         }
         
-        // Extract common fields using helper method
-        const description = this.extractFieldFromText(details, 'Description', 'Why you might like it');
-        const reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Recommendarr Rating');
-        const rating = this.extractFieldFromText(details, 'Recommendarr Rating', 'Available on');
-        const streaming = this.extractFieldFromText(details, 'Available on', null);
+        // Fix case where "Description:" is malformed into the title portion
+        if (title.toLowerCase().includes("description")) {
+          // Try to extract the actual title from before "description"
+          const descIndex = title.toLowerCase().indexOf("description");
+          if (descIndex > 0) {
+            const possibleTitle = title.substring(0, descIndex).trim();
+            // Only use it if it seems like a reasonable title
+            if (possibleTitle.length > 0 && possibleTitle.length < 50 && 
+                !possibleTitle.toLowerCase().includes("here are")) {
+              title = possibleTitle;
+            }
+          }
+        }
         
-        // Skip entries where we couldn't extract meaningful content
+        // Extract common fields using helper method with fallbacks for flexibility
+        let description = this.extractFieldFromText(details, 'Description', 'Why you might like it');
+        let reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Recommendarr Rating');
+        let rating = this.extractFieldFromText(details, 'Recommendarr Rating', 'Available on');
+        let streaming = this.extractFieldFromText(details, 'Available on', null);
+        
+        // Try alternative patterns if primary extraction failed
+        if (!description) {
+          description = this.extractFieldFromText(details, 'description', 'why you might like it') ||
+                        this.extractFieldFromText(details, 'Synopsis', 'Why') ||
+                        this.extractFieldFromText(details, 'About', 'Why');
+        }
+        
+        if (!reasoning) {
+          reasoning = this.extractFieldFromText(details, 'why you might like it', 'recommendarr rating') ||
+                      this.extractFieldFromText(details, 'Why', 'Rating') ||
+                      this.extractFieldFromText(details, 'Appeal', 'Rating');
+        }
+        
+        if (!rating) {
+          rating = this.extractFieldFromText(details, 'recommendarr rating', 'available on') ||
+                  this.extractFieldFromText(details, 'Rating', 'Available') ||
+                  this.extractFieldFromText(details, 'Score', 'Available');
+        }
+        
+        if (!streaming) {
+          streaming = this.extractFieldFromText(details, 'available on', null) ||
+                     this.extractFieldFromText(details, 'Streaming', null) ||
+                     this.extractFieldFromText(details, 'Watch on', null);
+        }
+        
+        // Skip entries where we couldn't extract meaningful content after fallbacks
         if (!description && !reasoning && !streaming) {
           continue;
         }

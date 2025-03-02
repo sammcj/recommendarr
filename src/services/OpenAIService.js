@@ -113,10 +113,16 @@ class OpenAIService {
         userPrompt += ` Focus specifically on recommending shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
-      // Add exclusion list for previous recommendations and disliked shows
-      const exclusions = [...previousRecommendations, ...dislikedRecommendations];
+      // Add exclusion list for previous recommendations, library content, and disliked shows
+      // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
+      let exclusions = [...previousRecommendations, ...dislikedRecommendations];
+      if (!plexOnlyMode && series && series.length > 0) {
+        const libraryTitles = series.map(show => show.title);
+        exclusions = [...new Set([...exclusions, ...libraryTitles])];
+      }
+      
       if (exclusions.length > 0) {
-        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these shows that I've already seen, been recommended before, or disliked: ${exclusions.join(', ')}`;
+        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any of these shows under any circumstances. I already have them in my library, have been recommended them before, or explicitly dislike them: ${exclusions.join(', ')}`;
       }
       
       // Add disliked shows as explicit negative examples
@@ -133,7 +139,9 @@ class OpenAIService {
         console.log('No recently watched shows to add to prompt');
       }
       
-      userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
+      userPrompt += `\n\nBefore suggesting any show, double-check it against my exclusion list and VERIFY it's not already in my library.
+
+Format each recommendation EXACTLY as follows (using the exact section titles):
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
@@ -150,12 +158,14 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per show.
 
+CRITICAL: Review each recommendation one final time to ensure it's not in my library or exclusion list.
+
 My current shows: ${sourceLibrary}`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and to the point. You MUST use the exact format requested and follow these key rules:\n\n1. NEVER recommend shows that exist in the user's library or exclusion list\n2. Only recommend shows that truly match the user's preferences\n3. Verify each recommendation is not in the exclusion list before suggesting it\n4. Do not use any Markdown formatting like ** for bold or * for italic"
         },
         {
           role: "user",
@@ -222,10 +232,16 @@ My current shows: ${sourceLibrary}`;
         userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
-      // Add exclusion list for previous recommendations and disliked movies
-      const exclusions = [...previousRecommendations, ...dislikedRecommendations];
+      // Add exclusion list for previous recommendations, library content, and disliked movies
+      // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
+      let exclusions = [...previousRecommendations, ...dislikedRecommendations];
+      if (!plexOnlyMode && movies && movies.length > 0) {
+        const libraryTitles = movies.map(movie => movie.title);
+        exclusions = [...new Set([...exclusions, ...libraryTitles])];
+      }
+      
       if (exclusions.length > 0) {
-        userPrompt += `\n\nIMPORTANT: DO NOT recommend any of these movies that I've already seen, been recommended before, or disliked: ${exclusions.join(', ')}`;
+        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any of these movies under any circumstances. I already have them in my library, have been recommended them before, or explicitly dislike them: ${exclusions.join(', ')}`;
       }
       
       // Add disliked movies as explicit negative examples
@@ -242,7 +258,9 @@ My current shows: ${sourceLibrary}`;
         console.log('No recently watched movies to add to prompt');
       }
       
-      userPrompt += `\n\nFormat each recommendation EXACTLY as follows (using the exact section titles):
+      userPrompt += `\n\nBefore suggesting any movie, double-check it against my exclusion list and VERIFY it's not already in my library.
+
+Format each recommendation EXACTLY as follows (using the exact section titles):
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
@@ -259,12 +277,14 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per movie.
 
+CRITICAL: Review each recommendation one final time to ensure it's not in my library or exclusion list.
+
 My current movies: ${sourceLibrary}`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and to the point. Do not use any Markdown formatting like ** for bold or * for italic. You MUST use the exact format requested."
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and to the point. You MUST use the exact format requested and follow these key rules:\n\n1. NEVER recommend movies that exist in the user's library or exclusion list\n2. Only recommend movies that truly match the user's preferences\n3. Verify each recommendation is not in the exclusion list before suggesting it\n4. Do not use any Markdown formatting like ** for bold or * for italic"
         },
         {
           role: "user",

@@ -927,13 +927,31 @@ export default {
           this.movies.map(movie => movie.title.toLowerCase())
         );
         
-        // Filter out recommendations that already exist in the library
+        // Add liked recommendations to the filter set
+        const likedRecommendationTitles = new Set(
+          this.likedRecommendations.map(title => title.toLowerCase())
+        );
+        
+        // Add disliked recommendations to the filter set
+        const dislikedRecommendationTitles = new Set(
+          this.dislikedRecommendations.map(title => title.toLowerCase())
+        );
+        
+        // Add previous recommendations to the filter set
+        const previousRecommendationTitles = new Set(
+          this.previousRecommendations.map(title => title.toLowerCase())
+        );
+        
+        // Filter out recommendations that already exist in the library, liked list, disliked list, or previous recommendations
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
-          return !existingMovieTitles.has(normalizedTitle);
+          return !existingMovieTitles.has(normalizedTitle) && 
+                 !likedRecommendationTitles.has(normalizedTitle) && 
+                 !dislikedRecommendationTitles.has(normalizedTitle) && 
+                 !previousRecommendationTitles.has(normalizedTitle);
         });
         
-        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} movies that already exist in the library`);
+        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} movies that already exist in the library, liked/disliked lists, or recommendation history`);
         return filteredRecommendations;
       } catch (error) {
         console.error('Error filtering existing movies:', error);

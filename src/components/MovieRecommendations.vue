@@ -922,7 +922,7 @@ export default {
      * @param {number} [recursionDepth=0] - Current recursion depth to limit excessive API calls
      */
     async getAdditionalRecommendations(additionalCount, genreString, recursionDepth = 0) {
-      if (additionalCount <= 0 || recursionDepth >= 3) return;
+      if (additionalCount <= 0 || recursionDepth >= 5) return;
       
       console.log(`Getting ${additionalCount} additional movie recommendations after filtering (recursion depth: ${recursionDepth})`);
       

@@ -48,20 +48,51 @@
           </small>
         </div>
         <div class="form-group">
-          <label for="jellyfinUserId">User ID</label>
-          <div class="input-group">
-            <input
-              id="jellyfinUserId"
-              v-model="jellyfinUserId"
-              type="text"
-              class="form-control"
-              placeholder="Your Jellyfin User ID"
-              :disabled="loading"
-            >
+          <label for="jellyfinUser">User</label>
+          <div v-if="userSelectMode">
+            <div v-if="loadingUsers" class="d-flex align-items-center my-2">
+              <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+              <span>Loading users...</span>
+            </div>
+            <div v-else-if="users.length === 0" class="alert alert-warning">
+              No users found. Please check your API key permissions.
+            </div>
+            <div v-else class="list-group mb-2">
+              <button 
+                v-for="user in users" 
+                :key="user.id"
+                class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                @click="selectUser(user)"
+              >
+                <span>{{ user.name }}</span>
+                <span v-if="user.id === jellyfinUserId" class="badge badge-primary">Selected</span>
+                <span v-if="user.isAdministrator" class="badge badge-secondary">Admin</span>
+              </button>
+            </div>
+            <button class="btn btn-secondary btn-sm" @click="userSelectMode = false">
+              Enter ID Manually
+            </button>
           </div>
-          <small class="form-text text-muted">
-            Your User ID can be found in your profile settings under "Profile Information"
-          </small>
+          <div v-else>
+            <div class="input-group">
+              <input
+                id="jellyfinUserId"
+                v-model="jellyfinUserId"
+                type="text"
+                class="form-control"
+                placeholder="Your Jellyfin User ID"
+                :disabled="loading"
+              >
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-1">
+              <small class="form-text text-muted">
+                Your User ID can be found in your profile settings under "Profile Information"
+              </small>
+              <button class="btn btn-info btn-sm" @click="fetchUsers" :disabled="!canFetchUsers || loading">
+                Select User
+              </button>
+            </div>
+          </div>
         </div>
         <div class="d-flex justify-content-between align-items-center form-group">
           <div>
@@ -127,8 +158,16 @@ export default {
       loading: false,
       message: '',
       messageSuccess: false,
-      jellyfinConnected: this.connected
+      jellyfinConnected: this.connected,
+      users: [],
+      loadingUsers: false,
+      userSelectMode: false
     };
+  },
+  computed: {
+    canFetchUsers() {
+      return this.jellyfinUrl && this.jellyfinApiKey;
+    }
   },
   watch: {
     connected(newVal) {
@@ -136,6 +175,35 @@ export default {
     }
   },
   methods: {
+    async fetchUsers() {
+      if (!this.canFetchUsers) return;
+      
+      this.loadingUsers = true;
+      this.userSelectMode = true;
+      
+      try {
+        // Temporarily configure the service for the API call
+        JellyfinService.configure(
+          this.jellyfinUrl,
+          this.jellyfinApiKey,
+          ''
+        );
+        
+        this.users = await JellyfinService.getUsers();
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        this.message = 'Failed to fetch users. Please check your API key permissions.';
+        this.messageSuccess = false;
+      } finally {
+        this.loadingUsers = false;
+      }
+    },
+    
+    selectUser(user) {
+      this.jellyfinUserId = user.id;
+      this.userSelectMode = false;
+    },
+    
     async saveSettings() {
       this.loading = true;
       this.message = '';

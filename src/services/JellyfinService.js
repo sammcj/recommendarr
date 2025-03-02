@@ -19,26 +19,74 @@ class JellyfinService {
   }
 
   isConfigured() {
-    return !!this.baseUrl && !!this.apiKey && !!this.userId;
+    return !!this.baseUrl && !!this.apiKey;
   }
-
-  async testConnection() {
-    if (!this.isConfigured()) {
-      return { success: false, message: 'Jellyfin is not configured.' };
+  
+  async getUsers() {
+    if (!this.baseUrl || !this.apiKey) {
+      return [];
     }
-
+    
     try {
-      const response = await axios.get(`${this.baseUrl}/System/Info`, {
+      const response = await axios.get(`${this.baseUrl}/Users`, {
         headers: {
           'X-Emby-Token': this.apiKey
         }
       });
       
-      if (response.status === 200) {
-        return { success: true, message: 'Connected to Jellyfin successfully!' };
-      } else {
-        return { success: false, message: `Error connecting to Jellyfin: ${response.status}` };
+      return response.data.map(user => ({
+        id: user.Id,
+        name: user.Name,
+        lastLoginDate: user.LastLoginDate,
+        hasPassword: user.HasPassword,
+        isAdministrator: user.Policy?.IsAdministrator || false
+      }));
+    } catch (error) {
+      console.error('Error fetching Jellyfin users:', error);
+      return [];
+    }
+  }
+
+  async testConnection() {
+    if (!this.baseUrl || !this.apiKey) {
+      return { success: false, message: 'Jellyfin URL and API key are required.' };
+    }
+
+    try {
+      // First check if we can connect to the server
+      const systemResponse = await axios.get(`${this.baseUrl}/System/Info`, {
+        headers: {
+          'X-Emby-Token': this.apiKey
+        }
+      });
+      
+      if (systemResponse.status !== 200) {
+        return { success: false, message: `Error connecting to Jellyfin: ${systemResponse.status}` };
       }
+      
+      // If userId is provided, verify it's valid
+      if (this.userId) {
+        try {
+          const userResponse = await axios.get(`${this.baseUrl}/Users/${this.userId}`, {
+            headers: {
+              'X-Emby-Token': this.apiKey
+            }
+          });
+          
+          return { 
+            success: true, 
+            message: `Connected to Jellyfin successfully! User: ${userResponse.data.Name}`
+          };
+        } catch (userError) {
+          // User ID may be invalid
+          return { 
+            success: false, 
+            message: 'Connected to Jellyfin, but the User ID is invalid.'
+          };
+        }
+      }
+      
+      return { success: true, message: 'Connected to Jellyfin successfully!' };
     } catch (error) {
       return { 
         success: false, 
@@ -48,7 +96,7 @@ class JellyfinService {
   }
 
   async getRecentlyWatchedMovies(limit = 50, daysAgo = null) {
-    if (!this.isConfigured()) {
+    if (!this.baseUrl || !this.apiKey || !this.userId) {
       return [];
     }
 
@@ -88,7 +136,7 @@ class JellyfinService {
   }
 
   async getRecentlyWatchedShows(limit = 50, daysAgo = null) {
-    if (!this.isConfigured()) {
+    if (!this.baseUrl || !this.apiKey || !this.userId) {
       return [];
     }
 

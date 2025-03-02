@@ -216,6 +216,48 @@
                     </label>
                   </div>
                 </div>
+                
+                <div v-if="jellyfinConfigured" class="jellyfin-options">
+                  <label>Jellyfin Watch History:</label>
+                  <div class="jellyfin-history-toggle">
+                    <label class="toggle-option">
+                      <input 
+                        type="radio" 
+                        v-model="jellyfinHistoryMode" 
+                        value="all"
+                        @change="saveJellyfinHistoryMode"
+                      >
+                      All watch history
+                    </label>
+                    <label class="toggle-option">
+                      <input 
+                        type="radio" 
+                        v-model="jellyfinHistoryMode" 
+                        value="recent"
+                        @change="saveJellyfinHistoryMode"
+                      >
+                      Recent (30 days)
+                    </label>
+                  </div>
+                  
+                  <div class="jellyfin-only-toggle">
+                    <label class="checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        v-model="jellyfinOnlyMode" 
+                        @change="saveJellyfinOnlyMode"
+                      >
+                      Use only Jellyfin history for recommendations (ignore library)
+                    </label>
+                  </div>
+                  
+                  <button 
+                    class="jellyfin-user-select-button action-button"
+                    @click="$emit('openJellyfinUserSelect')"
+                  >
+                    Change Jellyfin User
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -470,7 +512,15 @@ export default {
       type: Array,
       default: () => []
     },
+    jellyfinRecentlyWatchedShows: {
+      type: Array,
+      default: () => []
+    },
     plexConfigured: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinConfigured: {
       type: Boolean,
       default: false
     }
@@ -500,6 +550,8 @@ export default {
       selectedGenres: [], // Multiple genre selections
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
+      jellyfinHistoryMode: 'all', // 'all' or 'recent'
+      jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       funLoadingMessages: [
@@ -763,10 +815,38 @@ export default {
       this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
     },
     
+    // Save Jellyfin history mode preference
+    saveJellyfinHistoryMode() {
+      localStorage.setItem('jellyfinHistoryMode', this.jellyfinHistoryMode);
+      this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+    },
+    
     // Save Plex only mode preference
     savePlexOnlyMode() {
       localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
+      
+      // If enabling Plex only mode, disable Jellyfin only mode
+      if (this.plexOnlyMode && this.jellyfinOnlyMode) {
+        this.jellyfinOnlyMode = false;
+        localStorage.setItem('jellyfinOnlyMode', 'false');
+        this.$emit('jellyfinOnlyModeChanged', false);
+      }
+      
       this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
+    },
+    
+    // Save Jellyfin only mode preference
+    saveJellyfinOnlyMode() {
+      localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
+      
+      // If enabling Jellyfin only mode, disable Plex only mode
+      if (this.jellyfinOnlyMode && this.plexOnlyMode) {
+        this.plexOnlyMode = false;
+        localStorage.setItem('plexOnlyMode', 'false');
+        this.$emit('plexOnlyModeChanged', false);
+      }
+      
+      this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
     },
     
     // Save previous recommendations to localStorage
@@ -957,11 +1037,19 @@ export default {
      */
     startLoadingMessages() {
       // Set initial message
-      const baseMessage = this.plexOnlyMode 
-        ? 'Analyzing your Plex watch history...' 
-        : (this.plexConfigured 
-          ? 'Analyzing your TV show library and Plex watch history...' 
-          : 'Analyzing your TV show library and generating recommendations...');
+      let baseMessage = 'Analyzing your TV show library and generating recommendations...';
+      
+      if (this.plexOnlyMode) {
+        baseMessage = 'Analyzing your Plex watch history...';
+      } else if (this.jellyfinOnlyMode) {
+        baseMessage = 'Analyzing your Jellyfin watch history...';
+      } else if (this.plexConfigured && this.jellyfinConfigured) {
+        baseMessage = 'Analyzing your TV show library, Plex and Jellyfin watch history...';
+      } else if (this.plexConfigured) {
+        baseMessage = 'Analyzing your TV show library and Plex watch history...';
+      } else if (this.jellyfinConfigured) {
+        baseMessage = 'Analyzing your TV show library and Jellyfin watch history...';
+      }
       
       this.currentLoadingMessage = baseMessage;
       
@@ -1061,19 +1149,29 @@ export default {
           this.previousRecommendations,
           this.likedRecommendations,
           this.dislikedRecommendations,
-          this.recentlyWatchedShows,
-          this.plexOnlyMode
+          this.plexOnlyMode ? this.recentlyWatchedShows : 
+            this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedShows :
+            [...this.recentlyWatchedShows, ...this.jellyfinRecentlyWatchedShows],
+          this.plexOnlyMode || this.jellyfinOnlyMode
         );
         
         // Update loading message to include genres if selected
         const loadingMessage = document.querySelector('.loading p');
         if (loadingMessage && this.selectedGenres.length > 0) {
-          const source = this.plexOnlyMode ? 'Plex watch history' : 'TV library';
+          let source = 'TV library';
+          if (this.plexOnlyMode) {
+            source = 'Plex watch history';
+          } else if (this.jellyfinOnlyMode) {
+            source = 'Jellyfin watch history';
+          } else if (this.plexConfigured && this.jellyfinConfigured) {
+            source = 'TV library and watch history';
+          }
+          
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
         // Filter out shows that are already in the Sonarr library
-        if (this.recommendations.length > 0 && !this.plexOnlyMode) {
+        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
           this.recommendations = await this.filterExistingShows(this.recommendations);
         }
         
@@ -2860,14 +2958,14 @@ select:hover {
   transition: color var(--transition-speed);
 }
 
-.plex-options {
+.plex-options, .jellyfin-options {
   margin-top: 20px;
   padding: 15px;
   background-color: rgba(0, 0, 0, 0.02);
   border-radius: 8px;
 }
 
-.plex-history-toggle {
+.plex-history-toggle, .jellyfin-history-toggle {
   margin-top: 10px;
   display: flex;
   flex-direction: column;
@@ -2887,10 +2985,18 @@ select:hover {
   cursor: pointer;
 }
 
-.plex-only-toggle {
+.plex-only-toggle, .jellyfin-only-toggle {
   margin-top: 15px;
   padding-top: 12px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.jellyfin-user-select-button {
+  margin-top: 15px;
+  width: auto;
+  max-width: 200px;
+  padding: 8px 16px;
+  font-size: 14px;
 }
 
 .request-button {

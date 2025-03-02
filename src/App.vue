@@ -43,6 +43,8 @@
             :recentlyWatchedShows="recentlyWatchedShows"
             :plexConfigured="plexConnected"
             @navigate="handleNavigate" 
+            @plexHistoryModeChanged="handlePlexHistoryModeChanged"
+            @plexOnlyModeChanged="handlePlexOnlyModeChanged" 
           />
           
           <MovieRecommendations 
@@ -52,6 +54,8 @@
             :recentlyWatchedMovies="recentlyWatchedMovies"
             :plexConfigured="plexConnected"
             @navigate="handleNavigate" 
+            @plexHistoryModeChanged="handlePlexHistoryModeChanged"
+            @plexOnlyModeChanged="handlePlexOnlyModeChanged" 
           />
           
           <AISettings
@@ -103,7 +107,9 @@ export default {
       movies: [],
       recentlyWatchedMovies: [],
       recentlyWatchedShows: [],
-      plexRecentLimit: 10
+      plexRecentLimit: 100,
+      plexHistoryMode: 'all', // 'all' or 'recent'
+      plexOnlyMode: false // Whether to use only Plex history for recommendations
     }
   },
   created() {
@@ -126,6 +132,18 @@ export default {
     const savedPlexLimit = localStorage.getItem('plexRecentLimit');
     if (savedPlexLimit) {
       this.plexRecentLimit = parseInt(savedPlexLimit, 10);
+    }
+    
+    // Load Plex history mode from localStorage if available
+    const savedPlexHistoryMode = localStorage.getItem('plexHistoryMode');
+    if (savedPlexHistoryMode) {
+      this.plexHistoryMode = savedPlexHistoryMode;
+    }
+    
+    // Load Plex only mode from localStorage if available
+    const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
+    if (savedPlexOnlyMode) {
+      this.plexOnlyMode = savedPlexOnlyMode === 'true';
     }
   },
   methods: {
@@ -195,6 +213,15 @@ export default {
       this.plexRecentLimit = limit;
       this.fetchPlexData();
     },
+    
+    handlePlexHistoryModeChanged(mode) {
+      this.plexHistoryMode = mode;
+      this.fetchPlexData();
+    },
+    
+    handlePlexOnlyModeChanged(enabled) {
+      this.plexOnlyMode = enabled;
+    },
     handleNavigate(tab) {
       this.activeTab = tab;
       
@@ -230,10 +257,13 @@ export default {
       }
       
       try {
+        // Determine if we should apply a days filter based on the history mode
+        const daysAgo = this.plexHistoryMode === 'recent' ? 30 : 0;
+        
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([
-          plexService.getRecentlyWatchedMovies(this.plexRecentLimit),
-          plexService.getRecentlyWatchedShows(this.plexRecentLimit)
+          plexService.getRecentlyWatchedMovies(this.plexRecentLimit, daysAgo),
+          plexService.getRecentlyWatchedShows(this.plexRecentLimit, daysAgo)
         ]);
         
         this.recentlyWatchedMovies = moviesResponse;

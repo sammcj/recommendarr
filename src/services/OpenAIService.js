@@ -70,27 +70,36 @@ class OpenAIService {
    * @param {Array} [likedRecommendations=[]] - List of shows the user has liked
    * @param {Array} [dislikedRecommendations=[]] - List of shows the user has disliked
    * @param {Array} [recentlyWatchedShows=[]] - List of recently watched shows from Plex
+   * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = []) {
+  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
 
     try {
-      // Only extract show titles to minimize token usage
-      const showTitles = series.map(show => show.title).join(', ');
+      // Determine if we should use only Plex history or include the library
+      let sourceText, sourceLibrary;
       
-      // Add liked shows to the current library for the AI to consider
-      const allShowTitles = likedRecommendations.length > 0 
-        ? `${showTitles}, ${likedRecommendations.join(', ')}`
-        : showTitles;
+      if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+        // Only use the Plex watch history
+        sourceText = "my Plex watch history";
+        sourceLibrary = recentlyWatchedShows.map(show => show.title).join(', ');
+      } else {
+        // Use the Sonarr library + liked shows as the main library
+        sourceText = "my TV show library";
+        const showTitles = series.map(show => show.title).join(', ');
+        sourceLibrary = likedRecommendations.length > 0 
+          ? `${showTitles}, ${likedRecommendations.join(', ')}`
+          : showTitles;
+      }
       
       // Ensure count is within reasonable bounds
       const recommendationCount = Math.min(Math.max(count, 1), 50);
 
       // Base prompt
-      let userPrompt = `Based on my TV show library, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -109,12 +118,12 @@ class OpenAIService {
         userPrompt += `\n\nI specifically dislike these shows, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
-      // Add recently watched shows from Plex if available
-      if (recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+      // Add recently watched shows from Plex if available and not already using them as the primary source
+      if (!plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
         const recentShowTitles = recentlyWatchedShows.map(show => show.title).join(', ');
         userPrompt += `\n\nI've recently watched these shows on Plex, so please consider them for better recommendations: ${recentShowTitles}`;
         console.log('Adding recently watched shows to prompt:', recentShowTitles);
-      } else {
+      } else if (!recentlyWatchedShows || recentlyWatchedShows.length === 0) {
         console.log('No recently watched shows to add to prompt');
       }
       
@@ -135,7 +144,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per show.
 
-My current shows: ${allShowTitles}`;
+My current shows: ${sourceLibrary}`;
 
       const messages = [
         {
@@ -164,27 +173,36 @@ My current shows: ${allShowTitles}`;
    * @param {Array} [likedRecommendations=[]] - List of movies the user has liked
    * @param {Array} [dislikedRecommendations=[]] - List of movies the user has disliked
    * @param {Array} [recentlyWatchedMovies=[]] - List of recently watched movies from Plex
+   * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = []) {
+  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false) {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
 
     try {
-      // Only extract movie titles to minimize token usage
-      const movieTitles = movies.map(movie => movie.title).join(', ');
+      // Determine if we should use only Plex history or include the library
+      let sourceText, sourceLibrary;
       
-      // Add liked movies to the current library for the AI to consider
-      const allMovieTitles = likedRecommendations.length > 0 
-        ? `${movieTitles}, ${likedRecommendations.join(', ')}`
-        : movieTitles;
+      if (plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
+        // Only use the Plex watch history
+        sourceText = "my Plex watch history";
+        sourceLibrary = recentlyWatchedMovies.map(movie => movie.title).join(', ');
+      } else {
+        // Use the Radarr library + liked movies as the main library
+        sourceText = "my movie library";
+        const movieTitles = movies.map(movie => movie.title).join(', ');
+        sourceLibrary = likedRecommendations.length > 0 
+          ? `${movieTitles}, ${likedRecommendations.join(', ')}`
+          : movieTitles;
+      }
       
       // Ensure count is within reasonable bounds
       const recommendationCount = Math.min(Math.max(count, 1), 50);
       
       // Base prompt
-      let userPrompt = `Based on my movie library, recommend ${recommendationCount} new movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -203,12 +221,12 @@ My current shows: ${allShowTitles}`;
         userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
-      // Add recently watched movies from Plex if available
-      if (recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
+      // Add recently watched movies from Plex if available and not already using them as the primary source
+      if (!plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
         const recentMovieTitles = recentlyWatchedMovies.map(movie => movie.title).join(', ');
         userPrompt += `\n\nI've recently watched these movies on Plex, so please consider them for better recommendations: ${recentMovieTitles}`;
         console.log('Adding recently watched movies to prompt:', recentMovieTitles);
-      } else {
+      } else if (!recentlyWatchedMovies || recentlyWatchedMovies.length === 0) {
         console.log('No recently watched movies to add to prompt');
       }
       
@@ -229,7 +247,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 
 Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per movie.
 
-My current movies: ${allMovieTitles}`;
+My current movies: ${sourceLibrary}`;
 
       const messages = [
         {

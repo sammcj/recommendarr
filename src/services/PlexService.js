@@ -51,22 +51,37 @@ class PlexService {
   /**
    * Get recently watched movies from Plex
    * @param {number} limit - Maximum number of items to return
+   * @param {number} [daysAgo=0] - Only include movies watched within this many days (0 for all)
    * @returns {Promise<Array>} - List of recently watched movies
    */
-  async getRecentlyWatchedMovies(limit = 20) {
+  async getRecentlyWatchedMovies(limit = 100, daysAgo = 0) {
     if (!this.isConfigured()) {
       throw new Error('Plex service is not configured. Please set baseUrl and token.');
     }
 
     try {
+      // Build params object
+      const params = {
+        'X-Plex-Token': this.token,
+        'type': 1, // Type 1 is movie
+        'sort': 'viewedAt:desc',
+        'limit': limit
+      };
+      
+      // Add viewedAt filter if daysAgo is specified
+      if (daysAgo > 0) {
+        // Calculate timestamp for X days ago (in seconds, Plex API uses seconds not milliseconds)
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
+        const timestampFilter = nowInSeconds - daysAgoInSeconds;
+        
+        // Add filter to only include items watched after this timestamp
+        params['viewedAt>'] = timestampFilter;
+      }
+      
       // Get recently watched from the history endpoint
       const response = await axios.get(`${this.baseUrl}/status/sessions/history/all`, {
-        params: {
-          'X-Plex-Token': this.token,
-          'type': 1, // Type 1 is movie
-          'sort': 'viewedAt:desc',
-          'limit': limit
-        }
+        params: params
       });
 
       // Log response type and structure for debugging
@@ -182,22 +197,37 @@ class PlexService {
   /**
    * Get recently watched TV shows from Plex
    * @param {number} limit - Maximum number of items to return
+   * @param {number} [daysAgo=0] - Only include shows watched within this many days (0 for all)
    * @returns {Promise<Array>} - List of recently watched TV shows
    */
-  async getRecentlyWatchedShows(limit = 20) {
+  async getRecentlyWatchedShows(limit = 100, daysAgo = 0) {
     if (!this.isConfigured()) {
       throw new Error('Plex service is not configured. Please set baseUrl and token.');
     }
 
     try {
+      // Build params object
+      const params = {
+        'X-Plex-Token': this.token,
+        'type': 4, // Type 4 is TV episode
+        'sort': 'viewedAt:desc',
+        'limit': limit
+      };
+      
+      // Add viewedAt filter if daysAgo is specified
+      if (daysAgo > 0) {
+        // Calculate timestamp for X days ago (in seconds, Plex API uses seconds not milliseconds)
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
+        const timestampFilter = nowInSeconds - daysAgoInSeconds;
+        
+        // Add filter to only include items watched after this timestamp
+        params['viewedAt>'] = timestampFilter;
+      }
+      
       // Get recently watched from the history endpoint
       const response = await axios.get(`${this.baseUrl}/status/sessions/history/all`, {
-        params: {
-          'X-Plex-Token': this.token,
-          'type': 4, // Type 4 is TV episode
-          'sort': 'viewedAt:desc',
-          'limit': limit
-        }
+        params: params
       });
 
       // Log response type and structure for debugging

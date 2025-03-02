@@ -52,7 +52,7 @@
             v-model.number="recentLimit" 
             type="number" 
             min="1" 
-            max="50" 
+            max="100" 
             @change="saveRecentLimit"
           />
           <div class="limit-buttons">
@@ -76,7 +76,7 @@ export default {
       token: '',
       connectionStatus: null,
       connecting: false,
-      recentLimit: 10 // Default limit for recently watched items
+      recentLimit: 50 // Default limit for recently watched items
     };
   },
   created() {
@@ -204,7 +204,7 @@ export default {
       localStorage.removeItem('plexToken');
     },
     increaseLimit() {
-      if (this.recentLimit < 50) {
+      if (this.recentLimit < 100) {
         this.recentLimit++;
         this.saveRecentLimit();
       }
@@ -218,7 +218,7 @@ export default {
     saveRecentLimit() {
       // Ensure limit is within bounds
       if (this.recentLimit < 1) this.recentLimit = 1;
-      if (this.recentLimit > 50) this.recentLimit = 50;
+      if (this.recentLimit > 100) this.recentLimit = 100;
       
       localStorage.setItem('plexRecentLimit', this.recentLimit);
       this.$emit('limitChanged', this.recentLimit);

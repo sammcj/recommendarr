@@ -793,6 +793,9 @@ export default {
     },
     
     handleSonarrDisconnected() {
+      // Clear Sonarr settings in the form
+      this.sonarrSettings.baseUrl = '';
+      this.sonarrSettings.apiKey = '';
       this.$emit('sonarr-settings-updated');
       this.closeSonarrModal();
     },
@@ -803,6 +806,9 @@ export default {
     },
     
     handleRadarrDisconnected() {
+      // Clear Radarr settings in the form
+      this.radarrSettings.baseUrl = '';
+      this.radarrSettings.apiKey = '';
       this.$emit('radarr-settings-updated');
       this.closeRadarrModal();
     },
@@ -813,6 +819,10 @@ export default {
     },
     
     handlePlexDisconnected() {
+      // Clear Plex settings in the form
+      this.plexSettings.baseUrl = '';
+      this.plexSettings.token = '';
+      this.plexSettings.recentLimit = 10;
       this.$emit('plex-settings-updated');
       this.closePlexModal();
     },
@@ -823,6 +833,11 @@ export default {
     },
     
     handleJellyfinDisconnected() {
+      // Clear Jellyfin settings in the form
+      this.jellyfinSettings.baseUrl = '';
+      this.jellyfinSettings.apiKey = '';
+      this.jellyfinSettings.userId = '';
+      this.jellyfinSettings.recentLimit = 10;
       this.$emit('jellyfin-settings-updated');
       this.closeJellyfinModal();
     },

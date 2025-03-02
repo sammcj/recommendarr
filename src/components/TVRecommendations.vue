@@ -215,6 +215,7 @@
                       Use only Plex history for recommendations (ignore library)
                     </label>
                   </div>
+                  
                 </div>
                 
                 <div v-if="jellyfinConfigured" class="jellyfin-options">
@@ -252,10 +253,10 @@
                   </div>
                   
                   <button 
-                    class="jellyfin-user-select-button action-button"
+                    class="jellyfin-user-select-button action-button small-button"
                     @click="$emit('openJellyfinUserSelect')"
                   >
-                    Change Jellyfin User
+                    Change User
                   </button>
                 </div>
               </div>

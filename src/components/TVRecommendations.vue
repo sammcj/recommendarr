@@ -922,8 +922,7 @@ export default {
           ? this.selectedGenres.join(', ')
           : '';
         
-        // Pass the previous recommendations to be excluded and liked/disliked lists
-        // Include recently watched shows from Plex if available
+        // Get initial recommendations
         this.recommendations = await openAIService.getRecommendations(
           this.series, 
           this.numRecommendations,
@@ -947,6 +946,11 @@ export default {
           this.recommendations = await this.filterExistingShows(this.recommendations);
         }
         
+        // If we have fewer recommendations than requested after filtering, get more
+        if (this.recommendations.length < this.numRecommendations) {
+          await this.getAdditionalRecommendations(this.numRecommendations - this.recommendations.length, genreString);
+        }
+        
         // Add new recommendations to history
         this.addToRecommendationHistory(this.recommendations);
         
@@ -965,6 +969,68 @@ export default {
         this.recommendations = [];
       } finally {
         this.loading = false;
+      }
+    },
+    
+    /**
+     * Get additional recommendations when filtering results in fewer than requested
+     * @param {number} additionalCount - Number of additional recommendations needed
+     * @param {string} genreString - Genre preferences
+     * @param {number} [recursionDepth=0] - Current recursion depth to limit excessive API calls
+     */
+    async getAdditionalRecommendations(additionalCount, genreString, recursionDepth = 0) {
+      if (additionalCount <= 0 || recursionDepth >= 3) return;
+      
+      console.log(`Getting ${additionalCount} additional recommendations after filtering (recursion depth: ${recursionDepth})`);
+      
+      // Update loading message
+      const loadingMessage = document.querySelector('.loading p');
+      if (loadingMessage) {
+        loadingMessage.textContent = `Getting additional recommendations to match your request...`;
+      }
+      
+      try {
+        // Get additional recommendations
+        // Include current recommendations in the exclusion list
+        const currentTitles = this.recommendations.map(rec => rec.title);
+        const updatedPrevious = [...new Set([...this.previousRecommendations, ...currentTitles])];
+        
+        // Request more recommendations than we need to account for filtering
+        const requestCount = Math.min(additionalCount * 1.5, 20); // Request 50% more, up to 20 max
+        
+        const additionalRecommendations = await openAIService.getRecommendations(
+          this.series,
+          requestCount,
+          genreString,
+          updatedPrevious,
+          this.likedRecommendations,
+          this.dislikedRecommendations,
+          this.recentlyWatchedShows,
+          this.plexOnlyMode
+        );
+        
+        // Filter the additional recommendations
+        let filteredAdditional = additionalRecommendations;
+        if (filteredAdditional.length > 0 && !this.plexOnlyMode) {
+          filteredAdditional = await this.filterExistingShows(filteredAdditional);
+        }
+        
+        // Combine with existing recommendations
+        this.recommendations = [...this.recommendations, ...filteredAdditional];
+        
+        // If we still don't have enough and got some results, try again with incremented recursion depth
+        if (this.recommendations.length < this.numRecommendations && filteredAdditional.length > 0) {
+          // Calculate how many more we need
+          const stillNeeded = this.numRecommendations - this.recommendations.length;
+          
+          // Recursive call with updated exclusion list and incremented recursion depth
+          if (stillNeeded > 0) {
+            await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
+          }
+        }
+      } catch (error) {
+        console.error('Error getting additional recommendations:', error);
+        // Continue with what we have - don't update this.error
       }
     },
     

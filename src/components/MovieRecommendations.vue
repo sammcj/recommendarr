@@ -867,6 +867,11 @@ export default {
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
+        // Filter out movies that are already in the Radarr library
+        if (this.recommendations.length > 0 && !this.plexOnlyMode) {
+          this.recommendations = await this.filterExistingMovies(this.recommendations);
+        }
+        
         // Add new recommendations to history
         this.addToRecommendationHistory(this.recommendations);
         
@@ -878,6 +883,36 @@ export default {
         this.recommendations = [];
       } finally {
         this.loading = false;
+      }
+    },
+    
+    /**
+     * Filter out movies that already exist in the Radarr library
+     * @param {Array} recommendations - The recommended movies
+     * @returns {Promise<Array>} - Filtered recommendations
+     */
+    async filterExistingMovies(recommendations) {
+      if (!radarrService.isConfigured() || !this.movies.length) {
+        return recommendations;
+      }
+      
+      try {
+        // Create a normalized map of existing movie titles in the library
+        const existingMovieTitles = new Set(
+          this.movies.map(movie => movie.title.toLowerCase())
+        );
+        
+        // Filter out recommendations that already exist in the library
+        const filteredRecommendations = recommendations.filter(rec => {
+          const normalizedTitle = rec.title.toLowerCase();
+          return !existingMovieTitles.has(normalizedTitle);
+        });
+        
+        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} movies that already exist in the library`);
+        return filteredRecommendations;
+      } catch (error) {
+        console.error('Error filtering existing movies:', error);
+        return recommendations; // Return original list on error
       }
     },
     

@@ -215,6 +215,50 @@
                         Use only Plex history for recommendations (ignore library)
                       </label>
                     </div>
+                    
+                  </div>
+                  
+                  <div v-if="jellyfinConfigured" class="jellyfin-options">
+                    <label>Jellyfin Watch History:</label>
+                    <div class="jellyfin-history-toggle">
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="jellyfinHistoryMode" 
+                          value="all"
+                          @change="saveJellyfinHistoryMode"
+                        >
+                        All watch history
+                      </label>
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="jellyfinHistoryMode" 
+                          value="recent"
+                          @change="saveJellyfinHistoryMode"
+                        >
+                        Recent (30 days)
+                      </label>
+                    </div>
+                    
+                    <div class="jellyfin-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="jellyfinOnlyMode" 
+                          @change="saveJellyfinOnlyMode"
+                        >
+                        Use only Jellyfin history for recommendations (ignore library)
+                      </label>
+                    </div>
+                    
+                    <button 
+                      class="action-button jellyfin-user-select-button"
+                      @click="$emit('openJellyfinUserSelect')"
+                      style="padding: 6px 12px; font-size: 13px;"
+                    >
+                      Change User
+                    </button>
                   </div>
                 </div>
               </div>
@@ -223,9 +267,14 @@
                 <button 
                   @click="getRecommendations" 
                   :disabled="loading"
-                  class="action-button"
+                  class="action-button fun-button"
                 >
-                  {{ loading ? 'Getting Recommendations...' : 'Get Recommendations' }}
+                  <span class="button-content">
+                    <span class="button-icon">🎬</span>
+                    <span class="button-text">{{ loading ? 'Finding Magic in Movies...' : 'Discover Movie Magic!' }}</span>
+                    <span class="button-icon">✨</span>
+                  </span>
+                  <span class="button-glow"></span>
                 </button>
               </div>
             </div>
@@ -414,7 +463,15 @@ export default {
       type: Array,
       default: () => []
     },
+    jellyfinRecentlyWatchedMovies: {
+      type: Array,
+      default: () => []
+    },
     plexConfigured: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinConfigured: {
       type: Boolean,
       default: false
     }
@@ -444,6 +501,8 @@ export default {
       selectedGenres: [], // Multiple genre selections
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
+      jellyfinHistoryMode: 'all', // 'all' or 'recent'
+      jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       funLoadingMessages: [
@@ -682,7 +741,35 @@ export default {
     // Save Plex only mode preference
     savePlexOnlyMode() {
       localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
+      
+      // If enabling Plex only mode, disable Jellyfin only mode
+      if (this.plexOnlyMode && this.jellyfinOnlyMode) {
+        this.jellyfinOnlyMode = false;
+        localStorage.setItem('jellyfinOnlyMode', 'false');
+        this.$emit('jellyfinOnlyModeChanged', false);
+      }
+      
       this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
+    },
+    
+    // Save Jellyfin history mode preference
+    saveJellyfinHistoryMode() {
+      localStorage.setItem('jellyfinHistoryMode', this.jellyfinHistoryMode);
+      this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+    },
+    
+    // Save Jellyfin only mode preference
+    saveJellyfinOnlyMode() {
+      localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
+      
+      // If enabling Jellyfin only mode, disable Plex only mode
+      if (this.jellyfinOnlyMode && this.plexOnlyMode) {
+        this.plexOnlyMode = false;
+        localStorage.setItem('plexOnlyMode', 'false');
+        this.$emit('plexOnlyModeChanged', false);
+      }
+      
+      this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
     },
     
     // Save previous recommendations to localStorage
@@ -1004,19 +1091,28 @@ export default {
           this.previousRecommendations,
           this.likedRecommendations,
           this.dislikedRecommendations,
-          this.recentlyWatchedMovies,
-          this.plexOnlyMode
+          this.plexOnlyMode ? this.recentlyWatchedMovies : 
+            this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
+            [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
+          this.plexOnlyMode || this.jellyfinOnlyMode
         );
         
         // Update loading message to include genres if selected
         const loadingMessage = document.querySelector('.loading p');
         if (loadingMessage && this.selectedGenres.length > 0) {
-          const source = this.plexOnlyMode ? 'Plex watch history' : 'movie library';
+          let source = 'movie library';
+          if (this.plexOnlyMode) {
+            source = 'Plex watch history';
+          } else if (this.jellyfinOnlyMode) {
+            source = 'Jellyfin watch history';
+          } else if (this.plexConfigured && this.jellyfinConfigured) {
+            source = 'movie library and watch history';
+          }
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
         // Filter out movies that are already in the Radarr library
-        if (this.recommendations.length > 0 && !this.plexOnlyMode) {
+        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
           this.recommendations = await this.filterExistingMovies(this.recommendations);
         }
         
@@ -1079,13 +1175,15 @@ export default {
           updatedPrevious,
           this.likedRecommendations,
           this.dislikedRecommendations,
-          this.recentlyWatchedMovies,
-          this.plexOnlyMode
+          this.plexOnlyMode ? this.recentlyWatchedMovies : 
+            this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
+            [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
+          this.plexOnlyMode || this.jellyfinOnlyMode
         );
         
         // Filter the additional recommendations
         let filteredAdditional = additionalRecommendations;
-        if (filteredAdditional.length > 0 && !this.plexOnlyMode) {
+        if (filteredAdditional.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
           filteredAdditional = await this.filterExistingMovies(filteredAdditional);
         }
         
@@ -1427,6 +1525,47 @@ h2 {
   transition: color var(--transition-speed);
 }
 
+.plex-options, .jellyfin-options {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+}
+
+.plex-history-toggle, .jellyfin-history-toggle {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toggle-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+  font-size: 14px;
+}
+
+.toggle-option input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.plex-only-toggle, .jellyfin-only-toggle {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.jellyfin-user-select-button {
+  margin-top: 15px;
+  width: auto;
+  max-width: 200px;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
 .setup-section {
   margin-bottom: 30px;
   display: flex;
@@ -1531,6 +1670,7 @@ h2 {
   display: flex;
   justify-content: center;
   margin-top: 20px;
+  width: 100%;
 }
 
 .settings-header {
@@ -2047,6 +2187,81 @@ h2 {
   font-size: 16px;
   min-width: 200px;
   transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+.fun-button {
+  position: relative;
+  min-width: 300px;
+  width: 90%;
+  padding: 14px 24px;
+  background: linear-gradient(45deg, #2196F3, #4CAF50);
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: all 0.3s ease;
+}
+
+.fun-button:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(45deg, #1E88E5, #43A047);
+}
+
+.fun-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.fun-button:disabled {
+  opacity: 0.7;
+  background: linear-gradient(45deg, #9E9E9E, #757575);
+  transform: none;
+}
+
+.button-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.button-text {
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.button-icon {
+  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.button-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transform: translateX(-100%);
+  z-index: 1;
+}
+
+.fun-button:hover .button-glow {
+  animation: glow-effect 1.5s infinite;
+}
+
+@keyframes glow-effect {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .action-button:hover:not(:disabled) {

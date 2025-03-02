@@ -410,18 +410,35 @@ STRICT RULES:
       
       headers['Content-Type'] = 'application/json';
 
-      const response = await axios.post(
-        this.apiUrl,
-        {
-          model: this.model,
-          messages: messages,
-          temperature: this.temperature,
-          max_tokens: this.maxTokens,
-          presence_penalty: 0.1,  // Slightly discourage repetition
-          frequency_penalty: 0.1  // Slightly encourage diversity
-        },
-        { headers }
-      );
+      // Check if we need to chunk the user prompt to stay under token limits
+      const MAX_TOKEN_LIMIT = 4000;
+      let response;
+      
+      // We're only concerned with chunking the user prompt (last message)
+      const systemMessage = messages[0];
+      let userMessage = messages[1];
+      
+      // Rough estimate of tokens (4 chars ~= 1 token)
+      const estimatedTokens = userMessage.content.length / 4;
+      
+      if (estimatedTokens > MAX_TOKEN_LIMIT) {
+        // We need to split into chunks
+        response = await this.sendChunkedMessages(systemMessage, userMessage, headers);
+      } else {
+        // We can send in a single request
+        response = await axios.post(
+          this.apiUrl,
+          {
+            model: this.model,
+            messages: messages,
+            temperature: this.temperature,
+            max_tokens: this.maxTokens,
+            presence_penalty: 0.1,  // Slightly discourage repetition
+            frequency_penalty: 0.1  // Slightly encourage diversity
+          },
+          { headers }
+        );
+      }
 
       // Check if response contains expected data structure
       if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
@@ -436,6 +453,76 @@ STRICT RULES:
       console.error('Error getting recommendations from AI:', error);
       throw error;
     }
+  }
+  
+  /**
+   * Send chunked messages to the API to stay under token limits
+   * @param {Object} systemMessage - The system message
+   * @param {Object} userMessage - The user message to chunk
+   * @param {Object} headers - Request headers
+   * @returns {Promise<Object>} - The API response
+   */
+  async sendChunkedMessages(systemMessage, userMessage, headers) {
+    // Chunk size in characters (roughly 3000 tokens)
+    const CHUNK_SIZE = 12000;
+    
+    // Split the user content into chunks
+    const userContent = userMessage.content;
+    const chunks = [];
+    
+    // Break the content into chunks
+    for (let i = 0; i < userContent.length; i += CHUNK_SIZE) {
+      chunks.push(userContent.slice(i, i + CHUNK_SIZE));
+    }
+    
+    // Initialize conversation with system message
+    let conversationMessages = [systemMessage];
+    
+    // Send all but the final chunk as separate messages
+    for (let i = 0; i < chunks.length - 1; i++) {
+      conversationMessages.push({
+        role: "user",
+        content: `Part ${i+1}/${chunks.length} of my request: ${chunks[i]}\n\nThis is part of a multi-part message. Please wait for all parts before responding.`
+      });
+      
+      // Send intermediate chunks without expecting a full response
+      await axios.post(
+        this.apiUrl,
+        {
+          model: this.model,
+          messages: conversationMessages,
+          temperature: this.temperature,
+          max_tokens: 50,  // Small token limit since we just need acknowledgment
+        },
+        { headers }
+      );
+      
+      // Add expected assistant acknowledgment to maintain conversation context
+      conversationMessages.push({
+        role: "assistant",
+        content: "I'll wait for the complete message before responding."
+      });
+    }
+    
+    // Send the final chunk and request full response
+    conversationMessages.push({
+      role: "user",
+      content: `Final part ${chunks.length}/${chunks.length}: ${chunks[chunks.length - 1]}\n\nThat's the complete request. Please provide recommendations based on all parts of my message.`
+    });
+    
+    // Get full response from the final message
+    return await axios.post(
+      this.apiUrl,
+      {
+        model: this.model,
+        messages: conversationMessages,
+        temperature: this.temperature,
+        max_tokens: this.maxTokens,
+        presence_penalty: 0.1,
+        frequency_penalty: 0.1
+      },
+      { headers }
+    );
   }
 
   /**

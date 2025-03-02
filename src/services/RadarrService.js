@@ -157,9 +157,11 @@ class RadarrService {
   /**
    * Add a movie to Radarr
    * @param {string} title - The movie title to search for
+   * @param {number} [qualityProfileId] - Quality profile ID to use (optional)
+   * @param {string} [rootFolderPath] - Root folder path to use (optional)
    * @returns {Promise<Object>} - The added movie object
    */
-  async addMovie(title) {
+  async addMovie(title, qualityProfileId = null, rootFolderPath = null) {
     if (!this.isConfigured()) {
       throw new Error('Radarr service is not configured. Please set baseUrl and apiKey.');
     }
@@ -177,7 +179,7 @@ class RadarrService {
       
       const movieData = lookupResponse.data[0];
       
-      // 2. Get the first quality profile and root folder
+      // 2. Get quality profiles and root folders if not provided
       const [qualityProfiles, rootFolders] = await Promise.all([
         this.getQualityProfiles(),
         this.getRootFolders()
@@ -191,16 +193,17 @@ class RadarrService {
         throw new Error('No root folders found in Radarr.');
       }
       
-      const qualityProfileId = qualityProfiles[0].id;
-      const rootFolderPath = rootFolders[0].path;
+      // Use provided values or default to the first available option
+      const selectedQualityProfileId = qualityProfileId || qualityProfiles[0].id;
+      const selectedRootFolderPath = rootFolderPath || rootFolders[0].path;
       
       // 3. Prepare payload for adding the movie
       const payload = {
         title: movieData.title,
         tmdbId: movieData.tmdbId,
         year: movieData.year,
-        qualityProfileId: qualityProfileId,
-        rootFolderPath: rootFolderPath,
+        qualityProfileId: selectedQualityProfileId,
+        rootFolderPath: selectedRootFolderPath,
         monitored: true,
         addOptions: {
           searchForMovie: true

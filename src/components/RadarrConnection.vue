@@ -38,6 +38,12 @@
         Connection failed. Please check your URL and API key.
       </p>
     </div>
+    
+    <div v-if="connectionStatus === 'success'" class="disconnection-section">
+      <button type="button" @click="disconnect" class="disconnect-btn">
+        Disconnect Radarr
+      </button>
+    </div>
   </div>
 </template>
 
@@ -46,6 +52,12 @@ import radarrService from '../services/RadarrService';
 
 export default {
   name: 'RadarrConnection',
+  props: {
+    connected: {
+      type: Boolean,
+      default: false
+    }
+  },
   data() {
     return {
       baseUrl: '',
@@ -59,11 +71,18 @@ export default {
     const savedBaseUrl = localStorage.getItem('radarrBaseUrl');
     const savedApiKey = localStorage.getItem('radarrApiKey');
     
+    // If connected prop is true, set connection status right away
+    if (this.connected) {
+      this.connectionStatus = 'success';
+    }
+    
     if (savedBaseUrl && savedApiKey) {
       this.baseUrl = savedBaseUrl;
       this.apiKey = savedApiKey;
       // Try to automatically connect with saved credentials
-      this.autoConnect();
+      if (!this.connected) {
+        this.autoConnect();
+      }
     }
   },
   methods: {
@@ -165,6 +184,19 @@ export default {
     clearStoredCredentials() {
       localStorage.removeItem('radarrBaseUrl');
       localStorage.removeItem('radarrApiKey');
+    },
+    
+    disconnect() {
+      // Clear stored credentials
+      this.clearStoredCredentials();
+      
+      // Reset component state
+      this.connectionStatus = null;
+      this.baseUrl = '';
+      this.apiKey = '';
+      
+      // Notify parent components
+      this.$emit('disconnected');
     }
   }
 };
@@ -251,5 +283,25 @@ button:disabled {
 .error {
   color: #f44336;
   transition: color var(--transition-speed);
+}
+
+.disconnection-section {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.disconnect-btn {
+  background-color: #f44336;
+  width: 100%;
+  color: white;
+  margin-top: 10px;
+  font-weight: bold;
+  padding: 12px;
+}
+
+.disconnect-btn:hover {
+  background-color: #d32f2f;
+  filter: brightness(1.1);
 }
 </style>

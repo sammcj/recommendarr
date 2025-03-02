@@ -182,6 +182,29 @@
                     </div>
                   </div>
                   
+                  <div class="vibe-selector">
+                    <label for="customVibe">Specify a vibe/mood:</label>
+                    <div class="vibe-input-container">
+                      <input 
+                        type="text" 
+                        id="customVibe" 
+                        v-model="customVibe"
+                        @change="saveCustomVibe"
+                        placeholder="e.g., noir thrillers, uplifting, quirky comedies, cult classics"
+                        class="vibe-input"
+                      >
+                      <button 
+                        v-if="customVibe" 
+                        @click="clearCustomVibe" 
+                        class="clear-vibe-button"
+                        title="Clear vibe"
+                      >×</button>
+                    </div>
+                    <div class="setting-description">
+                      Specify the mood or "vibe" you're looking for to guide the recommendations.
+                    </div>
+                  </div>
+                  
                   <div v-if="plexConfigured" class="plex-options">
                     <label>Plex Watch History:</label>
                     <div class="plex-history-toggle">
@@ -437,6 +460,66 @@
         </div>
       </div>
     </div>
+    
+    <!-- Movie Selection Modal -->
+    <div v-if="showMovieModal && currentMovieTitle" class="modal-overlay">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3>Add "{{ currentMovieTitle }}" to Radarr</h3>
+          <button class="modal-close" @click="closeMovieModal">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="modal-section">
+            <h4>Quality & Storage Settings:</h4>
+            
+            <div class="loading-indicator" v-if="loadingFolders">
+              <div class="small-spinner"></div>
+              <span>Loading options...</span>
+            </div>
+            
+            <div class="settings-grid" v-else>
+              <div class="setting-item">
+                <label for="rootFolder">Save Location:</label>
+                <select 
+                  id="rootFolder" 
+                  v-model="selectedRootFolder"
+                  class="setting-select"
+                >
+                  <option v-for="folder in rootFolders" :key="folder.id" :value="folder.path">
+                    {{ folder.path }} ({{ formatFreeSpace(folder.freeSpace) }} free)
+                  </option>
+                </select>
+              </div>
+              
+              <div class="setting-item">
+                <label for="qualityProfile">Quality Profile:</label>
+                <select 
+                  id="qualityProfile" 
+                  v-model="selectedQualityProfile"
+                  class="setting-select"
+                >
+                  <option v-for="profile in qualityProfiles" :key="profile.id" :value="profile.id">
+                    {{ profile.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="cancel-button" @click="closeMovieModal">Cancel</button>
+          <button 
+            class="confirm-button" 
+            @click="confirmAddMovie"
+            :disabled="loadingFolders"
+          >
+            Add to Radarr
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -499,6 +582,7 @@ export default {
       numRecommendations: 5, // Default number of recommendations to request
       columnsCount: 2, // Default number of posters per row
       selectedGenres: [], // Multiple genre selections
+      customVibe: '', // Custom vibe/mood input from user
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
       jellyfinHistoryMode: 'all', // 'all' or 'recent'
@@ -559,7 +643,16 @@ export default {
       fetchingModels: false, // Loading state for fetching models
       fetchError: null, // Error when fetching models
       temperature: 0.5, // AI temperature parameter
-      settingsExpanded: false // Controls visibility of settings panel
+      settingsExpanded: false, // Controls visibility of settings panel
+      
+      // Movie addition modal properties
+      showMovieModal: false, // Visibility of the movie selection modal
+      currentMovieTitle: null, // Current movie title being added
+      rootFolders: [], // Available Radarr root folders
+      qualityProfiles: [], // Available Radarr quality profiles
+      selectedRootFolder: null, // Selected root folder path
+      selectedQualityProfile: null, // Selected quality profile ID
+      loadingFolders: false // Loading state for folders/profiles
     };
   },
   methods: {
@@ -730,6 +823,17 @@ export default {
     clearGenres() {
       this.selectedGenres = [];
       this.saveGenrePreference();
+    },
+    
+    // Save custom vibe preference to localStorage
+    saveCustomVibe() {
+      localStorage.setItem('movieCustomVibe', this.customVibe);
+    },
+    
+    // Clear custom vibe input
+    clearCustomVibe() {
+      this.customVibe = '';
+      this.saveCustomVibe();
     },
     
     // Save Plex history mode preference
@@ -1094,7 +1198,8 @@ export default {
           this.plexOnlyMode ? this.recentlyWatchedMovies : 
             this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
             [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
-          this.plexOnlyMode || this.jellyfinOnlyMode
+          this.plexOnlyMode || this.jellyfinOnlyMode,
+          this.customVibe
         );
         
         // Update loading message to include genres if selected
@@ -1178,7 +1283,8 @@ export default {
           this.plexOnlyMode ? this.recentlyWatchedMovies : 
             this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
             [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
-          this.plexOnlyMode || this.jellyfinOnlyMode
+          this.plexOnlyMode || this.jellyfinOnlyMode,
+          this.customVibe
         );
         
         // Filter the additional recommendations
@@ -1299,15 +1405,64 @@ export default {
     },
     
     /**
-     * Request a movie to be added to Radarr
+     * Format bytes to a human-readable size (KB, MB, GB, etc.)
+     * @param {number} bytes - The size in bytes
+     * @returns {string} - Formatted size string
+     */
+    formatFreeSpace(bytes) {
+      if (bytes === 0) return '0 B';
+      
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      
+      return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+    
+    /**
+     * Fetch root folders and quality profiles from Radarr
+     */
+    async fetchFolderAndQualityOptions() {
+      if (!radarrService.isConfigured()) {
+        return;
+      }
+      
+      this.loadingFolders = true;
+      
+      try {
+        // Fetch both root folders and quality profiles in parallel
+        const [rootFolders, qualityProfiles] = await Promise.all([
+          radarrService.getRootFolders(),
+          radarrService.getQualityProfiles()
+        ]);
+        
+        this.rootFolders = rootFolders;
+        this.qualityProfiles = qualityProfiles;
+        
+        // Set default selections
+        if (rootFolders.length > 0) {
+          this.selectedRootFolder = rootFolders[0].path;
+        }
+        
+        if (qualityProfiles.length > 0) {
+          this.selectedQualityProfile = qualityProfiles[0].id;
+        }
+      } catch (error) {
+        console.error('Error fetching Radarr settings:', error);
+      } finally {
+        this.loadingFolders = false;
+      }
+    },
+    
+    /**
+     * Open the movie selection modal
      * @param {string} title - The movie title to add
      */
-    async requestMovie(title) {
+    async openMovieModal(title) {
       if (!radarrService.isConfigured()) {
         this.error = 'Radarr service is not configured.';
         return;
       }
-
+      
       // Set requesting state for this movie
       this.requestingMovie = title;
       
@@ -1323,26 +1478,25 @@ export default {
             alreadyExists: true
           };
           
-          // Movie already exists - button state will show this
-          
+          // Clear requesting state
+          this.requestingMovie = null;
           return;
         }
         
-        // Add movie to Radarr
-        const response = await radarrService.addMovie(title);
+        // Set current movie title
+        this.currentMovieTitle = title;
         
-        // Store success response
-        this.requestStatus[title] = {
-          success: true,
-          message: 'Successfully added to Radarr',
-          details: response
-        };
+        // Fetch root folders and quality profiles
+        await this.fetchFolderAndQualityOptions();
         
-        // Show success toast
-        // Success will be shown by button state
+        // Show modal
+        this.showMovieModal = true;
+        
+        // Clear requesting state
+        this.requestingMovie = null;
         
       } catch (error) {
-        console.error(`Error requesting movie "${title}":`, error);
+        console.error(`Error preparing movie "${title}" for Radarr:`, error);
         
         // Store error
         this.requestStatus[title] = {
@@ -1350,12 +1504,76 @@ export default {
           message: `Error: ${error.message || 'Unknown error'}`
         };
         
-        // Show error toast
-        console.error(`Failed to add "${title}" to Radarr: ${error.message || 'Unknown error'}`);
-      } finally {
         // Clear requesting state
         this.requestingMovie = null;
       }
+    },
+    
+    /**
+     * Close the movie selection modal
+     */
+    closeMovieModal() {
+      this.showMovieModal = false;
+      this.currentMovieTitle = null;
+      this.selectedRootFolder = null;
+      this.selectedQualityProfile = null;
+      this.rootFolders = [];
+      this.qualityProfiles = [];
+    },
+    
+    /**
+     * Confirm adding the movie to Radarr with selected options
+     */
+    async confirmAddMovie() {
+      if (!this.currentMovieTitle) {
+        return;
+      }
+      
+      try {
+        // Set requesting state
+        this.requestingMovie = this.currentMovieTitle;
+        
+        // Close modal
+        this.showMovieModal = false;
+        
+        // Add movie to Radarr with selected options
+        const response = await radarrService.addMovie(
+          this.currentMovieTitle,
+          this.selectedQualityProfile,
+          this.selectedRootFolder
+        );
+        
+        // Store success response
+        this.requestStatus[this.currentMovieTitle] = {
+          success: true,
+          message: 'Successfully added to Radarr',
+          details: response
+        };
+        
+      } catch (error) {
+        console.error(`Error adding movie "${this.currentMovieTitle}" to Radarr:`, error);
+        
+        // Store error
+        this.requestStatus[this.currentMovieTitle] = {
+          success: false,
+          message: `Error: ${error.message || 'Unknown error'}`
+        };
+        
+      } finally {
+        // Clear requesting state and current movie
+        this.requestingMovie = null;
+        this.currentMovieTitle = null;
+        this.selectedRootFolder = null;
+        this.selectedQualityProfile = null;
+      }
+    },
+    
+    /**
+     * Request a movie to be added to Radarr (entry point)
+     * @param {string} title - The movie title to add
+     */
+    requestMovie(title) {
+      this.openMovieModal(title);
     },
     
     /**
@@ -1453,6 +1671,12 @@ export default {
         console.error('Error parsing saved genres:', error);
         this.selectedGenres = [];
       }
+    }
+    
+    // Restore saved custom vibe if it exists
+    const savedVibe = localStorage.getItem('movieCustomVibe');
+    if (savedVibe) {
+      this.customVibe = savedVibe;
     }
     
     // Restore saved Plex history mode if it exists
@@ -2866,5 +3090,202 @@ h2 {
   border-radius: 50%;
   animation: spin 1s linear infinite;
   box-sizing: border-box;
+}
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+}
+
+.modal-header {
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--header-color);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.modal-close:hover {
+  opacity: 1;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 500px;
+}
+
+.modal-body h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: var(--text-color);
+}
+
+.modal-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cancel-button {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.confirm-button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.confirm-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Settings Grid Styles */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.setting-item label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.setting-select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 0;
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+.loading-indicator .small-spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+/* Vibe Selector Styles */
+.vibe-selector {
+  margin-bottom: 20px;
+}
+
+.vibe-selector label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.vibe-input-container {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.vibe-input {
+  width: 100%;
+  padding: 10px 30px 10px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+}
+
+.clear-vibe-button {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-color);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.clear-vibe-button:hover {
+  opacity: 1;
 }
 </style>

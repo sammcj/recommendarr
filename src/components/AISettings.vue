@@ -41,6 +41,122 @@
       </button>
     </div>
     
+    <!-- Connected Services Section -->
+    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected" class="section-card connected-services-wrapper">
+      <div class="collapsible-header" @click="toggleConnectionsPanel">
+        <h3>Manage Connected Services</h3>
+        <button class="collapse-toggle">
+          <svg :class="{ 'rotate': showConnectionsPanel }" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </div>
+      <div v-if="showConnectionsPanel" class="collapsible-content">
+        <p class="section-description">You can disconnect any service you no longer want to use.</p>
+        <div class="connected-services">
+          <button v-if="plexConnected" class="connection-button plex-button" @click="showPlexConnectModal">
+            <span class="connection-name">Plex</span>
+            <span class="connection-action">Manage Connection</span>
+          </button>
+          <button v-if="jellyfinConnected" class="connection-button jellyfin-button" @click="showJellyfinConnectModal">
+            <span class="connection-name">Jellyfin</span>
+            <span class="connection-action">Manage Connection</span>
+          </button>
+          <button v-if="sonarrConnected" class="connection-button sonarr-button" @click="showSonarrConnectModal">
+            <span class="connection-name">Sonarr</span>
+            <span class="connection-action">Manage Connection</span>
+          </button>
+          <button v-if="radarrConnected" class="connection-button radarr-button" @click="showRadarrConnectModal">
+            <span class="connection-name">Radarr</span>
+            <span class="connection-action">Manage Connection</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Connection Management Modals - These are fixed position overlays -->
+    <teleport to="body">
+      <!-- Plex Connection Management Modal -->
+      <div v-if="showPlexConnect" class="connection-modal-overlay" @click.self="closePlexModal">
+        <div class="connection-modal">
+          <div class="modal-header">
+            <h3>Manage Plex Connection</h3>
+            <button class="modal-close-x" @click="closePlexModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <PlexConnection 
+              :connected="plexConnected" 
+              @connected="handlePlexConnected" 
+              @disconnected="handlePlexDisconnected" 
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="modal-close-button" @click="closePlexModal">Close</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Jellyfin Connection Management Modal -->
+      <div v-if="showJellyfinConnect" class="connection-modal-overlay" @click.self="closeJellyfinModal">
+        <div class="connection-modal">
+          <div class="modal-header">
+            <h3>Manage Jellyfin Connection</h3>
+            <button class="modal-close-x" @click="closeJellyfinModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <JellyfinConnection 
+              :connected="jellyfinConnected" 
+              @connected="handleJellyfinConnected" 
+              @disconnected="handleJellyfinDisconnected" 
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="modal-close-button" @click="closeJellyfinModal">Close</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Sonarr Connection Management Modal -->
+      <div v-if="showSonarrConnect" class="connection-modal-overlay" @click.self="closeSonarrModal">
+        <div class="connection-modal">
+          <div class="modal-header">
+            <h3>Manage Sonarr Connection</h3>
+            <button class="modal-close-x" @click="closeSonarrModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <SonarrConnection 
+              :connected="sonarrConnected" 
+              @connected="handleSonarrConnected" 
+              @disconnected="handleSonarrDisconnected" 
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="modal-close-button" @click="closeSonarrModal">Close</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Radarr Connection Management Modal -->
+      <div v-if="showRadarrConnect" class="connection-modal-overlay" @click.self="closeRadarrModal">
+        <div class="connection-modal">
+          <div class="modal-header">
+            <h3>Manage Radarr Connection</h3>
+            <button class="modal-close-x" @click="closeRadarrModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <RadarrConnection 
+              :connected="radarrConnected" 
+              @connected="handleRadarrConnected" 
+              @disconnected="handleRadarrDisconnected" 
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="modal-close-button" @click="closeRadarrModal">Close</button>
+          </div>
+        </div>
+      </div>
+    </teleport>
+    
     <!-- AI Service Settings Tab -->
     <div v-if="activeTab === 'ai'" class="settings-section">
       <div class="settings-intro">
@@ -505,12 +621,45 @@ import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import plexService from '../services/PlexService';
 import jellyfinService from '../services/JellyfinService';
+import PlexConnection from './PlexConnection.vue';
+import JellyfinConnection from './JellyfinConnection.vue';
+import SonarrConnection from './SonarrConnection.vue';
+import RadarrConnection from './RadarrConnection.vue';
 
 export default {
   name: 'AIServiceSettings',
+  components: {
+    PlexConnection,
+    JellyfinConnection,
+    SonarrConnection,
+    RadarrConnection
+  },
+  props: {
+    sonarrConnected: {
+      type: Boolean,
+      default: false
+    },
+    radarrConnected: {
+      type: Boolean,
+      default: false
+    },
+    plexConnected: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinConnected: {
+      type: Boolean,
+      default: false
+    }
+  },
   data() {
     return {
       activeTab: 'ai',
+      showConnectionsPanel: false,
+      showSonarrConnect: false,
+      showRadarrConnect: false,
+      showPlexConnect: false,
+      showJellyfinConnect: false,
       
       // AI Settings
       aiSettings: {
@@ -591,6 +740,108 @@ export default {
     this.loadAllSettings();
   },
   methods: {
+    // Collapsible Panel Methods
+    toggleConnectionsPanel() {
+      this.showConnectionsPanel = !this.showConnectionsPanel;
+    },
+    
+    // Modal Show/Hide Methods
+    showPlexConnectModal() {
+      this.showPlexConnect = true;
+      document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+    },
+    
+    closePlexModal() {
+      this.showPlexConnect = false;
+      document.body.style.overflow = '';
+    },
+    
+    showJellyfinConnectModal() {
+      this.showJellyfinConnect = true;
+      document.body.style.overflow = 'hidden';
+    },
+    
+    closeJellyfinModal() {
+      this.showJellyfinConnect = false;
+      document.body.style.overflow = '';
+    },
+    
+    showSonarrConnectModal() {
+      this.showSonarrConnect = true;
+      document.body.style.overflow = 'hidden';
+    },
+    
+    closeSonarrModal() {
+      this.showSonarrConnect = false;
+      document.body.style.overflow = '';
+    },
+    
+    showRadarrConnectModal() {
+      this.showRadarrConnect = true;
+      document.body.style.overflow = 'hidden';
+    },
+    
+    closeRadarrModal() {
+      this.showRadarrConnect = false;
+      document.body.style.overflow = '';
+    },
+    
+    // Connection Event Handlers
+    handleSonarrConnected() {
+      this.$emit('sonarr-settings-updated');
+      this.closeSonarrModal();
+    },
+    
+    handleSonarrDisconnected() {
+      // Clear Sonarr settings in the form
+      this.sonarrSettings.baseUrl = '';
+      this.sonarrSettings.apiKey = '';
+      this.$emit('sonarr-settings-updated');
+      this.closeSonarrModal();
+    },
+    
+    handleRadarrConnected() {
+      this.$emit('radarr-settings-updated');
+      this.closeRadarrModal();
+    },
+    
+    handleRadarrDisconnected() {
+      // Clear Radarr settings in the form
+      this.radarrSettings.baseUrl = '';
+      this.radarrSettings.apiKey = '';
+      this.$emit('radarr-settings-updated');
+      this.closeRadarrModal();
+    },
+    
+    handlePlexConnected() {
+      this.$emit('plex-settings-updated');
+      this.closePlexModal();
+    },
+    
+    handlePlexDisconnected() {
+      // Clear Plex settings in the form
+      this.plexSettings.baseUrl = '';
+      this.plexSettings.token = '';
+      this.plexSettings.recentLimit = 10;
+      this.$emit('plex-settings-updated');
+      this.closePlexModal();
+    },
+    
+    handleJellyfinConnected() {
+      this.$emit('jellyfin-settings-updated');
+      this.closeJellyfinModal();
+    },
+    
+    handleJellyfinDisconnected() {
+      // Clear Jellyfin settings in the form
+      this.jellyfinSettings.baseUrl = '';
+      this.jellyfinSettings.apiKey = '';
+      this.jellyfinSettings.userId = '';
+      this.jellyfinSettings.recentLimit = 10;
+      this.$emit('jellyfin-settings-updated');
+      this.closeJellyfinModal();
+    },
+    
     loadAllSettings() {
       // Load AI Settings
       this.aiSettings.apiUrl = localStorage.getItem('aiApiUrl') || 'https://api.openai.com/v1';
@@ -1571,5 +1822,256 @@ input[type="password"] {
   opacity: 0.7;
   margin-top: 4px;
   transition: color var(--transition-speed);
+}
+
+/* Section Card Styling */
+.section-card {
+  margin-bottom: 30px;
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.section-card h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: var(--header-color);
+  font-size: 20px;
+  transition: color var(--transition-speed);
+}
+
+.section-description {
+  color: var(--text-color);
+  opacity: 0.8;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+/* Connected Services Styling */
+.connected-services-wrapper {
+  border-left: 4px solid var(--button-primary-bg);
+}
+
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding-bottom: 8px;
+}
+
+.collapsible-header:hover h3 {
+  color: var(--button-primary-bg);
+}
+
+.collapse-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color);
+  opacity: 0.7;
+  padding: 5px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.collapse-toggle:hover {
+  background-color: var(--nav-hover-bg);
+  opacity: 1;
+}
+
+.collapse-toggle svg {
+  transition: transform 0.3s ease;
+}
+
+.collapse-toggle svg.rotate {
+  transform: rotate(180deg);
+}
+
+.collapsible-content {
+  animation: slideDown 0.3s ease-out;
+  transform-origin: top;
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from { 
+    opacity: 0;
+    transform: scaleY(0);
+    max-height: 0;
+  }
+  to { 
+    opacity: 1;
+    transform: scaleY(1);
+    max-height: 1000px;
+  }
+}
+
+.connected-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.connection-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 8px;
+  border: 2px solid var(--border-color);
+  background-color: var(--card-bg-color);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  height: 80px;
+}
+
+.connection-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.connection-name {
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.connection-action {
+  font-size: 12px;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.plex-button {
+  border-color: #CC7B19;
+  color: #CC7B19;
+}
+
+.plex-button:hover {
+  background-color: rgba(204, 123, 25, 0.08);
+}
+
+.jellyfin-button {
+  border-color: #AA5CC3;
+  color: #AA5CC3;
+}
+
+.jellyfin-button:hover {
+  background-color: rgba(170, 92, 195, 0.08);
+}
+
+.sonarr-button {
+  border-color: #35c5f4;
+  color: #35c5f4;
+}
+
+.sonarr-button:hover {
+  background-color: rgba(53, 197, 244, 0.08);
+}
+
+.radarr-button {
+  border-color: #f93a2f;
+  color: #f93a2f;
+}
+
+.radarr-button:hover {
+  background-color: rgba(249, 58, 47, 0.08);
+}
+
+/* Connection Modal Styling */
+.connection-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(2px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.connection-modal {
+  background-color: var(--card-bg-color);
+  border-radius: 10px;
+  max-width: 550px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--header-color);
+}
+
+.modal-close-x {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-color);
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.modal-close-x:hover {
+  opacity: 1;
+}
+
+.modal-body {
+  padding: 0;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid var(--border-color);
+  text-align: right;
+}
+
+.modal-close-button {
+  padding: 8px 20px;
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.modal-close-button:hover {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border-color: var(--button-primary-bg);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

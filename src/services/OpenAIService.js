@@ -87,7 +87,7 @@ class OpenAIService {
    * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false) {
+  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false, customVibe = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -143,6 +143,11 @@ class OpenAIService {
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
         userPrompt += ` Focus specifically on recommending shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
+      }
+      
+      // Add custom vibe if specified
+      if (customVibe && customVibe.trim()) {
+        userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
       }
       
       // Add instructions for diverse, high-quality recommendations
@@ -247,7 +252,7 @@ STRICT RULES:
    * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false) {
+  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -304,6 +309,11 @@ STRICT RULES:
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
         userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
+      }
+      
+      // Add custom vibe if specified
+      if (customVibe && customVibe.trim()) {
+        userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
       }
       
       // Add instructions for diverse, high-quality recommendations

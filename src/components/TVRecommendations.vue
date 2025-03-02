@@ -182,6 +182,29 @@
                   </div>
                 </div>
                 
+                <div class="vibe-selector">
+                  <label for="customVibe">Specify a vibe/mood:</label>
+                  <div class="vibe-input-container">
+                    <input 
+                      type="text" 
+                      id="customVibe" 
+                      v-model="customVibe"
+                      @change="saveCustomVibe"
+                      placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel"
+                      class="vibe-input"
+                    >
+                    <button 
+                      v-if="customVibe" 
+                      @click="clearCustomVibe" 
+                      class="clear-vibe-button"
+                      title="Clear vibe"
+                    >×</button>
+                  </div>
+                  <div class="setting-description">
+                    Specify the mood or "vibe" you're looking for to guide the recommendations.
+                  </div>
+                </div>
+                
                 <div v-if="plexConfigured" class="plex-options">
                   <label>Plex Watch History:</label>
                   <div class="plex-history-toggle">
@@ -593,6 +616,7 @@ export default {
       numRecommendations: 5, // Default number of recommendations to request
       columnsCount: 2, // Default number of posters per row
       selectedGenres: [], // Multiple genre selections
+      customVibe: '', // Custom vibe/mood input from user
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
       jellyfinHistoryMode: 'all', // 'all' or 'recent'
@@ -857,6 +881,17 @@ export default {
     clearGenres() {
       this.selectedGenres = [];
       this.saveGenrePreference();
+    },
+    
+    // Save custom vibe preference to localStorage
+    saveCustomVibe() {
+      localStorage.setItem('tvCustomVibe', this.customVibe);
+    },
+    
+    // Clear custom vibe input
+    clearCustomVibe() {
+      this.customVibe = '';
+      this.saveCustomVibe();
     },
     
     // Save Plex history mode preference
@@ -1202,7 +1237,8 @@ export default {
           this.plexOnlyMode ? this.recentlyWatchedShows : 
             this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedShows :
             [...this.recentlyWatchedShows, ...this.jellyfinRecentlyWatchedShows],
-          this.plexOnlyMode || this.jellyfinOnlyMode
+          this.plexOnlyMode || this.jellyfinOnlyMode,
+          this.customVibe
         );
         
         // Update loading message to include genres if selected
@@ -1287,7 +1323,8 @@ export default {
           this.plexOnlyMode ? this.recentlyWatchedShows : 
             this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedShows :
             [...this.recentlyWatchedShows, ...this.jellyfinRecentlyWatchedShows],
-          this.plexOnlyMode || this.jellyfinOnlyMode
+          this.plexOnlyMode || this.jellyfinOnlyMode,
+          this.customVibe
         );
         
         // Filter the additional recommendations
@@ -1713,6 +1750,12 @@ export default {
         console.error('Error parsing saved genres:', error);
         this.selectedGenres = [];
       }
+    }
+    
+    // Restore saved custom vibe if it exists
+    const savedVibe = localStorage.getItem('tvCustomVibe');
+    if (savedVibe) {
+      this.customVibe = savedVibe;
     }
     
     // Restore saved Plex history mode if it exists
@@ -3312,5 +3355,49 @@ select:hover {
   width: 18px;
   height: 18px;
   border-width: 2px;
+}
+/* Vibe Selector Styles */
+.vibe-selector {
+  margin-bottom: 20px;
+}
+
+.vibe-selector label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.vibe-input-container {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.vibe-input {
+  width: 100%;
+  padding: 10px 30px 10px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+}
+
+.clear-vibe-button {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-color);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.clear-vibe-button:hover {
+  opacity: 1;
 }
 </style>

@@ -446,37 +446,76 @@
         </div>
         
         <div class="modal-body">
-          <h4>Select seasons to monitor:</h4>
-          
-          <div class="select-all">
-            <label>
-              <input 
-                type="checkbox" 
-                :checked="selectedSeasons.length === currentSeries.seasons.length"
-                @click="toggleAllSeasons"
-              > 
-              Select All Seasons
-            </label>
-          </div>
-          
-          <div class="seasons-grid">
-            <div 
-              v-for="season in currentSeries.seasons" 
-              :key="season.seasonNumber"
-              class="season-item"
-            >
+          <div class="modal-section">
+            <h4>Select seasons to monitor:</h4>
+            
+            <div class="select-all">
               <label>
                 <input 
                   type="checkbox" 
-                  :value="season.seasonNumber"
-                  :checked="selectedSeasons.includes(season.seasonNumber)"
-                  @click="toggleSeason(season.seasonNumber)"
-                >
-                Season {{ season.seasonNumber }}
-                <span v-if="season.statistics" class="episode-count">
-                  ({{ season.statistics.episodeCount }} episodes)
-                </span>
+                  :checked="selectedSeasons.length === currentSeries.seasons.length"
+                  @click="toggleAllSeasons"
+                > 
+                Select All Seasons
               </label>
+            </div>
+            
+            <div class="seasons-grid">
+              <div 
+                v-for="season in currentSeries.seasons" 
+                :key="season.seasonNumber"
+                class="season-item"
+              >
+                <label>
+                  <input 
+                    type="checkbox" 
+                    :value="season.seasonNumber"
+                    :checked="selectedSeasons.includes(season.seasonNumber)"
+                    @click="toggleSeason(season.seasonNumber)"
+                  >
+                  Season {{ season.seasonNumber }}
+                  <span v-if="season.statistics" class="episode-count">
+                    ({{ season.statistics.episodeCount }} episodes)
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="modal-section">
+            <h4>Quality & Storage Settings:</h4>
+            
+            <div class="loading-indicator" v-if="loadingFolders">
+              <div class="small-spinner"></div>
+              <span>Loading options...</span>
+            </div>
+            
+            <div class="settings-grid" v-else>
+              <div class="setting-item">
+                <label for="rootFolder">Save Location:</label>
+                <select 
+                  id="rootFolder" 
+                  v-model="selectedRootFolder"
+                  class="setting-select"
+                >
+                  <option v-for="folder in rootFolders" :key="folder.id" :value="folder.path">
+                    {{ folder.path }} ({{ formatFreeSpace(folder.freeSpace) }} free)
+                  </option>
+                </select>
+              </div>
+              
+              <div class="setting-item">
+                <label for="qualityProfile">Quality Profile:</label>
+                <select 
+                  id="qualityProfile" 
+                  v-model="selectedQualityProfile"
+                  class="setting-select"
+                >
+                  <option v-for="profile in qualityProfiles" :key="profile.id" :value="profile.id">
+                    {{ profile.name }}
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -486,7 +525,7 @@
           <button 
             class="confirm-button" 
             @click="confirmAddSeries"
-            :disabled="!selectedSeasons.length"
+            :disabled="!selectedSeasons.length || loadingFolders"
           >
             Add to Sonarr
           </button>
@@ -560,6 +599,11 @@ export default {
       jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
+      rootFolders: [], // Available Sonarr root folders
+      qualityProfiles: [], // Available Sonarr quality profiles
+      selectedRootFolder: null, // Selected root folder for series
+      selectedQualityProfile: null, // Selected quality profile for series
+      loadingFolders: false, // Loading status for folders
       funLoadingMessages: [
         "Consulting with TV critics from alternate dimensions...",
         "Analyzing your taste in shows (don't worry, we won't judge)...",
@@ -1364,6 +1408,55 @@ export default {
     },
     
     /**
+     * Format bytes to a human-readable size (KB, MB, GB, etc.)
+     * @param {number} bytes - The size in bytes
+     * @returns {string} - Formatted size string
+     */
+    formatFreeSpace(bytes) {
+      if (bytes === 0) return '0 B';
+      
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      
+      return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+
+    /**
+     * Fetch root folders and quality profiles from Sonarr
+     */
+    async fetchFolderAndQualityOptions() {
+      if (!sonarrService.isConfigured()) {
+        return;
+      }
+      
+      this.loadingFolders = true;
+      
+      try {
+        // Fetch both root folders and quality profiles in parallel
+        const [rootFolders, qualityProfiles] = await Promise.all([
+          sonarrService.getRootFolders(),
+          sonarrService.getQualityProfiles()
+        ]);
+        
+        this.rootFolders = rootFolders;
+        this.qualityProfiles = qualityProfiles;
+        
+        // Set default selections
+        if (rootFolders.length > 0) {
+          this.selectedRootFolder = rootFolders[0].path;
+        }
+        
+        if (qualityProfiles.length > 0) {
+          this.selectedQualityProfile = qualityProfiles[0].id;
+        }
+      } catch (error) {
+        console.error('Error fetching Sonarr settings:', error);
+      } finally {
+        this.loadingFolders = false;
+      }
+    },
+
+    /**
      * Open season selection modal for a series
      * @param {string} title - The series title to request
      */
@@ -1405,6 +1498,9 @@ export default {
         
         // Set all seasons selected by default
         this.selectedSeasons = this.currentSeries.seasons.map(s => s.seasonNumber);
+        
+        // Fetch root folders and quality profiles
+        await this.fetchFolderAndQualityOptions();
         
         // Show modal
         this.showSeasonModal = true;
@@ -1459,10 +1555,14 @@ export default {
       this.showSeasonModal = false;
       this.currentSeries = null;
       this.selectedSeasons = [];
+      this.selectedRootFolder = null;
+      this.selectedQualityProfile = null;
+      this.rootFolders = [];
+      this.qualityProfiles = [];
     },
     
     /**
-     * Request a series to be added to Sonarr with selected seasons
+     * Request a series to be added to Sonarr with selected seasons and options
      */
     async confirmAddSeries() {
       if (!this.currentSeries || !this.selectedSeasons.length) {
@@ -1476,10 +1576,12 @@ export default {
         // Close modal
         this.showSeasonModal = false;
         
-        // Add series to Sonarr with selected seasons
+        // Add series to Sonarr with selected seasons and options
         const response = await sonarrService.addSeries(
           this.currentSeries.title, 
-          this.selectedSeasons
+          this.selectedSeasons,
+          this.selectedQualityProfile,
+          this.selectedRootFolder
         );
         
         // Store success response
@@ -1503,6 +1605,8 @@ export default {
         this.requestingSeries = null;
         this.currentSeries = null;
         this.selectedSeasons = [];
+        this.selectedRootFolder = null;
+        this.selectedQualityProfile = null;
       }
     },
     
@@ -2958,6 +3062,8 @@ select:hover {
 
 .modal-body {
   padding: 20px;
+  overflow-y: auto;
+  max-height: 500px;
 }
 
 .modal-body h4 {
@@ -2965,6 +3071,18 @@ select:hover {
   margin-bottom: 15px;
   font-size: 16px;
   color: var(--text-color);
+}
+
+.modal-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .select-all {
@@ -3151,5 +3269,48 @@ select:hover {
   border-radius: 50%;
   animation: spin 1s linear infinite;
   box-sizing: border-box;
+}
+/* Added styles for quality and root folder selection */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.setting-item label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.setting-select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 0;
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+.loading-indicator .small-spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
 }
 </style>

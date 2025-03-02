@@ -109,15 +109,14 @@ class OpenAIService {
           previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
         }
       } else {
-        // Use the Sonarr library + liked shows as the main library
+        // Use the Sonarr library as the main library
         sourceText = "my TV show library";
         const sonarrTitles = series.map(show => show.title);
         primarySource = [...sonarrTitles];
         
-        // Include liked recommendations in the source library
-        if (likedRecommendations.length > 0) {
-          primarySource = [...primarySource, ...likedRecommendations];
-        }
+        // We don't add liked recommendations to the primary source anymore,
+        // as they will be filtered later. This ensures liked items won't be
+        // recommended again, even if they're not part of the actual library.
       }
       
       // Create combined exclusion list (everything that shouldn't be recommended)
@@ -168,6 +167,11 @@ class OpenAIService {
         userPrompt += ` You also MUST NOT recommend these previously suggested shows: ${previousRecommendations.join(', ')}`;
       }
       
+      // Add liked shows as explicit examples to not recommend again
+      if (likedRecommendations.length > 0) {
+        userPrompt += `\n\nI like these shows, but DO NOT recommend them again as I've already seen them: ${likedRecommendations.join(', ')}`;
+      }
+      
       // Add disliked shows as explicit negative examples
       if (dislikedRecommendations.length > 0) {
         userPrompt += `\n\nI specifically dislike these shows, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
@@ -201,12 +205,12 @@ STRICT RULES:
 - Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per show
 - Do NOT use Markdown formatting like bold or italics
 - Do NOT include additional information outside the required format
-- NEVER recommend any show in my library or exclusion list`;
+- NEVER recommend any show in my library, liked shows list, or any exclusion list`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend shows that exist in the user's library or exclusion list\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in the exclusion list before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
         },
         {
           role: "user",
@@ -214,7 +218,17 @@ STRICT RULES:
         }
       ];
       
-      return this.getFormattedRecommendations(messages);
+      // Get initial recommendations
+      const recommendations = await this.getFormattedRecommendations(messages);
+      
+      // Perform final verification to ensure no existing/liked content is returned
+      return this.verifyRecommendations(
+        recommendations,
+        series,                   // Library items
+        likedRecommendations,     // Liked items
+        dislikedRecommendations,  // Disliked items
+        previousRecommendations   // Previous recommendations
+      );
     } catch (error) {
       console.error('Error getting TV show recommendations:', error);
       throw error;
@@ -255,15 +269,14 @@ STRICT RULES:
           previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
         }
       } else {
-        // Use the Radarr library + liked movies as the main library
+        // Use the Radarr library as the main library
         sourceText = "my movie library";
         const radarrTitles = movies.map(movie => movie.title);
         primarySource = [...radarrTitles];
         
-        // Include liked recommendations in the source library
-        if (likedRecommendations.length > 0) {
-          primarySource = [...primarySource, ...likedRecommendations];
-        }
+        // We don't add liked recommendations to the primary source anymore,
+        // as they will be filtered later. This ensures liked items won't be
+        // recommended again, even if they're not part of the actual library.
       }
       
       // Create combined exclusion list (everything that shouldn't be recommended)
@@ -315,6 +328,11 @@ STRICT RULES:
         userPrompt += ` You also MUST NOT recommend these previously suggested movies: ${previousRecommendations.join(', ')}`;
       }
       
+      // Add liked movies as explicit examples to not recommend again
+      if (likedRecommendations.length > 0) {
+        userPrompt += `\n\nI like these movies, but DO NOT recommend them again as I've already seen them: ${likedRecommendations.join(', ')}`;
+      }
+      
       // Add disliked movies as explicit negative examples
       if (dislikedRecommendations.length > 0) {
         userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
@@ -348,12 +366,12 @@ STRICT RULES:
 - Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per movie
 - Do NOT use Markdown formatting like bold or italics
 - Do NOT include additional information outside the required format
-- NEVER recommend any movie in my library or exclusion list`;
+- NEVER recommend any movie in my library, liked movies list, or any exclusion list`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend movies that exist in the user's library or exclusion list\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in the exclusion list before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
         },
         {
           role: "user",
@@ -361,7 +379,17 @@ STRICT RULES:
         }
       ];
       
-      return this.getFormattedRecommendations(messages);
+      // Get initial recommendations
+      const recommendations = await this.getFormattedRecommendations(messages);
+      
+      // Perform final verification to ensure no existing/liked content is returned
+      return this.verifyRecommendations(
+        recommendations,
+        movies,                   // Library items
+        likedRecommendations,     // Liked items
+        dislikedRecommendations,  // Disliked items
+        previousRecommendations   // Previous recommendations
+      );
     } catch (error) {
       console.error('Error getting movie recommendations:', error);
       throw error;
@@ -447,7 +475,9 @@ STRICT RULES:
       }
       
       // Parse the recommendations from the response
-      const recommendations = this.parseRecommendations(response.data.choices[0].message.content);
+      let recommendations = this.parseRecommendations(response.data.choices[0].message.content);
+      
+      // We'll add a verification check later when we have context about existing items
       return recommendations;
     } catch (error) {
       console.error('Error getting recommendations from AI:', error);
@@ -523,6 +553,78 @@ STRICT RULES:
       },
       { headers }
     );
+  }
+
+  /**
+   * Verify recommendations don't include any existing items
+   * @param {Array} recommendations - List of recommendations to verify
+   * @param {Array} libraryItems - List of items in user's library
+   * @param {Array} likedItems - List of items user has liked
+   * @param {Array} dislikedItems - List of items user has disliked
+   * @param {Array} previousRecommendations - List of previously recommended items
+   * @returns {Array} - Filtered list of recommendations
+   */
+  verifyRecommendations(recommendations, libraryItems = [], likedItems = [], dislikedItems = [], previousRecommendations = []) {
+    if (!recommendations || !recommendations.length) {
+      return [];
+    }
+
+    // Create normalized sets for faster lookups
+    const librarySet = new Set(libraryItems.map(item => typeof item === 'string' ? 
+      item.toLowerCase() : item.title.toLowerCase()));
+    
+    const likedSet = new Set(likedItems.map(item => typeof item === 'string' ? 
+      item.toLowerCase() : item.title.toLowerCase()));
+    
+    const dislikedSet = new Set(dislikedItems.map(item => typeof item === 'string' ? 
+      item.toLowerCase() : item.title.toLowerCase()));
+    
+    const previousRecsSet = new Set(previousRecommendations.map(item => typeof item === 'string' ? 
+      item.toLowerCase() : item.title.toLowerCase()));
+
+    // Filter out any recommendations that match existing items
+    const filteredRecommendations = recommendations.filter(rec => {
+      const normalizedTitle = rec.title.toLowerCase().trim();
+      
+      // Check for exact matches
+      if (librarySet.has(normalizedTitle) ||
+          likedSet.has(normalizedTitle) ||
+          dislikedSet.has(normalizedTitle) ||
+          previousRecsSet.has(normalizedTitle)) {
+        return false;
+      }
+      
+      // Check for title contained within library items (handles substring matches)
+      // This helps with variations like "The Matrix" vs "Matrix" or "Star Wars: A New Hope" vs "Star Wars"
+      for (const libraryTitle of librarySet) {
+        if (normalizedTitle.includes(libraryTitle) || libraryTitle.includes(normalizedTitle)) {
+          // If the titles are very similar or one contains the other completely, filter it out
+          if (normalizedTitle.length > 4 && libraryTitle.length > 4) {
+            return false;
+          }
+        }
+      }
+      
+      // Also check against liked items using the same approach
+      for (const likedTitle of likedSet) {
+        if (normalizedTitle.includes(likedTitle) || likedTitle.includes(normalizedTitle)) {
+          // If the titles are very similar or one contains the other completely, filter it out
+          if (normalizedTitle.length > 4 && likedTitle.length > 4) {
+            return false;
+          }
+        }
+      }
+      
+      return true;
+    });
+
+    // Log any removed recommendations
+    const removedCount = recommendations.length - filteredRecommendations.length;
+    if (removedCount > 0) {
+      console.log(`Final verification removed ${removedCount} recommendations that matched existing items`);
+    }
+
+    return filteredRecommendations;
   }
 
   /**

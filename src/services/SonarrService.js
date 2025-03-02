@@ -181,9 +181,11 @@ class SonarrService {
    * Add a series to Sonarr
    * @param {string} title - The series title to search for
    * @param {Array} [selectedSeasons] - Array of season numbers to monitor (optional)
+   * @param {number} [qualityProfileId] - Quality profile ID to use (optional)
+   * @param {string} [rootFolderPath] - Root folder path to use (optional)
    * @returns {Promise<Object>} - The added series object
    */
-  async addSeries(title, selectedSeasons = null) {
+  async addSeries(title, selectedSeasons = null, qualityProfileId = null, rootFolderPath = null) {
     if (!this.isConfigured()) {
       throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
     }
@@ -192,7 +194,7 @@ class SonarrService {
       // 1. Look up the series to get details
       const seriesData = await this.lookupSeries(title);
       
-      // 2. Get the first quality profile and root folder
+      // 2. Get quality profiles and root folders if not provided
       const [qualityProfiles, rootFolders] = await Promise.all([
         this.getQualityProfiles(),
         this.getRootFolders()
@@ -206,8 +208,9 @@ class SonarrService {
         throw new Error('No root folders found in Sonarr.');
       }
       
-      const qualityProfileId = qualityProfiles[0].id;
-      const rootFolderPath = rootFolders[0].path;
+      // Use provided values or default to the first available option
+      const selectedQualityProfileId = qualityProfileId || qualityProfiles[0].id;
+      const selectedRootFolderPath = rootFolderPath || rootFolders[0].path;
       
       // 3. Prepare seasons configuration
       // If specific seasons were selected, only monitor those
@@ -220,8 +223,8 @@ class SonarrService {
       const payload = {
         title: seriesData.title,
         tvdbId: seriesData.tvdbId,
-        qualityProfileId: qualityProfileId,
-        rootFolderPath: rootFolderPath,
+        qualityProfileId: selectedQualityProfileId,
+        rootFolderPath: selectedRootFolderPath,
         monitored: true,
         seasonFolder: true,
         seriesType: 'standard',

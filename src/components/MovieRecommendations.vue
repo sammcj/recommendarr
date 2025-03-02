@@ -1084,19 +1084,28 @@ export default {
           this.previousRecommendations,
           this.likedRecommendations,
           this.dislikedRecommendations,
-          this.recentlyWatchedMovies,
-          this.plexOnlyMode
+          this.plexOnlyMode ? this.recentlyWatchedMovies : 
+            this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
+            [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
+          this.plexOnlyMode || this.jellyfinOnlyMode
         );
         
         // Update loading message to include genres if selected
         const loadingMessage = document.querySelector('.loading p');
         if (loadingMessage && this.selectedGenres.length > 0) {
-          const source = this.plexOnlyMode ? 'Plex watch history' : 'movie library';
+          let source = 'movie library';
+          if (this.plexOnlyMode) {
+            source = 'Plex watch history';
+          } else if (this.jellyfinOnlyMode) {
+            source = 'Jellyfin watch history';
+          } else if (this.plexConfigured && this.jellyfinConfigured) {
+            source = 'movie library and watch history';
+          }
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
         // Filter out movies that are already in the Radarr library
-        if (this.recommendations.length > 0 && !this.plexOnlyMode) {
+        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
           this.recommendations = await this.filterExistingMovies(this.recommendations);
         }
         
@@ -1159,13 +1168,15 @@ export default {
           updatedPrevious,
           this.likedRecommendations,
           this.dislikedRecommendations,
-          this.recentlyWatchedMovies,
-          this.plexOnlyMode
+          this.plexOnlyMode ? this.recentlyWatchedMovies : 
+            this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
+            [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
+          this.plexOnlyMode || this.jellyfinOnlyMode
         );
         
         // Filter the additional recommendations
         let filteredAdditional = additionalRecommendations;
-        if (filteredAdditional.length > 0 && !this.plexOnlyMode) {
+        if (filteredAdditional.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
           filteredAdditional = await this.filterExistingMovies(filteredAdditional);
         }
         

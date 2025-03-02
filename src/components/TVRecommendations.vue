@@ -206,7 +206,7 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>{{ plexConfigured ? 'Analyzing your TV show library and Plex watch history...' : 'Analyzing your TV show library and generating recommendations...' }}</p>
+        <p>{{ plexOnlyMode ? 'Analyzing your Plex watch history...' : (plexConfigured ? 'Analyzing your TV show library and Plex watch history...' : 'Analyzing your TV show library and generating recommendations...') }}</p>
       </div>
       
       <div v-else-if="error" class="error">
@@ -920,7 +920,8 @@ export default {
         // Update loading message to include genres if selected
         const loadingMessage = document.querySelector('.loading p');
         if (loadingMessage && this.selectedGenres.length > 0) {
-          loadingMessage.textContent = `Analyzing your TV library and generating ${genreString} recommendations...`;
+          const source = this.plexOnlyMode ? 'Plex watch history' : 'TV library';
+          loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
         // Add new recommendations to history

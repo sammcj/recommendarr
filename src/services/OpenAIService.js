@@ -86,6 +86,12 @@ class OpenAIService {
         // Only use the Plex watch history
         sourceText = "my Plex watch history";
         sourceLibrary = recentlyWatchedShows.map(show => show.title).join(', ');
+        
+        // Add library titles to exclusions to prevent recommending what user already has
+        if (series && series.length > 0) {
+          const libraryTitles = series.map(show => show.title);
+          previousRecommendations = [...new Set([...previousRecommendations, ...libraryTitles])];
+        }
       } else {
         // Use the Sonarr library + liked shows as the main library
         sourceText = "my TV show library";
@@ -189,6 +195,12 @@ My current shows: ${sourceLibrary}`;
         // Only use the Plex watch history
         sourceText = "my Plex watch history";
         sourceLibrary = recentlyWatchedMovies.map(movie => movie.title).join(', ');
+        
+        // Add library titles to exclusions to prevent recommending what user already has
+        if (movies && movies.length > 0) {
+          const libraryTitles = movies.map(movie => movie.title);
+          previousRecommendations = [...new Set([...previousRecommendations, ...libraryTitles])];
+        }
       } else {
         // Use the Radarr library + liked movies as the main library
         sourceText = "my movie library";

@@ -1030,7 +1030,18 @@ export default {
         }
       } catch (error) {
         console.error('Error getting additional recommendations:', error);
-        // Continue with what we have - don't update this.error
+        
+        // Count this as one attempt but continue if we're not at the limit
+        if (recursionDepth + 1 < 5) {
+          console.log(`Retrying after error (recursion depth: ${recursionDepth + 1})`);
+          // Calculate how many we still need
+          const stillNeeded = this.numRecommendations - this.recommendations.length;
+          if (stillNeeded > 0) {
+            // Wait a short time before retrying to avoid overwhelming the API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
+          }
+        }
       }
     },
     

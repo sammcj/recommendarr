@@ -215,6 +215,7 @@
                         Use only Plex history for recommendations (ignore library)
                       </label>
                     </div>
+                    
                   </div>
                   
                   <div v-if="jellyfinConfigured" class="jellyfin-options">
@@ -252,10 +253,11 @@
                     </div>
                     
                     <button 
-                      class="jellyfin-user-select-button action-button"
+                      class="action-button jellyfin-user-select-button"
                       @click="$emit('openJellyfinUserSelect')"
+                      style="padding: 6px 12px; font-size: 13px;"
                     >
-                      Change Jellyfin User
+                      Change User
                     </button>
                   </div>
                 </div>
@@ -1556,7 +1558,7 @@ h2 {
   width: auto;
   max-width: 200px;
   padding: 8px 16px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .setup-section {

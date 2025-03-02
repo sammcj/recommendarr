@@ -86,6 +86,35 @@
                         </div>
                       </div>
                     </div>
+                    
+                    <div class="library-mode-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="useSampledLibrary" 
+                          @change="saveLibraryModePreference"
+                        >
+                        Use Sampled Library Mode
+                      </label>
+                      <div class="setting-description">
+                        Samples a subset of your library to reduce token usage while still providing relevant recommendations.
+                      </div>
+                      
+                      <div v-if="useSampledLibrary" class="sample-size-control">
+                        <label for="sampleSizeSlider">Sample size: <span class="count-display">{{ sampleSize }}</span></label>
+                        <div class="slider-container sample-slider-container">
+                          <input 
+                            type="range" 
+                            id="sampleSizeSlider"
+                            v-model.number="sampleSize"
+                            min="5" 
+                            max="50"
+                            class="count-slider"
+                            @change="saveSampleSize"
+                          >
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div class="history-info">
                     <span>{{ previousRecommendations.length }} shows in history</span>
@@ -206,7 +235,17 @@
       
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>{{ plexOnlyMode ? 'Analyzing your Plex watch history...' : (plexConfigured ? 'Analyzing your TV show library and Plex watch history...' : 'Analyzing your TV show library and generating recommendations...') }}</p>
+        <div class="loading-content">
+          <p class="loading-message">{{ currentLoadingMessage }}</p>
+          <p class="recommendation-counter" :class="{'initializing': recommendations.length === 0}">
+            <span v-if="recommendations.length > 0">
+              Found {{ recommendations.length }} of {{ numRecommendations }} recommendations
+            </span>
+            <span v-else>
+              Processing initial request...
+            </span>
+          </p>
+        </div>
       </div>
       
       <div v-else-if="error" class="error">
@@ -461,6 +500,32 @@ export default {
       selectedGenres: [], // Multiple genre selections
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
+      useSampledLibrary: false, // Whether to use sampled library or full library
+      sampleSize: 20, // Default sample size when using sampled library
+      funLoadingMessages: [
+        "Consulting with TV critics from alternate dimensions...",
+        "Analyzing your taste in shows (don't worry, we won't judge)...",
+        "Sorting through the multiverse for the perfect shows...",
+        "Bribing streaming algorithms for insider information...",
+        "Converting caffeine into recommendations...",
+        "Feeding your watchlist to our recommendation hamsters...",
+        "Searching for shows that won't be cancelled after season 1...",
+        "Scanning for hidden gems buried under streaming algorithms...",
+        "Asking your future self what shows you'll love...",
+        "Calculating the perfect binge-watching schedule...",
+        "Digging through the golden age of television...",
+        "Filtering out shows with disappointing endings...",
+        "Picking shows that will make you say 'just one more episode'...",
+        "Consulting with the TV psychics for your next obsession...",
+        "Brewing a perfect blend of recommendations...",
+        "Decoding the secret sauce of great television...",
+        "Sending scouts to the corners of the streaming universe...",
+        "Finding shows that will make you forget to check your phone...",
+        "Extracting hidden patterns from your viewing history...",
+        "Teaching the AI to understand the concept of 'binge-worthy'..."
+      ],
+      currentLoadingMessage: "",  // Current displayed loading message
+      loadingMessageInterval: null, // For rotating messages
       availableGenres: [
         { value: 'action', label: 'Action' },
         { value: 'adventure', label: 'Adventure' },
@@ -775,6 +840,18 @@ export default {
       openAIService.temperature = this.temperature;
     },
     
+    // Save library mode preference to localStorage
+    saveLibraryModePreference() {
+      localStorage.setItem('useSampledLibrary', this.useSampledLibrary.toString());
+      openAIService.useSampledLibrary = this.useSampledLibrary;
+    },
+    
+    // Save sample size to localStorage
+    saveSampleSize() {
+      localStorage.setItem('librarySampleSize', this.sampleSize.toString());
+      openAIService.sampleSize = this.sampleSize;
+    },
+    
     // Fetch available models from the API
     async fetchModels() {
       if (!openAIService.isConfigured()) {
@@ -875,6 +952,54 @@ export default {
       localStorage.setItem('dislikedTVRecommendations', JSON.stringify(this.dislikedRecommendations));
     },
     
+    /**
+     * Start the rotating loading message animation
+     */
+    startLoadingMessages() {
+      // Set initial message
+      const baseMessage = this.plexOnlyMode 
+        ? 'Analyzing your Plex watch history...' 
+        : (this.plexConfigured 
+          ? 'Analyzing your TV show library and Plex watch history...' 
+          : 'Analyzing your TV show library and generating recommendations...');
+      
+      this.currentLoadingMessage = baseMessage;
+      
+      // Clear any existing interval
+      if (this.loadingMessageInterval) {
+        clearInterval(this.loadingMessageInterval);
+      }
+      
+      // Start a new interval to rotate through fun messages
+      let lastIndex = -1;
+      this.loadingMessageInterval = setInterval(() => {
+        // Every other time, show the base message
+        if (Math.random() > 0.5) {
+          this.currentLoadingMessage = baseMessage;
+          return;
+        }
+        
+        // Get a random fun message that's different from the last one
+        let randomIndex;
+        do {
+          randomIndex = Math.floor(Math.random() * this.funLoadingMessages.length);
+        } while (randomIndex === lastIndex && this.funLoadingMessages.length > 1);
+        
+        lastIndex = randomIndex;
+        this.currentLoadingMessage = this.funLoadingMessages[randomIndex];
+      }, 10000); // Change message every 10 seconds
+    },
+    
+    /**
+     * Stop the rotating loading message animation
+     */
+    stopLoadingMessages() {
+      if (this.loadingMessageInterval) {
+        clearInterval(this.loadingMessageInterval);
+        this.loadingMessageInterval = null;
+      }
+    },
+    
     async getRecommendations() {
       // Verify we have a series list and OpenAI is configured
       if (!this.sonarrConfigured) {
@@ -892,10 +1017,16 @@ export default {
         return;
       }
       
+      // Reset recommendations array to ensure counter starts at 0
+      this.recommendations = [];
+      
       this.loading = true;
       this.error = null;
       this.recommendationsRequested = true;
       this.settingsExpanded = false; // Collapse settings when getting recommendations
+      
+      // Start the rotating loading messages
+      this.startLoadingMessages();
       
       // Scroll to the top of the loading section
       setTimeout(() => {
@@ -922,8 +1053,7 @@ export default {
           ? this.selectedGenres.join(', ')
           : '';
         
-        // Pass the previous recommendations to be excluded and liked/disliked lists
-        // Include recently watched shows from Plex if available
+        // Get initial recommendations
         this.recommendations = await openAIService.getRecommendations(
           this.series, 
           this.numRecommendations,
@@ -947,6 +1077,11 @@ export default {
           this.recommendations = await this.filterExistingShows(this.recommendations);
         }
         
+        // If we have fewer recommendations than requested after filtering, get more
+        if (this.recommendations.length < this.numRecommendations) {
+          await this.getAdditionalRecommendations(this.numRecommendations - this.recommendations.length, genreString);
+        }
+        
         // Add new recommendations to history
         this.addToRecommendationHistory(this.recommendations);
         
@@ -964,7 +1099,80 @@ export default {
         }
         this.recommendations = [];
       } finally {
+        // Stop the rotating loading messages
+        this.stopLoadingMessages();
         this.loading = false;
+      }
+    },
+    
+    /**
+     * Get additional recommendations when filtering results in fewer than requested
+     * @param {number} additionalCount - Number of additional recommendations needed
+     * @param {string} genreString - Genre preferences
+     * @param {number} [recursionDepth=0] - Current recursion depth to limit excessive API calls
+     */
+    async getAdditionalRecommendations(additionalCount, genreString, recursionDepth = 0) {
+      if (additionalCount <= 0 || recursionDepth >= 5) return;
+      
+      console.log(`Getting ${additionalCount} additional recommendations after filtering (recursion depth: ${recursionDepth})`);
+      
+      // Update base message for the message rotator to use
+      const baseMessage = `Getting additional recommendations to match your request...`;
+      this.currentLoadingMessage = baseMessage;
+      
+      try {
+        // Get additional recommendations
+        // Include current recommendations in the exclusion list
+        const currentTitles = this.recommendations.map(rec => rec.title);
+        const updatedPrevious = [...new Set([...this.previousRecommendations, ...currentTitles])];
+        
+        // Request more recommendations than we need to account for filtering
+        const requestCount = Math.min(additionalCount * 1.5, 20); // Request 50% more, up to 20 max
+        
+        const additionalRecommendations = await openAIService.getRecommendations(
+          this.series,
+          requestCount,
+          genreString,
+          updatedPrevious,
+          this.likedRecommendations,
+          this.dislikedRecommendations,
+          this.recentlyWatchedShows,
+          this.plexOnlyMode
+        );
+        
+        // Filter the additional recommendations
+        let filteredAdditional = additionalRecommendations;
+        if (filteredAdditional.length > 0 && !this.plexOnlyMode) {
+          filteredAdditional = await this.filterExistingShows(filteredAdditional);
+        }
+        
+        // Combine with existing recommendations
+        this.recommendations = [...this.recommendations, ...filteredAdditional];
+        
+        // If we still don't have enough and got some results, try again with incremented recursion depth
+        if (this.recommendations.length < this.numRecommendations && filteredAdditional.length > 0) {
+          // Calculate how many more we need
+          const stillNeeded = this.numRecommendations - this.recommendations.length;
+          
+          // Recursive call with updated exclusion list and incremented recursion depth
+          if (stillNeeded > 0) {
+            await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
+          }
+        }
+      } catch (error) {
+        console.error('Error getting additional recommendations:', error);
+        
+        // Count this as one attempt but continue if we're not at the limit
+        if (recursionDepth + 1 < 5) {
+          console.log(`Retrying after error (recursion depth: ${recursionDepth + 1})`);
+          // Calculate how many we still need
+          const stillNeeded = this.numRecommendations - this.recommendations.length;
+          if (stillNeeded > 0) {
+            // Wait a short time before retrying to avoid overwhelming the API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
+          }
+        }
       }
     },
     
@@ -984,13 +1192,31 @@ export default {
           this.series.map(show => show.title.toLowerCase())
         );
         
-        // Filter out recommendations that already exist in the library
+        // Add liked recommendations to the filter set
+        const likedRecommendationTitles = new Set(
+          this.likedRecommendations.map(title => title.toLowerCase())
+        );
+        
+        // Add disliked recommendations to the filter set
+        const dislikedRecommendationTitles = new Set(
+          this.dislikedRecommendations.map(title => title.toLowerCase())
+        );
+        
+        // Add previous recommendations to the filter set
+        const previousRecommendationTitles = new Set(
+          this.previousRecommendations.map(title => title.toLowerCase())
+        );
+        
+        // Filter out recommendations that already exist in the library, liked list, disliked list, or previous recommendations
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
-          return !existingShowTitles.has(normalizedTitle);
+          return !existingShowTitles.has(normalizedTitle) && 
+                 !likedRecommendationTitles.has(normalizedTitle) && 
+                 !dislikedRecommendationTitles.has(normalizedTitle) && 
+                 !previousRecommendationTitles.has(normalizedTitle);
         });
         
-        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} shows that already exist in the library`);
+        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} shows that already exist in the library, liked/disliked lists, or recommendation history`);
         return filteredRecommendations;
       } catch (error) {
         console.error('Error filtering existing shows:', error);
@@ -1219,6 +1445,10 @@ export default {
       this.temperature = openAIService.temperature;
     }
     
+    // Initialize library mode preferences from service
+    this.useSampledLibrary = openAIService.useSampledLibrary;
+    this.sampleSize = openAIService.sampleSize;
+    
     // If there are already recommendations, collapse the settings by default
     if (this.recommendations.length > 0) {
       this.settingsExpanded = false;
@@ -1327,6 +1557,8 @@ export default {
     this.saveLikedDislikedLists();
     // Remove event listener
     window.removeEventListener('resize', this.handleResize);
+    // Clear any running intervals
+    this.stopLoadingMessages();
   }
 };
 </script>
@@ -2020,6 +2252,53 @@ select:hover {
   gap: 15px;
 }
 
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-message {
+  margin-bottom: 8px;
+  font-size: 16px;
+  min-height: 24px;
+  transition: opacity 0.4s ease-in-out;
+  opacity: 1;
+  animation: fadeInOut 10s infinite;
+}
+
+.recommendation-counter {
+  font-size: 14px;
+  color: #4CAF50;
+  margin: 5px 0 0 0;
+  font-weight: 500;
+  background-color: rgba(76, 175, 80, 0.1);
+  padding: 4px 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-width: 230px;
+  text-align: center;
+}
+
+.recommendation-counter.initializing {
+  color: #2196F3;
+  background-color: rgba(33, 150, 243, 0.1);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
+}
+
 .spinner {
   display: inline-block;
   width: 30px;
@@ -2411,6 +2690,31 @@ select:hover {
   cursor: pointer;
   opacity: 0.8;
   transition: opacity 0.2s;
+}
+
+.library-mode-toggle {
+  display: flex;
+  flex-direction: column;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.setting-description {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+.sample-size-control {
+  margin-top: 10px;
+  margin-left: 22px;
+  padding-top: 10px;
+}
+
+.sample-slider-container {
+  margin-top: 10px;
 }
 
 .clear-history-button:hover {

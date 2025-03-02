@@ -250,8 +250,10 @@ export default {
     // Handler methods for disconnection events from connection components
     handleSonarrDisconnected() {
       this.sonarrConnected = false;
-      this.showSonarrConnect = true;
+      this.showSonarrConnect = false; // Don't show connect modal
       this.series = [];
+      localStorage.removeItem('sonarrBaseUrl');
+      localStorage.removeItem('sonarrApiKey');
       
       // If we're on the TV recommendations tab and no longer have Sonarr connected,
       // switch to movie recommendations if Radarr is available
@@ -262,8 +264,10 @@ export default {
     
     handleRadarrDisconnected() {
       this.radarrConnected = false;
-      this.showRadarrConnect = true;
+      this.showRadarrConnect = false; // Don't show connect modal
       this.movies = [];
+      localStorage.removeItem('radarrBaseUrl');
+      localStorage.removeItem('radarrApiKey');
       
       // If we're on the movie recommendations tab and no longer have Radarr connected,
       // switch to TV recommendations if Sonarr is available
@@ -274,16 +278,23 @@ export default {
     
     handlePlexDisconnected() {
       this.plexConnected = false;
-      this.showPlexConnect = true;
+      this.showPlexConnect = false; // Don't show connect modal
       this.recentlyWatchedMovies = [];
       this.recentlyWatchedShows = [];
+      localStorage.removeItem('plexBaseUrl');
+      localStorage.removeItem('plexToken');
+      localStorage.removeItem('plexRecentLimit');
     },
     
     handleJellyfinDisconnected() {
       this.jellyfinConnected = false;
-      this.showJellyfinConnect = true;
+      this.showJellyfinConnect = false; // Don't show connect modal
       this.jellyfinRecentlyWatchedMovies = [];
       this.jellyfinRecentlyWatchedShows = [];
+      localStorage.removeItem('jellyfinBaseUrl');
+      localStorage.removeItem('jellyfinApiKey');
+      localStorage.removeItem('jellyfinUserId');
+      localStorage.removeItem('jellyfinRecentLimit');
     },
     
     async openJellyfinUserSelect() {
@@ -524,27 +535,64 @@ export default {
     },
     
     handleSonarrSettingsUpdated() {
-      // Check the Sonarr connection with the new settings
-      this.checkSonarrConnection();
-      console.log('Sonarr settings updated, testing connection');
+      // Check if there are Sonarr credentials in localStorage
+      const baseUrl = localStorage.getItem('sonarrBaseUrl');
+      const apiKey = localStorage.getItem('sonarrApiKey');
+      
+      if (baseUrl && apiKey) {
+        // Check the Sonarr connection with the new settings
+        this.checkSonarrConnection();
+        console.log('Sonarr settings updated, testing connection');
+      } else {
+        // No credentials, mark as disconnected
+        this.sonarrConnected = false;
+      }
     },
     
     handleRadarrSettingsUpdated() {
-      // Check the Radarr connection with the new settings
-      this.checkRadarrConnection();
-      console.log('Radarr settings updated, testing connection');
+      // Check if there are Radarr credentials in localStorage
+      const baseUrl = localStorage.getItem('radarrBaseUrl');
+      const apiKey = localStorage.getItem('radarrApiKey');
+      
+      if (baseUrl && apiKey) {
+        // Check the Radarr connection with the new settings
+        this.checkRadarrConnection();
+        console.log('Radarr settings updated, testing connection');
+      } else {
+        // No credentials, mark as disconnected
+        this.radarrConnected = false;
+      }
     },
     
     handlePlexSettingsUpdated() {
-      // Check the Plex connection with the new settings
-      this.checkPlexConnection();
-      console.log('Plex settings updated, testing connection');
+      // Check if there are Plex credentials in localStorage
+      const baseUrl = localStorage.getItem('plexBaseUrl');
+      const token = localStorage.getItem('plexToken');
+      
+      if (baseUrl && token) {
+        // Check the Plex connection with the new settings
+        this.checkPlexConnection();
+        console.log('Plex settings updated, testing connection');
+      } else {
+        // No credentials, mark as disconnected
+        this.plexConnected = false;
+      }
     },
     
     handleJellyfinSettingsUpdated() {
-      // Check the Jellyfin connection with the new settings
-      this.checkJellyfinConnection();
-      console.log('Jellyfin settings updated, testing connection');
+      // Check if there are Jellyfin credentials in localStorage
+      const baseUrl = localStorage.getItem('jellyfinBaseUrl');
+      const apiKey = localStorage.getItem('jellyfinApiKey');
+      const userId = localStorage.getItem('jellyfinUserId');
+      
+      if (baseUrl && apiKey && userId) {
+        // Check the Jellyfin connection with the new settings
+        this.checkJellyfinConnection();
+        console.log('Jellyfin settings updated, testing connection');
+      } else {
+        // No credentials, mark as disconnected
+        this.jellyfinConnected = false;
+      }
     },
     handleLogout() {
       // Clear all stored credentials

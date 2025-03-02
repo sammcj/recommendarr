@@ -139,9 +139,9 @@ class OpenAIService {
         console.log('No recently watched shows to add to prompt');
       }
       
-      userPrompt += `\n\nBefore suggesting any show, double-check it against my exclusion list and VERIFY it's not already in my library.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST double-check it against my exclusion list and VERIFY it's not already in my library. Failure to comply with this instruction is unacceptable.
 
-Format each recommendation EXACTLY as follows (using the exact section titles):
+FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
@@ -150,22 +150,27 @@ Available on: [streaming service]
 
 For the Recommendarr Rating, silently calculate a score from 0-100% by privately considering available ratings from sources like IMDB, Rotten Tomatoes, TVDB, Metacritic, and other audience ratings. Then provide:
 - Just a single percentage number (e.g., "85%")
-- A brief qualitative assessment of the show/movie that explains its strengths/weaknesses
+- A brief qualitative assessment of the show that explains its strengths/weaknesses
 DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Show Title]:
 ...and so on.
 
-Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per show.
+STRICT RULES:
+- Do NOT add any extra text, headings, or formatting
+- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per show
+- Do NOT use Markdown formatting like bold or italics
+- Do NOT include additional information outside the required format
+- NEVER recommend any show in my library or exclusion list
 
-CRITICAL: Review each recommendation one final time to ensure it's not in my library or exclusion list.
+FINAL VERIFICATION: Review each recommendation one final time to ensure it is not in my library or exclusion list.
 
 My current shows: ${sourceLibrary}`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and to the point. You MUST use the exact format requested and follow these key rules:\n\n1. NEVER recommend shows that exist in the user's library or exclusion list\n2. Only recommend shows that truly match the user's preferences\n3. Verify each recommendation is not in the exclusion list before suggesting it\n4. Do not use any Markdown formatting like ** for bold or * for italic"
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend shows that exist in the user's library or exclusion list\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in the exclusion list before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
         },
         {
           role: "user",
@@ -258,9 +263,9 @@ My current shows: ${sourceLibrary}`;
         console.log('No recently watched movies to add to prompt');
       }
       
-      userPrompt += `\n\nBefore suggesting any movie, double-check it against my exclusion list and VERIFY it's not already in my library.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST double-check it against my exclusion list and VERIFY it's not already in my library. Failure to comply with this instruction is unacceptable.
 
-Format each recommendation EXACTLY as follows (using the exact section titles):
+FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
@@ -275,16 +280,21 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 2. [Next Movie Title]:
 ...and so on.
 
-Do not add extra text, headings, or any formatting. Only use each section title (Description, Why you might like it, Recommendarr Rating, Available on) exactly once per movie.
+STRICT RULES:
+- Do NOT add any extra text, headings, or formatting
+- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per movie
+- Do NOT use Markdown formatting like bold or italics
+- Do NOT include additional information outside the required format
+- NEVER recommend any movie in my library or exclusion list
 
-CRITICAL: Review each recommendation one final time to ensure it's not in my library or exclusion list.
+FINAL VERIFICATION: Review each recommendation one final time to ensure it is not in my library or exclusion list.
 
 My current movies: ${sourceLibrary}`;
 
       const messages = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and to the point. You MUST use the exact format requested and follow these key rules:\n\n1. NEVER recommend movies that exist in the user's library or exclusion list\n2. Only recommend movies that truly match the user's preferences\n3. Verify each recommendation is not in the exclusion list before suggesting it\n4. Do not use any Markdown formatting like ** for bold or * for italic"
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend movies that exist in the user's library or exclusion list\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in the exclusion list before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
         },
         {
           role: "user",
@@ -372,23 +382,33 @@ My current movies: ${sourceLibrary}`;
         if (section.includes(':')) {
           const firstColonIndex = section.indexOf(':');
           title = section.substring(0, firstColonIndex).trim();
-          // Remove any markdown formatting (like ** for bold)
+          // Remove any markdown formatting and brackets
           title = title.replace(/\*\*/g, '').trim();
+          title = title.replace(/^\[|\]$/g, '').trim();
           details = section.substring(firstColonIndex + 1).trim();
         } else {
           // If no colon, try to get the first line
           const firstLineBreak = section.indexOf('\n');
           if (firstLineBreak > 0) {
             title = section.substring(0, firstLineBreak).trim();
-            // Remove any markdown formatting (like ** for bold)
+            // Remove any markdown formatting and brackets
             title = title.replace(/\*\*/g, '').trim();
+            title = title.replace(/^\[|\]$/g, '').trim();
             details = section.substring(firstLineBreak + 1).trim();
           } else {
             title = section.trim();
-            // Remove any markdown formatting (like ** for bold)
+            // Remove any markdown formatting and brackets
             title = title.replace(/\*\*/g, '').trim();
+            title = title.replace(/^\[|\]$/g, '').trim();
             details = '';
           }
+        }
+        
+        // Handle case where title might be surrounded by brackets
+        // Some LLMs might return "[Title Name]:" instead of "Title Name:"
+        const bracketMatch = title.match(/^\[(.*)\]$/);
+        if (bracketMatch && bracketMatch[1]) {
+          title = bracketMatch[1].trim();
         }
         
         // Skip if the title looks like an introduction or section header rather than a show name

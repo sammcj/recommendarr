@@ -80,25 +80,30 @@ class OpenAIService {
 
     try {
       // Determine if we should use only Plex history or include the library
-      let sourceText, sourceLibrary;
+      let sourceText, libraryTitles;
       
       if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
         // Only use the Plex watch history
         sourceText = "my Plex watch history";
-        sourceLibrary = recentlyWatchedShows.map(show => show.title).join(', ');
+        const recentTitles = recentlyWatchedShows.map(show => show.title);
+        libraryTitles = recentTitles.join(', ');
         
         // Add library titles to exclusions to prevent recommending what user already has
         if (series && series.length > 0) {
-          const libraryTitles = series.map(show => show.title);
-          previousRecommendations = [...new Set([...previousRecommendations, ...libraryTitles])];
+          const sonarrTitles = series.map(show => show.title);
+          previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
         }
       } else {
         // Use the Sonarr library + liked shows as the main library
         sourceText = "my TV show library";
-        const showTitles = series.map(show => show.title).join(', ');
-        sourceLibrary = likedRecommendations.length > 0 
-          ? `${showTitles}, ${likedRecommendations.join(', ')}`
-          : showTitles;
+        const sonarrTitles = series.map(show => show.title);
+        
+        // Include liked recommendations in the source library
+        if (likedRecommendations.length > 0) {
+          libraryTitles = [...sonarrTitles, ...likedRecommendations].join(', ');
+        } else {
+          libraryTitles = sonarrTitles.join(', ');
+        }
       }
       
       // Ensure count is within reasonable bounds
@@ -121,17 +126,22 @@ class OpenAIService {
 4. Include a mix of both popular and lesser-known hidden gems
 5. Focus on complete or ongoing shows with consistent quality, not canceled after 1-2 seasons`;
       
+      // Add my current library for reference
+      userPrompt += `\n\nMy current shows: ${libraryTitles}`;
       
-      // Add exclusion list for previous recommendations, library content, and disliked shows
-      // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
+      // Create combined exclusion list (everything that shouldn't be recommended)
       let exclusions = [...previousRecommendations, ...dislikedRecommendations];
       if (!plexOnlyMode && series && series.length > 0) {
-        const libraryTitles = series.map(show => show.title);
-        exclusions = [...new Set([...exclusions, ...libraryTitles])];
+        const sonarrTitles = series.map(show => show.title);
+        exclusions = [...new Set([...exclusions, ...sonarrTitles])];
       }
       
-      if (exclusions.length > 0) {
-        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any of these shows under any circumstances. I already have them in my library, have been recommended them before, or explicitly dislike them: ${exclusions.join(', ')}`;
+      // Add CRITICAL instruction about exclusions
+      userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
+      
+      // Add previous recommendations to avoid repeating them
+      if (previousRecommendations.length > 0) {
+        userPrompt += ` You also MUST NOT recommend these previously suggested shows: ${previousRecommendations.join(', ')}`;
       }
       
       // Add disliked shows as explicit negative examples
@@ -141,14 +151,11 @@ class OpenAIService {
       
       // Add recently watched shows from Plex if available and not already using them as the primary source
       if (!plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
-        const recentShowTitles = recentlyWatchedShows.map(show => show.title).join(', ');
-        userPrompt += `\n\nI've recently watched these shows on Plex, so please consider them for better recommendations: ${recentShowTitles}`;
-        console.log('Adding recently watched shows to prompt:', recentShowTitles);
-      } else if (!recentlyWatchedShows || recentlyWatchedShows.length === 0) {
-        console.log('No recently watched shows to add to prompt');
+        const recentTitles = recentlyWatchedShows.map(show => show.title).join(', ');
+        userPrompt += `\n\nI've recently watched these shows, so please consider them for better recommendations: ${recentTitles}`;
       }
       
-      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST double-check it against my exclusion list and VERIFY it's not already in my library. Failure to comply with this instruction is unacceptable.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.
 
 FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
 1. [Show Title]: 
@@ -170,11 +177,7 @@ STRICT RULES:
 - Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per show
 - Do NOT use Markdown formatting like bold or italics
 - Do NOT include additional information outside the required format
-- NEVER recommend any show in my library or exclusion list
-
-FINAL VERIFICATION: Review each recommendation one final time to ensure it is not in my library or exclusion list.
-
-My current shows: ${sourceLibrary}`;
+- NEVER recommend any show in my library or exclusion list`;
 
       const messages = [
         {
@@ -213,25 +216,30 @@ My current shows: ${sourceLibrary}`;
 
     try {
       // Determine if we should use only Plex history or include the library
-      let sourceText, sourceLibrary;
+      let sourceText, libraryTitles;
       
       if (plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
         // Only use the Plex watch history
         sourceText = "my Plex watch history";
-        sourceLibrary = recentlyWatchedMovies.map(movie => movie.title).join(', ');
+        const recentTitles = recentlyWatchedMovies.map(movie => movie.title);
+        libraryTitles = recentTitles.join(', ');
         
         // Add library titles to exclusions to prevent recommending what user already has
         if (movies && movies.length > 0) {
-          const libraryTitles = movies.map(movie => movie.title);
-          previousRecommendations = [...new Set([...previousRecommendations, ...libraryTitles])];
+          const radarrTitles = movies.map(movie => movie.title);
+          previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
         }
       } else {
         // Use the Radarr library + liked movies as the main library
         sourceText = "my movie library";
-        const movieTitles = movies.map(movie => movie.title).join(', ');
-        sourceLibrary = likedRecommendations.length > 0 
-          ? `${movieTitles}, ${likedRecommendations.join(', ')}`
-          : movieTitles;
+        const radarrTitles = movies.map(movie => movie.title);
+        
+        // Include liked recommendations in the source library
+        if (likedRecommendations.length > 0) {
+          libraryTitles = [...radarrTitles, ...likedRecommendations].join(', ');
+        } else {
+          libraryTitles = radarrTitles.join(', ');
+        }
       }
       
       // Ensure count is within reasonable bounds
@@ -254,17 +262,22 @@ My current shows: ${sourceLibrary}`;
 4. Include a mix of both popular and lesser-known hidden gems
 5. Consider both classic and recent releases that have stood the test of time`;
       
+      // Add my current library for reference
+      userPrompt += `\n\nMy current movies: ${libraryTitles}`;
       
-      // Add exclusion list for previous recommendations, library content, and disliked movies
-      // For non-plex-only mode, we'll explicitly add library titles to exclusions as well
+      // Create combined exclusion list (everything that shouldn't be recommended)
       let exclusions = [...previousRecommendations, ...dislikedRecommendations];
       if (!plexOnlyMode && movies && movies.length > 0) {
-        const libraryTitles = movies.map(movie => movie.title);
-        exclusions = [...new Set([...exclusions, ...libraryTitles])];
+        const radarrTitles = movies.map(movie => movie.title);
+        exclusions = [...new Set([...exclusions, ...radarrTitles])];
       }
       
-      if (exclusions.length > 0) {
-        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any of these movies under any circumstances. I already have them in my library, have been recommended them before, or explicitly dislike them: ${exclusions.join(', ')}`;
+      // Add CRITICAL instruction about exclusions
+      userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
+      
+      // Add previous recommendations to avoid repeating them
+      if (previousRecommendations.length > 0) {
+        userPrompt += ` You also MUST NOT recommend these previously suggested movies: ${previousRecommendations.join(', ')}`;
       }
       
       // Add disliked movies as explicit negative examples
@@ -274,14 +287,11 @@ My current shows: ${sourceLibrary}`;
       
       // Add recently watched movies from Plex if available and not already using them as the primary source
       if (!plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
-        const recentMovieTitles = recentlyWatchedMovies.map(movie => movie.title).join(', ');
-        userPrompt += `\n\nI've recently watched these movies on Plex, so please consider them for better recommendations: ${recentMovieTitles}`;
-        console.log('Adding recently watched movies to prompt:', recentMovieTitles);
-      } else if (!recentlyWatchedMovies || recentlyWatchedMovies.length === 0) {
-        console.log('No recently watched movies to add to prompt');
+        const recentTitles = recentlyWatchedMovies.map(movie => movie.title).join(', ');
+        userPrompt += `\n\nI've recently watched these movies, so please consider them for better recommendations: ${recentTitles}`;
       }
       
-      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST double-check it against my exclusion list and VERIFY it's not already in my library. Failure to comply with this instruction is unacceptable.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.
 
 FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
 1. [Movie Title]: 
@@ -303,11 +313,7 @@ STRICT RULES:
 - Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per movie
 - Do NOT use Markdown formatting like bold or italics
 - Do NOT include additional information outside the required format
-- NEVER recommend any movie in my library or exclusion list
-
-FINAL VERIFICATION: Review each recommendation one final time to ensure it is not in my library or exclusion list.
-
-My current movies: ${sourceLibrary}`;
+- NEVER recommend any movie in my library or exclusion list`;
 
       const messages = [
         {
@@ -325,6 +331,27 @@ My current movies: ${sourceLibrary}`;
       console.error('Error getting movie recommendations:', error);
       throw error;
     }
+  }
+  
+  /**
+   * Get a sample of items from an array
+   * @param {Array} items - The array of items to sample from
+   * @param {number} count - The number of items to sample
+   * @returns {Array} - The sampled items
+   */
+  getSampleItems(items, count) {
+    if (!items || items.length === 0) return [];
+    if (items.length <= count) return items;
+    
+    // Shuffle array using Fisher-Yates algorithm
+    const shuffled = [...items];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    // Return the first 'count' items
+    return shuffled.slice(0, count);
   }
   
   /**

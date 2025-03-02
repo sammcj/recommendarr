@@ -28,6 +28,49 @@
         </div>
       </div>
       
+      <!-- User Selection Modal for Jellyfin -->
+      <div v-if="showJellyfinUserSelect && jellyfinConnected" class="modal-overlay">
+        <div class="jellyfin-user-modal">
+          <div class="modal-header">
+            <h4>Select Jellyfin User</h4>
+            <button class="close-button" @click="closeJellyfinUserSelect">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="jellyfinUsersLoading" class="loading-users">
+              <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+              </div>
+              <p>Loading users...</p>
+            </div>
+            <div v-else-if="jellyfinUsers.length === 0" class="no-users-found">
+              <p>No users found. Please check your API key permissions.</p>
+            </div>
+            <div v-else class="users-list">
+              <button 
+                v-for="user in jellyfinUsers" 
+                :key="user.id"
+                class="user-item"
+                :class="{ 'selected': user.id === selectedJellyfinUserId }"
+                @click="selectJellyfinUser(user)"
+              >
+                <span class="user-name">{{ user.name }}</span>
+                <span v-if="user.isAdministrator" class="user-badge admin">Admin</span>
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="cancel-button" @click="closeJellyfinUserSelect">Cancel</button>
+            <button 
+              class="apply-button" 
+              @click="applyJellyfinUserSelection"
+              :disabled="!selectedJellyfinUserId"
+            >
+              Apply Selection
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" />
       <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" />
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @limitChanged="handlePlexLimitChanged" />
@@ -54,6 +97,7 @@
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
             @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
+            @openJellyfinUserSelect="openJellyfinUserSelect"
           />
           
           <MovieRecommendations 
@@ -69,6 +113,7 @@
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
             @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
+            @openJellyfinUserSelect="openJellyfinUserSelect"
           />
           
           <AISettings
@@ -121,6 +166,10 @@ export default {
       showRadarrConnect: false,
       showPlexConnect: false,
       showJellyfinConnect: false,
+      showJellyfinUserSelect: false,
+      jellyfinUsers: [],
+      jellyfinUsersLoading: false,
+      selectedJellyfinUserId: '',
       activeTab: 'tv-recommendations',
       series: [],
       movies: [],
@@ -194,6 +243,49 @@ export default {
     }
   },
   methods: {
+    async openJellyfinUserSelect() {
+      this.showJellyfinUserSelect = true;
+      this.jellyfinUsersLoading = true;
+      this.jellyfinUsers = [];
+      this.selectedJellyfinUserId = jellyfinService.userId;
+      
+      try {
+        this.jellyfinUsers = await jellyfinService.getUsers();
+      } catch (error) {
+        console.error('Error fetching Jellyfin users:', error);
+      } finally {
+        this.jellyfinUsersLoading = false;
+      }
+    },
+    
+    closeJellyfinUserSelect() {
+      this.showJellyfinUserSelect = false;
+    },
+    
+    selectJellyfinUser(user) {
+      this.selectedJellyfinUserId = user.id;
+    },
+    
+    async applyJellyfinUserSelection() {
+      if (!this.selectedJellyfinUserId) return;
+      
+      // Save current history limit to ensure it persists across user changes
+      localStorage.setItem('jellyfinHistoryLimit', this.jellyfinRecentLimit.toString());
+      
+      // Update the Jellyfin service with the new user ID
+      jellyfinService.configure(
+        jellyfinService.baseUrl,
+        jellyfinService.apiKey,
+        this.selectedJellyfinUserId
+      );
+      
+      // Close the modal
+      this.showJellyfinUserSelect = false;
+      
+      // Fetch updated watch history
+      this.fetchJellyfinData();
+    },
+    
     async checkSonarrConnection() {
       try {
         const success = await sonarrService.testConnection();
@@ -656,5 +748,151 @@ main {
   opacity: 0.8;
   margin-top: 5px;
   font-size: 12px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.jellyfin-user-modal {
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  border: 1px solid var(--border-color);
+}
+
+.modal-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h4 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--header-color);
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-color);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.loading-users {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+}
+
+.no-users-found {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-color);
+}
+
+.users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-color);
+}
+
+.user-item:hover {
+  border-color: var(--button-primary-bg);
+  background-color: var(--button-secondary-bg);
+}
+
+.user-item.selected {
+  border-color: var(--button-primary-bg);
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.user-name {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.user-badge {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+.user-badge.admin {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.apply-button {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.apply-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  background-color: var(--button-secondary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--button-secondary-text);
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
 }
 </style>

@@ -216,6 +216,48 @@
                       </label>
                     </div>
                   </div>
+                  
+                  <div v-if="jellyfinConfigured" class="jellyfin-options">
+                    <label>Jellyfin Watch History:</label>
+                    <div class="jellyfin-history-toggle">
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="jellyfinHistoryMode" 
+                          value="all"
+                          @change="saveJellyfinHistoryMode"
+                        >
+                        All watch history
+                      </label>
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="jellyfinHistoryMode" 
+                          value="recent"
+                          @change="saveJellyfinHistoryMode"
+                        >
+                        Recent (30 days)
+                      </label>
+                    </div>
+                    
+                    <div class="jellyfin-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="jellyfinOnlyMode" 
+                          @change="saveJellyfinOnlyMode"
+                        >
+                        Use only Jellyfin history for recommendations (ignore library)
+                      </label>
+                    </div>
+                    
+                    <button 
+                      class="jellyfin-user-select-button action-button"
+                      @click="$emit('openJellyfinUserSelect')"
+                    >
+                      Change Jellyfin User
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -414,7 +456,15 @@ export default {
       type: Array,
       default: () => []
     },
+    jellyfinRecentlyWatchedMovies: {
+      type: Array,
+      default: () => []
+    },
     plexConfigured: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinConfigured: {
       type: Boolean,
       default: false
     }
@@ -444,6 +494,8 @@ export default {
       selectedGenres: [], // Multiple genre selections
       plexHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
+      jellyfinHistoryMode: 'all', // 'all' or 'recent'
+      jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       funLoadingMessages: [
@@ -682,7 +734,35 @@ export default {
     // Save Plex only mode preference
     savePlexOnlyMode() {
       localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
+      
+      // If enabling Plex only mode, disable Jellyfin only mode
+      if (this.plexOnlyMode && this.jellyfinOnlyMode) {
+        this.jellyfinOnlyMode = false;
+        localStorage.setItem('jellyfinOnlyMode', 'false');
+        this.$emit('jellyfinOnlyModeChanged', false);
+      }
+      
       this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
+    },
+    
+    // Save Jellyfin history mode preference
+    saveJellyfinHistoryMode() {
+      localStorage.setItem('jellyfinHistoryMode', this.jellyfinHistoryMode);
+      this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+    },
+    
+    // Save Jellyfin only mode preference
+    saveJellyfinOnlyMode() {
+      localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
+      
+      // If enabling Jellyfin only mode, disable Plex only mode
+      if (this.jellyfinOnlyMode && this.plexOnlyMode) {
+        this.plexOnlyMode = false;
+        localStorage.setItem('plexOnlyMode', 'false');
+        this.$emit('plexOnlyModeChanged', false);
+      }
+      
+      this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
     },
     
     // Save previous recommendations to localStorage
@@ -1425,6 +1505,47 @@ h2 {
   margin-bottom: 20px;
   color: var(--header-color);
   transition: color var(--transition-speed);
+}
+
+.plex-options, .jellyfin-options {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+}
+
+.plex-history-toggle, .jellyfin-history-toggle {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toggle-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+  font-size: 14px;
+}
+
+.toggle-option input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.plex-only-toggle, .jellyfin-only-toggle {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.jellyfin-user-select-button {
+  margin-top: 15px;
+  width: auto;
+  max-width: 200px;
+  padding: 8px 16px;
+  font-size: 14px;
 }
 
 .setup-section {

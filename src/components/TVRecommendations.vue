@@ -102,7 +102,7 @@
                       
                       <div v-if="useSampledLibrary" class="sample-size-control">
                         <label for="sampleSizeSlider">Sample size: <span class="count-display">{{ sampleSize }}</span></label>
-                        <div class="slider-container">
+                        <div class="slider-container sample-slider-container">
                           <input 
                             type="range" 
                             id="sampleSizeSlider"
@@ -1016,6 +1016,9 @@ export default {
         this.error = 'AI service is not configured. Please provide an API key.';
         return;
       }
+      
+      // Reset recommendations array to ensure counter starts at 0
+      this.recommendations = [];
       
       this.loading = true;
       this.error = null;
@@ -2705,8 +2708,13 @@ select:hover {
 }
 
 .sample-size-control {
-  margin-top: 12px;
+  margin-top: 10px;
   margin-left: 22px;
+  padding-top: 10px;
+}
+
+.sample-slider-container {
+  margin-top: 10px;
 }
 
 .clear-history-button:hover {

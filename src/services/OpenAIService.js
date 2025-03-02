@@ -446,6 +446,7 @@ STRICT RULES:
   parseRecommendations(content) {
     // Optimized parsing method
     const recommendations = [];
+    const seenTitles = new Set(); // Track seen titles to prevent duplicates
     
     // Validate content
     if (!content || typeof content !== 'string') {
@@ -527,6 +528,13 @@ STRICT RULES:
           }
         }
         
+        // Check if this title is a duplicate (case-insensitive)
+        const titleLower = title.toLowerCase();
+        if (seenTitles.has(titleLower)) {
+          console.log(`Skipping duplicate recommendation: "${title}"`);
+          continue;
+        }
+        
         // Extract common fields using helper method with fallbacks for flexibility
         let description = this.extractFieldFromText(details, 'Description', 'Why you might like it');
         let reasoning = this.extractFieldFromText(details, 'Why you might like it', 'Recommendarr Rating');
@@ -562,6 +570,9 @@ STRICT RULES:
         if (!description && !reasoning && !streaming) {
           continue;
         }
+        
+        // Add title to seen titles set to prevent duplicates
+        seenTitles.add(titleLower);
         
         recommendations.push({
           title,

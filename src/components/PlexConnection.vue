@@ -1,28 +1,30 @@
 <template>
-  <div class="radarr-connection">
-    <h2>Connect to Radarr</h2>
+  <div class="plex-connection">
+    <h2>Connect to Plex</h2>
     
     <form @submit.prevent="connect">
       <div class="form-group">
-        <label for="baseUrl">Radarr URL:</label>
+        <label for="baseUrl">Plex URL:</label>
         <input 
           id="baseUrl" 
           v-model="baseUrl" 
           type="text" 
-          placeholder="http://localhost:7878"
+          placeholder="http://localhost:32400"
           required
         />
+        <p class="help-text">Enter your Plex server address, including port (usually 32400)</p>
       </div>
       
       <div class="form-group">
-        <label for="apiKey">API Key:</label>
+        <label for="token">Plex Token:</label>
         <input 
-          id="apiKey" 
-          v-model="apiKey" 
+          id="token" 
+          v-model="token" 
           type="password" 
-          placeholder="Your Radarr API key"
+          placeholder="Your Plex token"
           required
         />
+        <p class="help-text">Your Plex authentication token - <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank">How to find your Plex token</a></p>
       </div>
       
       <button type="submit" :disabled="connecting">
@@ -35,35 +37,69 @@
         Connected successfully!
       </p>
       <p v-else-if="connectionStatus === 'error'" class="error">
-        Connection failed. Please check your URL and API key.
+        Connection failed. Please check your URL and token.
       </p>
+    </div>
+
+    <div v-if="connectionStatus === 'success'" class="recently-watched-options">
+      <h3>Recently Watched Options</h3>
+      
+      <div class="form-group">
+        <label for="recentLimit">Number of recently watched items to include:</label>
+        <div class="limit-control">
+          <input 
+            id="recentLimit" 
+            v-model.number="recentLimit" 
+            type="number" 
+            min="1" 
+            max="100" 
+            @change="saveRecentLimit"
+          />
+          <div class="limit-buttons">
+            <button type="button" @click="decreaseLimit" class="limit-btn">-</button>
+            <button type="button" @click="increaseLimit" class="limit-btn">+</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import radarrService from '../services/RadarrService';
+import plexService from '../services/PlexService';
 
 export default {
-  name: 'RadarrConnection',
+  name: 'PlexConnection',
   data() {
     return {
       baseUrl: '',
-      apiKey: '',
+      token: '',
       connectionStatus: null,
-      connecting: false
+      connecting: false,
+      recentLimit: 50 // Default limit for recently watched items
     };
   },
   created() {
     // Load saved credentials if they exist
-    const savedBaseUrl = localStorage.getItem('radarrBaseUrl');
-    const savedApiKey = localStorage.getItem('radarrApiKey');
+    const savedBaseUrl = localStorage.getItem('plexBaseUrl');
+    const savedToken = localStorage.getItem('plexToken');
+    const savedRecentLimit = localStorage.getItem('plexRecentLimit');
     
-    if (savedBaseUrl && savedApiKey) {
+    if (savedBaseUrl && savedToken) {
       this.baseUrl = savedBaseUrl;
-      this.apiKey = savedApiKey;
+      this.token = savedToken;
       // Try to automatically connect with saved credentials
       this.autoConnect();
+    }
+
+    if (savedRecentLimit) {
+      this.recentLimit = parseInt(savedRecentLimit, 10);
+      // Validate the value is within range
+      if (isNaN(this.recentLimit) || this.recentLimit < 1) {
+        this.recentLimit = 5;
+      } else if (this.recentLimit > 50) {
+        this.recentLimit = 50;
+      }
     }
   },
   methods: {
@@ -79,22 +115,23 @@ export default {
         }
         
         // Configure the service with saved details
-        radarrService.configure(this.baseUrl, this.apiKey);
+        plexService.configure(this.baseUrl, this.token);
         
         // Test the connection
-        const success = await radarrService.testConnection();
+        const success = await plexService.testConnection();
         
         // Only emit event if successful
         if (success) {
           // Update the URL in case it was normalized
           this.saveCredentials();
+          this.connectionStatus = 'success';
           this.$emit('connected');
         } else {
           // Clear invalid credentials
           this.clearStoredCredentials();
         }
       } catch (error) {
-        console.error('Error auto-connecting to Radarr:', error);
+        console.error('Error auto-connecting to Plex:', error);
         // Clear invalid credentials
         this.clearStoredCredentials();
       } finally {
@@ -113,10 +150,10 @@ export default {
         }
         
         // Configure the service with provided details
-        radarrService.configure(this.baseUrl, this.apiKey);
+        plexService.configure(this.baseUrl, this.token);
         
         // Test the connection
-        const success = await radarrService.testConnection();
+        const success = await plexService.testConnection();
         
         // Update status based on response
         this.connectionStatus = success ? 'success' : 'error';
@@ -127,7 +164,7 @@ export default {
           this.$emit('connected');
         }
       } catch (error) {
-        console.error('Error connecting to Radarr:', error);
+        console.error('Error connecting to Plex:', error);
         this.connectionStatus = 'error';
       } finally {
         this.connecting = false;
@@ -159,19 +196,39 @@ export default {
     },
     
     saveCredentials() {
-      localStorage.setItem('radarrBaseUrl', this.baseUrl);
-      localStorage.setItem('radarrApiKey', this.apiKey);
+      localStorage.setItem('plexBaseUrl', this.baseUrl);
+      localStorage.setItem('plexToken', this.token);
     },
     clearStoredCredentials() {
-      localStorage.removeItem('radarrBaseUrl');
-      localStorage.removeItem('radarrApiKey');
+      localStorage.removeItem('plexBaseUrl');
+      localStorage.removeItem('plexToken');
+    },
+    increaseLimit() {
+      if (this.recentLimit < 100) {
+        this.recentLimit++;
+        this.saveRecentLimit();
+      }
+    },
+    decreaseLimit() {
+      if (this.recentLimit > 1) {
+        this.recentLimit--;
+        this.saveRecentLimit();
+      }
+    },
+    saveRecentLimit() {
+      // Ensure limit is within bounds
+      if (this.recentLimit < 1) this.recentLimit = 1;
+      if (this.recentLimit > 100) this.recentLimit = 100;
+      
+      localStorage.setItem('plexRecentLimit', this.recentLimit);
+      this.$emit('limitChanged', this.recentLimit);
     }
   }
 };
 </script>
 
 <style scoped>
-.radarr-connection {
+.plex-connection {
   max-width: 500px;
   margin: 0 auto;
   padding: 20px;
@@ -184,10 +241,21 @@ export default {
               box-shadow var(--transition-speed);
 }
 
-h2 {
-  margin-top: 0;
+h2, h3 {
   color: var(--header-color);
   transition: color var(--transition-speed);
+}
+
+h2 {
+  margin-top: 0;
+}
+
+h3 {
+  font-size: 1.2em;
+  margin-top: 20px;
+  margin-bottom: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
 }
 
 .form-group {
@@ -213,6 +281,27 @@ input {
   transition: background-color var(--transition-speed), 
               border-color var(--transition-speed),
               color var(--transition-speed);
+}
+
+input[type="number"] {
+  width: 60px;
+  text-align: center;
+}
+
+.help-text {
+  font-size: 12px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  transition: color var(--transition-speed);
+}
+
+.help-text a {
+  color: var(--button-primary-bg);
+  text-decoration: none;
+}
+
+.help-text a:hover {
+  text-decoration: underline;
 }
 
 button {
@@ -251,5 +340,32 @@ button:disabled {
 .error {
   color: #f44336;
   transition: color var(--transition-speed);
+}
+
+.limit-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.limit-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.limit-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.recently-watched-options {
+  margin-top: 15px;
 }
 </style>

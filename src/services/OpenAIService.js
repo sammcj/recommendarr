@@ -361,6 +361,12 @@ My current movies: ${sourceLibrary}`;
         { headers }
       );
 
+      // Check if response contains expected data structure
+      if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+        console.error('Unexpected API response format:', response.data);
+        throw new Error('The AI API returned an unexpected response format. Please try again.');
+      }
+      
       // Parse the recommendations from the response
       const recommendations = this.parseRecommendations(response.data.choices[0].message.content);
       return recommendations;
@@ -378,6 +384,12 @@ My current movies: ${sourceLibrary}`;
   parseRecommendations(content) {
     // Optimized parsing method
     const recommendations = [];
+    
+    // Validate content
+    if (!content || typeof content !== 'string') {
+      console.error('Invalid content for parsing:', content);
+      return recommendations; // Return empty array instead of throwing
+    }
     
     // Split the response by numbered entries (1., 2., etc.)
     const sections = content.split(/\d+\.\s+/).filter(Boolean);
@@ -437,6 +449,20 @@ My current movies: ${sourceLibrary}`;
             title.toLowerCase() === "description" ||
             title.length > 50) {
           continue;
+        }
+        
+        // Fix case where "Description:" is malformed into the title portion
+        if (title.toLowerCase().includes("description")) {
+          // Try to extract the actual title from before "description"
+          const descIndex = title.toLowerCase().indexOf("description");
+          if (descIndex > 0) {
+            const possibleTitle = title.substring(0, descIndex).trim();
+            // Only use it if it seems like a reasonable title
+            if (possibleTitle.length > 0 && possibleTitle.length < 50 && 
+                !possibleTitle.toLowerCase().includes("here are")) {
+              title = possibleTitle;
+            }
+          }
         }
         
         // Extract common fields using helper method with fallbacks for flexibility

@@ -1234,13 +1234,15 @@ export default {
           updatedPrevious,
           this.likedRecommendations,
           this.dislikedRecommendations,
-          this.recentlyWatchedShows,
-          this.plexOnlyMode
+          this.plexOnlyMode ? this.recentlyWatchedShows : 
+            this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedShows :
+            [...this.recentlyWatchedShows, ...this.jellyfinRecentlyWatchedShows],
+          this.plexOnlyMode || this.jellyfinOnlyMode
         );
         
         // Filter the additional recommendations
         let filteredAdditional = additionalRecommendations;
-        if (filteredAdditional.length > 0 && !this.plexOnlyMode) {
+        if (filteredAdditional.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
           filteredAdditional = await this.filterExistingShows(filteredAdditional);
         }
         

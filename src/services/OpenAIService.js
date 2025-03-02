@@ -8,6 +8,8 @@ class OpenAIService {
     this.model = localStorage.getItem('openaiModel') || 'gpt-3.5-turbo';
     this.maxTokens = parseInt(localStorage.getItem('aiMaxTokens') || '800');
     this.temperature = parseFloat(localStorage.getItem('aiTemperature') || '0.5');
+    this.useSampledLibrary = localStorage.getItem('useSampledLibrary') === 'true' || false;
+    this.sampleSize = parseInt(localStorage.getItem('librarySampleSize') || '20');
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -30,8 +32,10 @@ class OpenAIService {
    * @param {string} baseUrl - The base API URL
    * @param {number} maxTokens - Maximum tokens for completion
    * @param {number} temperature - Temperature for randomness
+   * @param {boolean} useSampledLibrary - Whether to use sampled library for recommendations
+   * @param {number} sampleSize - Sample size to use when sampling the library
    */
-  configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null) {
+  configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null) {
     this.apiKey = apiKey;
     
     if (model) {
@@ -50,6 +54,16 @@ class OpenAIService {
     
     if (temperature !== null) {
       this.temperature = temperature;
+    }
+    
+    if (useSampledLibrary !== null) {
+      this.useSampledLibrary = useSampledLibrary;
+      localStorage.setItem('useSampledLibrary', useSampledLibrary.toString());
+    }
+    
+    if (sampleSize !== null) {
+      this.sampleSize = sampleSize;
+      localStorage.setItem('librarySampleSize', sampleSize.toString());
     }
   }
 
@@ -80,13 +94,14 @@ class OpenAIService {
 
     try {
       // Determine if we should use only Plex history or include the library
-      let sourceText, libraryTitles;
+      let sourceText;
+      let primarySource = [];
+      let libraryTitles = '';
       
       if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
         // Only use the Plex watch history
         sourceText = "my Plex watch history";
-        const recentTitles = recentlyWatchedShows.map(show => show.title);
-        libraryTitles = recentTitles.join(', ');
+        primarySource = recentlyWatchedShows.map(show => show.title);
         
         // Add library titles to exclusions to prevent recommending what user already has
         if (series && series.length > 0) {
@@ -97,13 +112,29 @@ class OpenAIService {
         // Use the Sonarr library + liked shows as the main library
         sourceText = "my TV show library";
         const sonarrTitles = series.map(show => show.title);
+        primarySource = [...sonarrTitles];
         
         // Include liked recommendations in the source library
         if (likedRecommendations.length > 0) {
-          libraryTitles = [...sonarrTitles, ...likedRecommendations].join(', ');
-        } else {
-          libraryTitles = sonarrTitles.join(', ');
+          primarySource = [...primarySource, ...likedRecommendations];
         }
+      }
+      
+      // Create combined exclusion list (everything that shouldn't be recommended)
+      if (!plexOnlyMode && series && series.length > 0) {
+        // We're adding these items to previousRecommendations to ensure they're excluded
+        const sonarrTitles = series.map(show => show.title);
+        previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
+      }
+      
+      // Determine if we're using the full library or sampled approach
+      if (this.useSampledLibrary) {
+        // Use a sampled approach for efficiency
+        const sampleShows = this.getSampleItems(primarySource, this.sampleSize);
+        libraryTitles = sampleShows.join(', ');
+      } else {
+        // Use the full library approach
+        libraryTitles = primarySource.join(', ');
       }
       
       // Ensure count is within reasonable bounds
@@ -126,18 +157,19 @@ class OpenAIService {
 4. Include a mix of both popular and lesser-known hidden gems
 5. Focus on complete or ongoing shows with consistent quality, not canceled after 1-2 seasons`;
       
-      // Add my current library for reference
-      userPrompt += `\n\nMy current shows: ${libraryTitles}`;
-      
-      // Create combined exclusion list (everything that shouldn't be recommended)
-      let exclusions = [...previousRecommendations, ...dislikedRecommendations];
-      if (!plexOnlyMode && series && series.length > 0) {
-        const sonarrTitles = series.map(show => show.title);
-        exclusions = [...new Set([...exclusions, ...sonarrTitles])];
+      // Add library information with appropriate context based on mode
+      if (this.useSampledLibrary) {
+        userPrompt += `\n\nHere are some examples from my library (${primarySource.length} shows total) to understand my taste: ${libraryTitles}`;
+      } else {
+        userPrompt += `\n\nMy current shows: ${libraryTitles}`;
       }
       
       // Add CRITICAL instruction about exclusions
-      userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
+      if (this.useSampledLibrary) {
+        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows that I already have in my library.`;
+      } else {
+        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
+      }
       
       // Add previous recommendations to avoid repeating them
       if (previousRecommendations.length > 0) {
@@ -216,13 +248,14 @@ STRICT RULES:
 
     try {
       // Determine if we should use only Plex history or include the library
-      let sourceText, libraryTitles;
+      let sourceText;
+      let primarySource = [];
+      let libraryTitles = '';
       
       if (plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
         // Only use the Plex watch history
         sourceText = "my Plex watch history";
-        const recentTitles = recentlyWatchedMovies.map(movie => movie.title);
-        libraryTitles = recentTitles.join(', ');
+        primarySource = recentlyWatchedMovies.map(movie => movie.title);
         
         // Add library titles to exclusions to prevent recommending what user already has
         if (movies && movies.length > 0) {
@@ -233,13 +266,29 @@ STRICT RULES:
         // Use the Radarr library + liked movies as the main library
         sourceText = "my movie library";
         const radarrTitles = movies.map(movie => movie.title);
+        primarySource = [...radarrTitles];
         
         // Include liked recommendations in the source library
         if (likedRecommendations.length > 0) {
-          libraryTitles = [...radarrTitles, ...likedRecommendations].join(', ');
-        } else {
-          libraryTitles = radarrTitles.join(', ');
+          primarySource = [...primarySource, ...likedRecommendations];
         }
+      }
+      
+      // Create combined exclusion list (everything that shouldn't be recommended)
+      if (!plexOnlyMode && movies && movies.length > 0) {
+        // We're adding these items to previousRecommendations to ensure they're excluded
+        const radarrTitles = movies.map(movie => movie.title);
+        previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
+      }
+      
+      // Determine if we're using the full library or sampled approach
+      if (this.useSampledLibrary) {
+        // Use a sampled approach for efficiency
+        const sampleMovies = this.getSampleItems(primarySource, this.sampleSize);
+        libraryTitles = sampleMovies.join(', ');
+      } else {
+        // Use the full library approach
+        libraryTitles = primarySource.join(', ');
       }
       
       // Ensure count is within reasonable bounds
@@ -262,18 +311,19 @@ STRICT RULES:
 4. Include a mix of both popular and lesser-known hidden gems
 5. Consider both classic and recent releases that have stood the test of time`;
       
-      // Add my current library for reference
-      userPrompt += `\n\nMy current movies: ${libraryTitles}`;
-      
-      // Create combined exclusion list (everything that shouldn't be recommended)
-      let exclusions = [...previousRecommendations, ...dislikedRecommendations];
-      if (!plexOnlyMode && movies && movies.length > 0) {
-        const radarrTitles = movies.map(movie => movie.title);
-        exclusions = [...new Set([...exclusions, ...radarrTitles])];
+      // Add library information with appropriate context based on mode
+      if (this.useSampledLibrary) {
+        userPrompt += `\n\nHere are some examples from my library (${primarySource.length} movies total) to understand my taste: ${libraryTitles}`;
+      } else {
+        userPrompt += `\n\nMy current movies: ${libraryTitles}`;
       }
       
       // Add CRITICAL instruction about exclusions
-      userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
+      if (this.useSampledLibrary) {
+        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies that I already have in my library.`;
+      } else {
+        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
+      }
       
       // Add previous recommendations to avoid repeating them
       if (previousRecommendations.length > 0) {

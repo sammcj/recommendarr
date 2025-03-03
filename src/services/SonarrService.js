@@ -47,6 +47,42 @@ class SonarrService {
   }
   
   /**
+   * Check if a series already exists in the Sonarr library
+   * @param {string} title - The series title to search for
+   * @returns {Promise<Object|null>} - Series info if found in library, null otherwise
+   */
+  async findExistingSeriesByTitle(title) {
+    if (!this.isConfigured()) {
+      throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
+    }
+    
+    try {
+      // Search in the existing library
+      const libraryResponse = await axios.get(`${this.baseUrl}/api/v3/series`, {
+        params: { apiKey: this.apiKey }
+      });
+      
+      // Look for exact match first
+      let match = libraryResponse.data.find(show => 
+        show.title.toLowerCase() === title.toLowerCase()
+      );
+      
+      // If no exact match, try a more flexible search
+      if (!match) {
+        match = libraryResponse.data.find(show => 
+          show.title.toLowerCase().includes(title.toLowerCase()) || 
+          title.toLowerCase().includes(show.title.toLowerCase())
+        );
+      }
+      
+      return match || null;
+    } catch (error) {
+      console.error(`Error checking if series "${title}" exists in Sonarr:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Search for a series by title in Sonarr
    * @param {string} title - The series title to search for
    * @returns {Promise<Object|null>} - Series info if found, null otherwise

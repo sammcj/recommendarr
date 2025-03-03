@@ -89,9 +89,11 @@ class OpenAIService {
    * @param {Array} [dislikedRecommendations=[]] - List of shows the user has disliked
    * @param {Array} [recentlyWatchedShows=[]] - List of recently watched shows from Plex
    * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
+   * @param {string} [customVibe=''] - Optional custom vibe/mood for recommendations
+   * @param {string} [language=''] - Optional language preference for recommendations
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false, customVibe = '') {
+  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false, customVibe = '', language = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -155,6 +157,11 @@ class OpenAIService {
       // Add custom vibe if specified
       if (customVibe && customVibe.trim()) {
         userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+      }
+      
+      // Add language preference if specified
+      if (language) {
+        userPrompt += ` Please ONLY recommend TV shows in ${language} language.`;
       }
       
       // Add instructions for diverse, high-quality recommendations
@@ -265,9 +272,11 @@ STRICT RULES:
    * @param {Array} [dislikedRecommendations=[]] - List of movies the user has disliked
    * @param {Array} [recentlyWatchedMovies=[]] - List of recently watched movies from Plex
    * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
+   * @param {string} [customVibe=''] - Optional custom vibe/mood for recommendations
+   * @param {string} [language=''] - Optional language preference for recommendations
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '') {
+  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '', language = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -332,6 +341,11 @@ STRICT RULES:
       // Add custom vibe if specified
       if (customVibe && customVibe.trim()) {
         userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+      }
+      
+      // Add language preference if specified
+      if (language) {
+        userPrompt += ` Please ONLY recommend movies in ${language} language.`;
       }
       
       // Add instructions for diverse, high-quality recommendations
@@ -459,9 +473,10 @@ STRICT RULES:
    * @param {Array} previousRecommendations - List of shows to exclude from recommendations
    * @param {string} genre - Optional genre preference
    * @param {string} customVibe - Optional custom vibe
+   * @param {string} language - Optional language preference
    * @returns {Promise<Array>} - List of additional recommended TV shows
    */
-  async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '') {
+  async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -486,6 +501,11 @@ STRICT RULES:
       // Add custom vibe if specified
       if (customVibe && customVibe.trim()) {
         userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+      }
+      
+      // Add language preference if specified
+      if (language) {
+        userPrompt += ` Please ONLY recommend TV shows in ${language} language.`;
       }
       
       // Add previous recommendations to avoid repeating them
@@ -515,9 +535,10 @@ STRICT RULES:
    * @param {Array} previousRecommendations - List of movies to exclude from recommendations
    * @param {string} genre - Optional genre preference
    * @param {string} customVibe - Optional custom vibe
+   * @param {string} language - Optional language preference
    * @returns {Promise<Array>} - List of additional recommended movies
    */
-  async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '') {
+  async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
     if (!this.isConfigured()) {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
@@ -542,6 +563,11 @@ STRICT RULES:
       // Add custom vibe if specified
       if (customVibe && customVibe.trim()) {
         userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+      }
+      
+      // Add language preference if specified
+      if (language) {
+        userPrompt += ` Please ONLY recommend movies in ${language} language.`;
       }
       
       // Add previous recommendations to avoid repeating them

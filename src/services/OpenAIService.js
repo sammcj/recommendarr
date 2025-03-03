@@ -80,7 +80,7 @@ class OpenAIService {
       headers['x-api-key'] = this.apiKey;
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
       headers['anthropic-version'] = '2023-06-01';
-    } else {
+    } else if (this.apiKey) { // Only add Authorization header if apiKey is present
       headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
     
@@ -162,7 +162,8 @@ class OpenAIService {
    * @returns {boolean} - Whether the service is configured
    */
   isConfigured() {
-    return Boolean(this.apiKey);
+    // Check if baseUrl is set, but allow empty apiKey for local models
+    return this.baseUrl !== '' && this.apiKey !== undefined;
   }
 
   /**
@@ -715,7 +716,7 @@ STRICT RULES:
         headers['x-api-key'] = this.apiKey;
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
         headers['anthropic-version'] = '2023-06-01';
-      } else {
+      } else if (this.apiKey) { // Only add Authorization header if apiKey is present
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       }
       
@@ -776,7 +777,7 @@ STRICT RULES:
         headers['x-api-key'] = this.apiKey;
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
         headers['anthropic-version'] = '2023-06-01';
-      } else {
+      } else if (this.apiKey) { // Only add Authorization header if apiKey is present
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       }
       

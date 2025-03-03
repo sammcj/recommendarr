@@ -216,8 +216,7 @@
               id="apiKey" 
               v-model="aiSettings.apiKey" 
               :type="showApiKey ? 'text' : 'password'" 
-              placeholder="Your API key"
-              required
+              placeholder="Your API key (can be empty for local models)"
             />
             <button type="button" class="toggle-button" @click="showApiKey = !showApiKey">
               {{ showApiKey ? 'Hide' : 'Show' }}
@@ -232,7 +231,7 @@
             <button 
               type="button" 
               @click="fetchModels" 
-              :disabled="!aiSettings.apiKey || isLoading"
+              :disabled="this.aiSettings.apiKey === undefined || isLoading"
               class="action-button"
             >
               <span class="button-icon" v-if="isLoading">
@@ -1170,8 +1169,9 @@ export default {
     
     // AI Service Methods
     async fetchModels() {
-      if (!this.aiSettings.apiKey) {
-        this.fetchError = 'API key is required to fetch models';
+      // Allow empty API key for local models
+      if (this.aiSettings.apiKey === undefined) {
+        this.fetchError = 'API key field cannot be undefined';
         return;
       }
       

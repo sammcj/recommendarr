@@ -116,6 +116,10 @@
             @openJellyfinUserSelect="openJellyfinUserSelect"
           />
           
+          <History
+            v-if="activeTab === 'history'"
+          />
+          
           <AISettings
             v-if="activeTab === 'settings'"
             :sonarrConnected="sonarrConnected"
@@ -142,6 +146,7 @@ import JellyfinConnection from './components/JellyfinConnection.vue'
 import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/TVRecommendations.vue'
 import MovieRecommendations from './components/MovieRecommendations.vue'
+import History from './components/History.vue'
 import AISettings from './components/AISettings.vue'
 import sonarrService from './services/SonarrService'
 import radarrService from './services/RadarrService'
@@ -158,6 +163,7 @@ export default {
     AppNavigation,
     TVRecommendations,
     MovieRecommendations,
+    History,
     AISettings
   },
   data() {

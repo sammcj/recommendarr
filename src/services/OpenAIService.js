@@ -97,8 +97,8 @@ class OpenAIService {
     }
 
     try {
-      // Reset conversation history when starting a fresh recommendation
-      this.tvConversation = [];
+      // Only initialize conversation history if it doesn't exist yet
+      if (this.tvConversation.length === 0) {
       
       // Determine if we should use only Plex history or include the library
       let sourceText;
@@ -230,6 +230,13 @@ STRICT RULES:
           content: userPrompt
         }
       ];
+      } else {
+        // If conversation exists, just add a new request message
+        this.tvConversation.push({
+          role: "user",
+          content: `Based on our previous conversation, please recommend ${count} new TV shows I might enjoy. ${genre ? `Focus on ${genre} genres.` : ''} ${customVibe ? `Try to match this vibe: "${customVibe}"` : ''} Use the same format as before.`
+        });
+      }
       
       // Get initial recommendations using the conversation
       const recommendations = await this.getFormattedRecommendationsWithConversation(this.tvConversation);
@@ -266,8 +273,8 @@ STRICT RULES:
     }
 
     try {
-      // Reset conversation history when starting a fresh recommendation
-      this.movieConversation = [];
+      // Only initialize conversation history if it doesn't exist yet
+      if (this.movieConversation.length === 0) {
       
       // Determine if we should use only Plex history or include the library
       let sourceText;
@@ -400,6 +407,13 @@ STRICT RULES:
           content: userPrompt
         }
       ];
+      } else {
+        // If conversation exists, just add a new request message
+        this.movieConversation.push({
+          role: "user",
+          content: `Based on our previous conversation, please recommend ${count} new movies I might enjoy. ${genre ? `Focus on ${genre} genres.` : ''} ${customVibe ? `Try to match this vibe: "${customVibe}"` : ''} Use the same format as before.`
+        });
+      }
       
       // Get initial recommendations using the conversation
       const recommendations = await this.getFormattedRecommendationsWithConversation(this.movieConversation);

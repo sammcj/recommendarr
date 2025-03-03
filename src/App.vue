@@ -75,6 +75,49 @@
         </div>
       </div>
       
+      <!-- User Selection Modal for Tautulli -->
+      <div v-if="showTautulliUserSelect && tautulliConnected" class="modal-overlay">
+        <div class="tautulli-user-modal">
+          <div class="modal-header">
+            <h4>Select Tautulli User</h4>
+            <button class="close-button" @click="closeTautulliUserSelect">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="tautulliUsersLoading" class="loading-users">
+              <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+              </div>
+              <p>Loading users...</p>
+            </div>
+            <div v-else-if="tautulliUsers.length === 0" class="no-users-found">
+              <p>No users found. Please check your API key permissions.</p>
+            </div>
+            <div v-else class="users-list">
+              <button 
+                v-for="user in tautulliUsers" 
+                :key="user.user_id"
+                class="user-item"
+                :class="{ 'selected': user.user_id === selectedTautulliUserId }"
+                @click="selectTautulliUser(user)"
+              >
+                <span class="user-name">{{ user.username }}</span>
+                <span v-if="user.is_admin" class="user-badge admin">Admin</span>
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="cancel-button" @click="closeTautulliUserSelect">Cancel</button>
+            <button 
+              class="apply-button" 
+              @click="applyTautulliUserSelection"
+              :disabled="!selectedTautulliUserId"
+            >
+              Apply Selection
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" @disconnected="handleSonarrDisconnected" />
       <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" @disconnected="handleRadarrDisconnected" />
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @disconnected="handlePlexDisconnected" @limitChanged="handlePlexLimitChanged" />
@@ -287,6 +330,23 @@ export default {
     const savedJellyfinOnlyMode = localStorage.getItem('jellyfinOnlyMode');
     if (savedJellyfinOnlyMode) {
       this.jellyfinOnlyMode = savedJellyfinOnlyMode === 'true';
+    }
+    
+    // Load Tautulli history mode from localStorage if available
+    const savedTautulliHistoryMode = localStorage.getItem('tautulliHistoryMode');
+    if (savedTautulliHistoryMode) {
+      this.tautulliHistoryMode = savedTautulliHistoryMode;
+    }
+    
+    // Load Tautulli only mode from localStorage if available
+    const savedTautulliOnlyMode = localStorage.getItem('tautulliOnlyMode');
+    if (savedTautulliOnlyMode) {
+      this.tautulliOnlyMode = savedTautulliOnlyMode === 'true';
+    }
+    
+    // Check if Tautulli is already configured on startup
+    if (tautulliService.isConfigured()) {
+      this.checkTautulliConnection();
     }
   },
   methods: {
@@ -773,7 +833,7 @@ export default {
       }
     },
     
-    async fetchTautulliData() {
+    async fetchTautulliData(userId = null) {
       if (!tautulliService.isConfigured()) {
         return;
       }
@@ -784,8 +844,8 @@ export default {
         
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([
-          tautulliService.getRecentlyWatchedMovies(this.tautulliRecentLimit, daysAgo),
-          tautulliService.getRecentlyWatchedShows(this.tautulliRecentLimit, daysAgo)
+          tautulliService.getRecentlyWatchedMovies(this.tautulliRecentLimit, daysAgo, userId),
+          tautulliService.getRecentlyWatchedShows(this.tautulliRecentLimit, daysAgo, userId)
         ]);
         
         this.tautulliRecentlyWatchedMovies = moviesResponse;
@@ -793,7 +853,8 @@ export default {
         
         console.log('Fetched Tautulli watch history:', {
           movies: this.tautulliRecentlyWatchedMovies,
-          shows: this.tautulliRecentlyWatchedShows
+          shows: this.tautulliRecentlyWatchedShows,
+          userId: userId || 'all users' 
         });
       } catch (error) {
         console.error('Failed to fetch Tautulli watch history:', error);
@@ -1182,7 +1243,7 @@ main {
   z-index: 1000;
 }
 
-.jellyfin-user-modal {
+.jellyfin-user-modal, .tautulli-user-modal {
   background-color: var(--card-bg-color);
   border-radius: 8px;
   box-shadow: var(--card-shadow);
@@ -1193,6 +1254,10 @@ main {
   flex-direction: column;
   transition: all 0.3s ease;
   border: 1px solid var(--border-color);
+}
+
+.tautulli-user-modal .modal-header {
+  border-bottom: 2px solid #7c3aed; /* Tautulli purple color */
 }
 
 .modal-header {

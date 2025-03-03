@@ -34,7 +34,7 @@ git clone https://github.com/fingerthief/recommendarr.git
 cd recommendarr
 
 # Start the application
-docker-compose up -d
+docker-compose up -d --build
 ```
 
 This will:

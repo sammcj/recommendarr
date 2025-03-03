@@ -1273,17 +1273,11 @@ export default {
         // Request more recommendations than we need to account for filtering
         const requestCount = Math.min(additionalCount * 1.5, 20); // Request 50% more, up to 20 max
         
-        const additionalRecommendations = await openAIService.getMovieRecommendations(
-          this.movies,
+        // Use the new optimized method for additional recommendations
+        const additionalRecommendations = await openAIService.getAdditionalMovieRecommendations(
           requestCount,
-          genreString,
           updatedPrevious,
-          this.likedRecommendations,
-          this.dislikedRecommendations,
-          this.plexOnlyMode ? this.recentlyWatchedMovies : 
-            this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
-            [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
-          this.plexOnlyMode || this.jellyfinOnlyMode,
+          genreString,
           this.customVibe
         );
         

@@ -13,6 +13,10 @@ class OpenAIService {
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
+    
+    // Initialize conversation history for maintaining context
+    this.tvConversation = [];
+    this.movieConversation = [];
   }
 
   /**
@@ -93,6 +97,9 @@ class OpenAIService {
     }
 
     try {
+      // Only initialize conversation history if it doesn't exist yet
+      if (this.tvConversation.length === 0) {
+      
       // Determine if we should use only Plex history or include the library
       let sourceText;
       let primarySource = [];
@@ -212,7 +219,8 @@ STRICT RULES:
 - Do NOT include additional information outside the required format
 - NEVER recommend any show in my library, liked shows list, or any exclusion list`;
 
-      const messages = [
+      // Initialize conversation with system message
+      this.tvConversation = [
         {
           role: "system",
           content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
@@ -222,9 +230,16 @@ STRICT RULES:
           content: userPrompt
         }
       ];
+      } else {
+        // If conversation exists, just add a new request message
+        this.tvConversation.push({
+          role: "user",
+          content: `Based on our previous conversation, please recommend ${count} new TV shows I might enjoy. ${genre ? `Focus on ${genre} genres.` : ''} ${customVibe ? `Try to match this vibe: "${customVibe}"` : ''} Use the same format as before.`
+        });
+      }
       
-      // Get initial recommendations
-      const recommendations = await this.getFormattedRecommendations(messages);
+      // Get initial recommendations using the conversation
+      const recommendations = await this.getFormattedRecommendationsWithConversation(this.tvConversation);
       
       // Perform final verification to ensure no existing/liked content is returned
       return this.verifyRecommendations(
@@ -258,6 +273,9 @@ STRICT RULES:
     }
 
     try {
+      // Only initialize conversation history if it doesn't exist yet
+      if (this.movieConversation.length === 0) {
+      
       // Determine if we should use only Plex history or include the library
       let sourceText;
       let primarySource = [];
@@ -378,7 +396,8 @@ STRICT RULES:
 - Do NOT include additional information outside the required format
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list`;
 
-      const messages = [
+      // Initialize conversation with system message
+      this.movieConversation = [
         {
           role: "system",
           content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
@@ -388,9 +407,16 @@ STRICT RULES:
           content: userPrompt
         }
       ];
+      } else {
+        // If conversation exists, just add a new request message
+        this.movieConversation.push({
+          role: "user",
+          content: `Based on our previous conversation, please recommend ${count} new movies I might enjoy. ${genre ? `Focus on ${genre} genres.` : ''} ${customVibe ? `Try to match this vibe: "${customVibe}"` : ''} Use the same format as before.`
+        });
+      }
       
-      // Get initial recommendations
-      const recommendations = await this.getFormattedRecommendations(messages);
+      // Get initial recommendations using the conversation
+      const recommendations = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
       
       // Perform final verification to ensure no existing/liked content is returned
       return this.verifyRecommendations(
@@ -428,7 +454,176 @@ STRICT RULES:
   }
   
   /**
-   * Generic method to get recommendations from AI with formatted messages
+   * Get additional TV show recommendations with a conversation-based approach
+   * @param {number} count - Number of additional recommendations to generate
+   * @param {Array} previousRecommendations - List of shows to exclude from recommendations
+   * @param {string} genre - Optional genre preference
+   * @param {string} customVibe - Optional custom vibe
+   * @returns {Promise<Array>} - List of additional recommended TV shows
+   */
+  async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '') {
+    if (!this.isConfigured()) {
+      throw new Error('OpenAI service is not configured. Please set apiKey.');
+    }
+
+    try {
+      // Ensure count is within reasonable bounds
+      const recommendationCount = Math.min(Math.max(count, 1), 50);
+      
+      if (this.tvConversation.length === 0) {
+        throw new Error('No TV conversation history found. Make initial recommendation request first.');
+      }
+      
+      // Create a much simpler prompt that just requests more recommendations
+      let userPrompt = `I need ${recommendationCount} more DIFFERENT TV shows that are just as good as your previous recommendations. Be brief and direct.`;
+      
+      // Add genre preference if specified
+      if (genre) {
+        const genreList = genre.includes(',') ? genre : `the ${genre}`;
+        userPrompt += ` Focus specifically on shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
+      }
+      
+      // Add custom vibe if specified
+      if (customVibe && customVibe.trim()) {
+        userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+      }
+      
+      // Add previous recommendations to avoid repeating them
+      if (previousRecommendations.length > 0) {
+        userPrompt += `\n\nMake sure NOT to recommend any of these previously suggested shows: ${previousRecommendations.join(', ')}`;
+      }
+      
+      userPrompt += `\n\nUse the EXACT same format as before for each recommendation, following the same strict rules.`;
+
+      // Add the new user message to the existing conversation
+      this.tvConversation.push({
+        role: "user",
+        content: userPrompt
+      });
+      
+      // Use the conversation-based method
+      return await this.getFormattedRecommendationsWithConversation(this.tvConversation);
+    } catch (error) {
+      console.error('Error getting additional TV show recommendations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get additional movie recommendations with a conversation-based approach
+   * @param {number} count - Number of additional recommendations to generate
+   * @param {Array} previousRecommendations - List of movies to exclude from recommendations
+   * @param {string} genre - Optional genre preference
+   * @param {string} customVibe - Optional custom vibe
+   * @returns {Promise<Array>} - List of additional recommended movies
+   */
+  async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '') {
+    if (!this.isConfigured()) {
+      throw new Error('OpenAI service is not configured. Please set apiKey.');
+    }
+
+    try {
+      // Ensure count is within reasonable bounds
+      const recommendationCount = Math.min(Math.max(count, 1), 50);
+      
+      if (this.movieConversation.length === 0) {
+        throw new Error('No movie conversation history found. Make initial recommendation request first.');
+      }
+      
+      // Create a much simpler prompt that just requests more recommendations
+      let userPrompt = `I need ${recommendationCount} more DIFFERENT movies that are just as good as your previous recommendations. Be brief and direct.`;
+      
+      // Add genre preference if specified
+      if (genre) {
+        const genreList = genre.includes(',') ? genre : `the ${genre}`;
+        userPrompt += ` Focus specifically on movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
+      }
+      
+      // Add custom vibe if specified
+      if (customVibe && customVibe.trim()) {
+        userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+      }
+      
+      // Add previous recommendations to avoid repeating them
+      if (previousRecommendations.length > 0) {
+        userPrompt += `\n\nMake sure NOT to recommend any of these previously suggested movies: ${previousRecommendations.join(', ')}`;
+      }
+      
+      userPrompt += `\n\nUse the EXACT same format as before for each recommendation, following the same strict rules.`;
+
+      // Add the new user message to the existing conversation
+      this.movieConversation.push({
+        role: "user",
+        content: userPrompt
+      });
+      
+      // Use the conversation-based method
+      return await this.getFormattedRecommendationsWithConversation(this.movieConversation);
+    } catch (error) {
+      console.error('Error getting additional movie recommendations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Method to get recommendations using a conversation-based approach
+   * @param {Array} conversation - An array of chat messages representing the ongoing conversation
+   * @returns {Promise<Array>} - List of formatted recommendations
+   */
+  async getFormattedRecommendationsWithConversation(conversation) {
+    try {
+      // Define headers based on the API endpoint
+      const headers = {};
+      
+      // Add authentication header based on the API endpoint
+      if (this.baseUrl === 'https://api.anthropic.com/v1') {
+        headers['x-api-key'] = this.apiKey;
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+        headers['anthropic-version'] = '2023-06-01';
+      } else {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
+      
+      headers['Content-Type'] = 'application/json';
+
+      // Make the API request with the full conversation history
+      const response = await axios.post(
+        this.apiUrl,
+        {
+          model: this.model,
+          messages: conversation,
+          temperature: this.temperature,
+          max_tokens: this.maxTokens,
+          presence_penalty: 0.1,  // Slightly discourage repetition
+          frequency_penalty: 0.1  // Slightly encourage diversity
+        },
+        { headers }
+      );
+
+      // Check if response contains expected data structure
+      if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+        console.error('Unexpected API response format:', response.data);
+        throw new Error('The AI API returned an unexpected response format. Please try again.');
+      }
+      
+      // Add the assistant's response to the conversation history
+      conversation.push({
+        role: "assistant",
+        content: response.data.choices[0].message.content
+      });
+      
+      // Parse the recommendations from the response
+      let recommendations = this.parseRecommendations(response.data.choices[0].message.content);
+      
+      return recommendations;
+    } catch (error) {
+      console.error('Error getting recommendations with conversation:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Generic method to get recommendations from AI with formatted messages (Legacy method, kept for backward compatibility)
    * @param {Array} messages - Chat messages to send to the AI
    * @returns {Promise<Array>} - List of formatted recommendations
    */

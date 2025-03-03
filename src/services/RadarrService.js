@@ -51,6 +51,42 @@ class RadarrService {
   }
   
   /**
+   * Check if a movie already exists in the Radarr library
+   * @param {string} title - The movie title to search for
+   * @returns {Promise<Object|null>} - Movie info if found in library, null otherwise
+   */
+  async findExistingMovieByTitle(title) {
+    if (!this.isConfigured()) {
+      throw new Error('Radarr service is not configured. Please set baseUrl and apiKey.');
+    }
+    
+    try {
+      // Search in the existing library
+      const libraryResponse = await axios.get(`${this.baseUrl}/api/v3/movie`, {
+        params: { apiKey: this.apiKey }
+      });
+      
+      // Look for exact match first
+      let match = libraryResponse.data.find(movie => 
+        movie.title.toLowerCase() === title.toLowerCase()
+      );
+      
+      // If no exact match, try a more flexible search
+      if (!match) {
+        match = libraryResponse.data.find(movie => 
+          movie.title.toLowerCase().includes(title.toLowerCase()) || 
+          title.toLowerCase().includes(movie.title.toLowerCase())
+        );
+      }
+      
+      return match || null;
+    } catch (error) {
+      console.error(`Error checking if movie "${title}" exists in Radarr:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Search for a movie by title in Radarr
    * @param {string} title - The movie title to search for
    * @returns {Promise<Object|null>} - Movie info if found, null otherwise

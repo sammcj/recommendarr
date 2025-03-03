@@ -54,29 +54,72 @@
       <div class="history-stats-row">
         <div v-if="activeView === 'tv' || activeView === 'combined'" class="stat-item">
           <span class="stat-icon">📺</span>
-          <span>{{ tvRecommendations.length }} TV shows in history</span>
+          <span>
+            {{ hideExistingContent ? filteredTVRecommendations.length : tvRecommendations.length }} 
+            TV shows{{ hideExistingContent ? ' (filtered)' : '' }}
+          </span>
         </div>
         <div v-if="activeView === 'movies' || activeView === 'combined'" class="stat-item">
           <span class="stat-icon">🎬</span>
-          <span>{{ movieRecommendations.length }} movies in history</span>
+          <span>
+            {{ hideExistingContent ? filteredMovieRecommendations.length : movieRecommendations.length }} 
+            movies{{ hideExistingContent ? ' (filtered)' : '' }}
+          </span>
         </div>
         <div v-if="activeView === 'combined'" class="stat-item total">
           <span class="stat-icon">🔄</span>
-          <span>{{ tvRecommendations.length + movieRecommendations.length }} total items in history</span>
+          <span>
+            {{ hideExistingContent ? 
+              (filteredTVRecommendations.length + filteredMovieRecommendations.length) : 
+              (tvRecommendations.length + movieRecommendations.length) 
+            }} 
+            total items{{ hideExistingContent ? ' (filtered)' : '' }}
+          </span>
         </div>
       </div>
       
-      <div class="columns-control">
-        <label for="columnsAdjuster">Posters per row: {{ columnsCount }}</label>
-        <input 
-          type="range" 
-          id="columnsAdjuster" 
-          v-model.number="columnsCount" 
-          min="1" 
-          max="5" 
-          @change="saveColumnsCount"
-          class="columns-slider"
-        >
+      <div class="history-controls-row">
+        <div class="columns-control">
+          <label for="columnsAdjuster">Posters per row: {{ columnsCount }}</label>
+          <input 
+            type="range" 
+            id="columnsAdjuster" 
+            v-model.number="columnsCount" 
+            min="1" 
+            max="5" 
+            @change="saveColumnsCount"
+            class="columns-slider"
+          >
+        </div>
+        
+        <div class="filter-controls">
+          <label class="filter-label">
+            <input 
+              type="checkbox" 
+              v-model="hideExistingContent" 
+              @change="applyFilters"
+            >
+            Hide items in your library
+          </label>
+          
+          <label class="filter-label">
+            <input 
+              type="checkbox" 
+              v-model="hideLikedContent" 
+              @change="applyFilters"
+            >
+            Hide liked items
+          </label>
+          
+          <label class="filter-label">
+            <input 
+              type="checkbox" 
+              v-model="hideDislikedContent" 
+              @change="applyFilters"
+            >
+            Hide disliked items
+          </label>
+        </div>
       </div>
     </div>
     
@@ -92,11 +135,12 @@
     <div v-else class="history-list">
       <div v-if="activeView === 'tv' || activeView === 'combined'" class="history-section">
         <h3 v-if="activeView === 'combined'">TV Show Recommendations</h3>
-        <div v-if="tvRecommendations.length === 0" class="empty-section">
-          <p>No TV show recommendations in history.</p>
+        <div v-if="(hideExistingContent ? filteredTVRecommendations : tvRecommendations).length === 0" class="empty-section">
+          <p v-if="tvRecommendations.length === 0">No TV show recommendations in history.</p>
+          <p v-else>No TV shows to display with current filter settings.</p>
         </div>
         <div v-else class="recommendation-grid" :style="{ gridTemplateColumns: gridTemplateStyle }">
-          <div v-for="(show, index) in tvRecommendations" :key="`tv-${index}`" class="recommendation-item">
+          <div v-for="(show, index) in hideExistingContent ? filteredTVRecommendations : tvRecommendations" :key="`tv-${index}`" class="recommendation-item">
             <div class="poster-container">
               <div 
                 class="poster" 
@@ -114,6 +158,14 @@
                 </div>
               </div>
               <div class="item-title">{{ show }}</div>
+              <div v-if="tvShowDetails[show]" class="item-description">
+                <div v-if="tvShowDetails[show].overview" class="item-overview">
+                  {{ truncateText(tvShowDetails[show].overview, 120) }}
+                </div>
+                <div v-if="tvShowDetails[show].year" class="item-year">
+                  {{ tvShowDetails[show].year }}
+                </div>
+              </div>
               <div v-if="sonarrConfigured" class="item-actions">
                 <button 
                   @click="addToSonarr(show)" 
@@ -132,11 +184,12 @@
       
       <div v-if="activeView === 'movies' || activeView === 'combined'" class="history-section">
         <h3 v-if="activeView === 'combined'">Movie Recommendations</h3>
-        <div v-if="movieRecommendations.length === 0" class="empty-section">
-          <p>No movie recommendations in history.</p>
+        <div v-if="(hideExistingContent ? filteredMovieRecommendations : movieRecommendations).length === 0" class="empty-section">
+          <p v-if="movieRecommendations.length === 0">No movie recommendations in history.</p>
+          <p v-else>No movies to display with current filter settings.</p>
         </div>
         <div v-else class="recommendation-grid" :style="{ gridTemplateColumns: gridTemplateStyle }">
-          <div v-for="(movie, index) in movieRecommendations" :key="`movie-${index}`" class="recommendation-item">
+          <div v-for="(movie, index) in hideExistingContent ? filteredMovieRecommendations : movieRecommendations" :key="`movie-${index}`" class="recommendation-item">
             <div class="poster-container">
               <div 
                 class="poster" 
@@ -154,6 +207,14 @@
                 </div>
               </div>
               <div class="item-title">{{ movie }}</div>
+              <div v-if="movieDetails[movie]" class="item-description">
+                <div v-if="movieDetails[movie].overview" class="item-overview">
+                  {{ truncateText(movieDetails[movie].overview, 120) }}
+                </div>
+                <div v-if="movieDetails[movie].year" class="item-year">
+                  {{ movieDetails[movie].year }}
+                </div>
+              </div>
               <div v-if="radarrConfigured" class="item-actions">
                 <button 
                   @click="addToRadarr(movie)" 
@@ -350,10 +411,26 @@ export default {
       activeView: 'combined',
       tvRecommendations: [],
       movieRecommendations: [],
+      filteredTVRecommendations: [],
+      filteredMovieRecommendations: [],
       loading: true,
-      columnsCount: 3,
+      columnsCount: 4,
       posters: new Map(),
       loadingPosters: new Map(),
+      hideExistingContent: true,
+      hideLikedContent: true,
+      hideDislikedContent: true,
+      
+      // TV/Movie details
+      tvShowDetails: {},
+      movieDetails: {},
+      loadingDetails: {},
+      existingTVShows: new Set(),
+      existingMovies: new Set(),
+      likedTVShows: new Set(),
+      dislikedTVShows: new Set(),
+      likedMovies: new Set(),
+      dislikedMovies: new Set(),
       
       // Sonarr/Radarr status
       checkingShowExistence: {},
@@ -404,9 +481,50 @@ export default {
   created() {
     this.loadRecommendationHistory();
     this.loadColumnsCount();
+    this.loadFilterPreferences();
+    this.loadLikedDislikedContent();
   },
   mounted() {
     this.fetchAllPosters();
+    this.loadLibraryContent();
+  },
+  watch: {
+    existingTVShows() {
+      this.applyFilters();
+    },
+    existingMovies() {
+      this.applyFilters();
+    },
+    likedTVShows() {
+      this.applyFilters();
+    },
+    dislikedTVShows() {
+      this.applyFilters();
+    },
+    likedMovies() {
+      this.applyFilters();
+    },
+    dislikedMovies() {
+      this.applyFilters();
+    },
+    hideExistingContent() {
+      this.applyFilters();
+      localStorage.setItem('historyHideExisting', this.hideExistingContent.toString());
+    },
+    hideLikedContent() {
+      this.applyFilters();
+      localStorage.setItem('historyHideLiked', this.hideLikedContent.toString());
+    },
+    hideDislikedContent() {
+      this.applyFilters();
+      localStorage.setItem('historyHideDisliked', this.hideDislikedContent.toString());
+    },
+    tvRecommendations() {
+      this.applyFilters();
+    },
+    movieRecommendations() {
+      this.applyFilters();
+    }
   },
   methods: {
     loadRecommendationHistory() {
@@ -436,6 +554,148 @@ export default {
     
     saveColumnsCount() {
       localStorage.setItem('historyColumnsCount', this.columnsCount);
+    },
+    
+    loadFilterPreferences() {
+      // Load existing content preference
+      const hideExisting = localStorage.getItem('historyHideExisting');
+      if (hideExisting !== null) {
+        this.hideExistingContent = hideExisting === 'true';
+      }
+      
+      // Load liked content preference
+      const hideLiked = localStorage.getItem('historyHideLiked');
+      if (hideLiked !== null) {
+        this.hideLikedContent = hideLiked === 'true';
+      }
+      
+      // Load disliked content preference
+      const hideDisliked = localStorage.getItem('historyHideDisliked');
+      if (hideDisliked !== null) {
+        this.hideDislikedContent = hideDisliked === 'true';
+      }
+    },
+    
+    loadLikedDislikedContent() {
+      // Load liked/disliked TV shows
+      const likedTV = localStorage.getItem('likedTVRecommendations');
+      if (likedTV) {
+        this.likedTVShows = new Set(JSON.parse(likedTV).map(show => show.toLowerCase()));
+      }
+      
+      const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
+      if (dislikedTV) {
+        this.dislikedTVShows = new Set(JSON.parse(dislikedTV).map(show => show.toLowerCase()));
+      }
+      
+      // Load liked/disliked movies
+      const likedMovies = localStorage.getItem('likedMovieRecommendations');
+      if (likedMovies) {
+        this.likedMovies = new Set(JSON.parse(likedMovies).map(movie => movie.toLowerCase()));
+      }
+      
+      const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
+      if (dislikedMovies) {
+        this.dislikedMovies = new Set(JSON.parse(dislikedMovies).map(movie => movie.toLowerCase()));
+      }
+    },
+    
+    toggleHideExisting() {
+      this.hideExistingContent = !this.hideExistingContent;
+    },
+    
+    toggleHideLiked() {
+      this.hideLikedContent = !this.hideLikedContent;
+    },
+    
+    toggleHideDisliked() {
+      this.hideDislikedContent = !this.hideDislikedContent;
+    },
+    
+    async loadLibraryContent() {
+      if (this.sonarrConfigured) {
+        await this.loadSonarrLibrary();
+      }
+      
+      if (this.radarrConfigured) {
+        await this.loadRadarrLibrary();
+      }
+      
+      this.fetchAllDetails();
+    },
+    
+    async loadSonarrLibrary() {
+      try {
+        const series = await sonarrService.getSeries();
+        const titles = new Set(series.map(show => show.title.toLowerCase()));
+        this.existingTVShows = titles;
+      } catch (error) {
+        console.error('Error loading Sonarr library:', error);
+      }
+    },
+    
+    async loadRadarrLibrary() {
+      try {
+        const movies = await radarrService.getMovies();
+        const titles = new Set(movies.map(movie => movie.title.toLowerCase()));
+        this.existingMovies = titles;
+      } catch (error) {
+        console.error('Error loading Radarr library:', error);
+      }
+    },
+    
+    applyFilters() {
+      // Filter TV recommendations
+      let filteredTV = [...this.tvRecommendations];
+      
+      // Apply existing filter
+      if (this.hideExistingContent && this.existingTVShows.size > 0) {
+        filteredTV = filteredTV.filter(
+          show => !this.existingTVShows.has(show.toLowerCase())
+        );
+      }
+      
+      // Apply liked filter
+      if (this.hideLikedContent && this.likedTVShows.size > 0) {
+        filteredTV = filteredTV.filter(
+          show => !this.likedTVShows.has(show.toLowerCase())
+        );
+      }
+      
+      // Apply disliked filter
+      if (this.hideDislikedContent && this.dislikedTVShows.size > 0) {
+        filteredTV = filteredTV.filter(
+          show => !this.dislikedTVShows.has(show.toLowerCase())
+        );
+      }
+      
+      this.filteredTVRecommendations = filteredTV;
+      
+      // Filter movie recommendations
+      let filteredMovies = [...this.movieRecommendations];
+      
+      // Apply existing filter
+      if (this.hideExistingContent && this.existingMovies.size > 0) {
+        filteredMovies = filteredMovies.filter(
+          movie => !this.existingMovies.has(movie.toLowerCase())
+        );
+      }
+      
+      // Apply liked filter
+      if (this.hideLikedContent && this.likedMovies.size > 0) {
+        filteredMovies = filteredMovies.filter(
+          movie => !this.likedMovies.has(movie.toLowerCase())
+        );
+      }
+      
+      // Apply disliked filter
+      if (this.hideDislikedContent && this.dislikedMovies.size > 0) {
+        filteredMovies = filteredMovies.filter(
+          movie => !this.dislikedMovies.has(movie.toLowerCase())
+        );
+      }
+      
+      this.filteredMovieRecommendations = filteredMovies;
     },
     
     clearTVHistory() {
@@ -562,6 +822,105 @@ export default {
       }
     },
     
+    // Fetch all details automatically
+    async fetchAllDetails() {
+      this.fetchAllTVDetails();
+      this.fetchAllMovieDetails();
+    },
+    
+    async fetchAllTVDetails() {
+      if (!this.sonarrConfigured) return;
+      
+      const titlesToFetch = this.hideExistingContent ? this.filteredTVRecommendations : this.tvRecommendations;
+      
+      for (const title of titlesToFetch) {
+        // Only fetch if not already loaded
+        if (!this.tvShowDetails[title] && !this.loadingDetails[title]) {
+          // Fetch details with a slight delay to avoid overwhelming the API
+          await this.fetchTVShowDetails(title);
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+    },
+    
+    async fetchAllMovieDetails() {
+      if (!this.radarrConfigured) return;
+      
+      const titlesToFetch = this.hideExistingContent ? this.filteredMovieRecommendations : this.movieRecommendations;
+      
+      for (const title of titlesToFetch) {
+        // Only fetch if not already loaded
+        if (!this.movieDetails[title] && !this.loadingDetails[title]) {
+          // Fetch details with a slight delay to avoid overwhelming the API
+          await this.fetchMovieDetails(title);
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+    },
+    
+    async fetchTVShowDetails(title) {
+      // If already loading, skip
+      if (this.loadingDetails[title]) return;
+      
+      // Mark as loading
+      this.loadingDetails = { ...this.loadingDetails, [title]: true };
+      
+      try {
+        // Get series details from Sonarr
+        const seriesInfo = await sonarrService.findSeriesByTitle(title);
+        if (seriesInfo) {
+          this.tvShowDetails = {
+            ...this.tvShowDetails,
+            [title]: {
+              overview: seriesInfo.overview || null,
+              year: seriesInfo.year || null,
+              network: seriesInfo.network || null,
+              status: seriesInfo.status || null
+            }
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching TV show details for "${title}":`, error);
+      } finally {
+        this.loadingDetails = { ...this.loadingDetails, [title]: false };
+      }
+    },
+    
+    async fetchMovieDetails(title) {
+      // If already loading, skip
+      if (this.loadingDetails[title]) return;
+      
+      // Mark as loading
+      this.loadingDetails = { ...this.loadingDetails, [title]: true };
+      
+      try {
+        // Get movie details from Radarr
+        const movieInfo = await radarrService.findMovieByTitle(title);
+        if (movieInfo) {
+          this.movieDetails = {
+            ...this.movieDetails,
+            [title]: {
+              overview: movieInfo.overview || null,
+              year: movieInfo.year || null,
+              studio: movieInfo.studio || null,
+              runtime: movieInfo.runtime || null
+            }
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching movie details for "${title}":`, error);
+      } finally {
+        this.loadingDetails = { ...this.loadingDetails, [title]: false };
+      }
+    },
+    
+    // Helper to truncate text
+    truncateText(text, maxLength) {
+      if (!text) return '';
+      if (text.length <= maxLength) return text;
+      return text.slice(0, maxLength) + '...';
+    },
+    
     // Sonarr integration
     async addToSonarr(title) {
       this.selectedSeries = title;
@@ -575,7 +934,7 @@ export default {
       this.rootFolders = [];
       
       // Mark as checking for existence
-      this.$set(this.checkingShowExistence, title, true);
+      this.checkingShowExistence = { ...this.checkingShowExistence, [title]: true };
       
       try {
         // First check if the series already exists
@@ -592,9 +951,11 @@ export default {
           
           // Initialize seasons with all selected
           if (seriesLookup.seasons) {
+            const updatedSeasons = { ...this.selectedSeasons };
             seriesLookup.seasons.forEach(season => {
-              this.$set(this.selectedSeasons, season.seasonNumber, true);
+              updatedSeasons[season.seasonNumber] = true;
             });
+            this.selectedSeasons = updatedSeasons;
           }
           
           // Get quality profiles and root folders
@@ -617,7 +978,7 @@ export default {
         this.seriesError = `Error: ${error.message || 'Failed to get series information'}`;
       } finally {
         this.seriesLoading = false;
-        this.$set(this.checkingShowExistence, title, false);
+        this.checkingShowExistence = { ...this.checkingShowExistence, [title]: false };
       }
     },
     
@@ -627,17 +988,21 @@ export default {
     
     selectAllSeasons() {
       if (this.seriesInfo.seasons) {
+        const updatedSeasons = { ...this.selectedSeasons };
         this.seriesInfo.seasons.forEach(season => {
-          this.$set(this.selectedSeasons, season.seasonNumber, true);
+          updatedSeasons[season.seasonNumber] = true;
         });
+        this.selectedSeasons = updatedSeasons;
       }
     },
     
     selectNoSeasons() {
       if (this.seriesInfo.seasons) {
+        const updatedSeasons = { ...this.selectedSeasons };
         this.seriesInfo.seasons.forEach(season => {
-          this.$set(this.selectedSeasons, season.seasonNumber, false);
+          updatedSeasons[season.seasonNumber] = false;
         });
+        this.selectedSeasons = updatedSeasons;
       }
     },
     
@@ -645,7 +1010,7 @@ export default {
       if (!this.selectedSeries || !this.seriesInfo) return;
       
       // Mark as adding
-      this.$set(this.addingSeries, this.selectedSeries, true);
+      this.addingSeries = { ...this.addingSeries, [this.selectedSeries]: true };
       
       try {
         // Convert selectedSeasons to array format expected by SonarrService
@@ -662,16 +1027,25 @@ export default {
         );
         
         if (result && result.id) {
-          alert(`Successfully added "${this.selectedSeries}" to Sonarr.`);
+          // Update existing TV shows set and filters
+          const seriesTitle = this.selectedSeries.toLowerCase();
+          this.existingTVShows = new Set([...this.existingTVShows, seriesTitle]);
+          this.applyFilters();
+          
+          // Close modal
           this.closeSeriesModal();
+          
+          // Load Sonarr library to refresh all items
+          this.loadSonarrLibrary();
         } else {
           throw new Error('Failed to add series. Please check Sonarr logs.');
         }
       } catch (error) {
         console.error('Error adding series:', error);
-        alert(`Error adding series: ${error.message || 'Unknown error'}`);
+        // Show error message in modal instead of alert
+        this.seriesError = `Error adding series: ${error.message || 'Unknown error'}`;
       } finally {
-        this.$set(this.addingSeries, this.selectedSeries, false);
+        this.addingSeries = { ...this.addingSeries, [this.selectedSeries]: false };
       }
     },
     
@@ -687,7 +1061,7 @@ export default {
       this.movieRootFolders = [];
       
       // Mark as checking for existence
-      this.$set(this.checkingMovieExistence, title, true);
+      this.checkingMovieExistence = { ...this.checkingMovieExistence, [title]: true };
       
       try {
         // First check if the movie already exists
@@ -722,7 +1096,7 @@ export default {
         this.movieError = `Error: ${error.message || 'Failed to get movie information'}`;
       } finally {
         this.movieLoading = false;
-        this.$set(this.checkingMovieExistence, title, false);
+        this.checkingMovieExistence = { ...this.checkingMovieExistence, [title]: false };
       }
     },
     
@@ -734,7 +1108,7 @@ export default {
       if (!this.selectedMovie || !this.movieInfo) return;
       
       // Mark as adding
-      this.$set(this.addingMovie, this.selectedMovie, true);
+      this.addingMovie = { ...this.addingMovie, [this.selectedMovie]: true };
       
       try {
         // Add the movie
@@ -745,16 +1119,25 @@ export default {
         );
         
         if (result && result.id) {
-          alert(`Successfully added "${this.selectedMovie}" to Radarr.`);
+          // Update existing movies set and filters
+          const movieTitle = this.selectedMovie.toLowerCase();
+          this.existingMovies = new Set([...this.existingMovies, movieTitle]);
+          this.applyFilters();
+          
+          // Close modal
           this.closeMovieModal();
+          
+          // Load Radarr library to refresh all items
+          this.loadRadarrLibrary();
         } else {
           throw new Error('Failed to add movie. Please check Radarr logs.');
         }
       } catch (error) {
         console.error('Error adding movie:', error);
-        alert(`Error adding movie: ${error.message || 'Unknown error'}`);
+        // Show error message in modal instead of alert
+        this.movieError = `Error adding movie: ${error.message || 'Unknown error'}`;
       } finally {
-        this.$set(this.addingMovie, this.selectedMovie, false);
+        this.addingMovie = { ...this.addingMovie, [this.selectedMovie]: false };
       }
     }
   }
@@ -846,10 +1229,19 @@ h2 {
   border: 1px solid var(--border-color);
 }
 
-.history-stats-row {
+.history-stats-row, .history-controls-row {
   display: flex;
   flex-wrap: wrap;
   gap: 15px;
+}
+
+.history-controls-row {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
 }
 
 .stat-item {
@@ -871,14 +1263,27 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 5px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-color);
+  flex: 1;
 }
 
-.columns-control label {
+.filter-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.columns-control label, .filter-label {
   font-size: 14px;
   color: var(--text-color);
+}
+
+.filter-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
 }
 
 .columns-slider {
@@ -953,7 +1358,7 @@ h2 {
 
 .recommendation-grid {
   display: grid;
-  gap: 15px;
+  gap: 10px;
 }
 
 .recommendation-item {
@@ -963,6 +1368,7 @@ h2 {
   transition: all 0.2s ease;
   overflow: hidden;
   height: 100%;
+  max-width: 100%;
 }
 
 .recommendation-item:hover {
@@ -1024,6 +1430,7 @@ h2 {
   opacity: 1;
 }
 
+
 .retry-button {
   background-color: rgba(76, 175, 80, 0.8);
   color: white;
@@ -1047,8 +1454,8 @@ h2 {
 }
 
 .item-title {
-  padding: 10px;
-  font-size: 14px;
+  padding: 8px 8px 4px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-color);
   text-align: center;
@@ -1057,8 +1464,31 @@ h2 {
   text-overflow: ellipsis;
 }
 
+.item-description {
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-overview {
+  font-size: 11px;
+  color: var(--text-color);
+  opacity: 0.8;
+  text-align: left;
+  line-height: 1.3;
+}
+
+.item-year {
+  font-size: 11px;
+  color: var(--text-color);
+  opacity: 0.8;
+  text-align: left;
+  font-weight: 500;
+}
+
 .item-actions {
-  padding: 0 10px 10px;
+  padding: 0 8px 8px;
   display: flex;
   justify-content: center;
 }
@@ -1069,8 +1499,8 @@ h2 {
   color: white;
   border: none;
   border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 5px 10px;
+  font-size: 11px;
   cursor: pointer;
   transition: background-color 0.2s ease;
 }

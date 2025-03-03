@@ -147,7 +147,7 @@ docker run -d \
 
 ### Option 3: Docker Compose
 
-The repository includes a `docker-compose.yml` file. Simply run:
+The repository includes a `docker-compose.yml` file that sets up both the frontend and the API server. Simply run:
 
 ```bash
 # Clone the repository
@@ -160,7 +160,9 @@ cd recommendarr
 docker-compose up -d
 ```
 
-This will build the image from the local Dockerfile and start the service on port 3030.
+This will build both the frontend and API server images, and start the services on ports 3030 (frontend) and 3050 (API server).
+
+The API server provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
 
 ## 🖥️ Compatible AI Services
 
@@ -210,10 +212,11 @@ For best results, try setting max tokens to 4000 and temperature between 0.6-0.8
 ## 🔒 Privacy
 
 Your data never leaves your control:
-- Sonarr, Radarr, Plex, and Jellyfin API credentials are stored in your browser's localStorage
-- AI API keys are stored locally and used only for your requests
+- Sonarr, Radarr, Plex, and Jellyfin API credentials are stored securely using encryption
+- AI API keys are stored encrypted and used only for your requests
 - Media library and watch history data is sent only to the AI service you configure
 - No analytics or tracking are included in the application
+- All sensitive data is encrypted at rest
 
 ## 💻 Development
 
@@ -221,8 +224,14 @@ Your data never leaves your control:
 # Install dependencies
 npm install
 
-# Run development server with hot-reload
+# Run frontend development server with hot-reload
 npm run serve
+
+# Run API server
+npm run api
+
+# Run both frontend and API server concurrently
+npm run dev
 
 # Compile and minify for production
 npm run build

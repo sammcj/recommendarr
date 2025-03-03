@@ -26,6 +26,15 @@
         </button>
         
         <button 
+          @click="$emit('navigate', 'history')" 
+          :class="{ active: activeTab === 'history' }"
+          class="nav-item"
+        >
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">History</span>
+        </button>
+        
+        <button 
           @click="$emit('navigate', 'settings')" 
           :class="{ active: activeTab === 'settings' }"
           class="nav-item"
@@ -82,6 +91,15 @@
       >
         <span class="nav-icon">🎬</span>
         <span>Movies</span>
+      </button>
+      
+      <button 
+        @click="navigateMobile('history')" 
+        :class="{ active: activeTab === 'history' }"
+        class="mobile-nav-item"
+      >
+        <span class="nav-icon">📋</span>
+        <span>History</span>
       </button>
       
       <button 

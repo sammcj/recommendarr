@@ -1,4 +1,3 @@
-import axios from 'axios';
 import credentialsService from './CredentialsService';
 
 class OpenAIService {

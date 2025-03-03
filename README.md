@@ -26,17 +26,23 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ### Option 1: Docker Compose (Recommended)
 
-The easiest way to run Recommendarr with all features is to use Docker Compose, which automatically sets up both the frontend and API server:
+The easiest way to run Recommendarr with all features is to use Docker Compose:
 
 ```bash
-# Download the docker-compose.yml file
-curl -O https://raw.githubusercontent.com/fingerthief/recommendarr/main/docker-compose.yml
+# Clone the repository (which includes the docker-compose.yml file)
+git clone https://github.com/fingerthief/recommendarr.git
+cd recommendarr
 
 # Start the application
 docker-compose up -d
 ```
 
-This will pull both the frontend and API server images and start them with the proper configuration. Then visit `http://localhost:3030` in your browser.
+This will:
+1. Build both the frontend and API server images locally
+2. Configure them to work together with the proper networking
+3. Start both services with the correct configuration
+
+Then visit `http://localhost:3030` in your browser to access the application.
 
 The API server runs on port 3050 and provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
 
@@ -161,24 +167,50 @@ docker run -d \
   recommendarr:local
 ```
 
-### Option 3: Docker Compose with Volumes
+### Option 3: Using Pre-built Docker Images
 
-The repository includes a `docker-compose.yml` file that sets up both the frontend and the API server with persistent storage:
+If you prefer not to build the images locally and want to use the pre-built images from Docker Hub:
 
 ```bash
-# Clone the repository
-git clone https://github.com/fingerthief/recommendarr.git
+# Create a new directory
+mkdir recommendarr && cd recommendarr
 
-# Navigate to the project directory 
-cd recommendarr
+# Create a docker-compose.yml file with the following content:
+cat > docker-compose.yml << 'EOF'
+version: '3'
+services:
+  recommendarr:
+    image: tannermiddleton/recommendarr:latest
+    container_name: recommendarr
+    depends_on:
+      - api
+    ports:
+      - "3030:80"
+    restart: unless-stopped
+
+  api:
+    image: tannermiddleton/recommendarr-api:latest
+    container_name: recommendarr-api
+    ports:
+      - "3050:3050"
+    environment:
+      - NODE_ENV=production
+      - DOCKER_ENV=true
+    volumes:
+      - ./server/data:/app/server/data
+    restart: unless-stopped
+EOF
+
+# Create the data directory
+mkdir -p server/data
 
 # Start with docker-compose
 docker-compose up -d
 ```
 
-This will build both the frontend and API server images, and start the services on ports 3030 (frontend) and 3050 (API server).
+This will pull the pre-built images from Docker Hub and start the services on ports 3030 (frontend) and 3050 (API server).
 
-**Key benefits of using this method:**
+**Key benefits of using either Docker Compose method:**
 - The API server data directory is mounted as a volume, ensuring your credentials persist across container restarts
 - The frontend and API server are automatically configured to work together
 - All your service credentials are stored securely using encryption

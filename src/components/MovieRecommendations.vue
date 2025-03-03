@@ -205,6 +205,24 @@
                     </div>
                   </div>
                   
+                  <div class="language-selector">
+                    <label for="languageSelect">Content language:</label>
+                    <select 
+                      id="languageSelect" 
+                      v-model="selectedLanguage"
+                      @change="saveLanguagePreference"
+                      class="language-select"
+                    >
+                      <option value="">Any language</option>
+                      <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+                        {{ lang.name }}
+                      </option>
+                    </select>
+                    <div class="setting-description">
+                      Select a language to focus recommendations on content in that language.
+                    </div>
+                  </div>
+                  
                   <div v-if="plexConfigured" class="plex-options">
                     <label>Plex Watch History:</label>
                     <div class="plex-history-toggle">
@@ -630,6 +648,28 @@ export default {
         { value: 'sci-fi', label: 'Sci-Fi' },
         { value: 'thriller', label: 'Thriller' }
       ],
+      availableLanguages: [
+        { code: 'en', name: 'English' },
+        { code: 'es', name: 'Spanish' },
+        { code: 'fr', name: 'French' },
+        { code: 'de', name: 'German' },
+        { code: 'it', name: 'Italian' },
+        { code: 'ja', name: 'Japanese' },
+        { code: 'ko', name: 'Korean' },
+        { code: 'zh', name: 'Chinese' },
+        { code: 'hi', name: 'Hindi' },
+        { code: 'pt', name: 'Portuguese' },
+        { code: 'ru', name: 'Russian' },
+        { code: 'ar', name: 'Arabic' },
+        { code: 'tr', name: 'Turkish' },
+        { code: 'da', name: 'Danish' },
+        { code: 'sv', name: 'Swedish' },
+        { code: 'no', name: 'Norwegian' },
+        { code: 'fi', name: 'Finnish' },
+        { code: 'nl', name: 'Dutch' },
+        { code: 'pl', name: 'Polish' }
+      ],
+      selectedLanguage: '',
       requestingMovie: null, // Track which movie is being requested
       requestStatus: {}, // Track request status for each movie,
       previousRecommendations: [], // Track previous recommendations to avoid duplicates
@@ -834,6 +874,11 @@ export default {
     clearCustomVibe() {
       this.customVibe = '';
       this.saveCustomVibe();
+    },
+    
+    // Save language preference to localStorage
+    saveLanguagePreference() {
+      localStorage.setItem('movieLanguagePreference', this.selectedLanguage);
     },
     
     // Save Plex history mode preference
@@ -1199,7 +1244,8 @@ export default {
             this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
             [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
           this.plexOnlyMode || this.jellyfinOnlyMode,
-          this.customVibe
+          this.customVibe,
+          this.selectedLanguage
         );
         
         // Update loading message to include genres if selected
@@ -1278,7 +1324,8 @@ export default {
           requestCount,
           updatedPrevious,
           genreString,
-          this.customVibe
+          this.customVibe,
+          this.selectedLanguage
         );
         
         // Filter the additional recommendations
@@ -1671,6 +1718,12 @@ export default {
     const savedVibe = localStorage.getItem('movieCustomVibe');
     if (savedVibe) {
       this.customVibe = savedVibe;
+    }
+    
+    // Restore saved language preference if it exists
+    const savedLanguage = localStorage.getItem('movieLanguagePreference');
+    if (savedLanguage) {
+      this.selectedLanguage = savedLanguage;
     }
     
     // Restore saved Plex history mode if it exists
@@ -3281,5 +3334,20 @@ h2 {
 
 .clear-vibe-button:hover {
   opacity: 1;
+}
+
+.language-selector {
+  margin-bottom: 20px;
+}
+
+.language-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 </style>

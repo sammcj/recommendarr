@@ -118,6 +118,8 @@
           
           <History
             v-if="activeTab === 'history'"
+            :sonarrConfigured="sonarrConnected"
+            :radarrConfigured="radarrConnected"
           />
           
           <AISettings

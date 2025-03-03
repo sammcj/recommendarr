@@ -180,9 +180,9 @@ class TautulliService {
     }
   }
   
-  async getRecentlyWatchedMovies(limit = 50, daysAgo = 0) {
+  async getRecentlyWatchedMovies(limit = 50, daysAgo = 0, userId = null) {
     try {
-      const historyData = await this.getWatchHistory(null, 'movie', limit, daysAgo);
+      const historyData = await this.getWatchHistory(userId, 'movie', limit, daysAgo);
       
       // Process and format the movie data
       return historyData.map(item => ({
@@ -199,9 +199,9 @@ class TautulliService {
     }
   }
   
-  async getRecentlyWatchedShows(limit = 50, daysAgo = 0) {
+  async getRecentlyWatchedShows(limit = 50, daysAgo = 0, userId = null) {
     try {
-      const historyData = await this.getWatchHistory(null, 'episode', limit, daysAgo);
+      const historyData = await this.getWatchHistory(userId, 'episode', limit, daysAgo);
       
       // Group episodes by show
       const showMap = new Map();

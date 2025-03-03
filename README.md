@@ -24,9 +24,31 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ## 🚀 Quick Start
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker Compose (Recommended)
 
-Using our pre-built Docker image is the quickest way to get started:
+The easiest way to run Recommendarr with all features is to use Docker Compose:
+
+```bash
+# Clone the repository (which includes the docker-compose.yml file)
+git clone https://github.com/fingerthief/recommendarr.git
+cd recommendarr
+
+# Start the application
+docker-compose up -d
+```
+
+This will:
+1. Build both the frontend and API server images locally
+2. Configure them to work together with the proper networking
+3. Start both services with the correct configuration
+
+Then visit `http://localhost:3030` in your browser to access the application.
+
+The API server runs on port 3050 and provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
+
+### Option 2: Docker (Frontend Only)
+
+You can also run just the frontend container:
 
 ```bash
 # Pull the image
@@ -39,11 +61,11 @@ docker run -d \
   tannermiddleton/recommendarr:latest
 ```
 
-Then visit `http://localhost:3030` in your browser.
+Then visit `http://localhost:3030` in your browser. Note that without the API server, credential storage will be limited to your browser's local storage.
 
 For more Docker options, see the [Docker Support](#-docker-support) section below.
 
-### Option 2: Manual Installation
+### Option 3: Manual Installation
 
 1. Clone the repository:
 ```bash
@@ -145,22 +167,56 @@ docker run -d \
   recommendarr:local
 ```
 
-### Option 3: Docker Compose
+### Option 3: Using Pre-built Docker Images
 
-The repository includes a `docker-compose.yml` file. Simply run:
+If you prefer not to build the images locally and want to use the pre-built images from Docker Hub:
 
 ```bash
-# Clone the repository
-git clone https://github.com/fingerthief/recommendarr.git
+# Create a new directory
+mkdir recommendarr && cd recommendarr
 
-# Navigate to the project directory 
-cd recommendarr
+# Create a docker-compose.yml file with the following content:
+cat > docker-compose.yml << 'EOF'
+version: '3'
+services:
+  recommendarr:
+    image: tannermiddleton/recommendarr:latest
+    container_name: recommendarr
+    depends_on:
+      - api
+    ports:
+      - "3030:80"
+    restart: unless-stopped
+
+  api:
+    image: tannermiddleton/recommendarr-api:latest
+    container_name: recommendarr-api
+    ports:
+      - "3050:3050"
+    environment:
+      - NODE_ENV=production
+      - DOCKER_ENV=true
+    volumes:
+      - ./server/data:/app/server/data
+    restart: unless-stopped
+EOF
+
+# Create the data directory
+mkdir -p server/data
 
 # Start with docker-compose
 docker-compose up -d
 ```
 
-This will build the image from the local Dockerfile and start the service on port 3030.
+This will pull the pre-built images from Docker Hub and start the services on ports 3030 (frontend) and 3050 (API server).
+
+**Key benefits of using either Docker Compose method:**
+- The API server data directory is mounted as a volume, ensuring your credentials persist across container restarts
+- The frontend and API server are automatically configured to work together
+- All your service credentials are stored securely using encryption
+- CORS issues are automatically handled through the proxy service
+
+**Note:** If you want to customize port mappings or other settings, edit the `docker-compose.yml` file before running the command.
 
 ## 🖥️ Compatible AI Services
 
@@ -207,22 +263,38 @@ For best results, try setting max tokens to 4000 and temperature between 0.6-0.8
 - Get suggested movies with descriptions, reasoning, and poster images
 - Easily discover new films based on your existing collection
 
-## 🔒 Privacy
+## 🔒 Privacy & Security
 
 Your data never leaves your control:
-- Sonarr, Radarr, Plex, and Jellyfin API credentials are stored in your browser's localStorage
-- AI API keys are stored locally and used only for your requests
+- When using the API server (via Docker Compose):
+  - Sonarr, Radarr, Plex, and Jellyfin API credentials are stored securely using encryption
+  - AI API keys are stored encrypted and used only for your requests
+  - The API server acts as a proxy, preventing CORS issues when accessing your services
+  - All sensitive data is encrypted at rest on the server
 - Media library and watch history data is sent only to the AI service you configure
 - No analytics or tracking are included in the application
 
 ## 💻 Development
 
+### Setting Up a Development Environment
+
 ```bash
+# Clone the repository
+git clone https://github.com/fingerthief/recommendarr.git
+cd recommendarr
+
 # Install dependencies
 npm install
 
-# Run development server with hot-reload
+# Start both the frontend and API server concurrently (recommended)
+npm run dev
+
+# Or start components individually:
+# Run frontend development server with hot-reload
 npm run serve
+
+# Run API server separately
+npm run api
 
 # Compile and minify for production
 npm run build
@@ -230,6 +302,8 @@ npm run build
 # Lint and fix files
 npm run lint
 ```
+
+The development server will start at http://localhost:8080 (frontend) and http://localhost:3050 (API server).
 
 ## 📄 License
 

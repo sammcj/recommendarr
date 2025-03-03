@@ -1,15 +1,14 @@
-import axios from 'axios';
+import credentialsService from './CredentialsService';
 
 class OpenAIService {
   constructor() {
-    // Try to restore from localStorage on initialization
-    this.apiKey = localStorage.getItem('openaiApiKey') || '';
-    this.baseUrl = localStorage.getItem('aiApiUrl') || 'https://api.openai.com/v1';
-    this.model = localStorage.getItem('openaiModel') || 'gpt-3.5-turbo';
-    this.maxTokens = parseInt(localStorage.getItem('aiMaxTokens') || '800');
-    this.temperature = parseFloat(localStorage.getItem('aiTemperature') || '0.5');
-    this.useSampledLibrary = localStorage.getItem('useSampledLibrary') === 'true' || false;
-    this.sampleSize = parseInt(localStorage.getItem('librarySampleSize') || '20');
+    this.apiKey = '';
+    this.baseUrl = 'https://api.openai.com/v1';
+    this.model = 'gpt-3.5-turbo';
+    this.maxTokens = 800;
+    this.temperature = 0.5;
+    this.useSampledLibrary = false;
+    this.sampleSize = 20;
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -17,6 +16,28 @@ class OpenAIService {
     // Initialize conversation history for maintaining context
     this.tvConversation = [];
     this.movieConversation = [];
+    
+    // Load credentials when instantiated
+    this.loadCredentials();
+  }
+  
+  /**
+   * Load credentials and settings from server-side storage
+   */
+  async loadCredentials() {
+    const credentials = await credentialsService.getCredentials('openai');
+    if (credentials) {
+      this.apiKey = credentials.apiKey || '';
+      if (credentials.apiUrl) this.baseUrl = credentials.apiUrl;
+      if (credentials.model) this.model = credentials.model;
+      if (credentials.maxTokens) this.maxTokens = parseInt(credentials.maxTokens);
+      if (credentials.temperature) this.temperature = parseFloat(credentials.temperature);
+      if (credentials.useSampledLibrary !== undefined) this.useSampledLibrary = credentials.useSampledLibrary === true;
+      if (credentials.sampleSize) this.sampleSize = parseInt(credentials.sampleSize);
+      
+      // Update API URL if baseUrl changed
+      this.apiUrl = this.getCompletionsUrl();
+    }
   }
 
   /**
@@ -39,7 +60,7 @@ class OpenAIService {
    * @param {boolean} useSampledLibrary - Whether to use sampled library for recommendations
    * @param {number} sampleSize - Sample size to use when sampling the library
    */
-  configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null) {
+  async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null) {
     this.apiKey = apiKey;
     
     if (model) {
@@ -62,13 +83,22 @@ class OpenAIService {
     
     if (useSampledLibrary !== null) {
       this.useSampledLibrary = useSampledLibrary;
-      localStorage.setItem('useSampledLibrary', useSampledLibrary.toString());
     }
     
     if (sampleSize !== null) {
       this.sampleSize = sampleSize;
-      localStorage.setItem('librarySampleSize', sampleSize.toString());
     }
+    
+    // Store credentials server-side
+    await credentialsService.storeCredentials('openai', {
+      apiKey: this.apiKey,
+      apiUrl: this.baseUrl,
+      model: this.model,
+      maxTokens: this.maxTokens,
+      temperature: this.temperature,
+      useSampledLibrary: this.useSampledLibrary,
+      sampleSize: this.sampleSize
+    });
   }
 
   /**
@@ -94,8 +124,13 @@ class OpenAIService {
    * @returns {Promise<Array>} - List of recommended TV shows
    */
   async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false, customVibe = '', language = '') {
+    // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
-      throw new Error('OpenAI service is not configured. Please set apiKey.');
+      await this.loadCredentials();
+      
+      if (!this.isConfigured()) {
+        throw new Error('OpenAI service is not configured. Please set apiKey.');
+      }
     }
 
     try {
@@ -277,8 +312,13 @@ STRICT RULES:
    * @returns {Promise<Array>} - List of recommended movies
    */
   async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '', language = '') {
+    // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
-      throw new Error('OpenAI service is not configured. Please set apiKey.');
+      await this.loadCredentials();
+      
+      if (!this.isConfigured()) {
+        throw new Error('OpenAI service is not configured. Please set apiKey.');
+      }
     }
 
     try {
@@ -477,8 +517,13 @@ STRICT RULES:
    * @returns {Promise<Array>} - List of additional recommended TV shows
    */
   async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
+    // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
-      throw new Error('OpenAI service is not configured. Please set apiKey.');
+      await this.loadCredentials();
+      
+      if (!this.isConfigured()) {
+        throw new Error('OpenAI service is not configured. Please set apiKey.');
+      }
     }
 
     try {
@@ -539,8 +584,13 @@ STRICT RULES:
    * @returns {Promise<Array>} - List of additional recommended movies
    */
   async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
+    // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
-      throw new Error('OpenAI service is not configured. Please set apiKey.');
+      await this.loadCredentials();
+      
+      if (!this.isConfigured()) {
+        throw new Error('OpenAI service is not configured. Please set apiKey.');
+      }
     }
 
     try {
@@ -598,6 +648,9 @@ STRICT RULES:
    */
   async getFormattedRecommendationsWithConversation(conversation) {
     try {
+      // Import the ApiService dynamically to avoid circular dependency
+      const apiService = (await import('./ApiService')).default;
+      
       // Define headers based on the API endpoint
       const headers = {};
       
@@ -612,10 +665,11 @@ STRICT RULES:
       
       headers['Content-Type'] = 'application/json';
 
-      // Make the API request with the full conversation history
-      const response = await axios.post(
-        this.apiUrl,
-        {
+      // Make the API request through the proxy with the full conversation history
+      const response = await apiService.proxyRequest({
+        url: this.apiUrl,
+        method: 'POST',
+        data: {
           model: this.model,
           messages: conversation,
           temperature: this.temperature,
@@ -623,8 +677,8 @@ STRICT RULES:
           presence_penalty: 0.1,  // Slightly discourage repetition
           frequency_penalty: 0.1  // Slightly encourage diversity
         },
-        { headers }
-      );
+        headers
+      });
 
       // Check if response contains expected data structure
       if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
@@ -655,6 +709,9 @@ STRICT RULES:
    */
   async getFormattedRecommendations(messages) {
     try {
+      // Import the ApiService dynamically to avoid circular dependency
+      const apiService = (await import('./ApiService')).default;
+      
       // Define headers based on the API endpoint
       const headers = {};
       
@@ -684,10 +741,11 @@ STRICT RULES:
         // We need to split into chunks
         response = await this.sendChunkedMessages(systemMessage, userMessage, headers);
       } else {
-        // We can send in a single request
-        response = await axios.post(
-          this.apiUrl,
-          {
+        // We can send in a single request through the proxy
+        response = await apiService.proxyRequest({
+          url: this.apiUrl,
+          method: 'POST',
+          data: {
             model: this.model,
             messages: messages,
             temperature: this.temperature,
@@ -695,8 +753,8 @@ STRICT RULES:
             presence_penalty: 0.1,  // Slightly discourage repetition
             frequency_penalty: 0.1  // Slightly encourage diversity
           },
-          { headers }
-        );
+          headers
+        });
       }
 
       // Check if response contains expected data structure
@@ -724,6 +782,9 @@ STRICT RULES:
    * @returns {Promise<Object>} - The API response
    */
   async sendChunkedMessages(systemMessage, userMessage, headers) {
+    // Import the ApiService dynamically to avoid circular dependency
+    const apiService = (await import('./ApiService')).default;
+    
     // Chunk size in characters (roughly 3000 tokens)
     const CHUNK_SIZE = 12000;
     
@@ -746,17 +807,18 @@ STRICT RULES:
         content: `Part ${i+1}/${chunks.length} of my request: ${chunks[i]}\n\nThis is part of a multi-part message. Please wait for all parts before responding.`
       });
       
-      // Send intermediate chunks without expecting a full response
-      await axios.post(
-        this.apiUrl,
-        {
+      // Send intermediate chunks without expecting a full response through the proxy
+      await apiService.proxyRequest({
+        url: this.apiUrl,
+        method: 'POST',
+        data: {
           model: this.model,
           messages: conversationMessages,
           temperature: this.temperature,
           max_tokens: 50,  // Small token limit since we just need acknowledgment
         },
-        { headers }
-      );
+        headers
+      });
       
       // Add expected assistant acknowledgment to maintain conversation context
       conversationMessages.push({
@@ -771,10 +833,11 @@ STRICT RULES:
       content: `Final part ${chunks.length}/${chunks.length}: ${chunks[chunks.length - 1]}\n\nThat's the complete request. Please provide recommendations based on all parts of my message.`
     });
     
-    // Get full response from the final message
-    return await axios.post(
-      this.apiUrl,
-      {
+    // Get full response from the final message through the proxy
+    return await apiService.proxyRequest({
+      url: this.apiUrl,
+      method: 'POST',
+      data: {
         model: this.model,
         messages: conversationMessages,
         temperature: this.temperature,
@@ -782,8 +845,8 @@ STRICT RULES:
         presence_penalty: 0.1,
         frequency_penalty: 0.1
       },
-      { headers }
-    );
+      headers
+    });
   }
 
   /**

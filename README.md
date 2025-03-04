@@ -8,7 +8,7 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 - **AI-Powered Recommendations**: Get personalized TV show and movie suggestions based on your existing library
 - **Sonarr & Radarr Integration**: Connects directly to your media servers to analyze your TV and movie collections
-- **Plex & Jellyfin Integration**: Analyzes your watch history to provide better recommendations based on what you've actually watched
+- **Plex, Jellyfin & Tautulli Integration**: Analyzes your watch history to provide better recommendations based on what you've actually watched
 - **Flexible AI Support**: Works with OpenAI, local models (Ollama/LM Studio), or any OpenAI-compatible API
 - **Customization Options**: Adjust recommendation count, model parameters, and more
 - **Dark/Light Mode**: Toggle between themes based on your preference
@@ -18,7 +18,7 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 - [Sonarr](https://sonarr.tv/) instance with API access (for TV recommendations)
 - [Radarr](https://radarr.video/) instance with API access (for movie recommendations)
-- [Plex](https://www.plex.tv/) or [Jellyfin](https://jellyfin.org/) instance with API access (for watch history analysis) - optional
+- [Plex](https://www.plex.tv/), [Jellyfin](https://jellyfin.org/), or [Tautulli](https://tautulli.com/) instance with API access (for watch history analysis) - optional
 - An OpenAI API key or any OpenAI-compatible API (like local LLM servers)
 - Node.js (v14+) and npm for development
 
@@ -107,6 +107,10 @@ npm run serve
    - Enter your Jellyfin API key (found in Jellyfin under Dashboard → API Keys)
    - Enter your Jellyfin user ID (found in Jellyfin user settings)
    - Click "Connect"
+6. For Tautulli (Optional - Watch History):
+   - Enter your Tautulli URL (e.g., `http://localhost:8181` or `https://tautulli.yourdomain.com`)
+   - Enter your Tautulli API key (found in Tautulli under Settings → Web Interface → API)
+   - Click "Connect"
 
 You can connect to any combination of these services based on your needs.
 
@@ -125,7 +129,7 @@ You can connect to any combination of these services based on your needs.
 
 1. Navigate to TV Recommendations or Movie Recommendations page
 2. Adjust the number of recommendations you'd like to receive using the slider
-3. If connected to Plex, choose whether to include your watch history in the recommendations
+3. If connected to Plex, Jellyfin, or Tautulli, choose whether to include your watch history in the recommendations
 4. Click "Get Recommendations"
 5. View your personalized media suggestions with posters and descriptions
 
@@ -253,21 +257,40 @@ For best results, try setting max tokens to 4000 and temperature between 0.6-0.8
 ### TV Recommendations
 - Connect to your Sonarr instance to get personalized TV show recommendations
 - The AI analyzes your TV library to understand your preferences
-- Optional Plex or Jellyfin integration enhances recommendations based on what you've actually watched
+- Optional Plex, Jellyfin, or Tautulli integration enhances recommendations based on what you've actually watched
 - Receives detailed recommendations with show descriptions and reasoning
 
 ### Movie Recommendations
 - Connect to your Radarr instance to get personalized movie recommendations
 - The AI analyzes your movie collection to understand genres and preferences you enjoy
-- Optional Plex or Jellyfin integration provides watch history data for better personalization
+- Optional Plex, Jellyfin, or Tautulli integration provides watch history data for better personalization
 - Get suggested movies with descriptions, reasoning, and poster images
 - Easily discover new films based on your existing collection
+
+## 📊 Tautulli
+
+### Setting Up Tautulli Integration
+
+Tautulli provides advanced insights into your Plex Media Server, tracking user activity and media statistics. Integrating Tautulli with Recommendarr enhances recommendations by analyzing your actual watch history.
+
+1. In the Recommendarr interface, go to **Settings** and connect to your Tautulli instance
+2. Enter your Tautulli URL (e.g., `http://localhost:8181` or `http://your-server-ip:8181`)
+3. Enter your Tautulli API key (found in Tautulli under Settings → Web Interface → API)
+4. Test the connection and save
+
+### Benefits
+
+- **Enhanced Recommendations**: Your watch history is analyzed to provide more personalized recommendations
+- **Viewing Insights**: See what content is most popular in your household
+- **Better Context**: The AI uses your actual viewing patterns to understand your preferences
+
+Watch history from Tautulli complements your media library data, giving the AI a more complete picture of your preferences beyond just what content you've collected.
 
 ## 🔒 Privacy & Security
 
 Your data never leaves your control:
 - When using the API server (via Docker Compose):
-  - Sonarr, Radarr, Plex, and Jellyfin API credentials are stored securely using encryption
+  - Sonarr, Radarr, Plex, Jellyfin, and Tautulli API credentials are stored securely using encryption
   - AI API keys are stored encrypted and used only for your requests
   - The API server acts as a proxy, preventing CORS issues when accessing your services
   - All sensitive data is encrypted at rest on the server
@@ -316,4 +339,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Radarr](https://radarr.video/) - For the API that enables movie recommendations
 - [Plex](https://www.plex.tv/) - For the API that provides watch history data
 - [Jellyfin](https://jellyfin.org/) - For the API that provides additional watch history data
+- [Tautulli](https://tautulli.com/) - For the API that provides detailed Plex watch statistics
 - [OpenRouter](https://openrouter.ai/docs/quickstart) - For the API that powers AI-based suggestions

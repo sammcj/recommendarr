@@ -25,3 +25,12 @@ pnpm-debug.log*
 Dockerfile
 .dockerignore
 docker-compose.yml
+docker-compose.remote.yml
+
+# Git files
+.git
+.gitattributes
+.gitignore
+
+# Backup directory
+backup/

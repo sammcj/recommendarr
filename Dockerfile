@@ -1,13 +1,23 @@
 # Build stage
 FROM node:22-alpine as build-stage
 WORKDIR /app
+
+# Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install
-COPY . .
+
+# Copy source files (excluding backup directory)
+COPY public ./public
+COPY src ./src
+COPY babel.config.js ./
+COPY jsconfig.json ./
+COPY vue.config.js ./
+
+# Build the frontend
 RUN npm run build
 
 # Production stage
-FROM node:22-alpine
+FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files and install production dependencies
@@ -19,6 +29,9 @@ COPY --from=build-stage /app/dist ./dist
 
 # Copy server files
 COPY server ./server
+
+# Create data directory
+RUN mkdir -p ./server/data
 
 # Set environment variables
 ENV NODE_ENV=production

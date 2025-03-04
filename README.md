@@ -135,6 +135,18 @@ You can connect to any combination of these services based on your needs.
 
 ## 🐋 Docker Support
 
+### Using docker-compose.remote.yml
+
+For convenience, a pre-configured `docker-compose.remote.yml` file is included in the repository that uses the Docker Hub images:
+
+```bash
+# Stop any existing instances first
+docker-compose down
+
+# Pull the latest images and start the services
+docker-compose -f docker-compose.remote.yml pull && docker-compose -f docker-compose.remote.yml up -d
+```
+
 ### Option 1: Pull and Run Pre-built Image
 
 The easiest way to run Recommendarr:

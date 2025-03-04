@@ -1109,7 +1109,7 @@ export default {
       if (this.selectedModel === 'custom') {
         this.isCustomModel = true;
         // If we already have a custom model set, use that as the initial value
-        if (openAIService.model && !this.availableModels.includes(openAIService.model)) {
+        if (openAIService.model && !this.modelOptions.some(model => model.id === openAIService.model)) {
           this.customModel = openAIService.model;
         }
       } else {

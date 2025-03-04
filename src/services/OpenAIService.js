@@ -19,6 +19,9 @@ class OpenAIService {
     
     // Load credentials when instantiated
     this.loadCredentials();
+    
+    // Try to get model from localStorage if it exists
+    this.loadModelFromLocalStorage();
   }
   
   /**
@@ -37,6 +40,17 @@ class OpenAIService {
       
       // Update API URL if baseUrl changed
       this.apiUrl = this.getCompletionsUrl();
+    }
+  }
+  
+  /**
+   * Load the model from localStorage if it exists
+   * Falls back to the model stored in credentials if localStorage model doesn't exist
+   */
+  loadModelFromLocalStorage() {
+    const localStorageModel = localStorage.getItem('openaiModel');
+    if (localStorageModel) {
+      this.model = localStorageModel;
     }
   }
 
@@ -121,6 +135,8 @@ class OpenAIService {
     
     if (model) {
       this.model = model;
+      // When model is updated, also store it in localStorage for easy access
+      localStorage.setItem('openaiModel', model);
     }
     
     if (baseUrl) {
@@ -145,7 +161,7 @@ class OpenAIService {
       this.sampleSize = sampleSize;
     }
     
-    // Store credentials server-side
+    // Store credentials server-side (including model selection as backup)
     await credentialsService.storeCredentials('openai', {
       apiKey: this.apiKey,
       apiUrl: this.baseUrl,
@@ -323,7 +339,7 @@ Prioritize shows that:
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.
 
-FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
+FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with NO DEVIATIONS whatsoever - failure to follow this format will BREAK the application:
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
@@ -356,7 +372,7 @@ STRICT RULES:
       this.tvConversation = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. Any deviation from the formatting requirements will result in failure. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed - failure to follow this format will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified"
         },
         {
           role: "user",
@@ -546,7 +562,7 @@ Prioritize movies that:
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.
 
-FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
+FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with NO DEVIATIONS whatsoever - failure to follow this format will BREAK the application:
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
@@ -579,7 +595,7 @@ STRICT RULES:
       this.movieConversation = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. Any deviation from the formatting requirements will result in failure. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed - failure to follow this format will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified"
         },
         {
           role: "user",

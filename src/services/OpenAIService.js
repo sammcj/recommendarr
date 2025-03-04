@@ -339,7 +339,10 @@ Prioritize shows that:
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.
 
-FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with NO DEVIATIONS whatsoever - failure to follow this format will BREAK the application:
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+
+The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
+
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
@@ -361,18 +364,20 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 2. [Next Show Title]:
 ...and so on.
 
-STRICT RULES:
-- Do NOT add any extra text, headings, or formatting
-- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per show
+⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
+- Follow this output format with ABSOLUTE PRECISION 
+- Do NOT add ANY extra text, headings, introductions, or conclusions
+- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per show
 - Do NOT use Markdown formatting like bold or italics
-- Do NOT include additional information outside the required format
-- NEVER recommend any show in my library, liked shows list, or any exclusion list`;
+- Do NOT deviate from the format structure in ANY way
+- NEVER recommend any show in my library, liked shows list, or any exclusion list
+- Begin IMMEDIATELY with "1. [Show Title]:" with NO preamble`;
 
       // Initialize conversation with system message
       this.tvConversation = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. Any deviation from the formatting requirements will result in failure. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed - failure to follow this format will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified"
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. ⚠️ CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. ANY deviation from the formatting requirements will BREAK the application completely. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include ANY extra text, explanations, headings, introductions or conclusions\n6. Format each recommendation EXACTLY as instructed - even minor deviations will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified\n9. Begin your response IMMEDIATELY with '1. [Show Title]:' with NO preamble text\n10. ONLY use the section titles exactly as specified: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",
@@ -562,7 +567,10 @@ Prioritize movies that:
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.
 
-FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with NO DEVIATIONS whatsoever - failure to follow this format will BREAK the application:
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+
+The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
+
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
@@ -584,18 +592,20 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 2. [Next Movie Title]:
 ...and so on.
 
-STRICT RULES:
-- Do NOT add any extra text, headings, or formatting
-- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per movie
+⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
+- Follow this output format with ABSOLUTE PRECISION 
+- Do NOT add ANY extra text, headings, introductions, or conclusions
+- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per movie
 - Do NOT use Markdown formatting like bold or italics
-- Do NOT include additional information outside the required format
-- NEVER recommend any movie in my library, liked movies list, or any exclusion list`;
+- Do NOT deviate from the format structure in ANY way
+- NEVER recommend any movie in my library, liked movies list, or any exclusion list
+- Begin IMMEDIATELY with "1. [Movie Title]:" with NO preamble`;
 
       // Initialize conversation with system message
       this.movieConversation = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. Any deviation from the formatting requirements will result in failure. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed - failure to follow this format will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified"
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. ⚠️ CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. ANY deviation from the formatting requirements will BREAK the application completely. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include ANY extra text, explanations, headings, introductions or conclusions\n6. Format each recommendation EXACTLY as instructed - even minor deviations will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified\n9. Begin your response IMMEDIATELY with '1. [Movie Title]:' with NO preamble text\n10. ONLY use the section titles exactly as specified: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",

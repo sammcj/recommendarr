@@ -231,7 +231,7 @@
             <button 
               type="button" 
               @click="fetchModels" 
-              :disabled="this.aiSettings.apiKey === undefined || isLoading"
+              :disabled="isLoading"
               class="action-button"
             >
               <span class="button-icon" v-if="isLoading">
@@ -1169,12 +1169,6 @@ export default {
     
     // AI Service Methods
     async fetchModels() {
-      // Allow empty API key for local models
-      if (this.aiSettings.apiKey === undefined) {
-        this.fetchError = 'API key field cannot be undefined';
-        return;
-      }
-      
       // Normalize the API URL
       if (this.aiSettings.apiUrl) {
         // Ensure URL starts with http:// or https://

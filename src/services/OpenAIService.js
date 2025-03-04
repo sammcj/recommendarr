@@ -5,8 +5,8 @@ class OpenAIService {
     this.apiKey = '';
     this.baseUrl = 'https://api.openai.com/v1';
     this.model = 'gpt-3.5-turbo';
-    this.maxTokens = 800;
-    this.temperature = 0.5;
+    this.maxTokens = 4000;
+    this.temperature = 0.8;
     this.useSampledLibrary = false;
     this.sampleSize = 20;
     
@@ -162,8 +162,8 @@ class OpenAIService {
    * @returns {boolean} - Whether the service is configured
    */
   isConfigured() {
-    // Check if baseUrl is set, but allow empty apiKey for local models
-    return this.baseUrl !== '' && this.apiKey !== undefined;
+    // Check if baseUrl is set and model is selected
+    return this.baseUrl !== '' && this.model !== '';
   }
 
   /**

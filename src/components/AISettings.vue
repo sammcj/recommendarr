@@ -266,6 +266,7 @@
                   :value="model.id" 
                   v-model="aiSettings.selectedModel" 
                   name="model" 
+                  @change="saveOnModelSelect"
                 />
                 <label :for="model.id" :title="model.id">{{ model.id }}</label>
               </div>
@@ -312,6 +313,10 @@
         </div>
         
         <div class="actions">
+          <div v-if="!aiSettings.selectedModel" class="model-warning">
+            <span class="warning-icon">⚠️</span>
+            <span>You must select a model for recommendations to work. Click "Fetch Available Models" after entering API URL.</span>
+          </div>
           <button type="button" @click="saveAISettings" class="save-button">
             Save AI Settings
           </button>
@@ -782,8 +787,8 @@ export default {
         apiUrl: '',
         apiKey: '',
         selectedModel: '',
-        maxTokens: 800,
-        temperature: 0.5
+        maxTokens: 4000,
+        temperature: 0.8
       },
       models: [],
       modelSearch: '',
@@ -1051,8 +1056,8 @@ export default {
           this.aiSettings.apiUrl = credentials.apiUrl || 'https://api.openai.com/v1';
           this.aiSettings.apiKey = credentials.apiKey || '';
           this.aiSettings.selectedModel = credentials.model || 'gpt-3.5-turbo';
-          this.aiSettings.maxTokens = credentials.maxTokens ? parseInt(credentials.maxTokens) : 800;
-          this.aiSettings.temperature = credentials.temperature ? parseFloat(credentials.temperature) : 0.5;
+          this.aiSettings.maxTokens = credentials.maxTokens ? parseInt(credentials.maxTokens) : 4000;
+          this.aiSettings.temperature = credentials.temperature ? parseFloat(credentials.temperature) : 0.8;
         }
       } catch (error) {
         console.error('Error loading OpenAI settings:', error);
@@ -1218,6 +1223,11 @@ export default {
           // If no model is selected, select the first one
           if (!this.aiSettings.selectedModel && this.models.length > 0) {
             this.aiSettings.selectedModel = this.models[0].id;
+          }
+          
+          // Auto-save settings after successful model fetch
+          if (this.models.length > 0) {
+            this.saveAISettings();
           }
         } else {
           this.fetchError = 'No models returned from API';
@@ -1643,6 +1653,11 @@ export default {
       setTimeout(() => {
         this.saveMessage = '';
       }, 3500);
+    },
+    
+    saveOnModelSelect() {
+      // Auto-save settings when a model is selected
+      this.saveAISettings();
     }
   }
 };
@@ -2143,6 +2158,30 @@ input[type="password"] {
   opacity: 0.8;
   font-size: 13px !important;
   margin-top: 15px !important;
+}
+
+.model-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border-radius: 4px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  border-left: 4px solid #ffc107;
+}
+
+.warning-icon {
+  font-size: 16px;
+}
+
+/* Dark theme support */
+body.dark-theme .model-warning {
+  background-color: rgba(255, 193, 7, 0.15);
+  color: #ffe083;
+  border-left-color: #ffc107;
 }
 
 .field-hint {

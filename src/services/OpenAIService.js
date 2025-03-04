@@ -5,8 +5,8 @@ class OpenAIService {
     this.apiKey = '';
     this.baseUrl = 'https://api.openai.com/v1';
     this.model = 'gpt-3.5-turbo';
-    this.maxTokens = 800;
-    this.temperature = 0.5;
+    this.maxTokens = 4000;
+    this.temperature = 0.8;
     this.useSampledLibrary = false;
     this.sampleSize = 20;
     
@@ -19,6 +19,9 @@ class OpenAIService {
     
     // Load credentials when instantiated
     this.loadCredentials();
+    
+    // Try to get model from localStorage if it exists
+    this.loadModelFromLocalStorage();
   }
   
   /**
@@ -37,6 +40,17 @@ class OpenAIService {
       
       // Update API URL if baseUrl changed
       this.apiUrl = this.getCompletionsUrl();
+    }
+  }
+  
+  /**
+   * Load the model from localStorage if it exists
+   * Falls back to the model stored in credentials if localStorage model doesn't exist
+   */
+  loadModelFromLocalStorage() {
+    const localStorageModel = localStorage.getItem('openaiModel');
+    if (localStorageModel) {
+      this.model = localStorageModel;
     }
   }
 
@@ -121,6 +135,8 @@ class OpenAIService {
     
     if (model) {
       this.model = model;
+      // When model is updated, also store it in localStorage for easy access
+      localStorage.setItem('openaiModel', model);
     }
     
     if (baseUrl) {
@@ -145,7 +161,7 @@ class OpenAIService {
       this.sampleSize = sampleSize;
     }
     
-    // Store credentials server-side
+    // Store credentials server-side (including model selection as backup)
     await credentialsService.storeCredentials('openai', {
       apiKey: this.apiKey,
       apiUrl: this.baseUrl,
@@ -158,12 +174,15 @@ class OpenAIService {
   }
 
   /**
-   * Check if the service is configured with API key
+   * Check if the service is configured properly
    * @returns {boolean} - Whether the service is configured
    */
   isConfigured() {
-    // Check if baseUrl is set, but allow empty apiKey for local models
-    return this.baseUrl !== '' && this.apiKey !== undefined;
+    // For a properly configured service, we need:
+    // 1. A base URL for the API endpoint
+    // 2. A selected model
+    // The API key is now optional in some cases (like for local models)
+    return this.baseUrl !== '' && this.model !== '';
   }
 
   /**
@@ -256,13 +275,40 @@ class OpenAIService {
         userPrompt += ` Please ONLY recommend TV shows in ${language} language.`;
       }
       
-      // Add instructions for diverse, high-quality recommendations
-      userPrompt += ` Prioritize shows that match these criteria:
-1. Highest overall quality and critical acclaim
-2. Strong thematic or stylistic connections to my current library
-3. Diverse in content (not just the most obvious recommendations)
-4. Include a mix of both popular and lesser-known hidden gems
-5. Focus on complete or ongoing shows with consistent quality, not canceled after 1-2 seasons`;
+      // Add instructions for diverse, high-quality recommendations using analytical approaches
+      userPrompt += ` When selecting recommendations, use multiple analytical approaches:
+
+1. STATISTICAL ANALYSIS:
+   - Identify shows with consistently high ratings across multiple platforms
+   - Consider rating stability across seasons rather than just averages
+   - Analyze viewership retention patterns and growth trends
+
+2. QUANTITATIVE ANALYSIS: 
+   - Evaluate concrete metrics like awards received, cultural citations, and completion rates
+   - Consider episode count, season longevity, and production investment
+   - Assess viewership numbers and growth over time
+
+3. QUALITATIVE ANALYSIS:
+   - Evaluate writing strength, acting performances, and production quality 
+   - Assess narrative complexity, character development, and thematic depth
+   - Consider directorial vision and creative uniqueness
+
+4. COMPARATIVE ANALYSIS:
+   - Benchmark against the strongest titles in my current library
+   - Identify shows that pioneered or perfected elements seen in my favorites
+   - Find content that represents the best of its specific genre or format
+
+5. CULTURAL IMPACT:
+   - Consider shows with lasting influence on their genre or medium
+   - Identify content with strong relevance to contemporary themes
+   - Include shows with dedicated followings or critical reassessment
+
+Prioritize shows that:
+- Represent the highest overall quality based on these analyses
+- Show strong thematic or stylistic connections to my current library
+- Offer diversity in content (not just the most obvious recommendations)
+- Include both popular standouts and lesser-known hidden gems
+- Are complete or ongoing with consistent quality, not canceled after 1-2 seasons`;
       
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
@@ -296,33 +342,45 @@ class OpenAIService {
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.
 
-FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+
+The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
+
 1. [Show Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current shows] 
 Recommendarr Rating: [score]% - [brief qualitative assessment]
 Available on: [streaming service]
 
-For the Recommendarr Rating, silently calculate a score from 0-100% by privately considering available ratings from sources like IMDB, Rotten Tomatoes, TVDB, Metacritic, and other audience ratings. Then provide:
+For the Recommendarr Rating, conduct a thorough analysis using multiple methodologies:
+- Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, TVDB, Metacritic
+- Quantitative analysis: Evaluate objective metrics like episode count, seasons completed, awards won, and viewership numbers
+- Qualitative analysis: Assess writing quality, acting performances, character development, and production values 
+- Comparative analysis: Consider how it ranks among peers in the same genre and time period
+- Cultural impact: Weigh its influence, longevity, and relevance to current audiences
+
+After this analysis, provide:
 - Just a single percentage number (e.g., "85%")
-- A brief qualitative assessment of the show that explains its strengths/weaknesses
+- A brief assessment that synthesizes these analytical approaches to explain strengths/weaknesses
 DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Show Title]:
 ...and so on.
 
-STRICT RULES:
-- Do NOT add any extra text, headings, or formatting
-- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per show
+⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
+- Follow this output format with ABSOLUTE PRECISION 
+- Do NOT add ANY extra text, headings, introductions, or conclusions
+- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per show
 - Do NOT use Markdown formatting like bold or italics
-- Do NOT include additional information outside the required format
-- NEVER recommend any show in my library, liked shows list, or any exclusion list`;
+- Do NOT deviate from the format structure in ANY way
+- NEVER recommend any show in my library, liked shows list, or any exclusion list
+- Begin IMMEDIATELY with "1. [Show Title]:" with NO preamble`;
 
       // Initialize conversation with system message
       this.tvConversation = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
+          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. ⚠️ CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. ANY deviation from the formatting requirements will BREAK the application completely. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include ANY extra text, explanations, headings, introductions or conclusions\n6. Format each recommendation EXACTLY as instructed - even minor deviations will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified\n9. Begin your response IMMEDIATELY with '1. [Show Title]:' with NO preamble text\n10. ONLY use the section titles exactly as specified: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",
@@ -445,13 +503,40 @@ STRICT RULES:
         userPrompt += ` Please ONLY recommend movies in ${language} language.`;
       }
       
-      // Add instructions for diverse, high-quality recommendations
-      userPrompt += ` Prioritize movies that match these criteria:
-1. Highest overall quality and critical acclaim
-2. Strong thematic or stylistic connections to my current library
-3. Diverse in content (not just the most obvious recommendations)
-4. Include a mix of both popular and lesser-known hidden gems
-5. Consider both classic and recent releases that have stood the test of time`;
+      // Add instructions for diverse, high-quality recommendations using analytical approaches
+      userPrompt += ` When selecting recommendations, use multiple analytical approaches:
+
+1. STATISTICAL ANALYSIS:
+   - Identify movies with consistently high ratings across multiple platforms
+   - Consider audience-critic rating correlation and distribution
+   - Analyze long-term rating stability rather than just initial reception
+
+2. QUANTITATIVE ANALYSIS: 
+   - Evaluate concrete metrics like box office performance relative to budget
+   - Consider awards received, nominations, and festival recognitions
+   - Assess commercial success balanced with artistic achievement
+
+3. QUALITATIVE ANALYSIS:
+   - Evaluate directorial vision, screenplay strength, and performance quality
+   - Assess technical elements including cinematography, editing, and sound design
+   - Consider narrative innovation, thematic depth, and emotional impact
+
+4. COMPARATIVE ANALYSIS:
+   - Benchmark against the strongest titles in my current library
+   - Identify films that pioneered or perfected elements seen in my favorites
+   - Find content that represents the best of its specific genre or era
+
+5. CULTURAL IMPACT:
+   - Consider films with lasting influence on cinema and popular culture
+   - Identify content with strong relevance to contemporary themes
+   - Include movies with dedicated followings or critical reassessment over time
+
+Prioritize movies that:
+- Represent the highest overall quality based on these analyses
+- Show strong thematic or stylistic connections to my current library
+- Offer diversity in content (not just the most obvious recommendations)
+- Include both popular standouts and lesser-known hidden gems
+- Consider both classic and recent releases that have stood the test of time`;
       
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
@@ -485,33 +570,45 @@ STRICT RULES:
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.
 
-FORMATTING REQUIREMENTS: You MUST follow this EXACT format for each recommendation with no deviation:
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+
+The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
+
 1. [Movie Title]: 
 Description: [brief description] 
 Why you might like it: [short reason based on my current movies] 
 Recommendarr Rating: [score]% - [brief qualitative assessment]
 Available on: [streaming service]
 
-For the Recommendarr Rating, silently calculate a score from 0-100% by privately considering available ratings from sources like IMDB, Rotten Tomatoes, TVDB, Metacritic, and other audience ratings. Then provide:
+For the Recommendarr Rating, conduct a thorough analysis using multiple methodologies:
+- Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, Metacritic
+- Quantitative analysis: Evaluate objective metrics like box office performance, budget-to-return ratio, and awards received
+- Qualitative analysis: Assess cinematic elements including direction, screenplay, performances, and technical aspects
+- Comparative analysis: Consider how it ranks among peers in the same genre and time period  
+- Cultural impact: Weigh its influence, longevity, and relevance to current audiences
+
+After this analysis, provide:
 - Just a single percentage number (e.g., "85%")
-- A brief qualitative assessment of the movie that explains its strengths/weaknesses
+- A brief assessment that synthesizes these analytical approaches to explain strengths/weaknesses
 DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Movie Title]:
 ...and so on.
 
-STRICT RULES:
-- Do NOT add any extra text, headings, or formatting
-- Use each section title (Description, Why you might like it, Recommendarr Rating, Available on) EXACTLY once per movie
+⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
+- Follow this output format with ABSOLUTE PRECISION 
+- Do NOT add ANY extra text, headings, introductions, or conclusions
+- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per movie
 - Do NOT use Markdown formatting like bold or italics
-- Do NOT include additional information outside the required format
-- NEVER recommend any movie in my library, liked movies list, or any exclusion list`;
+- Do NOT deviate from the format structure in ANY way
+- NEVER recommend any movie in my library, liked movies list, or any exclusion list
+- Begin IMMEDIATELY with "1. [Movie Title]:" with NO preamble`;
 
       // Initialize conversation with system message
       this.movieConversation = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. Be concise and follow EXACTLY the required output format. You MUST adhere to these CRITICAL rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include any extra text, explanations, or headings\n6. Format each recommendation EXACTLY as instructed\n7. Follow the numbering format precisely (1., 2., etc.)"
+          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. ⚠️ CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. ANY deviation from the formatting requirements will BREAK the application completely. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include ANY extra text, explanations, headings, introductions or conclusions\n6. Format each recommendation EXACTLY as instructed - even minor deviations will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified\n9. Begin your response IMMEDIATELY with '1. [Movie Title]:' with NO preamble text\n10. ONLY use the section titles exactly as specified: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",

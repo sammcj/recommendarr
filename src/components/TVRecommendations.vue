@@ -1105,26 +1105,58 @@ export default {
     },
     
     // Update the model selection
-    updateModel() {
+    async updateModel() {
       if (this.selectedModel === 'custom') {
         this.isCustomModel = true;
         // If we already have a custom model set, use that as the initial value
-        if (openAIService.model && !this.availableModels.includes(openAIService.model)) {
+        if (openAIService.model && !this.modelOptions.some(model => model.id === openAIService.model)) {
           this.customModel = openAIService.model;
         }
       } else {
         this.isCustomModel = false;
-        // Save the selected model
+        // Save the selected model to localStorage
         localStorage.setItem('openaiModel', this.selectedModel);
         openAIService.model = this.selectedModel;
+        
+        // Also save it to the server-side credentials as a backup
+        try {
+          // Update just the model in the credentials using the current service settings
+          await openAIService.configure(
+            openAIService.apiKey, 
+            this.selectedModel,
+            openAIService.baseUrl,
+            openAIService.maxTokens,
+            openAIService.temperature,
+            openAIService.useSampledLibrary,
+            openAIService.sampleSize
+          );
+        } catch (error) {
+          console.error('Error saving model to credentials:', error);
+        }
       }
     },
     
     // Update the custom model name
-    updateCustomModel() {
+    async updateCustomModel() {
       if (this.customModel.trim()) {
         localStorage.setItem('openaiModel', this.customModel);
         openAIService.model = this.customModel;
+        
+        // Also save custom model to the server-side credentials as a backup
+        try {
+          // Update just the model in the credentials using the current service settings
+          await openAIService.configure(
+            openAIService.apiKey, 
+            this.customModel,
+            openAIService.baseUrl,
+            openAIService.maxTokens,
+            openAIService.temperature,
+            openAIService.useSampledLibrary,
+            openAIService.sampleSize
+          );
+        } catch (error) {
+          console.error('Error saving custom model to credentials:', error);
+        }
       }
     },
     

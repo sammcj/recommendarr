@@ -49,6 +49,62 @@ class OpenAIService {
     const baseUrl = this.baseUrl ? this.baseUrl.replace(/\/+$/, '') : '';
     return `${baseUrl}/chat/completions`;
   }
+  
+  /**
+   * Get the models URL based on the base URL
+   * @returns {string} - The full URL for models endpoint
+   */
+  getModelsUrl() {
+    // Normalize the base URL by removing trailing slashes
+    const baseUrl = this.baseUrl ? this.baseUrl.replace(/\/+$/, '') : '';
+    return `${baseUrl}/models`;
+  }
+  
+  /**
+   * Fetch available models from the API
+   * @returns {Promise<Array>} - List of available models
+   */
+  async fetchModels() {
+    if (!this.isConfigured()) {
+      throw new Error('OpenAI service is not configured. Please set apiKey.');
+    }
+    
+    // Import ApiService dynamically to avoid circular dependency
+    const apiService = (await import('./ApiService')).default;
+    
+    // Prepare headers based on the API endpoint
+    const headers = {};
+    
+    // Set appropriate authentication headers based on the API
+    if (this.baseUrl === 'https://api.anthropic.com/v1') {
+      headers['x-api-key'] = this.apiKey;
+      headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      headers['anthropic-version'] = '2023-06-01';
+    } else if (this.apiKey) { // Only add Authorization header if apiKey is present
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+    
+    try {
+      // Use proxy service to fetch models
+      const response = await apiService.proxyRequest({
+        url: this.getModelsUrl(),
+        method: 'GET',
+        headers: headers
+      });
+      
+      // Check if the proxy request was successful
+      if (response && response.status >= 200 && response.status < 300 && response.data) {
+        if (response.data.data) {
+          return response.data.data;
+        }
+      }
+      
+      throw new Error('Failed to fetch models: Invalid response format');
+    } catch (error) {
+      console.error('Error fetching models:', error);
+      throw error;
+    }
+  }
 
   /**
    * Configure the OpenAI service with full parameters
@@ -106,7 +162,8 @@ class OpenAIService {
    * @returns {boolean} - Whether the service is configured
    */
   isConfigured() {
-    return Boolean(this.apiKey);
+    // Check if baseUrl is set, but allow empty apiKey for local models
+    return this.baseUrl !== '' && this.apiKey !== undefined;
   }
 
   /**
@@ -659,7 +716,7 @@ STRICT RULES:
         headers['x-api-key'] = this.apiKey;
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
         headers['anthropic-version'] = '2023-06-01';
-      } else {
+      } else if (this.apiKey) { // Only add Authorization header if apiKey is present
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       }
       
@@ -720,7 +777,7 @@ STRICT RULES:
         headers['x-api-key'] = this.apiKey;
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
         headers['anthropic-version'] = '2023-06-01';
-      } else {
+      } else if (this.apiKey) { // Only add Authorization header if apiKey is present
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       }
       

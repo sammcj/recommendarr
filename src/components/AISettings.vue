@@ -39,10 +39,17 @@
       >
         Jellyfin
       </button>
+      <button 
+        @click="activeTab = 'tautulli'" 
+        :class="{ active: activeTab === 'tautulli' }" 
+        class="tab-button"
+      >
+        Tautulli
+      </button>
     </div>
     
     <!-- Connected Services Section -->
-    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected" class="section-card connected-services-wrapper">
+    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected" class="section-card connected-services-wrapper">
       <div class="collapsible-header" @click="toggleConnectionsPanel">
         <h3>Manage Connected Services</h3>
         <button class="collapse-toggle">
@@ -60,6 +67,10 @@
           </button>
           <button v-if="jellyfinConnected" class="connection-button jellyfin-button" @click="showJellyfinConnectModal">
             <span class="connection-name">Jellyfin</span>
+            <span class="connection-action">Manage Connection</span>
+          </button>
+          <button v-if="tautulliConnected" class="connection-button tautulli-button" @click="showTautulliConnectModal">
+            <span class="connection-name">Tautulli</span>
             <span class="connection-action">Manage Connection</span>
           </button>
           <button v-if="sonarrConnected" class="connection-button sonarr-button" @click="showSonarrConnectModal">
@@ -155,6 +166,27 @@
           </div>
         </div>
       </div>
+      
+      <!-- Tautulli Connection Management Modal -->
+      <div v-if="showTautulliConnect" class="connection-modal-overlay" @click.self="closeTautulliModal">
+        <div class="connection-modal">
+          <div class="modal-header">
+            <h3>Manage Tautulli Connection</h3>
+            <button class="modal-close-x" @click="closeTautulliModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <TautulliConnection 
+              :connected="tautulliConnected" 
+              @connected="handleTautulliConnected" 
+              @disconnected="handleTautulliDisconnected" 
+              @limitChanged="handleTautulliLimitChanged"
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="modal-close-button" @click="closeTautulliModal">Close</button>
+          </div>
+        </div>
+      </div>
     </teleport>
     
     <!-- AI Service Settings Tab -->
@@ -184,8 +216,7 @@
               id="apiKey" 
               v-model="aiSettings.apiKey" 
               :type="showApiKey ? 'text' : 'password'" 
-              placeholder="Your API key"
-              required
+              placeholder="Your API key (can be empty for local models)"
             />
             <button type="button" class="toggle-button" @click="showApiKey = !showApiKey">
               {{ showApiKey ? 'Hide' : 'Show' }}
@@ -200,7 +231,7 @@
             <button 
               type="button" 
               @click="fetchModels" 
-              :disabled="!aiSettings.apiKey || isLoading"
+              :disabled="this.aiSettings.apiKey === undefined || isLoading"
               class="action-button"
             >
               <span class="button-icon" v-if="isLoading">
@@ -594,6 +625,84 @@
       </div>
     </div>
     
+    <!-- Tautulli Settings Tab -->
+    <div v-if="activeTab === 'tautulli'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to your Tautulli server to access watch history statistics for Plex users. Your server details will be stored locally in your browser.</p>
+      </div>
+      
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="tautulliUrl">Tautulli URL:</label>
+          <input 
+            id="tautulliUrl" 
+            v-model="tautulliSettings.baseUrl" 
+            type="text" 
+            placeholder="http://localhost:8181"
+            required
+          />
+          <div class="field-hint">The URL of your Tautulli server (e.g., http://localhost:8181 or https://tautulli.yourdomain.com)</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="tautulliApiKey">API Key:</label>
+          <div class="api-key-input">
+            <input 
+              id="tautulliApiKey" 
+              v-model="tautulliSettings.apiKey" 
+              :type="showTautulliApiKey ? 'text' : 'password'" 
+              placeholder="Your Tautulli API key"
+              required
+            />
+            <button type="button" class="toggle-button" @click="showTautulliApiKey = !showTautulliApiKey">
+              {{ showTautulliApiKey ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">Found in Tautulli Settings > Web Interface > API</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="tautulliRecentLimit">Number of recently watched items:</label>
+          <div class="slider-container">
+            <input 
+              id="tautulliRecentLimit" 
+              v-model.number="tautulliSettings.recentLimit" 
+              type="range" 
+              min="1" 
+              max="100" 
+              step="1" 
+            />
+            <span class="slider-value">{{ tautulliSettings.recentLimit }}</span>
+          </div>
+          <div class="field-hint">How many recently watched items to include in recommendations</div>
+        </div>
+        
+        <div class="actions">
+          <button type="button" @click="testTautulliConnection" class="test-button" :disabled="testingTautulli">
+            {{ testingTautulli ? 'Testing...' : 'Test Connection' }}
+          </button>
+          <button type="button" @click="saveTautulliSettings" class="save-button" :disabled="testingTautulli">
+            Save Tautulli Settings
+          </button>
+        </div>
+        
+        <div v-if="tautulliConnectionMessage" class="connection-message" :class="{ 'success': tautulliConnectionStatus, 'error': !tautulliConnectionStatus }">
+          <div class="notification-content">
+            <span class="notification-icon">
+              <svg v-if="tautulliConnectionStatus" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </span>
+            {{ tautulliConnectionMessage }}
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <!-- Fixed Position Notification Toast -->
     <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
       <div class="notification-content">
@@ -615,15 +724,16 @@
 </template>
 
 <script>
-import axios from 'axios';
 import openAIService from '../services/OpenAIService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import plexService from '../services/PlexService';
 import jellyfinService from '../services/JellyfinService';
+import tautulliService from '../services/TautulliService';
 import credentialsService from '../services/CredentialsService';
 import PlexConnection from './PlexConnection.vue';
 import JellyfinConnection from './JellyfinConnection.vue';
+import TautulliConnection from './TautulliConnection.vue';
 import SonarrConnection from './SonarrConnection.vue';
 import RadarrConnection from './RadarrConnection.vue';
 
@@ -632,6 +742,7 @@ export default {
   components: {
     PlexConnection,
     JellyfinConnection,
+    TautulliConnection,
     SonarrConnection,
     RadarrConnection
   },
@@ -649,6 +760,10 @@ export default {
       default: false
     },
     jellyfinConnected: {
+      type: Boolean,
+      default: false
+    },
+    tautulliConnected: {
       type: Boolean,
       default: false
     }
@@ -719,6 +834,17 @@ export default {
       jellyfinConnectionMessage: '',
       jellyfinConnectionStatus: false,
       
+      // Tautulli Settings
+      tautulliSettings: {
+        baseUrl: '',
+        apiKey: '',
+        recentLimit: 50
+      },
+      showTautulliApiKey: false,
+      testingTautulli: false,
+      tautulliConnectionMessage: '',
+      tautulliConnectionStatus: false,
+      
       // Common
       saveMessage: '',
       saveSuccess: false
@@ -758,6 +884,9 @@ export default {
             break;
           case 'jellyfin':
             this.loadJellyfinSettings();
+            break;
+          case 'tautulli':
+            this.loadTautulliSettings();
             break;
           case 'ai':
             this.loadAISettings();
@@ -811,6 +940,16 @@ export default {
     
     closeRadarrModal() {
       this.showRadarrConnect = false;
+      document.body.style.overflow = '';
+    },
+    
+    showTautulliConnectModal() {
+      this.showTautulliConnect = true;
+      document.body.style.overflow = 'hidden';
+    },
+    
+    closeTautulliModal() {
+      this.showTautulliConnect = false;
       document.body.style.overflow = '';
     },
     
@@ -870,6 +1009,20 @@ export default {
       this.closeJellyfinModal();
     },
     
+    handleTautulliConnected() {
+      this.$emit('tautulli-settings-updated');
+      this.closeTautulliModal();
+    },
+    
+    handleTautulliDisconnected() {
+      // Clear Tautulli settings in the form
+      this.tautulliSettings.baseUrl = '';
+      this.tautulliSettings.apiKey = '';
+      this.tautulliSettings.recentLimit = 50;
+      this.$emit('tautulli-settings-updated');
+      this.closeTautulliModal();
+    },
+    
     async loadAllSettings() {
       // Load all settings from their respective services
       await this.loadAISettings();
@@ -877,6 +1030,7 @@ export default {
       await this.loadRadarrSettings();
       await this.loadPlexSettings();
       await this.loadJellyfinSettings();
+      await this.loadTautulliSettings();
     },
     
     async loadAISettings() {
@@ -991,10 +1145,33 @@ export default {
       }
     },
     
+    async loadTautulliSettings() {
+      try {
+        // First try to get from service directly
+        if (tautulliService.isConfigured()) {
+          this.tautulliSettings.baseUrl = tautulliService.baseUrl;
+          this.tautulliSettings.apiKey = tautulliService.apiKey;
+          this.tautulliSettings.recentLimit = parseInt(localStorage.getItem('tautulliRecentLimit') || '50');
+          return;
+        }
+        
+        // If not configured, try to get from server-side storage
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials) {
+          this.tautulliSettings.baseUrl = credentials.baseUrl || '';
+          this.tautulliSettings.apiKey = credentials.apiKey || '';
+          this.tautulliSettings.recentLimit = parseInt(localStorage.getItem('tautulliRecentLimit') || '50');
+        }
+      } catch (error) {
+        console.error('Error loading Tautulli settings:', error);
+      }
+    },
+    
     // AI Service Methods
     async fetchModels() {
-      if (!this.aiSettings.apiKey) {
-        this.fetchError = 'API key is required to fetch models';
+      // Allow empty API key for local models
+      if (this.aiSettings.apiKey === undefined) {
+        this.fetchError = 'API key field cannot be undefined';
         return;
       }
       
@@ -1025,27 +1202,21 @@ export default {
       this.models = [];
       
       try {
-        // Use normalized URL for models endpoint
-        const modelsEndpoint = `${this.aiSettings.apiUrl}/models`;
+        // Configure OpenAI service temporarily with the current settings
+        await openAIService.configure(
+          this.aiSettings.apiKey,
+          this.aiSettings.selectedModel || 'gpt-3.5-turbo',
+          this.aiSettings.apiUrl,
+          this.aiSettings.maxTokens,
+          this.aiSettings.temperature
+        );
         
-        // Set up headers based on the API endpoint
-        const headers = {};
+        // Use the service to fetch models (which uses the proxy)
+        const modelsList = await openAIService.fetchModels();
         
-        // Add authentication header based on the API endpoint
-        if (this.aiSettings.apiUrl === 'https://api.anthropic.com/v1') {
-          headers['x-api-key'] = this.aiSettings.apiKey;
-          headers['anthropic-dangerous-direct-browser-access'] = 'true';
-          headers['anthropic-version'] = '2023-06-01';
-        } else {
-          headers['Authorization'] = `Bearer ${this.aiSettings.apiKey}`;
-        }
-          
-        const response = await axios.get(modelsEndpoint, { headers });
-        
-        if (response.data && response.data.data) {
-          // Minimal filtering to include more models
-          // We assume most models returned by the API are valid for chat
-          this.models = response.data.data;
+        if (modelsList && modelsList.length > 0) {
+          // Store the models
+          this.models = modelsList;
           
           // Sort models alphabetically
           this.models.sort((a, b) => a.id.localeCompare(b.id));
@@ -1055,12 +1226,21 @@ export default {
             this.aiSettings.selectedModel = this.models[0].id;
           }
         } else {
-          this.fetchError = 'Invalid response format from API';
+          this.fetchError = 'No models returned from API';
         }
       } catch (error) {
         console.error('Error fetching models:', error);
-        this.fetchError = error.response?.data?.error?.message || 
-                         'Failed to fetch models. Check your API key and URL.';
+        
+        // Try to extract meaningful error message
+        if (error.message) {
+          this.fetchError = error.message;
+        } else if (error.error?.message) {
+          this.fetchError = error.error.message;
+        } else if (typeof error === 'string') {
+          this.fetchError = error;
+        } else {
+          this.fetchError = 'Failed to fetch models. Check your API key and URL.';
+        }
       } finally {
         this.isLoading = false;
       }
@@ -1388,6 +1568,77 @@ export default {
         console.error('Error saving Jellyfin settings:', error);
         this.saveSuccess = false;
         this.saveMessage = 'Failed to save Jellyfin settings';
+        this.clearSaveMessage();
+      }
+    },
+    
+    // Tautulli Service Methods
+    async testTautulliConnection() {
+      if (!this.tautulliSettings.baseUrl || !this.tautulliSettings.apiKey) {
+        this.tautulliConnectionStatus = false;
+        this.tautulliConnectionMessage = 'URL and API key are required';
+        return;
+      }
+      
+      this.testingTautulli = true;
+      this.tautulliConnectionMessage = '';
+      
+      try {
+        // Configure the service with provided details
+        await tautulliService.configure(this.tautulliSettings.baseUrl, this.tautulliSettings.apiKey);
+        
+        // Store the recent limit in localStorage (server doesn't need this)
+        localStorage.setItem('tautulliRecentLimit', this.tautulliSettings.recentLimit.toString());
+        
+        // Test the connection
+        const success = await tautulliService.testConnection();
+        
+        // Update status based on response
+        this.tautulliConnectionStatus = success;
+        this.tautulliConnectionMessage = success 
+          ? 'Connected successfully!'
+          : 'Connection failed. Please check your URL and API key.';
+        
+        // If successful, emit event to notify parent component
+        if (success) {
+          this.$emit('tautulli-settings-updated');
+        }
+          
+      } catch (error) {
+        console.error('Error connecting to Tautulli:', error);
+        this.tautulliConnectionStatus = false;
+        this.tautulliConnectionMessage = 'Connection error. Please check your URL and API key.';
+      } finally {
+        this.testingTautulli = false;
+      }
+    },
+    
+    async saveTautulliSettings() {
+      try {
+        if (!this.tautulliSettings.baseUrl || !this.tautulliSettings.apiKey) {
+          this.saveSuccess = false;
+          this.saveMessage = 'Tautulli URL and API key are required';
+          this.clearSaveMessage();
+          return;
+        }
+        
+        // Store the recent limit in localStorage (server doesn't need this)
+        localStorage.setItem('tautulliRecentLimit', this.tautulliSettings.recentLimit.toString());
+        
+        // Configure the service (which will store credentials server-side)
+        await tautulliService.configure(this.tautulliSettings.baseUrl, this.tautulliSettings.apiKey);
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Tautulli settings saved successfully!';
+        
+        // Emit event to notify parent component
+        this.$emit('tautulli-settings-updated');
+        
+        this.clearSaveMessage();
+      } catch (error) {
+        console.error('Error saving Tautulli settings:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Tautulli settings';
         this.clearSaveMessage();
       }
     },
@@ -2050,6 +2301,15 @@ input[type="password"] {
 
 .jellyfin-button:hover {
   background-color: rgba(170, 92, 195, 0.08);
+}
+
+.tautulli-button {
+  border-color: #7c3aed; /* Tautulli purple color */
+  color: #7c3aed;
+}
+
+.tautulli-button:hover {
+  background-color: rgba(124, 58, 237, 0.08);
 }
 
 .sonarr-button {

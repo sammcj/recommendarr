@@ -45,7 +45,7 @@ class ProxyService {
     const requestOptions = {
       ...options,
       url: processedUrl,
-      timeout: 10000, // 10 second timeout
+      // Removed timeout to allow models time to complete responses
       validateStatus: function (status) {
         // Accept all status codes to handle them properly
         return true;

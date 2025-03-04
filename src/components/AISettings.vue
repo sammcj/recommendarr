@@ -1655,9 +1655,30 @@ export default {
       }, 3500);
     },
     
-    saveOnModelSelect() {
+    async saveOnModelSelect() {
       // Auto-save settings when a model is selected
-      this.saveAISettings();
+      await this.saveAISettings();
+      
+      // Also update the model in the OpenAI service to ensure it's saved in both localStorage and server-side credentials
+      try {
+        if (this.aiSettings.selectedModel) {
+          // Store model in localStorage
+          localStorage.setItem('openaiModel', this.aiSettings.selectedModel);
+          
+          // Configure the service with the updated model, which will also save to credentials
+          await openAIService.configure(
+            openAIService.apiKey,
+            this.aiSettings.selectedModel,
+            openAIService.baseUrl,
+            openAIService.maxTokens,
+            openAIService.temperature,
+            openAIService.useSampledLibrary,
+            openAIService.sampleSize
+          );
+        }
+      } catch (error) {
+        console.error('Error saving model selection:', error);
+      }
     }
   }
 };

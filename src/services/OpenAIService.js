@@ -174,11 +174,14 @@ class OpenAIService {
   }
 
   /**
-   * Check if the service is configured with API key
+   * Check if the service is configured properly
    * @returns {boolean} - Whether the service is configured
    */
   isConfigured() {
-    // Check if baseUrl is set and model is selected
+    // For a properly configured service, we need:
+    // 1. A base URL for the API endpoint
+    // 2. A selected model
+    // The API key is now optional in some cases (like for local models)
     return this.baseUrl !== '' && this.model !== '';
   }
 

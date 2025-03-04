@@ -23,11 +23,17 @@ class ApiService {
     const protocol = window.location.protocol;
     const host = window.location.hostname;
     
-    // We always use the same hostname as the web UI but on port 3050
-    // This works for both local and remote access
-    apiBaseUrl = `${protocol}//${host}:3050/api`;
-    console.log('Using API URL:', apiBaseUrl);
+    // For Docker environment, use the same host but access the API through
+    // /api path - nginx will proxy to the correct container
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      // In Docker, access the API through the same host but use the /api path
+      apiBaseUrl = `${protocol}//${host}/api`;
+    } else {
+      // For local development
+      apiBaseUrl = `${protocol}//${host}:3050/api`;
+    }
     
+    console.log('Using API URL:', apiBaseUrl);
     return apiBaseUrl;
   }
 

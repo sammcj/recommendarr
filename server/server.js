@@ -241,6 +241,22 @@ app.post('/api/proxy', async (req, res) => {
       processedUrl = url.replace(/(localhost|127\.0\.0\.1)/, 'host.docker.internal');
       console.log(`Converted localhost URL to Docker-friendly format: ${processedUrl}`);
     }
+    
+    // If we're accessing an API via the same hostname as the UI
+    // (This is for APIs hosted on the same machine but not necessarily on localhost)
+    if (url.includes(req.hostname) && !url.includes('host.docker.internal')) {
+      console.log(`Request appears to be to the same host: ${url}`);
+      
+      // Extract the port if present
+      const urlObj = new URL(url);
+      const port = urlObj.port;
+      
+      if (port) {
+        // If it's a different port on the same host, we need to access via host.docker.internal
+        processedUrl = url.replace(req.hostname, 'host.docker.internal');
+        console.log(`Converted same-host URL to Docker-friendly format: ${processedUrl}`);
+      }
+    }
   }
   
   try {

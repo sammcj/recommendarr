@@ -115,7 +115,7 @@ class TautulliService {
         
         const response = await axios.get(url, {
           params: requestParams,
-          timeout: 10000 // 10 second timeout
+          // Removed timeout to allow slower network connections
         });
         
         return response.data;

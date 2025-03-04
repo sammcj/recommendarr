@@ -962,13 +962,22 @@ export default {
       localStorage.removeItem('radarrApiKey');
       localStorage.removeItem('plexBaseUrl');
       localStorage.removeItem('plexToken');
+      localStorage.removeItem('plexRecentLimit');
       localStorage.removeItem('jellyfinBaseUrl');
       localStorage.removeItem('jellyfinApiKey');
       localStorage.removeItem('jellyfinUserId');
+      localStorage.removeItem('jellyfinRecentLimit');
       localStorage.removeItem('tautulliBaseUrl');
       localStorage.removeItem('tautulliApiKey');
+      localStorage.removeItem('tautulliRecentLimit');
       localStorage.removeItem('openaiApiKey');
       localStorage.removeItem('openaiModel');
+      localStorage.removeItem('plexHistoryMode');
+      localStorage.removeItem('jellyfinHistoryMode');
+      localStorage.removeItem('tautulliHistoryMode');
+      localStorage.removeItem('plexOnlyMode');
+      localStorage.removeItem('jellyfinOnlyMode');
+      localStorage.removeItem('tautulliOnlyMode');
       
       // Delete all credentials from server
       try {
@@ -1005,6 +1014,15 @@ export default {
       this.jellyfinRecentlyWatchedShows = [];
       this.tautulliRecentlyWatchedMovies = [];
       this.tautulliRecentlyWatchedShows = [];
+      this.plexRecentLimit = 100;
+      this.jellyfinRecentLimit = 100;
+      this.tautulliRecentLimit = 50;
+      this.plexHistoryMode = 'all';
+      this.jellyfinHistoryMode = 'all';
+      this.tautulliHistoryMode = 'all';
+      this.plexOnlyMode = false;
+      this.jellyfinOnlyMode = false;
+      this.tautulliOnlyMode = false;
       this.showSonarrConnect = false;
       this.showRadarrConnect = false;
       this.showPlexConnect = false;

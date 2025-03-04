@@ -4,7 +4,7 @@
 
 Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr, Radarr, Plex, and Jellyfin libraries using AI.
 
-> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open **both** port 3030 (frontend) and port 3050 (API) on your router/firewall.
+> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open port 3030 on your router/firewall.
 
 ## 🌟 Features
 
@@ -40,19 +40,19 @@ docker-compose up -d --build
 ```
 
 This will:
-1. Build both the frontend and API server images locally
-2. Configure them to work together with the proper networking
-3. Start both services with the correct configuration
+1. Build the combined container with both frontend and API server
+2. Configure proper networking and persistence
+3. Start the unified service
 
 Then visit `http://localhost:3030` in your browser to access the application.
 
-The API server runs on port 3050 and provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
+The unified container runs both the frontend (on port 3030) and the API server (on port 3050 internally). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
 
-**Note:** If accessing from outside your network, remember to forward both port 3030 (frontend) and port 3050 (API) on your router/firewall.
+**Note:** If accessing from outside your network, remember to forward port 3030 on your router/firewall.
 
-### Option 2: Docker (Frontend Only)
+### Option 2: Docker (Manual Run)
 
-You can also run just the frontend container:
+You can also run the unified container manually:
 
 ```bash
 # Pull the image
@@ -61,11 +61,13 @@ docker pull tannermiddleton/recommendarr:latest
 # Run the container
 docker run -d \
   --name recommendarr \
-  -p 3030:80 \
+  -p 3030:3030 \
+  -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
 ```
 
-Then visit `http://localhost:3030` in your browser. Note that without the API server, credential storage will be limited to your browser's local storage.
+Then visit `http://localhost:3030` in your browser. The container includes both the frontend and API server for secure credential storage.
 
 For more Docker options, see the [Docker Support](#-docker-support) section below.
 
@@ -150,7 +152,9 @@ docker pull tannermiddleton/recommendarr:latest
 # Run the container
 docker run -d \
   --name recommendarr \
-  -p 3030:80 \
+  -p 3030:3030 \
+  -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
 ```
 
@@ -171,13 +175,15 @@ docker build -t recommendarr:local .
 # Run the container
 docker run -d \
   --name recommendarr \
-  -p 3030:80 \
+  -p 3030:3030 \
+  -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
   recommendarr:local
 ```
 
 ### Option 3: Using Pre-built Docker Images
 
-If you prefer not to build the images locally and want to use the pre-built images from Docker Hub:
+If you prefer not to build the image locally and want to use the pre-built image from Docker Hub:
 
 ```bash
 # Create a new directory
@@ -190,16 +196,8 @@ services:
   recommendarr:
     image: tannermiddleton/recommendarr:latest
     container_name: recommendarr
-    depends_on:
-      - api
     ports:
-      - "3030:80"
-    restart: unless-stopped
-
-  api:
-    image: tannermiddleton/recommendarr-api:latest
-    container_name: recommendarr-api
-    ports:
+      - "3030:3030"
       - "3050:3050"
     environment:
       - NODE_ENV=production
@@ -216,11 +214,11 @@ mkdir -p server/data
 docker-compose up -d
 ```
 
-This will pull the pre-built images from Docker Hub and start the services on ports 3030 (frontend) and 3050 (API server).
+This will pull the pre-built image from Docker Hub and start the unified service that includes both the frontend (port 3030) and API server (port 3050).
 
-**Key benefits of using either Docker Compose method:**
-- The API server data directory is mounted as a volume, ensuring your credentials persist across container restarts
-- The frontend and API server are automatically configured to work together
+**Key benefits of using the Docker Compose method:**
+- The data directory is mounted as a volume, ensuring your credentials persist across container restarts
+- The frontend and API server are bundled together in a single container
 - All your service credentials are stored securely using encryption
 - CORS issues are automatically handled through the proxy service
 

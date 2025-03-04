@@ -6,7 +6,7 @@
     </header>
     
     <main>
-      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected">
+      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected">
         <p class="choose-service">Choose a service to connect to:</p>
         <div class="service-buttons">
           <button class="service-button" @click="showSonarrConnect = true">
@@ -24,6 +24,10 @@
           <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
             Connect to Jellyfin
             <small>For watch history integration</small>
+          </button>
+          <button class="service-button tautulli-button" @click="showTautulliConnect = true">
+            Connect to Tautulli
+            <small>For Plex watch history statistics</small>
           </button>
         </div>
       </div>
@@ -71,12 +75,56 @@
         </div>
       </div>
       
+      <!-- User Selection Modal for Tautulli -->
+      <div v-if="showTautulliUserSelect && tautulliConnected" class="modal-overlay">
+        <div class="tautulli-user-modal">
+          <div class="modal-header">
+            <h4>Select Tautulli User</h4>
+            <button class="close-button" @click="closeTautulliUserSelect">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="tautulliUsersLoading" class="loading-users">
+              <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+              </div>
+              <p>Loading users...</p>
+            </div>
+            <div v-else-if="tautulliUsers.length === 0" class="no-users-found">
+              <p>No users found. Please check your API key permissions.</p>
+            </div>
+            <div v-else class="users-list">
+              <button 
+                v-for="user in tautulliUsers" 
+                :key="user.user_id"
+                class="user-item"
+                :class="{ 'selected': user.user_id === selectedTautulliUserId }"
+                @click="selectTautulliUser(user)"
+              >
+                <span class="user-name">{{ user.username }}</span>
+                <span v-if="user.is_admin" class="user-badge admin">Admin</span>
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="cancel-button" @click="closeTautulliUserSelect">Cancel</button>
+            <button 
+              class="apply-button" 
+              @click="applyTautulliUserSelection"
+              :disabled="!selectedTautulliUserId"
+            >
+              Apply Selection
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" @disconnected="handleSonarrDisconnected" />
       <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" @disconnected="handleRadarrDisconnected" />
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @disconnected="handlePlexDisconnected" @limitChanged="handlePlexLimitChanged" />
       <JellyfinConnection v-if="showJellyfinConnect && !jellyfinConnected" @connected="handleJellyfinConnected" @disconnected="handleJellyfinDisconnected" @limitChanged="handleJellyfinLimitChanged" />
+      <TautulliConnection v-if="showTautulliConnect && !tautulliConnected" @connected="handleTautulliConnected" @disconnected="handleTautulliDisconnected" @limitChanged="handleTautulliLimitChanged" />
       
-      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected">
+      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected">
         <AppNavigation 
           :activeTab="activeTab" 
           @navigate="handleNavigate"
@@ -90,14 +138,19 @@
             :sonarrConfigured="sonarrConnected"
             :recentlyWatchedShows="recentlyWatchedShows"
             :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
+            :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
+            :tautulliConfigured="tautulliConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
             @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
+            @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
+            @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
             @openJellyfinUserSelect="openJellyfinUserSelect"
+            @openTautulliUserSelect="openTautulliUserSelect"
           />
           
           <MovieRecommendations 
@@ -106,14 +159,19 @@
             :radarrConfigured="radarrConnected"
             :recentlyWatchedMovies="recentlyWatchedMovies"
             :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
+            :tautulliRecentlyWatchedMovies="tautulliRecentlyWatchedMovies"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
+            :tautulliConfigured="tautulliConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
             @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
+            @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
+            @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
             @openJellyfinUserSelect="openJellyfinUserSelect"
+            @openTautulliUserSelect="openTautulliUserSelect"
           />
           
           <History
@@ -128,11 +186,13 @@
             :radarrConnected="radarrConnected"
             :plexConnected="plexConnected"
             :jellyfinConnected="jellyfinConnected"
+            :tautulliConnected="tautulliConnected"
             @settings-updated="handleSettingsUpdated"
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
             @plex-settings-updated="handlePlexSettingsUpdated"
             @jellyfin-settings-updated="handleJellyfinSettingsUpdated"
+            @tautulli-settings-updated="handleTautulliSettingsUpdated"
           />
         </div>
       </div>
@@ -145,6 +205,7 @@ import SonarrConnection from './components/SonarrConnection.vue'
 import RadarrConnection from './components/RadarrConnection.vue'
 import PlexConnection from './components/PlexConnection.vue'
 import JellyfinConnection from './components/JellyfinConnection.vue'
+import TautulliConnection from './components/TautulliConnection.vue'
 import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/TVRecommendations.vue'
 import MovieRecommendations from './components/MovieRecommendations.vue'
@@ -154,6 +215,7 @@ import sonarrService from './services/SonarrService'
 import radarrService from './services/RadarrService'
 import plexService from './services/PlexService'
 import jellyfinService from './services/JellyfinService'
+import tautulliService from './services/TautulliService'
 import credentialsService from './services/CredentialsService'
 
 export default {
@@ -163,6 +225,7 @@ export default {
     RadarrConnection,
     PlexConnection,
     JellyfinConnection,
+    TautulliConnection,
     AppNavigation,
     TVRecommendations,
     MovieRecommendations,
@@ -175,14 +238,20 @@ export default {
       radarrConnected: false,
       plexConnected: false,
       jellyfinConnected: false,
+      tautulliConnected: false,
       showSonarrConnect: false,
       showRadarrConnect: false,
       showPlexConnect: false,
       showJellyfinConnect: false,
+      showTautulliConnect: false,
       showJellyfinUserSelect: false,
+      showTautulliUserSelect: false,
       jellyfinUsers: [],
       jellyfinUsersLoading: false,
+      tautulliUsers: [],
+      tautulliUsersLoading: false,
       selectedJellyfinUserId: '',
+      selectedTautulliUserId: '',
       activeTab: 'tv-recommendations',
       series: [],
       movies: [],
@@ -190,12 +259,17 @@ export default {
       recentlyWatchedShows: [],
       jellyfinRecentlyWatchedMovies: [],
       jellyfinRecentlyWatchedShows: [],
+      tautulliRecentlyWatchedMovies: [],
+      tautulliRecentlyWatchedShows: [],
       plexRecentLimit: 100,
       jellyfinRecentLimit: 100,
+      tautulliRecentLimit: 50,
       plexHistoryMode: 'all', // 'all' or 'recent'
       jellyfinHistoryMode: 'all', // 'all' or 'recent'
+      tautulliHistoryMode: 'all', // 'all' or 'recent'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
-      jellyfinOnlyMode: false // Whether to use only Jellyfin history for recommendations
+      jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
+      tautulliOnlyMode: false // Whether to use only Tautulli history for recommendations
     }
   },
   async created() {
@@ -257,6 +331,23 @@ export default {
     if (savedJellyfinOnlyMode) {
       this.jellyfinOnlyMode = savedJellyfinOnlyMode === 'true';
     }
+    
+    // Load Tautulli history mode from localStorage if available
+    const savedTautulliHistoryMode = localStorage.getItem('tautulliHistoryMode');
+    if (savedTautulliHistoryMode) {
+      this.tautulliHistoryMode = savedTautulliHistoryMode;
+    }
+    
+    // Load Tautulli only mode from localStorage if available
+    const savedTautulliOnlyMode = localStorage.getItem('tautulliOnlyMode');
+    if (savedTautulliOnlyMode) {
+      this.tautulliOnlyMode = savedTautulliOnlyMode === 'true';
+    }
+    
+    // Check if Tautulli is already configured on startup
+    if (tautulliService.isConfigured()) {
+      this.checkTautulliConnection();
+    }
   },
   methods: {
     // Check if we have credentials stored server-side
@@ -267,7 +358,8 @@ export default {
           credentialsService.hasCredentials('sonarr'),
           credentialsService.hasCredentials('radarr'),
           credentialsService.hasCredentials('plex'),
-          credentialsService.hasCredentials('jellyfin')
+          credentialsService.hasCredentials('jellyfin'),
+          credentialsService.hasCredentials('tautulli')
         ]);
         
         // If any service has credentials, set up the appropriate services
@@ -277,7 +369,8 @@ export default {
             this.configureServiceFromCredentials('sonarr'),
             this.configureServiceFromCredentials('radarr'),
             this.configureServiceFromCredentials('plex'),
-            this.configureServiceFromCredentials('jellyfin')
+            this.configureServiceFromCredentials('jellyfin'),
+            this.configureServiceFromCredentials('tautulli')
           ]);
         }
       } catch (error) {
@@ -334,6 +427,17 @@ export default {
               if (result.success) {
                 this.jellyfinConnected = true;
                 this.fetchJellyfinData();
+              }
+            }
+            break;
+            
+          case 'tautulli':
+            if (credentials.baseUrl && credentials.apiKey) {
+              await tautulliService.configure(credentials.baseUrl, credentials.apiKey);
+              const success = await tautulliService.testConnection();
+              if (success) {
+                this.tautulliConnected = true;
+                this.fetchTautulliData();
               }
             }
             break;
@@ -413,6 +517,21 @@ export default {
       await credentialsService.deleteCredentials('jellyfin');
     },
     
+    async handleTautulliDisconnected() {
+      this.tautulliConnected = false;
+      this.showTautulliConnect = false; // Don't show connect modal
+      this.tautulliRecentlyWatchedMovies = [];
+      this.tautulliRecentlyWatchedShows = [];
+      
+      // Clean up localStorage
+      localStorage.removeItem('tautulliBaseUrl');
+      localStorage.removeItem('tautulliApiKey');
+      localStorage.removeItem('tautulliRecentLimit');
+      
+      // Delete credentials from server
+      await credentialsService.deleteCredentials('tautulli');
+    },
+    
     async openJellyfinUserSelect() {
       this.showJellyfinUserSelect = true;
       this.jellyfinUsersLoading = true;
@@ -454,6 +573,42 @@ export default {
       
       // Fetch updated watch history
       this.fetchJellyfinData();
+    },
+    
+    async openTautulliUserSelect() {
+      this.showTautulliUserSelect = true;
+      this.tautulliUsersLoading = true;
+      this.tautulliUsers = [];
+      this.selectedTautulliUserId = '';
+      
+      try {
+        this.tautulliUsers = await tautulliService.getUsers();
+      } catch (error) {
+        console.error('Error fetching Tautulli users:', error);
+      } finally {
+        this.tautulliUsersLoading = false;
+      }
+    },
+    
+    closeTautulliUserSelect() {
+      this.showTautulliUserSelect = false;
+    },
+    
+    selectTautulliUser(user) {
+      this.selectedTautulliUserId = user.user_id;
+    },
+    
+    applyTautulliUserSelection() {
+      if (!this.selectedTautulliUserId) return;
+      
+      // Save current history limit to ensure it persists
+      localStorage.setItem('tautulliRecentLimit', this.tautulliRecentLimit.toString());
+      
+      // Close the modal
+      this.showTautulliUserSelect = false;
+      
+      // Fetch updated watch history with the new user filter
+      this.fetchTautulliData(this.selectedTautulliUserId);
     },
     
     async checkSonarrConnection() {
@@ -510,6 +665,18 @@ export default {
       }
     },
     
+    async checkTautulliConnection() {
+      try {
+        const success = await tautulliService.testConnection();
+        if (success) {
+          this.tautulliConnected = true;
+          this.fetchTautulliData();
+        }
+      } catch (error) {
+        console.error('Failed to connect with stored Tautulli credentials:', error);
+      }
+    },
+    
     handleSonarrConnected() {
       this.sonarrConnected = true;
       this.showSonarrConnect = false;
@@ -536,6 +703,12 @@ export default {
       this.fetchJellyfinData();
     },
     
+    handleTautulliConnected() {
+      this.tautulliConnected = true;
+      this.showTautulliConnect = false;
+      this.fetchTautulliData();
+    },
+    
     handlePlexLimitChanged(limit) {
       this.plexRecentLimit = limit;
       this.fetchPlexData();
@@ -544,6 +717,11 @@ export default {
     handleJellyfinLimitChanged(limit) {
       this.jellyfinRecentLimit = limit;
       this.fetchJellyfinData();
+    },
+    
+    handleTautulliLimitChanged(limit) {
+      this.tautulliRecentLimit = limit;
+      this.fetchTautulliData();
     },
     
     handlePlexHistoryModeChanged(mode) {
@@ -556,12 +734,21 @@ export default {
       this.fetchJellyfinData();
     },
     
+    handleTautulliHistoryModeChanged(mode) {
+      this.tautulliHistoryMode = mode;
+      this.fetchTautulliData();
+    },
+    
     handlePlexOnlyModeChanged(enabled) {
       this.plexOnlyMode = enabled;
     },
     
     handleJellyfinOnlyModeChanged(enabled) {
       this.jellyfinOnlyMode = enabled;
+    },
+    
+    handleTautulliOnlyModeChanged(enabled) {
+      this.tautulliOnlyMode = enabled;
     },
     handleNavigate(tab) {
       this.activeTab = tab;
@@ -645,6 +832,34 @@ export default {
         console.error('Failed to fetch Jellyfin watch history:', error);
       }
     },
+    
+    async fetchTautulliData(userId = null) {
+      if (!tautulliService.isConfigured()) {
+        return;
+      }
+      
+      try {
+        // Determine if we should apply a days filter based on the history mode
+        const daysAgo = this.tautulliHistoryMode === 'recent' ? 30 : 0;
+        
+        // Fetch both shows and movies in parallel for efficiency
+        const [moviesResponse, showsResponse] = await Promise.all([
+          tautulliService.getRecentlyWatchedMovies(this.tautulliRecentLimit, daysAgo, userId),
+          tautulliService.getRecentlyWatchedShows(this.tautulliRecentLimit, daysAgo, userId)
+        ]);
+        
+        this.tautulliRecentlyWatchedMovies = moviesResponse;
+        this.tautulliRecentlyWatchedShows = showsResponse;
+        
+        console.log('Fetched Tautulli watch history:', {
+          movies: this.tautulliRecentlyWatchedMovies,
+          shows: this.tautulliRecentlyWatchedShows,
+          userId: userId || 'all users' 
+        });
+      } catch (error) {
+        console.error('Failed to fetch Tautulli watch history:', error);
+      }
+    },
     handleSettingsUpdated() {
       // When AI settings are updated, show a brief notification or just stay on the settings page
       console.log('AI settings updated successfully');
@@ -721,6 +936,24 @@ export default {
         this.jellyfinConnected = false;
       }
     },
+    
+    async handleTautulliSettingsUpdated() {
+      // Check if Tautulli service is configured in memory
+      if (tautulliService.isConfigured()) {
+        // Check the Tautulli connection with the new settings
+        this.checkTautulliConnection();
+        console.log('Tautulli settings updated, testing connection');
+        return;
+      }
+      
+      // If not in memory, check server storage
+      try {
+        await this.configureServiceFromCredentials('tautulli');
+      } catch (error) {
+        console.error('Error loading Tautulli credentials:', error);
+        this.tautulliConnected = false;
+      }
+    },
     async handleLogout() {
       // Clear all stored credentials from localStorage (for backwards compatibility)
       localStorage.removeItem('sonarrBaseUrl');
@@ -732,6 +965,8 @@ export default {
       localStorage.removeItem('jellyfinBaseUrl');
       localStorage.removeItem('jellyfinApiKey');
       localStorage.removeItem('jellyfinUserId');
+      localStorage.removeItem('tautulliBaseUrl');
+      localStorage.removeItem('tautulliApiKey');
       localStorage.removeItem('openaiApiKey');
       localStorage.removeItem('openaiModel');
       
@@ -742,6 +977,7 @@ export default {
           credentialsService.deleteCredentials('radarr'),
           credentialsService.deleteCredentials('plex'),
           credentialsService.deleteCredentials('jellyfin'),
+          credentialsService.deleteCredentials('tautulli'),
           credentialsService.deleteCredentials('openai')
         ]);
       } catch (error) {
@@ -753,22 +989,27 @@ export default {
       radarrService.configure('', '');
       plexService.configure('', '');
       jellyfinService.configure('', '', '');
+      tautulliService.configure('', '');
       
       // Reset UI state
       this.sonarrConnected = false;
       this.radarrConnected = false;
       this.plexConnected = false;
       this.jellyfinConnected = false;
+      this.tautulliConnected = false;
       this.series = [];
       this.movies = [];
       this.recentlyWatchedMovies = [];
       this.recentlyWatchedShows = [];
       this.jellyfinRecentlyWatchedMovies = [];
       this.jellyfinRecentlyWatchedShows = [];
+      this.tautulliRecentlyWatchedMovies = [];
+      this.tautulliRecentlyWatchedShows = [];
       this.showSonarrConnect = false;
       this.showRadarrConnect = false;
       this.showPlexConnect = false;
       this.showJellyfinConnect = false;
+      this.showTautulliConnect = false;
       this.activeTab = 'tv-recommendations';
     }
   }
@@ -974,6 +1215,14 @@ main {
   background-color: #AA5CC3;
 }
 
+.service-button.tautulli-button {
+  border-color: #7c3aed; /* Tautulli purple color */
+}
+
+.service-button.tautulli-button:hover {
+  background-color: #7c3aed;
+}
+
 .service-button small {
   font-weight: normal;
   opacity: 0.8;
@@ -994,7 +1243,7 @@ main {
   z-index: 1000;
 }
 
-.jellyfin-user-modal {
+.jellyfin-user-modal, .tautulli-user-modal {
   background-color: var(--card-bg-color);
   border-radius: 8px;
   box-shadow: var(--card-shadow);
@@ -1005,6 +1254,10 @@ main {
   flex-direction: column;
   transition: all 0.3s ease;
   border: 1px solid var(--border-color);
+}
+
+.tautulli-user-modal .modal-header {
+  border-bottom: 2px solid #7c3aed; /* Tautulli purple color */
 }
 
 .modal-header {

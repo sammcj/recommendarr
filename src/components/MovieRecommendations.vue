@@ -301,6 +301,49 @@
                       Change User
                     </button>
                   </div>
+                  
+                  <div v-if="tautulliConfigured" class="tautulli-options">
+                    <label>Tautulli Watch History:</label>
+                    <div class="tautulli-history-toggle">
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="tautulliHistoryMode" 
+                          value="all"
+                          @change="saveTautulliHistoryMode"
+                        >
+                        All watch history
+                      </label>
+                      <label class="toggle-option">
+                        <input 
+                          type="radio" 
+                          v-model="tautulliHistoryMode" 
+                          value="recent"
+                          @change="saveTautulliHistoryMode"
+                        >
+                        Recent (30 days)
+                      </label>
+                    </div>
+                    
+                    <div class="tautulli-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="tautulliOnlyMode" 
+                          @change="saveTautulliOnlyMode"
+                        >
+                        Use only Tautulli history for recommendations (ignore library)
+                      </label>
+                    </div>
+                    
+                    <button 
+                      class="action-button tautulli-user-select-button"
+                      @click="$emit('openTautulliUserSelect')"
+                      style="padding: 6px 12px; font-size: 13px; background-color: #7c3aed; color: white;"
+                    >
+                      Change User
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -575,6 +618,14 @@ export default {
     jellyfinConfigured: {
       type: Boolean,
       default: false
+    },
+    tautulliConfigured: {
+      type: Boolean,
+      default: false
+    },
+    tautulliRecentlyWatchedMovies: {
+      type: Array,
+      default: () => []
     }
   },
   computed: {
@@ -605,6 +656,8 @@ export default {
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
       jellyfinHistoryMode: 'all', // 'all' or 'recent'
       jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
+      tautulliHistoryMode: 'all', // 'all' or 'recent'
+      tautulliOnlyMode: false, // Whether to use only Tautulli history for recommendations
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       funLoadingMessages: [
@@ -911,14 +964,48 @@ export default {
     saveJellyfinOnlyMode() {
       localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
       
-      // If enabling Jellyfin only mode, disable Plex only mode
-      if (this.jellyfinOnlyMode && this.plexOnlyMode) {
-        this.plexOnlyMode = false;
-        localStorage.setItem('plexOnlyMode', 'false');
-        this.$emit('plexOnlyModeChanged', false);
+      // If enabling Jellyfin only mode, disable Plex only mode and Tautulli only mode
+      if (this.jellyfinOnlyMode) {
+        if (this.plexOnlyMode) {
+          this.plexOnlyMode = false;
+          localStorage.setItem('plexOnlyMode', 'false');
+          this.$emit('plexOnlyModeChanged', false);
+        }
+        if (this.tautulliOnlyMode) {
+          this.tautulliOnlyMode = false;
+          localStorage.setItem('tautulliOnlyMode', 'false');
+          this.$emit('tautulliOnlyModeChanged', false);
+        }
       }
       
       this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
+    },
+    
+    // Save Tautulli history mode preference
+    saveTautulliHistoryMode() {
+      localStorage.setItem('tautulliHistoryMode', this.tautulliHistoryMode);
+      this.$emit('tautulliHistoryModeChanged', this.tautulliHistoryMode);
+    },
+    
+    // Save Tautulli only mode preference
+    saveTautulliOnlyMode() {
+      localStorage.setItem('tautulliOnlyMode', this.tautulliOnlyMode.toString());
+      
+      // If enabling Tautulli only mode, disable Plex only mode and Jellyfin only mode
+      if (this.tautulliOnlyMode) {
+        if (this.plexOnlyMode) {
+          this.plexOnlyMode = false;
+          localStorage.setItem('plexOnlyMode', 'false');
+          this.$emit('plexOnlyModeChanged', false);
+        }
+        if (this.jellyfinOnlyMode) {
+          this.jellyfinOnlyMode = false;
+          localStorage.setItem('jellyfinOnlyMode', 'false');
+          this.$emit('jellyfinOnlyModeChanged', false);
+        }
+      }
+      
+      this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
     },
     
     // Save previous recommendations to localStorage
@@ -1242,8 +1329,9 @@ export default {
           this.dislikedRecommendations,
           this.plexOnlyMode ? this.recentlyWatchedMovies : 
             this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedMovies :
-            [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies],
-          this.plexOnlyMode || this.jellyfinOnlyMode,
+            this.tautulliOnlyMode ? this.tautulliRecentlyWatchedMovies :
+            [...this.recentlyWatchedMovies, ...this.jellyfinRecentlyWatchedMovies, ...this.tautulliRecentlyWatchedMovies],
+          this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode,
           this.customVibe,
           this.selectedLanguage
         );
@@ -1256,14 +1344,16 @@ export default {
             source = 'Plex watch history';
           } else if (this.jellyfinOnlyMode) {
             source = 'Jellyfin watch history';
-          } else if (this.plexConfigured && this.jellyfinConfigured) {
+          } else if (this.tautulliOnlyMode) {
+            source = 'Tautulli watch history';
+          } else if (this.plexConfigured || this.jellyfinConfigured || this.tautulliConfigured) {
             source = 'movie library and watch history';
           }
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
         // Filter out movies that are already in the Radarr library
-        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
+        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode) {
           this.recommendations = await this.filterExistingMovies(this.recommendations);
         }
         
@@ -1330,7 +1420,7 @@ export default {
         
         // Filter the additional recommendations
         let filteredAdditional = additionalRecommendations;
-        if (filteredAdditional.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode) {
+        if (filteredAdditional.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode) {
           filteredAdditional = await this.filterExistingMovies(filteredAdditional);
         }
         
@@ -1796,14 +1886,18 @@ h2 {
   transition: color var(--transition-speed);
 }
 
-.plex-options, .jellyfin-options {
+.plex-options, .jellyfin-options, .tautulli-options {
   margin-top: 20px;
   padding: 15px;
   background-color: rgba(0, 0, 0, 0.02);
   border-radius: 8px;
 }
 
-.plex-history-toggle, .jellyfin-history-toggle {
+.tautulli-options {
+  background-color: rgba(124, 58, 237, 0.05); /* Light purple background for Tautulli */
+}
+
+.plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle {
   margin-top: 10px;
   display: flex;
   flex-direction: column;
@@ -1823,7 +1917,7 @@ h2 {
   cursor: pointer;
 }
 
-.plex-only-toggle, .jellyfin-only-toggle {
+.plex-only-toggle, .jellyfin-only-toggle, .tautulli-only-toggle {
   margin-top: 15px;
   padding-top: 12px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
@@ -1835,6 +1929,16 @@ h2 {
   max-width: 200px;
   padding: 8px 16px;
   font-size: 13px;
+}
+
+.tautulli-user-select-button {
+  margin-top: 15px;
+  width: auto;
+  max-width: 200px;
+  padding: 8px 16px;
+  font-size: 13px;
+  background-color: #7c3aed; /* Tautulli purple color */
+  color: white;
 }
 
 .setup-section {

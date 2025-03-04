@@ -200,7 +200,7 @@ app.get('/api/net-test', async (req, res) => {
       const httpTarget = `http://${target}:${port}`;
       try {
         const httpStartTime = Date.now();
-        const response = await axios.get(httpTarget, { timeout: 5000 });
+        const response = await axios.get(httpTarget, { timeout: 30000 });
         results.checks.http = {
           success: true,
           status: response.status,
@@ -251,7 +251,7 @@ app.post('/api/proxy', async (req, res) => {
       data,
       params,
       headers,
-      timeout: 10000, // 10 second timeout
+      // Removed timeout to allow model generation time
       validateStatus: function (status) {
         // Accept all status codes to handle them in our response
         return true;

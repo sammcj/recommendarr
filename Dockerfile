@@ -7,7 +7,25 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM nginx:stable-alpine as production-stage
-COPY --from=build-stage /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:22-alpine
+WORKDIR /app
+
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm install --production
+
+# Copy built frontend from build stage
+COPY --from=build-stage /app/dist ./dist
+
+# Copy server files
+COPY server ./server
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Expose port
+EXPOSE 3000
+
+# Start the combined server
+CMD ["node", "server/server.js"]

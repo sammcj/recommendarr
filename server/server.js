@@ -7,7 +7,7 @@ const path = require('path');
 const encryptionService = require('./utils/encryption');
 
 const app = express();
-const PORT = process.env.PORT || 3050;
+const PORT = process.env.PORT || 3000;
 
 // Simple logging message for startup
 console.log(`API Server starting up in ${process.env.NODE_ENV || 'development'} mode`);
@@ -24,7 +24,7 @@ async function initCredentialsStorage() {
   try {
     // Initialize encryption service first
     await encryptionService.init();
-    
+
     // Ensure data directory exists
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
@@ -39,7 +39,7 @@ async function initCredentialsStorage() {
     try {
       const data = await fs.readFile(CREDENTIALS_FILE, 'utf8');
       const fileData = JSON.parse(data);
-      
+
       // Check if data is already encrypted
       if (fileData.encrypted && fileData.iv && fileData.authTag) {
         // Decrypt the data
@@ -71,7 +71,7 @@ async function saveCredentials() {
   try {
     // Encrypt the credentials object
     const encryptedData = encryptionService.encrypt(credentials);
-    
+
     // Write encrypted data to file
     await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(encryptedData, null, 2), 'utf8');
   } catch (err) {
@@ -82,15 +82,37 @@ async function saveCredentials() {
 // Initialize credentials storage on startup
 initCredentialsStorage();
 
-// Enable CORS
-app.use(cors());
+// Enable CORS based on environment variable, defaulting to enabled in development
+const enableCors = process.env.ENABLE_CORS === 'true' || process.env.NODE_ENV !== 'production';
+if (enableCors) {
+  const corsOptions = {
+    // Allow requests from any origin by default
+    // This can be restricted by setting CORS_ORIGIN env var
+    origin: process.env.CORS_ORIGIN || '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+    optionsSuccessStatus: 204
+  };
+
+  console.log(`CORS enabled with options:`, corsOptions);
+  app.use(cors(corsOptions));
+} else {
+  console.log('CORS disabled');
+}
 
 // Parse JSON request body
 app.use(express.json());
 
+// Serve static files from the dist directory in production
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '..', 'dist');
+  app.use(express.static(distPath));
+  console.log(`Serving static files from: ${distPath}`);
+}
+
 // Simple health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     environment: process.env.NODE_ENV || 'development'
   });
@@ -115,25 +137,25 @@ app.get('/api/credentials', (req, res) => {
 app.post('/api/credentials/:service', async (req, res) => {
   const { service } = req.params;
   const serviceCredentials = req.body;
-  
+
   if (!serviceCredentials) {
     return res.status(400).json({ error: 'No credentials provided' });
   }
-  
+
   // Initialize the service if it doesn't exist
   if (!credentials[service]) {
     credentials[service] = {};
   }
-  
+
   // Update the credentials
   credentials[service] = {
     ...credentials[service],
     ...serviceCredentials
   };
-  
+
   // Save to file
   await saveCredentials();
-  
+
   // Return success, but don't echo back the credentials
   res.json({ success: true, service });
 });
@@ -141,25 +163,25 @@ app.post('/api/credentials/:service', async (req, res) => {
 // Retrieve credentials for a service
 app.get('/api/credentials/:service', (req, res) => {
   const { service } = req.params;
-  
+
   if (!credentials[service]) {
     return res.status(404).json({ error: `No credentials found for ${service}` });
   }
-  
+
   res.json(credentials[service]);
 });
 
 // Delete credentials for a service
 app.delete('/api/credentials/:service', async (req, res) => {
   const { service } = req.params;
-  
+
   if (!credentials[service]) {
     return res.status(404).json({ error: `No credentials found for ${service}` });
   }
-  
+
   delete credentials[service];
   await saveCredentials();
-  
+
   res.json({ success: true, message: `Credentials for ${service} deleted` });
 });
 
@@ -167,16 +189,16 @@ app.delete('/api/credentials/:service', async (req, res) => {
 // Endpoint to help diagnose network connectivity issues
 app.get('/api/net-test', async (req, res) => {
   const target = req.query.target;
-  
+
   if (!target) {
     return res.status(400).json({ error: 'Target IP or hostname required' });
   }
-  
+
   const results = {
     target,
     checks: {}
   };
-  
+
   try {
     // Try to ping via DNS lookup
     const dnsStartTime = Date.now();
@@ -193,7 +215,7 @@ app.get('/api/net-test', async (req, res) => {
         error: error.message
       };
     }
-    
+
     // Try HTTP connection if port specified
     const port = req.query.port;
     if (port) {
@@ -214,7 +236,7 @@ app.get('/api/net-test', async (req, res) => {
         };
       }
     }
-    
+
     res.json(results);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -223,17 +245,17 @@ app.get('/api/net-test', async (req, res) => {
 
 app.post('/api/proxy', async (req, res) => {
   const { url, method = 'GET', data = null, params = null, headers = {} } = req.body;
-  
+
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
-  
+
   console.log(`Proxy request to: ${url} (${method})`);
 
   // Process URL to handle local network services
   let processedUrl = url;
-  
-  // In Docker environment, we need to handle local network references 
+
+  // In Docker environment, we need to handle local network references
   if (process.env.DOCKER_ENV === 'true') {
     // Check if URL contains localhost or 127.0.0.1
     if (url.includes('localhost') || url.includes('127.0.0.1')) {
@@ -242,7 +264,7 @@ app.post('/api/proxy', async (req, res) => {
       console.log(`Converted localhost URL to Docker-friendly format: ${processedUrl}`);
     }
   }
-  
+
   try {
     // Add request timeout to prevent hanging connections
     const response = await axios({
@@ -257,9 +279,9 @@ app.post('/api/proxy', async (req, res) => {
         return true;
       }
     });
-    
+
     console.log(`Proxy response from: ${processedUrl}, status: ${response.status}`);
-    
+
     res.json({
       status: response.status,
       statusText: response.statusText,
@@ -268,21 +290,21 @@ app.post('/api/proxy', async (req, res) => {
     });
   } catch (error) {
     console.error('Proxy error:', error.message);
-    
+
     // Provide more detailed error information
     const errorDetails = {
       error: error.message,
       code: error.code,
       data: error.response?.data || null
     };
-    
+
     // Handle network connectivity errors with more helpful messages
     if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
       const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
       const isLocalNetworkIP = /https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)\d+\.\d+/.test(url);
-      
+
       let message = 'Could not connect to the service.';
-      
+
       if (isLocalhost) {
         message += ' The server cannot access your localhost address. Please ensure the Sonarr/Radarr service is running on your host machine.';
       } else if (isLocalNetworkIP) {
@@ -292,14 +314,14 @@ app.post('/api/proxy', async (req, res) => {
          3. Any firewalls allow the connection
          4. The server has network access to that IP`;
       }
-      
+
       console.error(`Connection error (${error.code}): ${message} Attempted URL: ${processedUrl}`);
       return res.status(502).json({
         ...errorDetails,
         message
       });
     }
-    
+
     // Handle timeout errors
     if (error.code === 'ETIMEDOUT' || error.code === 'ETIME') {
       console.error(`Timeout error: Request to ${processedUrl} timed out`);
@@ -308,11 +330,24 @@ app.post('/api/proxy', async (req, res) => {
         message: 'The request timed out. This may happen if the service is not accessible from the server.'
       });
     }
-    
+
     res.status(error.response?.status || 500).json(errorDetails);
   }
 });
 
+// For production, serve the Vue app for any unmatched routes
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+
+    // Serve the Vue app
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
-  console.log(`API server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
 });

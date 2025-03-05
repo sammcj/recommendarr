@@ -5,8 +5,16 @@ import axios from 'axios';
  */
 class ApiService {
   constructor() {
-    // Use the configured API URL or try to detect it
+    // Use environment variable for API URL with fallback detection
     this.baseUrl = process.env.VUE_APP_API_URL || this.detectApiUrl();
+    
+    // If VUE_APP_API_URL doesn't include /api path suffix, add it
+    if (this.baseUrl && !this.baseUrl.endsWith('/api')) {
+      this.baseUrl = this.baseUrl.endsWith('/') 
+        ? `${this.baseUrl}api` 
+        : `${this.baseUrl}/api`;
+    }
+    
     console.log(`Using API URL: ${this.baseUrl}`);
   }
   
@@ -22,12 +30,16 @@ class ApiService {
     // Get the current URL details
     const protocol = window.location.protocol;
     const host = window.location.hostname;
+    const port = window.location.port;
     
-    // For Docker environment, use the same host but access the API through
-    // /api path - nginx will proxy to the correct container
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      // In Docker, access the API through the same host but use the /api path
-      apiBaseUrl = `${protocol}//${host}/api`;
+    // In the unified container, the API is running on port 3050
+    // and the frontend on port 3030
+    if (port === '3030') {
+      // When accessed via the frontend port in container
+      apiBaseUrl = `${protocol}//${host}:3050/api`;
+    } else if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      // For other non-local environments, access API on same host with /api path
+      apiBaseUrl = `${protocol}//${host}:3050/api`;
     } else {
       // For local development
       apiBaseUrl = `${protocol}//${host}:3050/api`;

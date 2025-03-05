@@ -9,6 +9,13 @@ const encryptionService = require('./utils/encryption');
 const app = express();
 const PORT = process.env.PORT || 3050;
 
+// Global app configuration
+let appConfig = {
+  publicUrl: process.env.PUBLIC_URL || '',
+  baseUrl: process.env.BASE_URL || '/',
+  apiUrl: process.env.VUE_APP_API_URL || ''
+};
+
 // Simple logging message for startup
 console.log(`API Server starting up in ${process.env.NODE_ENV || 'development'} mode`);
 
@@ -45,6 +52,15 @@ async function initCredentialsStorage() {
         // Decrypt the data
         credentials = encryptionService.decrypt(fileData);
         console.log('Loaded and decrypted existing credentials');
+        
+        // Check for app configuration and apply it
+        if (credentials['app-config']) {
+          const config = credentials['app-config'];
+          if (config.publicUrl) appConfig.publicUrl = config.publicUrl;
+          if (config.apiUrl) appConfig.apiUrl = config.apiUrl;
+          if (config.baseUrl) appConfig.baseUrl = config.baseUrl;
+          console.log('Applied custom app configuration from settings');
+        }
       } else {
         // Legacy unencrypted data - encrypt it now
         credentials = fileData;
@@ -92,7 +108,11 @@ app.use(express.json());
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    config: {
+      // Return a safe subset of config - never return sensitive data
+      publicUrl: appConfig.publicUrl || '',
+    }
   });
 });
 

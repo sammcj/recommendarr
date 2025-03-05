@@ -247,6 +247,8 @@ This will pull the pre-built image from Docker Hub and start the unified service
 - `VUE_APP_API_URL`: The URL for the API server (e.g., `https://api.example.com`)
 - `PUBLIC_URL`: Runtime URL for the application (for reverse proxy setups)
 
+**Note:** You can also configure these URL settings directly in the app by going to Settings → App Config, without needing to rebuild the Docker image.
+
 ## 🖥️ Compatible AI Services
 
 Recommendarr works with various AI services:

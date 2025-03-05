@@ -54,7 +54,7 @@
                           <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
                           <option value="custom">Custom/Other...</option>
                         </select>
-                        <div v-if="fetchError" class="fetch-error">{{ fetchError }}</div>
+                        <div v-if="fetchError" class="fetch-error" @click="goToSettings">{{ fetchError }} <span class="error-link">Click to configure API settings</span></div>
                         <div class="model-select-custom" v-if="isCustomModel">
                           <input 
                             type="text" 
@@ -390,6 +390,13 @@
             class="action-button retry-button"
           >
             Retry
+          </button>
+          <button 
+            v-if="error.includes('API key') || error.includes('API service') || error.includes('not configured')"
+            @click="goToSettings" 
+            class="action-button settings-button"
+          >
+            Configure API Settings
           </button>
         </div>
       </div>
@@ -1127,6 +1134,8 @@ export default {
     async fetchModels() {
       if (!openAIService.isConfigured()) {
         this.fetchError = 'API service is not configured. Please set up your API key first.';
+        // Redirect to settings page if API is not configured
+        this.goToSettings();
         return;
       }
       
@@ -1159,11 +1168,25 @@ export default {
           this.modelOptions.sort((a, b) => a.id.localeCompare(b.id));
         } else {
           this.fetchError = 'Invalid response format from API';
+          // Redirect to settings page for invalid response format
+          this.goToSettings();
         }
       } catch (error) {
         console.error('Error fetching models:', error);
-        this.fetchError = error.response?.data?.error?.message || 
+        const errorMessage = error.response?.data?.error?.message || 
                          'Failed to fetch models. Check your API key and URL.';
+        
+        this.fetchError = errorMessage;
+        
+        // If the error contains information about an invalid API key, redirect to settings
+        if (errorMessage.includes('API key') || 
+            errorMessage.includes('authentication') || 
+            errorMessage.includes('Incorrect API key') || 
+            errorMessage.includes('401') ||
+            errorMessage.includes('provide')) {
+          // Redirect to settings page
+          this.goToSettings();
+        }
       } finally {
         this.fetchingModels = false;
       }
@@ -1310,6 +1333,7 @@ export default {
       
       if (!openAIService.isConfigured()) {
         this.error = 'AI service is not configured. Please provide an API key.';
+        this.goToSettings();
         return;
       }
       
@@ -1404,8 +1428,21 @@ export default {
         // Provide a more helpful error message based on the error
         if (error.message && error.message.includes('API')) {
           this.error = error.message;
+          // Redirect to settings if it's an API key issue
+          if (error.message.includes('API key') || error.message.includes('not configured')) {
+            this.goToSettings();
+          }
         } else if (error.response && error.response.data && error.response.data.error) {
-          this.error = `API Error: ${error.response.data.error.message || 'Unknown API error'}`;
+          const errorMsg = error.response.data.error.message || 'Unknown API error';
+          this.error = `API Error: ${errorMsg}`;
+          
+          // Redirect to settings if it's an API key issue
+          if (errorMsg.includes('API key') || 
+              errorMsg.includes('authentication') || 
+              errorMsg.includes('401') || 
+              errorMsg.includes('provide')) {
+            this.goToSettings();
+          }
         } else {
           this.error = 'Failed to get recommendations. Please check your AI API settings and try again.';
         }
@@ -2018,6 +2055,8 @@ h2 {
   min-width: 200px;
   margin-top: 10px;
   font-size: 15px;
+  background-color: #2196F3;
+  margin-left: 10px;
 }
 
 .actions {
@@ -2270,6 +2309,12 @@ h2 {
   color: #f44336;
   font-size: 12px;
   margin-top: 4px;
+  cursor: pointer;
+}
+
+.error-link {
+  text-decoration: underline;
+  font-weight: bold;
 }
 
 .model-select-container {

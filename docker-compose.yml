@@ -1,25 +1,21 @@
 version: '3'
 services:
   recommendarr:
-    build: .
-    container_name: recommendarr
-    depends_on:
-      - api
-    ports:
-      - "3030:80"
-    restart: unless-stopped
-
-  # API server 
-  api:
     build:
       context: .
-      dockerfile: docker/api.Dockerfile
-    container_name: recommendarr-api
+      args:
+        # Build time arguments - set these for the Vue.js build process
+        - VUE_APP_API_URL=${VUE_APP_API_URL:-}
+        - BASE_URL=${BASE_URL:-}
+    container_name: recommendarr
     ports:
+      - "3030:3030"
       - "3050:3050"
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
+      # Runtime environment variables
+      - PUBLIC_URL=${PUBLIC_URL:-}
     volumes:
       - ./server/data:/app/server/data
     restart: unless-stopped

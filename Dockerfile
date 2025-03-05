@@ -37,12 +37,13 @@ ENV PORT=3050
 # Install a simple web server for serving static files
 RUN npm install -g serve
 
-# Copy startup script
+# Copy startup script and ensure it uses the correct line endings
 COPY start-unified.sh /start-unified.sh
-RUN chmod +x /start-unified.sh
+# Install dos2unix to fix line endings
+RUN apk add --no-cache dos2unix && dos2unix /start-unified.sh && chmod +x /start-unified.sh
 
 # Expose ports
 EXPOSE 3030 3050
 
 # Start both services
-CMD ["/start-unified.sh"]
+CMD ["sh", "/start-unified.sh"]

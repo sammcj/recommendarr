@@ -39,6 +39,9 @@ jobs:
           file: ./Dockerfile
           platforms: linux/arm64,linux/amd64
           push: true
+          build-args: |
+            VUE_APP_API_URL=
+            BASE_URL=
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME}}/recommendarr:${{ github.sha }}
             ${{ secrets.DOCKER_HUB_USERNAME}}/recommendarr:v${{ steps.package_version.outputs.VERSION }}

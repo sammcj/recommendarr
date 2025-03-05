@@ -1,6 +1,6 @@
-version: '3'
 services:
   recommendarr:
+    image: tannermiddleton/recommendarr:latest
     build:
       context: .
       args:
@@ -17,5 +17,5 @@ services:
       # Runtime environment variables
       - PUBLIC_URL=${PUBLIC_URL:-}
     volumes:
-      - ./server/data:/app/server/data
+      - ${PWD}/server/data:/app/server/data
     restart: unless-stopped

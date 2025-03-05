@@ -5,17 +5,50 @@ import axios from 'axios';
  */
 class ApiService {
   constructor() {
-    // Use environment variable for API URL with fallback detection
+    // Initialize with default or environment value 
     this.baseUrl = process.env.VUE_APP_API_URL || this.detectApiUrl();
     
-    // If VUE_APP_API_URL doesn't include /api path suffix, add it
+    // If URL doesn't include /api path suffix, add it
     if (this.baseUrl && !this.baseUrl.endsWith('/api')) {
       this.baseUrl = this.baseUrl.endsWith('/') 
         ? `${this.baseUrl}api` 
         : `${this.baseUrl}/api`;
     }
     
-    console.log(`Using API URL: ${this.baseUrl}`);
+    console.log(`Initial API URL: ${this.baseUrl}`);
+    
+    // Try to load saved settings after initialization
+    this.loadSavedSettings();
+  }
+  
+  /**
+   * Loads any user-configured settings from the credentials storage
+   * This happens asynchronously after the initial constructor
+   */
+  async loadSavedSettings() {
+    try {
+      // We need to make a direct axios call since we can't use this service itself yet
+      const response = await axios.get(`${this.baseUrl.replace('/api', '')}/api/credentials/app-config`);
+      const appSettings = response.data;
+      
+      if (appSettings && appSettings.apiUrl) {
+        let newBaseUrl = appSettings.apiUrl;
+        
+        // Add /api suffix if needed
+        if (!newBaseUrl.endsWith('/api')) {
+          newBaseUrl = newBaseUrl.endsWith('/') 
+            ? `${newBaseUrl}api` 
+            : `${newBaseUrl}/api`;
+        }
+        
+        // Update the base URL with the user-configured value
+        this.baseUrl = newBaseUrl;
+        console.log(`Updated API URL from settings: ${this.baseUrl}`);
+      }
+    } catch (error) {
+      // It's normal if no settings exist yet, so just log at debug level
+      console.log('No custom API URL settings found, using default');
+    }
   }
   
   /**

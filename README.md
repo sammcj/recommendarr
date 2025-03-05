@@ -201,10 +201,15 @@ mkdir recommendarr && cd recommendarr
 
 # Create a docker-compose.yml file with the following content:
 cat > docker-compose.yml << 'EOF'
-version: '3'
 services:
   recommendarr:
     image: tannermiddleton/recommendarr:latest
+    build:
+      context: .
+      args:
+        # Build time arguments - set these for the Vue.js build process
+        - VUE_APP_API_URL=${VUE_APP_API_URL:-}
+        - BASE_URL=${BASE_URL:-}
     container_name: recommendarr
     ports:
       - "3030:3030"
@@ -212,14 +217,10 @@ services:
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
-    build:
-      context: .
-      args:
-        # Build time URL configuration (optional) 
-        - BASE_URL=https://recommendarr.example.com
-        - VUE_APP_API_URL=https://api.example.com
+      # Runtime environment variables
+      - PUBLIC_URL=${PUBLIC_URL:-}
     volumes:
-      - ./server/data:/app/server/data
+      - ${PWD}/server/data:/app/server/data
     restart: unless-stopped
 EOF
 
@@ -244,6 +245,7 @@ This will pull the pre-built image from Docker Hub and start the unified service
 **Custom URL Configuration:**
 - `BASE_URL`: The base URL for the frontend application (e.g., `https://recommendarr.example.com`)
 - `VUE_APP_API_URL`: The URL for the API server (e.g., `https://api.example.com`)
+- `PUBLIC_URL`: Runtime URL for the application (for reverse proxy setups)
 
 ## 🖥️ Compatible AI Services
 

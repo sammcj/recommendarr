@@ -86,6 +86,11 @@ class OpenAIService {
     // Import ApiService dynamically to avoid circular dependency
     const apiService = (await import('./ApiService')).default;
     
+    // Validate API key - check if it's empty or whitespace
+    if (!this.apiKey || this.apiKey.trim() === '') {
+      throw new Error('API key cannot be empty. Please provide a valid API key.');
+    }
+    
     // Prepare headers based on the API endpoint
     const headers = {};
     
@@ -94,28 +99,50 @@ class OpenAIService {
       headers['x-api-key'] = this.apiKey;
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
       headers['anthropic-version'] = '2023-06-01';
-    } else if (this.apiKey) { // Only add Authorization header if apiKey is present
-      headers['Authorization'] = `Bearer ${this.apiKey}`;
+      console.log('Using Anthropic headers for models request');
+    } else {
+      // Ensure the authorization header is properly formatted for OpenAI API
+      // Always include Bearer prefix and ensure no extra whitespace
+      headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+      console.log('Using OpenAI headers for models request');
     }
+    
+    // Add content type header
+    headers['Content-Type'] = 'application/json';
+    
+    const modelsUrl = this.getModelsUrl();
+    console.log(`Fetching models from: ${modelsUrl}`);
     
     try {
       // Use proxy service to fetch models
       const response = await apiService.proxyRequest({
-        url: this.getModelsUrl(),
+        url: modelsUrl,
         method: 'GET',
         headers: headers
       });
       
+      console.log(`Models response status: ${response.status}`);
+      
       // Check if the proxy request was successful
       if (response && response.status >= 200 && response.status < 300 && response.data) {
         if (response.data.data) {
+          console.log(`Successfully retrieved ${response.data.data.length} models`);
           return response.data.data;
+        } else {
+          console.warn('Response successful but missing data.data property:', response.data);
         }
       }
       
       throw new Error('Failed to fetch models: Invalid response format');
     } catch (error) {
       console.error('Error fetching models:', error);
+      
+      // Handle specific known error patterns
+      if (error.error?.message?.includes('Incorrect API key provided') || 
+          (error.data?.error?.message && error.data.error.message.includes('Incorrect API key provided'))) {
+        throw new Error('Invalid API key. Please check your API key and try again.');
+      }
+      
       throw error;
     }
   }
@@ -131,7 +158,8 @@ class OpenAIService {
    * @param {number} sampleSize - Sample size to use when sampling the library
    */
   async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null) {
-    this.apiKey = apiKey;
+    // Trim the API key to remove any accidental whitespace
+    this.apiKey = apiKey ? apiKey.trim() : '';
     
     if (model) {
       this.model = model;
@@ -181,8 +209,17 @@ class OpenAIService {
     // For a properly configured service, we need:
     // 1. A base URL for the API endpoint
     // 2. A selected model
-    // The API key is now optional in some cases (like for local models)
-    return this.baseUrl !== '' && this.model !== '';
+    // 3. For OpenAI API, we need an API key that's not empty
+    
+    const hasBasicConfig = this.baseUrl !== '' && this.model !== '';
+    
+    // If it's OpenAI's API URL, we must have an API key
+    if (this.baseUrl === 'https://api.openai.com/v1' || this.baseUrl.includes('openai')) {
+      return hasBasicConfig && this.apiKey && this.apiKey.trim() !== '';
+    }
+    
+    // For other services, the API key might be optional
+    return hasBasicConfig;
   }
 
   /**
@@ -813,11 +850,16 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         headers['x-api-key'] = this.apiKey;
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
         headers['anthropic-version'] = '2023-06-01';
+        console.log('Using Anthropic headers configuration');
       } else if (this.apiKey) { // Only add Authorization header if apiKey is present
         headers['Authorization'] = `Bearer ${this.apiKey}`;
+        console.log('Using OpenAI Authorization header (Bearer token)');
+      } else {
+        console.warn('No API key provided for authentication');
       }
       
       headers['Content-Type'] = 'application/json';
+      console.log(`Making API request to: ${this.apiUrl} with model: ${this.model}`);
 
       // Make the API request through the proxy with the full conversation history
       const response = await apiService.proxyRequest({
@@ -835,9 +877,14 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       });
 
       // Check if response contains expected data structure
-      if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+      if (!response.data || response.data.error) {
+        console.error('API Error:', response.data?.error || 'Unknown error');
+        throw new Error(response.data?.error || 'The AI API returned an error. Please check your API key and try again.');
+      }
+      
+      if (!response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
         console.error('Unexpected API response format:', response.data);
-        throw new Error('The AI API returned an unexpected response format. Please try again.');
+        throw new Error('The AI API returned an unexpected response format. Please check your API key and endpoint configuration.');
       }
       
       // Add the assistant's response to the conversation history
@@ -912,9 +959,14 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       }
 
       // Check if response contains expected data structure
-      if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+      if (!response.data || response.data.error) {
+        console.error('API Error:', response.data?.error || 'Unknown error');
+        throw new Error(response.data?.error || 'The AI API returned an error. Please check your API key and try again.');
+      }
+      
+      if (!response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
         console.error('Unexpected API response format:', response.data);
-        throw new Error('The AI API returned an unexpected response format. Please try again.');
+        throw new Error('The AI API returned an unexpected response format. Please check your API key and endpoint configuration.');
       }
       
       // Parse the recommendations from the response

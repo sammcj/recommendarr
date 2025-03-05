@@ -5,8 +5,16 @@ import axios from 'axios';
  */
 class ApiService {
   constructor() {
-    // Use the configured API URL or try to detect it
+    // Use environment variable for API URL with fallback detection
     this.baseUrl = process.env.VUE_APP_API_URL || this.detectApiUrl();
+    
+    // If VUE_APP_API_URL doesn't include /api path suffix, add it
+    if (this.baseUrl && !this.baseUrl.endsWith('/api')) {
+      this.baseUrl = this.baseUrl.endsWith('/') 
+        ? `${this.baseUrl}api` 
+        : `${this.baseUrl}/api`;
+    }
+    
     console.log(`Using API URL: ${this.baseUrl}`);
   }
   

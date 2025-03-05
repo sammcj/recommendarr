@@ -9,6 +9,10 @@ class CredentialsService {
     this.baseUrl = apiService.baseUrl;
     // Used for migration from localStorage
     this.migrated = {};
+    // Constants for recommendation services
+    this.MOVIE_RECOMMENDATIONS_SERVICE = 'movie-recommendations';
+    this.TV_RECOMMENDATIONS_SERVICE = 'tv-recommendations';
+    this.MAX_STORED_RECOMMENDATIONS = 500;
   }
 
   /**
@@ -78,6 +82,148 @@ class CredentialsService {
     } catch (error) {
       console.error('Error checking credentials:', error);
       return false;
+    }
+  }
+
+  /**
+   * Store movie recommendations
+   * 
+   * @param {string[]} recommendations - Array of movie titles
+   * @returns {Promise<boolean>} - Success status
+   */
+  async storeMovieRecommendations(recommendations) {
+    try {
+      // Get existing recommendations directly from credentials instead of using getMovieRecommendations 
+      // to avoid potential circular dependency
+      let currentRecs = [];
+      try {
+        const data = await this.getCredentials(this.MOVIE_RECOMMENDATIONS_SERVICE);
+        if (data && data.titles) {
+          currentRecs = data.titles;
+        }
+      } catch (error) {
+        // If error fetching, just use the provided recommendations
+        console.error('Error fetching existing movie recommendations:', error);
+      }
+
+      // Combine both arrays and remove duplicates
+      const uniqueRecommendations = [...new Set([...currentRecs, ...recommendations])];
+      
+      // Limit to max stored recommendations
+      const trimmedRecommendations = uniqueRecommendations.slice(-this.MAX_STORED_RECOMMENDATIONS);
+
+      // Store the recommendations
+      return await this.storeCredentials(this.MOVIE_RECOMMENDATIONS_SERVICE, { titles: trimmedRecommendations });
+    } catch (error) {
+      console.error('Error storing movie recommendations:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Retrieve movie recommendations
+   * 
+   * @returns {Promise<string[]|null>} - Array of movie titles or null if not found
+   */
+  async getMovieRecommendations() {
+    try {
+      const data = await this.getCredentials(this.MOVIE_RECOMMENDATIONS_SERVICE);
+      const existingRecs = data?.titles || null;
+      
+      // Also check localStorage for migration purposes
+      if (!existingRecs) {
+        const localStorageRecs = localStorage.getItem('previousMovieRecommendations');
+        if (localStorageRecs) {
+          try {
+            const parsedRecs = JSON.parse(localStorageRecs);
+            if (Array.isArray(parsedRecs) && parsedRecs.length > 0) {
+              // Migrate from localStorage to server-side, but don't call storeMovieRecommendations
+              // which would cause infinite recursion
+              await this.storeCredentials(this.MOVIE_RECOMMENDATIONS_SERVICE, { titles: parsedRecs });
+              return parsedRecs;
+            }
+          } catch (e) {
+            console.error('Error parsing localStorage movie recommendations:', e);
+          }
+        }
+        return [];
+      }
+      
+      return existingRecs;
+    } catch (error) {
+      console.error('Error retrieving movie recommendations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Store TV recommendations
+   * 
+   * @param {string[]} recommendations - Array of TV show titles
+   * @returns {Promise<boolean>} - Success status
+   */
+  async storeTVRecommendations(recommendations) {
+    try {
+      // Get existing recommendations directly from credentials instead of using getTVRecommendations
+      // to avoid potential circular dependency
+      let currentRecs = [];
+      try {
+        const data = await this.getCredentials(this.TV_RECOMMENDATIONS_SERVICE);
+        if (data && data.titles) {
+          currentRecs = data.titles;
+        }
+      } catch (error) {
+        // If error fetching, just use the provided recommendations
+        console.error('Error fetching existing TV recommendations:', error);
+      }
+
+      // Combine both arrays and remove duplicates
+      const uniqueRecommendations = [...new Set([...currentRecs, ...recommendations])];
+      
+      // Limit to max stored recommendations
+      const trimmedRecommendations = uniqueRecommendations.slice(-this.MAX_STORED_RECOMMENDATIONS);
+
+      // Store the recommendations
+      return await this.storeCredentials(this.TV_RECOMMENDATIONS_SERVICE, { titles: trimmedRecommendations });
+    } catch (error) {
+      console.error('Error storing TV recommendations:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Retrieve TV recommendations
+   * 
+   * @returns {Promise<string[]|null>} - Array of TV show titles or null if not found
+   */
+  async getTVRecommendations() {
+    try {
+      const data = await this.getCredentials(this.TV_RECOMMENDATIONS_SERVICE);
+      const existingRecs = data?.titles || null;
+      
+      // Also check localStorage for migration purposes
+      if (!existingRecs) {
+        const localStorageRecs = localStorage.getItem('previousTVRecommendations');
+        if (localStorageRecs) {
+          try {
+            const parsedRecs = JSON.parse(localStorageRecs);
+            if (Array.isArray(parsedRecs) && parsedRecs.length > 0) {
+              // Migrate from localStorage to server-side, but don't call getTVRecommendations again
+              // which would cause infinite recursion
+              await this.storeCredentials(this.TV_RECOMMENDATIONS_SERVICE, { titles: parsedRecs });
+              return parsedRecs;
+            }
+          } catch (e) {
+            console.error('Error parsing localStorage TV recommendations:', e);
+          }
+        }
+        return [];
+      }
+      
+      return existingRecs;
+    } catch (error) {
+      console.error('Error retrieving TV recommendations:', error);
+      return [];
     }
   }
 

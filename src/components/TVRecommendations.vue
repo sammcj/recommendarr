@@ -629,6 +629,7 @@
 import openAIService from '../services/OpenAIService';
 import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
+import credentialsService from '../services/CredentialsService';
 import axios from 'axios';
 
 export default {
@@ -689,6 +690,8 @@ export default {
       recommendationsRequested: false,
       posters: new Map(), // Using a reactive Map for poster URLs
       loadingPosters: new Map(), // Track which posters are being loaded
+      loadRecsInProgress: false, // Used for debouncing loadPreviousRecommendations
+      lastRecsLoadTime: 0, // Used for debouncing loadPreviousRecommendations
       numRecommendations: 5, // Default number of recommendations to request
       columnsCount: 2, // Default number of posters per row
       selectedGenres: [], // Multiple genre selections
@@ -1073,13 +1076,15 @@ export default {
       this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
     },
     
-    // Save previous recommendations to localStorage
-    savePreviousRecommendations() {
+    // Save previous recommendations to server storage
+    async savePreviousRecommendations() {
+      await credentialsService.storeTVRecommendations(this.previousRecommendations);
+      // Keep localStorage as fallback for backward compatibility
       localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousRecommendations));
     },
     
     // Add current recommendations to the history
-    addToRecommendationHistory(newRecommendations) {
+    async addToRecommendationHistory(newRecommendations) {
       // Extract just the titles for storage
       const titlesToAdd = newRecommendations.map(rec => rec.title);
       
@@ -1098,16 +1103,49 @@ export default {
         this.previousRecommendations = uniqueRecommendations;
       }
       
-      // Save to localStorage
-      this.savePreviousRecommendations();
+      // Save to server storage
+      await this.savePreviousRecommendations();
     },
     
     // Clear recommendation history
-    clearRecommendationHistory() {
+    async clearRecommendationHistory() {
       // Ask for confirmation
       if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended shows?`)) {
         this.previousRecommendations = [];
-        this.savePreviousRecommendations();
+        await this.savePreviousRecommendations();
+      }
+    },
+    
+    // Load previous recommendations from server storage with debounce protection
+    async loadPreviousRecommendations() {
+      // Debounce protection - prevent excessive calls
+      const now = Date.now();
+      if (this.loadRecsInProgress || (now - this.lastRecsLoadTime < 3000)) {
+        console.log('Recommendations load debounced - skipping duplicate call');
+        return;
+      }
+      
+      this.loadRecsInProgress = true;
+      try {
+        const recommendations = await credentialsService.getTVRecommendations();
+        if (recommendations && recommendations.length > 0) {
+          this.previousRecommendations = recommendations;
+        }
+        this.lastRecsLoadTime = Date.now();
+      } catch (error) {
+        console.error('Error loading TV recommendations from server:', error);
+        // Fallback to localStorage if server fails
+        const savedPreviousRecommendations = localStorage.getItem('previousTVRecommendations');
+        if (savedPreviousRecommendations) {
+          try {
+            this.previousRecommendations = JSON.parse(savedPreviousRecommendations);
+          } catch (error) {
+            console.error('Error parsing previous TV recommendations:', error);
+            this.previousRecommendations = [];
+          }
+        }
+      } finally {
+        this.loadRecsInProgress = false;
       }
     },
     
@@ -1976,16 +2014,8 @@ export default {
       this.plexOnlyMode = savedPlexOnlyMode === 'true';
     }
     
-    // Load previous TV recommendations from localStorage
-    const savedPreviousRecommendations = localStorage.getItem('previousTVRecommendations');
-    if (savedPreviousRecommendations) {
-      try {
-        this.previousRecommendations = JSON.parse(savedPreviousRecommendations);
-      } catch (error) {
-        console.error('Error parsing previous TV recommendations:', error);
-        this.previousRecommendations = [];
-      }
-    }
+    // Load previous TV recommendations from server storage
+    this.loadPreviousRecommendations();
     
     // Load liked TV recommendations from localStorage
     const savedLikedRecommendations = localStorage.getItem('likedTVRecommendations');
@@ -2012,6 +2042,7 @@ export default {
   
   // Save state when component is destroyed
   beforeUnmount() {
+    // Fire and forget - we don't need to await since component is being destroyed
     this.savePreviousRecommendations();
     this.saveLikedDislikedLists();
     // Remove event listener

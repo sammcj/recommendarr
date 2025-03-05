@@ -464,6 +464,19 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @returns {Promise<Array>} - List of recommended movies
    */
   async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '', language = '') {
+    console.log("OpenAIService: getMovieRecommendations called", {
+      moviesCount: movies ? movies.length : 0,
+      count,
+      genre,
+      previousRecsCount: previousRecommendations ? previousRecommendations.length : 0,
+      likedRecsCount: likedRecommendations ? likedRecommendations.length : 0,
+      dislikedRecsCount: dislikedRecommendations ? dislikedRecommendations.length : 0,
+      recentlyWatchedCount: recentlyWatchedMovies ? recentlyWatchedMovies.length : 0,
+      plexOnlyMode,
+      customVibe,
+      language
+    });
+    
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -476,6 +489,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
     try {
       // Only initialize conversation history if it doesn't exist yet
       if (this.movieConversation.length === 0) {
+        console.log("Initializing new movie conversation");
       
       // Determine if we should use only Plex history or include the library
       let sourceText;
@@ -661,16 +675,23 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       }
       
       // Get initial recommendations using the conversation
+      console.log("Getting formatted movie recommendations with conversation");
+      console.log("Movie conversation length:", this.movieConversation.length);
+      
       const recommendations = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
+      console.log("Raw recommendations from API:", recommendations);
       
       // Perform final verification to ensure no existing/liked content is returned
-      return this.verifyRecommendations(
+      const verifiedRecommendations = this.verifyRecommendations(
         recommendations,
         movies,                   // Library items
         likedRecommendations,     // Liked items
         dislikedRecommendations,  // Disliked items
         previousRecommendations   // Previous recommendations
       );
+      
+      console.log("Verified recommendations:", verifiedRecommendations);
+      return verifiedRecommendations;
     } catch (error) {
       console.error('Error getting movie recommendations:', error);
       throw error;
@@ -838,6 +859,9 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @returns {Promise<Array>} - List of formatted recommendations
    */
   async getFormattedRecommendationsWithConversation(conversation) {
+    console.log("API URL:", this.apiUrl);
+    console.log("Model:", this.model);
+    
     try {
       // Check if conversation is getting too large and reset if needed
       // A typical message limit before hitting payload size issues is around 10-15 messages
@@ -874,6 +898,11 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       } else {
         console.warn('No API key provided for authentication');
       }
+      
+      console.log("Is API configured:", this.isConfigured());
+      console.log("Conversation length:", conversation.length);
+      console.log("First message role:", conversation[0]?.role);
+      console.log("Last message role:", conversation[conversation.length-1]?.role);
       
       headers['Content-Type'] = 'application/json';
       console.log(`Making API request to: ${this.apiUrl} with model: ${this.model}`);

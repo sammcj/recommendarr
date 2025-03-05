@@ -762,8 +762,13 @@ export default {
         this.fetchSeriesData();
       }
       
-      // If we're switching to movie recommendations, ensure we have movies data
-      if (tab === 'movie-recommendations' && this.movies.length === 0 && this.radarrConnected) {
+      // If we're switching to movie recommendations, always try to fetch movies data
+      if (tab === 'movie-recommendations') {
+        // Check if Radarr is connected
+        console.log('Radarr connected:', this.radarrConnected);
+        console.log('Current movies array:', this.movies);
+        
+        // Try to fetch movies data regardless of array length or connection status
         this.fetchMoviesData();
       }
     },
@@ -777,9 +782,30 @@ export default {
     
     async fetchMoviesData() {
       try {
-        this.movies = await radarrService.getMovies();
+        console.log('Fetching movies data...');
+        console.log('Radarr configured:', radarrService.isConfigured());
+        console.log('Radarr baseUrl:', radarrService.baseUrl);
+        console.log('Radarr apiKey:', radarrService.apiKey ? '✓ Set' : '✗ Not set');
+        
+        // Try to load credentials explicitly
+        await radarrService.loadCredentials();
+        
+        // If still not configured, log a message
+        if (!radarrService.isConfigured()) {
+          console.log('Radarr service is still not configured after loading credentials');
+          this.radarrConnected = false;
+          return;
+        }
+        
+        // Fetch movies
+        const movies = await radarrService.getMovies();
+        console.log('Fetched movies:', movies);
+        
+        this.movies = movies;
+        this.radarrConnected = true;
       } catch (error) {
         console.error('Failed to fetch movies data for recommendations:', error);
+        this.radarrConnected = false;
       }
     },
     

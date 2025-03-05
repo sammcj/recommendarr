@@ -131,7 +131,7 @@
                     </div>
                   </div>
                   <div class="history-info">
-                    <span>{{ previousRecommendations.length }} shows in history</span>
+                    <span>{{ previousRecommendations.length }} {{ isMovieMode ? 'movies' : 'shows' }} in history</span>
                     <button 
                       v-if="previousRecommendations.length > 0" 
                       @click="clearRecommendationHistory" 
@@ -756,6 +756,26 @@ export default {
     tautulliRecentlyWatchedShows: {
       type: Array,
       default: () => []
+    },
+    movies: {
+      type: Array,
+      default: () => []
+    },
+    radarrConfigured: {
+      type: Boolean,
+      default: false
+    },
+    recentlyWatchedMovies: {
+      type: Array,
+      default: () => []
+    },
+    jellyfinRecentlyWatchedMovies: {
+      type: Array,
+      default: () => []
+    },
+    tautulliRecentlyWatchedMovies: {
+      type: Array,
+      default: () => []
     }
   },
   computed: {
@@ -767,6 +787,29 @@ export default {
       return {
         gridTemplateColumns: `repeat(${effectiveColumnCount}, 1fr)`
       };
+    },
+    
+    // Computed property to get the current active history based on mode
+    currentHistory() {
+      return this.isMovieMode ? this.previousMovieRecommendations : this.previousShowRecommendations;
+    },
+    
+    // Computed property to get movie watch history from all sources
+    allMovieWatchHistory() {
+      return [
+        ...(this.recentlyWatchedMovies || []),
+        ...(this.jellyfinRecentlyWatchedMovies || []),
+        ...(this.tautulliRecentlyWatchedMovies || [])
+      ];
+    },
+    
+    // Computed property to get TV watch history from all sources
+    allTVWatchHistory() {
+      return [
+        ...(this.recentlyWatchedShows || []),
+        ...(this.jellyfinRecentlyWatchedShows || []),
+        ...(this.tautulliRecentlyWatchedShows || [])
+      ];
     }
   },
   data() {
@@ -861,7 +904,9 @@ export default {
       selectedLanguage: '',
       requestingSeries: null, // Track which series is being requested
       requestStatus: {}, // Track request status for each series
-      previousRecommendations: [], // Track previous recommendations to avoid duplicates
+      previousShowRecommendations: [], // Track previous TV show recommendations
+      previousMovieRecommendations: [], // Track previous movie recommendations
+      previousRecommendations: [], // Current mode's previous recommendations
       likedRecommendations: [], // TV shows that user has liked
       dislikedRecommendations: [], // TV shows that user has disliked
       maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
@@ -890,6 +935,19 @@ export default {
   methods: {
     goToSettings() {
       this.$emit('navigate', 'settings');
+    },
+    
+    // Save content type preference (TV or Movies)
+    saveContentTypePreference() {
+      localStorage.setItem('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
+      localStorage.setItem('isMovieMode', this.isMovieMode.toString());
+      
+      // Update the current recommendations list based on mode
+      this.previousRecommendations = this.isMovieMode ? 
+        this.previousMovieRecommendations : this.previousShowRecommendations;
+      
+      // Reset recommendations when switching modes
+      this.recommendations = [];
     },
     
     toggleSettings() {
@@ -1071,13 +1129,6 @@ export default {
       localStorage.setItem('columnsCount', this.columnsCount);
     },
     
-    // Save content type preference to localStorage
-    saveContentTypePreference() {
-      localStorage.setItem('isMovieMode', this.isMovieMode.toString());
-      // Reset recommendations when switching modes
-      this.recommendations = [];
-    },
-    
     // Save genre preferences to localStorage when they change
     saveGenrePreference() {
       localStorage.setItem('tvGenrePreferences', JSON.stringify(this.selectedGenres));
@@ -1181,7 +1232,11 @@ export default {
     
     // Save previous recommendations to localStorage
     savePreviousRecommendations() {
-      localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousRecommendations));
+      if (this.isMovieMode) {
+        localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
+      } else {
+        localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+      }
     },
     
     // Add current recommendations to the history
@@ -1189,19 +1244,41 @@ export default {
       // Extract just the titles for storage
       const titlesToAdd = newRecommendations.map(rec => rec.title);
       
+      // Reference to the correct history array based on mode
+      const historyArray = this.isMovieMode ? 
+        this.previousMovieRecommendations : this.previousShowRecommendations;
+      
       // Combine with existing recommendations, remove duplicates
-      const combinedRecommendations = [...this.previousRecommendations, ...titlesToAdd];
+      const combinedRecommendations = [...historyArray, ...titlesToAdd];
       
       // Keep only unique recommendations
       const uniqueRecommendations = [...new Set(combinedRecommendations)];
       
       // If over the limit, remove oldest recommendations
       if (uniqueRecommendations.length > this.maxStoredRecommendations) {
-        this.previousRecommendations = uniqueRecommendations.slice(
-          uniqueRecommendations.length - this.maxStoredRecommendations
-        );
+        if (this.isMovieMode) {
+          this.previousMovieRecommendations = uniqueRecommendations.slice(
+            uniqueRecommendations.length - this.maxStoredRecommendations
+          );
+          // Also update the current view
+          this.previousRecommendations = this.previousMovieRecommendations;
+        } else {
+          this.previousShowRecommendations = uniqueRecommendations.slice(
+            uniqueRecommendations.length - this.maxStoredRecommendations
+          );
+          // Also update the current view
+          this.previousRecommendations = this.previousShowRecommendations;
+        }
       } else {
-        this.previousRecommendations = uniqueRecommendations;
+        if (this.isMovieMode) {
+          this.previousMovieRecommendations = uniqueRecommendations;
+          // Also update the current view
+          this.previousRecommendations = this.previousMovieRecommendations;
+        } else {
+          this.previousShowRecommendations = uniqueRecommendations;
+          // Also update the current view
+          this.previousRecommendations = this.previousShowRecommendations;
+        }
       }
       
       // Save to localStorage
@@ -1210,9 +1287,16 @@ export default {
     
     // Clear recommendation history
     clearRecommendationHistory() {
-      // Ask for confirmation
-      if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended shows?`)) {
-        this.previousRecommendations = [];
+      // Ask for confirmation with appropriate content type
+      const contentType = this.isMovieMode ? 'movies' : 'shows';
+      if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended ${contentType}?`)) {
+        if (this.isMovieMode) {
+          this.previousMovieRecommendations = [];
+          this.previousRecommendations = [];
+        } else {
+          this.previousShowRecommendations = [];
+          this.previousRecommendations = [];
+        }
         this.savePreviousRecommendations();
       }
     },
@@ -1472,7 +1556,7 @@ export default {
     async getRecommendations() {
       // Verify we have content and OpenAI is configured
       const isServiceConfigured = this.isMovieMode 
-        ? radarrService.isConfigured() 
+        ? this.radarrConfigured
         : this.sonarrConfigured;
       
       if (!isServiceConfigured) {
@@ -1480,7 +1564,27 @@ export default {
         return;
       }
       
-      if (this.series.length === 0) {
+      // Check if the service is actually ready with a valid connection
+      if (this.isMovieMode && (!radarrService.isConfigured() || !radarrService.apiKey || !radarrService.baseUrl)) {
+        await radarrService.loadCredentials();
+        if (!radarrService.isConfigured()) {
+          this.error = "Radarr service isn't fully configured. Please check your connection settings.";
+          return;
+        }
+      } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
+        await sonarrService.loadCredentials();
+        if (!sonarrService.isConfigured()) {
+          this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
+          return;
+        }
+      }
+      
+      // Check if the library is empty
+      const libraryEmpty = this.isMovieMode 
+        ? (!this.movies || this.movies.length === 0)
+        : (!this.series || this.series.length === 0);
+        
+      if (libraryEmpty) {
         this.error = `Your ${this.isMovieMode ? 'Radarr' : 'Sonarr'} library is empty. Add some ${this.isMovieMode ? 'movies' : 'TV shows'} to get recommendations.`;
         return;
       }
@@ -1526,27 +1630,45 @@ export default {
           ? this.selectedGenres.join(', ')
           : '';
         
-        // Get the watch history based on selected mode
-        const watchHistory = this.plexOnlyMode ? this.recentlyWatchedShows : 
-          this.jellyfinOnlyMode ? this.jellyfinRecentlyWatchedShows :
-          this.tautulliOnlyMode ? this.tautulliRecentlyWatchedShows :
-          [...this.recentlyWatchedShows, ...this.jellyfinRecentlyWatchedShows, ...this.tautulliRecentlyWatchedShows];
+        // Get the watch history based on selected mode and content type using computed properties
+        const watchHistory = this.isMovieMode
+          ? (this.plexOnlyMode ? (this.recentlyWatchedMovies || []) : 
+             this.jellyfinOnlyMode ? (this.jellyfinRecentlyWatchedMovies || []) :
+             this.tautulliOnlyMode ? (this.tautulliRecentlyWatchedMovies || []) :
+             this.allMovieWatchHistory)
+          : (this.plexOnlyMode ? (this.recentlyWatchedShows || []) : 
+             this.jellyfinOnlyMode ? (this.jellyfinRecentlyWatchedShows || []) :
+             this.tautulliOnlyMode ? (this.tautulliRecentlyWatchedShows || []) :
+             this.allTVWatchHistory);
         
         // Get initial recommendations using the appropriate service method based on mode
         if (this.isMovieMode) {
-          // Use movie recommendations method
-          this.recommendations = await openAIService.getMovieRecommendations(
-            this.series, 
-            this.numRecommendations,
-            genreString,
-            this.previousRecommendations,
-            this.likedRecommendations,
-            this.dislikedRecommendations,
-            watchHistory,
-            this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode,
-            this.customVibe,
-            this.selectedLanguage
-          );
+          console.log("Starting movie recommendations...");
+          console.log("Movies array:", this.movies ? this.movies.length : 0, "items");
+          console.log("NumRecommendations:", this.numRecommendations);
+          console.log("GenreString:", genreString);
+          console.log("PreviousMovieRecommendations:", this.previousMovieRecommendations.length, "items");
+          console.log("Watch history:", watchHistory.length, "items");
+          
+          try {
+            // Use movie recommendations method
+            this.recommendations = await openAIService.getMovieRecommendations(
+              this.movies, // Use movies array for movie mode
+              this.numRecommendations,
+              genreString,
+              this.previousMovieRecommendations, // Use movie-specific history
+              this.likedRecommendations,
+              this.dislikedRecommendations,
+              watchHistory,
+              this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode,
+              this.customVibe,
+              this.selectedLanguage
+            );
+            console.log("Movie recommendations completed successfully:", this.recommendations);
+          } catch (error) {
+            console.error("Error getting movie recommendations:", error);
+            throw error; // Rethrow to be caught by the outer try/catch
+          }
         } else {
           // Use TV show recommendations method
           this.recommendations = await openAIService.getRecommendations(
@@ -1645,7 +1767,8 @@ export default {
         // Get additional recommendations
         // Include current recommendations in the exclusion list
         const currentTitles = this.recommendations.map(rec => rec.title);
-        const updatedPrevious = [...new Set([...this.previousRecommendations, ...currentTitles])];
+        const previousRecsList = this.isMovieMode ? this.previousMovieRecommendations : this.previousShowRecommendations;
+        const updatedPrevious = [...new Set([...previousRecsList, ...currentTitles])];
         
         // Request more recommendations than we need to account for filtering
         const requestCount = Math.min(additionalCount * 1.5, 20); // Request 50% more, up to 20 max
@@ -1714,14 +1837,23 @@ export default {
      * @returns {Promise<Array>} - Filtered recommendations
      */
     async filterExistingShows(recommendations) {
-      if (!sonarrService.isConfigured() || !this.series.length) {
-        return recommendations;
+      // Check if appropriate service is configured based on current mode
+      if (this.isMovieMode) {
+        if (!radarrService.isConfigured() || !this.movies.length) {
+          return recommendations;
+        }
+      } else {
+        if (!sonarrService.isConfigured() || !this.series.length) {
+          return recommendations;
+        }
       }
       
       try {
-        // Create a normalized map of existing show titles in the library
-        const existingShowTitles = new Set(
-          this.series.map(show => show.title.toLowerCase())
+        // Create a normalized map of existing titles in the library
+        const existingTitles = new Set(
+          this.isMovieMode 
+            ? this.movies.map(movie => movie.title.toLowerCase())
+            : this.series.map(show => show.title.toLowerCase())
         );
         
         // Add liked recommendations to the filter set
@@ -1734,24 +1866,26 @@ export default {
           this.dislikedRecommendations.map(title => title.toLowerCase())
         );
         
-        // Add previous recommendations to the filter set
+        // Add previous recommendations to the filter set - use the appropriate history
+        const previousList = this.isMovieMode ? this.previousMovieRecommendations : this.previousShowRecommendations;
         const previousRecommendationTitles = new Set(
-          this.previousRecommendations.map(title => title.toLowerCase())
+          previousList.map(title => title.toLowerCase())
         );
         
         // Filter out recommendations that already exist in the library, liked list, disliked list, or previous recommendations
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
-          return !existingShowTitles.has(normalizedTitle) && 
+          return !existingTitles.has(normalizedTitle) && 
                  !likedRecommendationTitles.has(normalizedTitle) && 
                  !dislikedRecommendationTitles.has(normalizedTitle) && 
                  !previousRecommendationTitles.has(normalizedTitle);
         });
         
-        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} shows that already exist in the library, liked/disliked lists, or recommendation history`);
+        const contentType = this.isMovieMode ? 'movies' : 'shows';
+        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} ${contentType} that already exist in the library, liked/disliked lists, or recommendation history`);
         return filteredRecommendations;
       } catch (error) {
-        console.error('Error filtering existing shows:', error);
+        console.error(`Error filtering existing ${this.isMovieMode ? 'movies' : 'shows'}:`, error);
         return recommendations; // Return original list on error
       }
     },
@@ -2236,10 +2370,15 @@ export default {
       }
     }
     
-    // Restore saved content type preference (movie/TV toggle)
-    const savedMovieMode = localStorage.getItem('isMovieMode');
-    if (savedMovieMode) {
-      this.isMovieMode = savedMovieMode === 'true';
+    // Set initial movie mode from props if provided, otherwise use saved preference
+    if (this.initialMovieMode) {
+      this.isMovieMode = true;
+    } else {
+      // Restore saved content type preference (movie/TV toggle)
+      const savedMovieMode = localStorage.getItem('isMovieMode');
+      if (savedMovieMode) {
+        this.isMovieMode = savedMovieMode === 'true';
+      }
     }
     
     // Restore saved genre preferences if they exist
@@ -2277,15 +2416,37 @@ export default {
       this.plexOnlyMode = savedPlexOnlyMode === 'true';
     }
     
+    // Initialize history arrays with empty arrays to prevent issues
+    this.previousShowRecommendations = [];
+    this.previousMovieRecommendations = [];
+    
     // Load previous TV recommendations from localStorage
-    const savedPreviousRecommendations = localStorage.getItem('previousTVRecommendations');
-    if (savedPreviousRecommendations) {
+    const savedPreviousTVRecommendations = localStorage.getItem('previousTVRecommendations');
+    if (savedPreviousTVRecommendations) {
       try {
-        this.previousRecommendations = JSON.parse(savedPreviousRecommendations);
+        this.previousShowRecommendations = JSON.parse(savedPreviousTVRecommendations) || [];
       } catch (error) {
         console.error('Error parsing previous TV recommendations:', error);
-        this.previousRecommendations = [];
+        this.previousShowRecommendations = [];
       }
+    }
+    
+    // Load previous movie recommendations from localStorage
+    const savedPreviousMovieRecommendations = localStorage.getItem('previousMovieRecommendations');
+    if (savedPreviousMovieRecommendations) {
+      try {
+        this.previousMovieRecommendations = JSON.parse(savedPreviousMovieRecommendations) || [];
+      } catch (error) {
+        console.error('Error parsing previous movie recommendations:', error);
+        this.previousMovieRecommendations = [];
+      }
+    }
+    
+    // Set the active recommendations based on current mode
+    if (this.isMovieMode) {
+      this.previousRecommendations = [...this.previousMovieRecommendations];
+    } else {
+      this.previousRecommendations = [...this.previousShowRecommendations];
     }
     
     // Load liked TV recommendations from localStorage

@@ -46,6 +46,13 @@
       >
         Tautulli
       </button>
+      <button 
+        @click="activeTab = 'app'" 
+        :class="{ active: activeTab === 'app' }" 
+        class="tab-button"
+      >
+        App Config
+      </button>
     </div>
     
     <!-- Connected Services Section -->
@@ -711,6 +718,11 @@
       </div>
     </div>
     
+    <!-- App Configuration Tab -->
+    <div v-if="activeTab === 'app'" class="settings-section">
+      <AppSettings />
+    </div>
+    
     <!-- Fixed Position Notification Toast -->
     <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
       <div class="notification-content">
@@ -744,6 +756,7 @@ import JellyfinConnection from './JellyfinConnection.vue';
 import TautulliConnection from './TautulliConnection.vue';
 import SonarrConnection from './SonarrConnection.vue';
 import RadarrConnection from './RadarrConnection.vue';
+import AppSettings from './AppSettings.vue';
 
 export default {
   name: 'AIServiceSettings',
@@ -752,7 +765,8 @@ export default {
     JellyfinConnection,
     TautulliConnection,
     SonarrConnection,
-    RadarrConnection
+    RadarrConnection,
+    AppSettings
   },
   props: {
     sonarrConnected: {

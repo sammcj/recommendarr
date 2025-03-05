@@ -149,12 +149,22 @@ The easiest way to run Recommendarr:
 # Pull the image
 docker pull tannermiddleton/recommendarr:latest
 
-# Run the container
+# Run the container (basic)
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
   -p 3050:3050 \
   -v $(pwd)/server/data:/app/server/data \
+  tannermiddleton/recommendarr:latest
+
+# Run with custom URL configuration
+docker run -d \
+  --name recommendarr \
+  -p 3030:3030 \
+  -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
+  --build-arg BASE_URL=https://recommendarr.example.com \
+  --build-arg VUE_APP_API_URL=https://api.example.com \
   tannermiddleton/recommendarr:latest
 ```
 
@@ -181,7 +191,7 @@ docker run -d \
   recommendarr:local
 ```
 
-### Option 3: Using Pre-built Docker Images
+### Option 3: Using Pre-built Docker Images with Docker Compose
 
 If you prefer not to build the image locally and want to use the pre-built image from Docker Hub:
 
@@ -202,6 +212,12 @@ services:
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
+    build:
+      context: .
+      args:
+        # Build time URL configuration (optional) 
+        - BASE_URL=https://recommendarr.example.com
+        - VUE_APP_API_URL=https://api.example.com
     volumes:
       - ./server/data:/app/server/data
     restart: unless-stopped
@@ -221,8 +237,13 @@ This will pull the pre-built image from Docker Hub and start the unified service
 - The frontend and API server are bundled together in a single container
 - All your service credentials are stored securely using encryption
 - CORS issues are automatically handled through the proxy service
+- Custom URL configuration for reverse proxy setups (via environment variables)
 
 **Note:** If you want to customize port mappings or other settings, edit the `docker-compose.yml` file before running the command.
+
+**Custom URL Configuration:**
+- `BASE_URL`: The base URL for the frontend application (e.g., `https://recommendarr.example.com`)
+- `VUE_APP_API_URL`: The URL for the API server (e.g., `https://api.example.com`)
 
 ## 🖥️ Compatible AI Services
 

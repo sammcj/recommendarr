@@ -235,27 +235,38 @@ app.post('/api/proxy', async (req, res) => {
   
   // In Docker environment, we need to handle local network references 
   if (process.env.DOCKER_ENV === 'true') {
-    // Check if URL contains localhost or 127.0.0.1
-    if (url.includes('localhost') || url.includes('127.0.0.1')) {
-      // Replace localhost with host.docker.internal to access host machine services
-      processedUrl = url.replace(/(localhost|127\.0\.0\.1)/, 'host.docker.internal');
-      console.log(`Converted localhost URL to Docker-friendly format: ${processedUrl}`);
-    }
+    console.log(`Docker environment detected, processing URL: ${url}`);
     
-    // If we're accessing an API via the same hostname as the UI
-    // (This is for APIs hosted on the same machine but not necessarily on localhost)
-    if (url.includes(req.hostname) && !url.includes('host.docker.internal')) {
-      console.log(`Request appears to be to the same host: ${url}`);
+    try {
+      // Parse the URL to extract hostname properly
+      const parsedUrl = new URL(url);
+      const hostname = parsedUrl.hostname;
       
-      // Extract the port if present
-      const urlObj = new URL(url);
-      const port = urlObj.port;
-      
-      if (port) {
-        // If it's a different port on the same host, we need to access via host.docker.internal
-        processedUrl = url.replace(req.hostname, 'host.docker.internal');
-        console.log(`Converted same-host URL to Docker-friendly format: ${processedUrl}`);
+      // Only modify localhost/127.0.0.1 URLs
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        processedUrl = url.replace(/(localhost|127\.0\.0\.1)/, 'host.docker.internal');
+        console.log(`Converted localhost URL to Docker-friendly format: ${processedUrl}`);
+      } 
+      // Handle references to the same host as the server
+      else if (hostname === req.hostname) {
+        // Extract the port if present
+        const port = parsedUrl.port;
+        
+        if (port) {
+          // If it's a different port on the same host, access via host.docker.internal
+          processedUrl = url.replace(req.hostname, 'host.docker.internal');
+          console.log(`Converted same-host URL to Docker-friendly format: ${processedUrl}`);
+        }
       }
+      // For all external URLs (including API providers)
+      else {
+        console.log(`External API call detected, using original URL: ${url}`);
+        processedUrl = url;
+      }
+    } catch (error) {
+      console.error(`Error parsing URL ${url}:`, error.message);
+      // If URL parsing fails, use the original URL
+      processedUrl = url;
     }
   }
   

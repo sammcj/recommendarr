@@ -33,7 +33,7 @@
         OpenAI configured successfully!
       </p>
       <p v-else-if="connectionStatus === 'error'" class="error">
-        Configuration failed. Please check your API key.
+        {{ errorMessage || 'Configuration failed. Please check your API key.' }}
       </p>
     </div>
   </div>
@@ -50,7 +50,8 @@ export default {
       apiKey: '',
       model: 'gpt-3.5-turbo',
       connectionStatus: null,
-      connecting: false
+      connecting: false,
+      errorMessage: ''
     };
   },
   async created() {
@@ -93,19 +94,30 @@ export default {
     async connect() {
       this.connecting = true;
       this.connectionStatus = null;
+      this.errorMessage = '';
       
       try {
         // Configure the service with provided details (stores credentials server-side)
         await openAIService.configure(this.apiKey, this.model);
         
-        // Set status to success (no direct API test for API key validity)
-        this.connectionStatus = 'success';
-        
-        // Emit event for successful configuration
-        this.$emit('configured');
+        // Test the API key with a models request
+        try {
+          await openAIService.fetchModels();
+          
+          // Set status to success if models request succeeds
+          this.connectionStatus = 'success';
+          
+          // Emit event for successful configuration
+          this.$emit('configured');
+        } catch (modelError) {
+          console.error('Error testing OpenAI API key:', modelError);
+          this.connectionStatus = 'error';
+          this.errorMessage = modelError.message || 'API key validation failed. Please check your API key.';
+        }
       } catch (error) {
         console.error('Error configuring OpenAI service:', error);
         this.connectionStatus = 'error';
+        this.errorMessage = error.message || 'Configuration failed. Please check your API key.';
       } finally {
         this.connecting = false;
       }

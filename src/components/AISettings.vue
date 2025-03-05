@@ -217,11 +217,14 @@
               v-model="aiSettings.apiKey" 
               :type="showApiKey ? 'text' : 'password'" 
               placeholder="Your API key (can be empty for local models)"
+              @input="validateApiKey"
+              @blur="validateApiKey"
             />
             <button type="button" class="toggle-button" @click="showApiKey = !showApiKey">
               {{ showApiKey ? 'Hide' : 'Show' }}
             </button>
           </div>
+          <div v-if="apiKeyError" class="field-error">{{ apiKeyError }}</div>
           <div class="field-hint">The API key for authentication (not needed for some local servers)</div>
         </div>
         
@@ -795,6 +798,7 @@ export default {
       showApiKey: false,
       isLoading: false,
       fetchError: null,
+      apiKeyError: null,
       
       // Sonarr Settings
       sonarrSettings: {
@@ -1064,6 +1068,27 @@ export default {
       }
     },
     
+    validateApiKey() {
+      this.apiKeyError = null;
+      
+      // Only validate if using OpenAI API
+      if (this.aiSettings.apiUrl && (this.aiSettings.apiUrl.includes('openai.com') || this.aiSettings.apiUrl.includes('openai'))) {
+        // Check if API key is empty or just whitespace
+        if (!this.aiSettings.apiKey || this.aiSettings.apiKey.trim() === '') {
+          this.apiKeyError = 'OpenAI API requires a valid API key';
+          return false;
+        }
+        
+        // Check if it starts with "sk-" for OpenAI keys
+        if (!this.aiSettings.apiKey.trim().startsWith('sk-')) {
+          this.apiKeyError = 'OpenAI API keys typically start with "sk-"';
+          // Don't return false here as some keys might be different
+        }
+      }
+      
+      return true;
+    },
+    
     async loadSonarrSettings() {
       try {
         // First try to get from service directly
@@ -1271,6 +1296,19 @@ export default {
             this.clearSaveMessage();
             return;
           }
+        }
+        
+        // Validate API key for OpenAI
+        if (!this.validateApiKey()) {
+          this.saveSuccess = false;
+          this.saveMessage = this.apiKeyError || 'Invalid API key';
+          this.clearSaveMessage();
+          return;
+        }
+        
+        // Trim API key to remove any accidental whitespace
+        if (this.aiSettings.apiKey) {
+          this.aiSettings.apiKey = this.aiSettings.apiKey.trim();
         }
         
         // Update the service (which will store credentials server-side)
@@ -2210,6 +2248,14 @@ body.dark-theme .model-warning {
   color: var(--text-color);
   opacity: 0.7;
   margin-top: 4px;
+  transition: color var(--transition-speed);
+}
+
+.field-error {
+  font-size: 12px;
+  color: #f44336;
+  margin-top: 4px;
+  font-weight: 500;
   transition: color var(--transition-speed);
 }
 

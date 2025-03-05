@@ -53,14 +53,8 @@ async function initCredentialsStorage() {
         credentials = encryptionService.decrypt(fileData);
         console.log('Loaded and decrypted existing credentials');
         
-        // Check for app configuration and apply it
-        if (credentials['app-config']) {
-          const config = credentials['app-config'];
-          if (config.publicUrl) appConfig.publicUrl = config.publicUrl;
-          if (config.apiUrl) appConfig.apiUrl = config.apiUrl;
-          if (config.baseUrl) appConfig.baseUrl = config.baseUrl;
-          console.log('Applied custom app configuration from settings');
-        }
+        // App-config feature has been removed - use environment vars only
+        console.log('Using environment variables for application configuration');
       } else {
         // Legacy unencrypted data - encrypt it now
         credentials = fileData;
@@ -122,11 +116,14 @@ app.get('/api/credentials', (req, res) => {
   // Return just the service names and their existence, not the actual keys
   const services = {};
   for (const [service, creds] of Object.entries(credentials)) {
-    services[service] = Object.keys(creds).reduce((acc, key) => {
-      // Don't send the actual API keys or sensitive data to the client
-      acc[key] = creds[key] ? true : false;
-      return acc;
-    }, {});
+    // Skip app-config as it's been removed
+    if (service !== 'app-config') {
+      services[service] = Object.keys(creds).reduce((acc, key) => {
+        // Don't send the actual API keys or sensitive data to the client
+        acc[key] = creds[key] ? true : false;
+        return acc;
+      }, {});
+    }
   }
   res.json({ services });
 });
@@ -135,6 +132,11 @@ app.get('/api/credentials', (req, res) => {
 app.post('/api/credentials/:service', async (req, res) => {
   const { service } = req.params;
   const serviceCredentials = req.body;
+  
+  // Reject attempts to store app-config since the feature is removed
+  if (service === 'app-config') {
+    return res.status(400).json({ error: 'App configuration via API is not supported' });
+  }
   
   if (!serviceCredentials) {
     return res.status(400).json({ error: 'No credentials provided' });
@@ -161,6 +163,11 @@ app.post('/api/credentials/:service', async (req, res) => {
 // Retrieve credentials for a service
 app.get('/api/credentials/:service', (req, res) => {
   const { service } = req.params;
+  
+  // Return empty response for app-config as it's been removed
+  if (service === 'app-config') {
+    return res.json({});
+  }
   
   if (!credentials[service]) {
     return res.status(404).json({ error: `No credentials found for ${service}` });

@@ -26,29 +26,9 @@ class ApiService {
    * This happens asynchronously after the initial constructor
    */
   async loadSavedSettings() {
-    try {
-      // We need to make a direct axios call since we can't use this service itself yet
-      const response = await axios.get(`${this.baseUrl.replace('/api', '')}/api/credentials/app-config`);
-      const appSettings = response.data;
-      
-      if (appSettings && appSettings.apiUrl) {
-        let newBaseUrl = appSettings.apiUrl;
-        
-        // Add /api suffix if needed
-        if (!newBaseUrl.endsWith('/api')) {
-          newBaseUrl = newBaseUrl.endsWith('/') 
-            ? `${newBaseUrl}api` 
-            : `${newBaseUrl}/api`;
-        }
-        
-        // Update the base URL with the user-configured value
-        this.baseUrl = newBaseUrl;
-        console.log(`Updated API URL from settings: ${this.baseUrl}`);
-      }
-    } catch (error) {
-      // It's normal if no settings exist yet, so just log at debug level
-      console.log('No custom API URL settings found, using default');
-    }
+    // Skip loading saved settings as app-config feature has been removed
+    console.log('Using environment-configured API URL settings');
+    return;
   }
   
   /**

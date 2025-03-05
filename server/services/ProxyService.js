@@ -31,6 +31,14 @@ class ProxyService {
         return processed;
       }
       
+      // Handle local IP addresses that might need to reach host network
+      if (/^192\.168\.[0-9]{1,3}\.[0-9]{1,3}$/.test(hostname) || 
+          /^10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/.test(hostname)) {
+        // Keep the URL intact - container should be able to reach host network
+        console.log(`[ProxyService] Detected local IP address: ${hostname}`);
+        return url;
+      }
+      
       // For all other URLs (external APIs, etc.), don't modify them
       console.log(`[ProxyService] Using unmodified external URL: ${url}`);
       return url;

@@ -1231,7 +1231,7 @@ export default {
     },
     
     // Like a movie recommendation
-    likeRecommendation(title) {
+    async likeRecommendation(title) {
       // If it's already liked, remove it from liked list (toggle behavior)
       if (this.isLiked(title)) {
         this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
@@ -1245,12 +1245,12 @@ export default {
         }
       }
       
-      // Save to localStorage
-      this.saveLikedDislikedLists();
+      // Save to server and localStorage
+      await this.saveLikedDislikedLists();
     },
     
     // Dislike a movie recommendation
-    dislikeRecommendation(title) {
+    async dislikeRecommendation(title) {
       // If it's already disliked, remove it from disliked list (toggle behavior)
       if (this.isDisliked(title)) {
         this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
@@ -1264,8 +1264,8 @@ export default {
         }
       }
       
-      // Save to localStorage
-      this.saveLikedDislikedLists();
+      // Save to server and localStorage
+      await this.saveLikedDislikedLists();
     },
     
     // Check if a movie is liked
@@ -1278,10 +1278,34 @@ export default {
       return this.dislikedRecommendations.includes(title);
     },
     
-    // Save liked and disliked lists to localStorage
-    saveLikedDislikedLists() {
+    // Save liked and disliked lists to server storage
+    async saveLikedDislikedLists() {
+      await credentialsService.storeLikedMovies(this.likedRecommendations);
+      await credentialsService.storeDislikedMovies(this.dislikedRecommendations);
+      
+      // Keep localStorage as fallback for backward compatibility
       localStorage.setItem('likedMovieRecommendations', JSON.stringify(this.likedRecommendations));
       localStorage.setItem('dislikedMovieRecommendations', JSON.stringify(this.dislikedRecommendations));
+    },
+    
+    // Load liked and disliked lists from server storage
+    async loadLikedDislikedLists() {
+      try {
+        // Get liked movies
+        const likedMovies = await credentialsService.getLikedMovies();
+        if (likedMovies && likedMovies.length > 0) {
+          this.likedRecommendations = likedMovies;
+        }
+        
+        // Get disliked movies
+        const dislikedMovies = await credentialsService.getDislikedMovies();
+        if (dislikedMovies && dislikedMovies.length > 0) {
+          this.dislikedRecommendations = dislikedMovies;
+        }
+      } catch (error) {
+        console.error('Error loading liked/disliked movies from server:', error);
+        // Fallback logic is already in the mounted() hook for localStorage
+      }
     },
     
     toggleSettings() {
@@ -1935,30 +1959,11 @@ export default {
       this.plexOnlyMode = savedPlexOnlyMode === 'true';
     }
     
-    // Load previous movie recommendations from server storage
+    // Load previous movie recommendations and likes/dislikes from server storage
     this.loadPreviousRecommendations();
+    this.loadLikedDislikedLists();
     
-    // Load liked movie recommendations from localStorage
-    const savedLikedRecommendations = localStorage.getItem('likedMovieRecommendations');
-    if (savedLikedRecommendations) {
-      try {
-        this.likedRecommendations = JSON.parse(savedLikedRecommendations);
-      } catch (error) {
-        console.error('Error parsing liked movie recommendations:', error);
-        this.likedRecommendations = [];
-      }
-    }
-    
-    // Load disliked movie recommendations from localStorage
-    const savedDislikedRecommendations = localStorage.getItem('dislikedMovieRecommendations');
-    if (savedDislikedRecommendations) {
-      try {
-        this.dislikedRecommendations = JSON.parse(savedDislikedRecommendations);
-      } catch (error) {
-        console.error('Error parsing disliked movie recommendations:', error);
-        this.dislikedRecommendations = [];
-      }
-    }
+    // Fallback with localStorage is implemented in the load methods
   },
   
   // Save state when component is destroyed

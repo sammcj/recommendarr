@@ -1289,7 +1289,7 @@ export default {
     },
     
     // Like a TV show recommendation
-    likeRecommendation(title) {
+    async likeRecommendation(title) {
       // If it's already liked, remove it from liked list (toggle behavior)
       if (this.isLiked(title)) {
         this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
@@ -1303,12 +1303,12 @@ export default {
         }
       }
       
-      // Save to localStorage
-      this.saveLikedDislikedLists();
+      // Save to server and localStorage
+      await this.saveLikedDislikedLists();
     },
     
     // Dislike a TV show recommendation
-    dislikeRecommendation(title) {
+    async dislikeRecommendation(title) {
       // If it's already disliked, remove it from disliked list (toggle behavior)
       if (this.isDisliked(title)) {
         this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
@@ -1322,8 +1322,8 @@ export default {
         }
       }
       
-      // Save to localStorage
-      this.saveLikedDislikedLists();
+      // Save to server and localStorage
+      await this.saveLikedDislikedLists();
     },
     
     // Check if a TV show is liked
@@ -1336,10 +1336,34 @@ export default {
       return this.dislikedRecommendations.includes(title);
     },
     
-    // Save liked and disliked lists to localStorage
-    saveLikedDislikedLists() {
+    // Save liked and disliked lists to server storage
+    async saveLikedDislikedLists() {
+      await credentialsService.storeLikedTVShows(this.likedRecommendations);
+      await credentialsService.storeDislikedTVShows(this.dislikedRecommendations);
+      
+      // Keep localStorage as fallback for backward compatibility
       localStorage.setItem('likedTVRecommendations', JSON.stringify(this.likedRecommendations));
       localStorage.setItem('dislikedTVRecommendations', JSON.stringify(this.dislikedRecommendations));
+    },
+    
+    // Load liked and disliked lists from server storage
+    async loadLikedDislikedLists() {
+      try {
+        // Get liked TV shows
+        const likedTVShows = await credentialsService.getLikedTVShows();
+        if (likedTVShows && likedTVShows.length > 0) {
+          this.likedRecommendations = likedTVShows;
+        }
+        
+        // Get disliked TV shows
+        const dislikedTVShows = await credentialsService.getDislikedTVShows();
+        if (dislikedTVShows && dislikedTVShows.length > 0) {
+          this.dislikedRecommendations = dislikedTVShows;
+        }
+      } catch (error) {
+        console.error('Error loading liked/disliked TV shows from server:', error);
+        // Fallback logic is already in the mounted() hook for localStorage
+      }
     },
     
     /**
@@ -2014,30 +2038,11 @@ export default {
       this.plexOnlyMode = savedPlexOnlyMode === 'true';
     }
     
-    // Load previous TV recommendations from server storage
+    // Load previous TV recommendations and likes/dislikes from server storage
     this.loadPreviousRecommendations();
+    this.loadLikedDislikedLists();
     
-    // Load liked TV recommendations from localStorage
-    const savedLikedRecommendations = localStorage.getItem('likedTVRecommendations');
-    if (savedLikedRecommendations) {
-      try {
-        this.likedRecommendations = JSON.parse(savedLikedRecommendations);
-      } catch (error) {
-        console.error('Error parsing liked TV recommendations:', error);
-        this.likedRecommendations = [];
-      }
-    }
-    
-    // Load disliked TV recommendations from localStorage
-    const savedDislikedRecommendations = localStorage.getItem('dislikedTVRecommendations');
-    if (savedDislikedRecommendations) {
-      try {
-        this.dislikedRecommendations = JSON.parse(savedDislikedRecommendations);
-      } catch (error) {
-        console.error('Error parsing disliked TV recommendations:', error);
-        this.dislikedRecommendations = [];
-      }
-    }
+    // Fallback with localStorage is implemented in the load methods
   },
   
   // Save state when component is destroyed

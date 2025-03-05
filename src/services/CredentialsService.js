@@ -12,6 +12,10 @@ class CredentialsService {
     // Constants for recommendation services
     this.MOVIE_RECOMMENDATIONS_SERVICE = 'movie-recommendations';
     this.TV_RECOMMENDATIONS_SERVICE = 'tv-recommendations';
+    this.LIKED_MOVIE_SERVICE = 'liked-movies';
+    this.DISLIKED_MOVIE_SERVICE = 'disliked-movies';
+    this.LIKED_TV_SERVICE = 'liked-tv';
+    this.DISLIKED_TV_SERVICE = 'disliked-tv';
     this.MAX_STORED_RECOMMENDATIONS = 500;
   }
 
@@ -223,6 +227,206 @@ class CredentialsService {
       return existingRecs;
     } catch (error) {
       console.error('Error retrieving TV recommendations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Store liked movie titles
+   * 
+   * @param {string[]} titles - Array of liked movie titles
+   * @returns {Promise<boolean>} - Success status
+   */
+  async storeLikedMovies(titles) {
+    try {
+      return await this.storeCredentials(this.LIKED_MOVIE_SERVICE, { titles });
+    } catch (error) {
+      console.error('Error storing liked movies:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Retrieve liked movie titles
+   * 
+   * @returns {Promise<string[]>} - Array of liked movie titles
+   */
+  async getLikedMovies() {
+    try {
+      const data = await this.getCredentials(this.LIKED_MOVIE_SERVICE);
+      const existingLikes = data?.titles || null;
+      
+      // Also check localStorage for migration purposes
+      if (!existingLikes) {
+        const localStorageLikes = localStorage.getItem('likedMovieRecommendations');
+        if (localStorageLikes) {
+          try {
+            const parsedLikes = JSON.parse(localStorageLikes);
+            if (Array.isArray(parsedLikes) && parsedLikes.length > 0) {
+              // Migrate from localStorage to server-side
+              await this.storeCredentials(this.LIKED_MOVIE_SERVICE, { titles: parsedLikes });
+              return parsedLikes;
+            }
+          } catch (e) {
+            console.error('Error parsing localStorage liked movies:', e);
+          }
+        }
+        return [];
+      }
+      
+      return existingLikes;
+    } catch (error) {
+      console.error('Error retrieving liked movies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Store disliked movie titles
+   * 
+   * @param {string[]} titles - Array of disliked movie titles
+   * @returns {Promise<boolean>} - Success status
+   */
+  async storeDislikedMovies(titles) {
+    try {
+      return await this.storeCredentials(this.DISLIKED_MOVIE_SERVICE, { titles });
+    } catch (error) {
+      console.error('Error storing disliked movies:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Retrieve disliked movie titles
+   * 
+   * @returns {Promise<string[]>} - Array of disliked movie titles
+   */
+  async getDislikedMovies() {
+    try {
+      const data = await this.getCredentials(this.DISLIKED_MOVIE_SERVICE);
+      const existingDislikes = data?.titles || null;
+      
+      // Also check localStorage for migration purposes
+      if (!existingDislikes) {
+        const localStorageDislikes = localStorage.getItem('dislikedMovieRecommendations');
+        if (localStorageDislikes) {
+          try {
+            const parsedDislikes = JSON.parse(localStorageDislikes);
+            if (Array.isArray(parsedDislikes) && parsedDislikes.length > 0) {
+              // Migrate from localStorage to server-side
+              await this.storeCredentials(this.DISLIKED_MOVIE_SERVICE, { titles: parsedDislikes });
+              return parsedDislikes;
+            }
+          } catch (e) {
+            console.error('Error parsing localStorage disliked movies:', e);
+          }
+        }
+        return [];
+      }
+      
+      return existingDislikes;
+    } catch (error) {
+      console.error('Error retrieving disliked movies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Store liked TV show titles
+   * 
+   * @param {string[]} titles - Array of liked TV show titles
+   * @returns {Promise<boolean>} - Success status
+   */
+  async storeLikedTVShows(titles) {
+    try {
+      return await this.storeCredentials(this.LIKED_TV_SERVICE, { titles });
+    } catch (error) {
+      console.error('Error storing liked TV shows:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Retrieve liked TV show titles
+   * 
+   * @returns {Promise<string[]>} - Array of liked TV show titles
+   */
+  async getLikedTVShows() {
+    try {
+      const data = await this.getCredentials(this.LIKED_TV_SERVICE);
+      const existingLikes = data?.titles || null;
+      
+      // Also check localStorage for migration purposes
+      if (!existingLikes) {
+        const localStorageLikes = localStorage.getItem('likedTVRecommendations');
+        if (localStorageLikes) {
+          try {
+            const parsedLikes = JSON.parse(localStorageLikes);
+            if (Array.isArray(parsedLikes) && parsedLikes.length > 0) {
+              // Migrate from localStorage to server-side
+              await this.storeCredentials(this.LIKED_TV_SERVICE, { titles: parsedLikes });
+              return parsedLikes;
+            }
+          } catch (e) {
+            console.error('Error parsing localStorage liked TV shows:', e);
+          }
+        }
+        return [];
+      }
+      
+      return existingLikes;
+    } catch (error) {
+      console.error('Error retrieving liked TV shows:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Store disliked TV show titles
+   * 
+   * @param {string[]} titles - Array of disliked TV show titles
+   * @returns {Promise<boolean>} - Success status
+   */
+  async storeDislikedTVShows(titles) {
+    try {
+      return await this.storeCredentials(this.DISLIKED_TV_SERVICE, { titles });
+    } catch (error) {
+      console.error('Error storing disliked TV shows:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Retrieve disliked TV show titles
+   * 
+   * @returns {Promise<string[]>} - Array of disliked TV show titles
+   */
+  async getDislikedTVShows() {
+    try {
+      const data = await this.getCredentials(this.DISLIKED_TV_SERVICE);
+      const existingDislikes = data?.titles || null;
+      
+      // Also check localStorage for migration purposes
+      if (!existingDislikes) {
+        const localStorageDislikes = localStorage.getItem('dislikedTVRecommendations');
+        if (localStorageDislikes) {
+          try {
+            const parsedDislikes = JSON.parse(localStorageDislikes);
+            if (Array.isArray(parsedDislikes) && parsedDislikes.length > 0) {
+              // Migrate from localStorage to server-side
+              await this.storeCredentials(this.DISLIKED_TV_SERVICE, { titles: parsedDislikes });
+              return parsedDislikes;
+            }
+          } catch (e) {
+            console.error('Error parsing localStorage disliked TV shows:', e);
+          }
+        }
+        return [];
+      }
+      
+      return existingDislikes;
+    } catch (error) {
+      console.error('Error retrieving disliked TV shows:', error);
       return [];
     }
   }

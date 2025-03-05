@@ -7,44 +7,28 @@
     
     <main>
       <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected">
-        <div v-if="showAppConfig">
-          <AppConfigSetup @completed="showAppConfig = false" @config-saved="handleAppConfigSaved" />
-          
-          <div class="config-navigation">
-            <button class="nav-button" @click="showAppConfig = false">
-              Skip to Service Setup →
-            </button>
-          </div>
-        </div>
-        
-        <div v-else>
-          <p class="choose-service">Choose a service to connect to:</p>
-          <div class="service-buttons">
-            <button class="service-button app-config-button" @click="showAppConfig = true">
-              Configure App URLs
-              <small>For reverse proxy or custom setups</small>
-            </button>
-            <button class="service-button" @click="showSonarrConnect = true">
-              Connect to Sonarr
-              <small>For TV recommendations</small>
-            </button>
-            <button class="service-button" @click="showRadarrConnect = true">
-              Connect to Radarr
-              <small>For movie recommendations</small>
-            </button>
-            <button class="service-button plex-button" @click="showPlexConnect = true">
-              Connect to Plex
-              <small>For watch history integration</small>
-            </button>
-            <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
-              Connect to Jellyfin
-              <small>For watch history integration</small>
-            </button>
-            <button class="service-button tautulli-button" @click="showTautulliConnect = true">
-              Connect to Tautulli
-              <small>For Plex watch history statistics</small>
-            </button>
-          </div>
+        <p class="choose-service">Choose a service to connect to:</p>
+        <div class="service-buttons">
+          <button class="service-button" @click="showSonarrConnect = true">
+            Connect to Sonarr
+            <small>For TV recommendations</small>
+          </button>
+          <button class="service-button" @click="showRadarrConnect = true">
+            Connect to Radarr
+            <small>For movie recommendations</small>
+          </button>
+          <button class="service-button plex-button" @click="showPlexConnect = true">
+            Connect to Plex
+            <small>For watch history integration</small>
+          </button>
+          <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
+            Connect to Jellyfin
+            <small>For watch history integration</small>
+          </button>
+          <button class="service-button tautulli-button" @click="showTautulliConnect = true">
+            Connect to Tautulli
+            <small>For Plex watch history statistics</small>
+          </button>
         </div>
       </div>
       
@@ -227,7 +211,6 @@ import TVRecommendations from './components/TVRecommendations.vue'
 import MovieRecommendations from './components/MovieRecommendations.vue'
 import History from './components/History.vue'
 import AISettings from './components/AISettings.vue'
-import AppConfigSetup from './components/AppConfigSetup.vue'
 import sonarrService from './services/SonarrService'
 import radarrService from './services/RadarrService'
 import plexService from './services/PlexService'
@@ -247,8 +230,7 @@ export default {
     TVRecommendations,
     MovieRecommendations,
     History,
-    AISettings,
-    AppConfigSetup
+    AISettings
   },
   data() {
     return {
@@ -262,7 +244,6 @@ export default {
       showPlexConnect: false,
       showJellyfinConnect: false,
       showTautulliConnect: false,
-      showAppConfig: false,
       showJellyfinUserSelect: false,
       showTautulliUserSelect: false,
       jellyfinUsers: [],
@@ -294,24 +275,6 @@ export default {
   async created() {
     // Check if services have credentials stored server-side
     await this.checkStoredCredentials();
-    
-    // Check if this is a first-time setup (no services configured)
-    // If so, check if we should show app config first based on window location
-    if (!sonarrService.isConfigured() && 
-        !radarrService.isConfigured() && 
-        !plexService.isConfigured() && 
-        !jellyfinService.isConfigured() && 
-        !tautulliService.isConfigured()) {
-          
-      // Check if we're accessing via a different host/port than the default
-      const currentHost = window.location.host;
-      const isCustomSetup = 
-        !currentHost.includes('localhost:3030') && 
-        !currentHost.includes('127.0.0.1:3030');
-      
-      // If it looks like a custom setup, suggest configuring URLs first
-      this.showAppConfig = isCustomSetup;
-    }
     
     // Check if Sonarr is already configured on startup
     if (sonarrService.isConfigured()) {
@@ -387,14 +350,6 @@ export default {
     }
   },
   methods: {
-    // Handles app configuration being saved
-    handleAppConfigSaved() {
-      // We'll need to reload the page to apply some of the settings
-      // But first give the user a moment to see the success message
-      window.setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    },
     
     // Check if we have credentials stored server-side
     async checkStoredCredentials() {
@@ -405,8 +360,7 @@ export default {
           credentialsService.hasCredentials('radarr'),
           credentialsService.hasCredentials('plex'),
           credentialsService.hasCredentials('jellyfin'),
-          credentialsService.hasCredentials('tautulli'),
-          credentialsService.hasCredentials('app-config')
+          credentialsService.hasCredentials('tautulli')
         ]);
         
         // If any service has credentials, set up the appropriate services
@@ -1034,8 +988,7 @@ export default {
           credentialsService.deleteCredentials('plex'),
           credentialsService.deleteCredentials('jellyfin'),
           credentialsService.deleteCredentials('tautulli'),
-          credentialsService.deleteCredentials('openai'),
-          credentialsService.deleteCredentials('app-config')
+          credentialsService.deleteCredentials('openai')
         ]);
       } catch (error) {
         console.error('Error deleting server-side credentials:', error);

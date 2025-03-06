@@ -132,6 +132,105 @@ class ApiService {
       return false;
     }
   }
+
+  /**
+   * Get recommendations from the server
+   * 
+   * @param {string} type - 'tv' or 'movie'
+   * @returns {Promise<Array>} - Recommendations
+   */
+  async getRecommendations(type) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/recommendations/${type}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get ${type} recommendations:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Save recommendations to the server
+   * 
+   * @param {string} type - 'tv' or 'movie'
+   * @param {Array} recommendations - Recommendations to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async saveRecommendations(type, recommendations) {
+    try {
+      await axios.post(`${this.baseUrl}/recommendations/${type}`, recommendations);
+      return true;
+    } catch (error) {
+      console.error(`Failed to save ${type} recommendations:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get user preferences (liked/disliked items)
+   * 
+   * @param {string} type - 'tv' or 'movie'
+   * @param {string} preference - 'liked' or 'disliked'
+   * @returns {Promise<Array>} - User preferences
+   */
+  async getPreferences(type, preference) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/preferences/${type}/${preference}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get ${type} ${preference} preferences:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Save user preferences (liked/disliked items)
+   * 
+   * @param {string} type - 'tv' or 'movie'
+   * @param {string} preference - 'liked' or 'disliked'
+   * @param {Array} items - Items to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async savePreferences(type, preference, items) {
+    try {
+      await axios.post(`${this.baseUrl}/preferences/${type}/${preference}`, items);
+      return true;
+    } catch (error) {
+      console.error(`Failed to save ${type} ${preference} preferences:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get user settings
+   * 
+   * @returns {Promise<Object>} - User settings
+   */
+  async getSettings() {
+    try {
+      const response = await axios.get(`${this.baseUrl}/settings`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get settings:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Save user settings
+   * 
+   * @param {Object} settings - Settings to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async saveSettings(settings) {
+    try {
+      await axios.post(`${this.baseUrl}/settings`, settings);
+      return true;
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      return false;
+    }
+  }
 }
 
 // Create a singleton instance

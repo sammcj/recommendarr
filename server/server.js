@@ -22,12 +22,37 @@ console.log(`API Server starting up in ${process.env.NODE_ENV || 'development'} 
 // Create a data directory for storing user credentials
 const DATA_DIR = path.join(__dirname, 'data');
 const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.json');
+const USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
 
-// Initialize credentials storage
+// Initialize storage
 let credentials = {};
+let userData = {
+  tvRecommendations: [],
+  movieRecommendations: [],
+  likedTV: [],
+  dislikedTV: [],
+  likedMovies: [],
+  dislikedMovies: [],
+  settings: {
+    numRecommendations: 6,
+    columnsCount: 3,
+    historyColumnsCount: 3,
+    historyHideExisting: true,
+    historyHideLiked: false,
+    historyHideDisliked: false,
+    contentTypePreference: 'tv',
+    isMovieMode: false,
+    tvGenrePreferences: [],
+    tvCustomVibe: '',
+    tvLanguagePreference: 'en',
+    movieGenrePreferences: [],
+    movieCustomVibe: '',
+    movieLanguagePreference: 'en'
+  }
+};
 
-// Create data directory if it doesn't exist and load credentials
-async function initCredentialsStorage() {
+// Create data directory if it doesn't exist and load credentials and user data
+async function initStorage() {
   try {
     // Initialize encryption service first
     await encryptionService.init();
@@ -71,8 +96,34 @@ async function initCredentialsStorage() {
         console.error('Error reading credentials file:', err);
       }
     }
+
+    // Try to load existing user data
+    try {
+      const data = await fs.readFile(USER_DATA_FILE, 'utf8');
+      const fileData = JSON.parse(data);
+      
+      // Check if data is already encrypted
+      if (fileData.encrypted && fileData.iv && fileData.authTag) {
+        // Decrypt the data
+        userData = encryptionService.decrypt(fileData);
+        console.log('Loaded and decrypted existing user data');
+      } else {
+        // Legacy unencrypted data - encrypt it now
+        userData = fileData;
+        await saveUserData();
+        console.log('Migrated unencrypted user data to encrypted format');
+      }
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        // File doesn't exist yet, initialize with default values
+        await saveUserData();
+        console.log('Created new encrypted user data file');
+      } else {
+        console.error('Error reading user data file:', err);
+      }
+    }
   } catch (err) {
-    console.error('Error initializing credentials storage:', err);
+    console.error('Error initializing data storage:', err);
   }
 }
 
@@ -89,8 +140,21 @@ async function saveCredentials() {
   }
 }
 
-// Initialize credentials storage on startup
-initCredentialsStorage();
+// Save user data to file with encryption
+async function saveUserData() {
+  try {
+    // Encrypt the user data object
+    const encryptedData = encryptionService.encrypt(userData);
+    
+    // Write encrypted data to file
+    await fs.writeFile(USER_DATA_FILE, JSON.stringify(encryptedData, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving user data:', err);
+  }
+}
+
+// Initialize storage on startup
+initStorage();
 
 // Enable CORS
 app.use(cors());
@@ -188,6 +252,87 @@ app.delete('/api/credentials/:service', async (req, res) => {
   await saveCredentials();
   
   res.json({ success: true, message: `Credentials for ${service} deleted` });
+});
+
+// User data endpoints
+// Get all recommendations
+app.get('/api/recommendations/:type', (req, res) => {
+  const { type } = req.params;
+  
+  if (type === 'tv') {
+    res.json(userData.tvRecommendations || []);
+  } else if (type === 'movie') {
+    res.json(userData.movieRecommendations || []);
+  } else {
+    res.status(400).json({ error: 'Invalid recommendation type' });
+  }
+});
+
+// Save recommendations
+app.post('/api/recommendations/:type', async (req, res) => {
+  const { type } = req.params;
+  const recommendations = req.body;
+  
+  if (type === 'tv') {
+    userData.tvRecommendations = recommendations;
+  } else if (type === 'movie') {
+    userData.movieRecommendations = recommendations;
+  } else {
+    return res.status(400).json({ error: 'Invalid recommendation type' });
+  }
+  
+  await saveUserData();
+  res.json({ success: true });
+});
+
+// Get liked/disliked items
+app.get('/api/preferences/:type/:preference', (req, res) => {
+  const { type, preference } = req.params;
+  
+  if (type === 'tv' && preference === 'liked') {
+    res.json(userData.likedTV || []);
+  } else if (type === 'tv' && preference === 'disliked') {
+    res.json(userData.dislikedTV || []);
+  } else if (type === 'movie' && preference === 'liked') {
+    res.json(userData.likedMovies || []);
+  } else if (type === 'movie' && preference === 'disliked') {
+    res.json(userData.dislikedMovies || []);
+  } else {
+    res.status(400).json({ error: 'Invalid parameters' });
+  }
+});
+
+// Save liked/disliked items
+app.post('/api/preferences/:type/:preference', async (req, res) => {
+  const { type, preference } = req.params;
+  const items = req.body;
+  
+  if (type === 'tv' && preference === 'liked') {
+    userData.likedTV = items;
+  } else if (type === 'tv' && preference === 'disliked') {
+    userData.dislikedTV = items;
+  } else if (type === 'movie' && preference === 'liked') {
+    userData.likedMovies = items;
+  } else if (type === 'movie' && preference === 'disliked') {
+    userData.dislikedMovies = items;
+  } else {
+    return res.status(400).json({ error: 'Invalid parameters' });
+  }
+  
+  await saveUserData();
+  res.json({ success: true });
+});
+
+// Get settings
+app.get('/api/settings', (req, res) => {
+  res.json(userData.settings || {});
+});
+
+// Save settings
+app.post('/api/settings', async (req, res) => {
+  userData.settings = {...userData.settings, ...req.body};
+  await saveUserData();
+  res.json({ success: true });
 });
 
 // Generic proxy endpoint for all services

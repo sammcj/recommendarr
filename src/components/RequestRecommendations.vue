@@ -714,6 +714,7 @@ import openAIService from '../services/OpenAIService';
 import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
+import apiService from '../services/ApiService';
 import axios from 'axios';
 
 export default {
@@ -980,9 +981,18 @@ export default {
     },
     
     // Save content type preference (TV or Movies)
-    saveContentTypePreference() {
-      localStorage.setItem('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
-      localStorage.setItem('isMovieMode', this.isMovieMode.toString());
+    async saveContentTypePreference() {
+      try {
+        await apiService.saveSettings({
+          contentTypePreference: this.isMovieMode ? 'movies' : 'tvshows',
+          isMovieMode: this.isMovieMode
+        });
+      } catch (error) {
+        console.error('Error saving content type preference to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
+        localStorage.setItem('isMovieMode', this.isMovieMode.toString());
+      }
       
       // Update the current recommendations list based on mode
       this.previousRecommendations = this.isMovieMode ? 
@@ -990,6 +1000,10 @@ export default {
       
       // Reset recommendations when switching modes
       this.recommendations = [];
+      
+      // Clear openai conversation/context to ensure fresh recommendations
+      openAIService.resetConversation();
+      console.log('Content type switched, conversation history cleared');
     },
     
     toggleSettings() {
@@ -1161,19 +1175,37 @@ export default {
         return 'score-unknown'; // Below average
       }
     },
-    // Save recommendation count to localStorage
-    saveRecommendationCount() {
-      localStorage.setItem('numRecommendations', this.numRecommendations);
+    // Save recommendation count to server
+    async saveRecommendationCount() {
+      try {
+        await apiService.saveSettings({ numRecommendations: this.numRecommendations });
+      } catch (error) {
+        console.error('Error saving recommendation count to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('numRecommendations', this.numRecommendations);
+      }
     },
     
-    // Save columns count to localStorage
-    saveColumnsCount() {
-      localStorage.setItem('columnsCount', this.columnsCount);
+    // Save columns count to server
+    async saveColumnsCount() {
+      try {
+        await apiService.saveSettings({ columnsCount: this.columnsCount });
+      } catch (error) {
+        console.error('Error saving columns count to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('columnsCount', this.columnsCount);
+      }
     },
     
-    // Save genre preferences to localStorage when they change
-    saveGenrePreference() {
-      localStorage.setItem('tvGenrePreferences', JSON.stringify(this.selectedGenres));
+    // Save genre preferences to server when they change
+    async saveGenrePreference() {
+      try {
+        await apiService.saveSettings({ tvGenrePreferences: this.selectedGenres });
+      } catch (error) {
+        console.error('Error saving genre preferences to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('tvGenrePreferences', JSON.stringify(this.selectedGenres));
+      }
     },
     
     // Clear all selected genres
@@ -1182,9 +1214,15 @@ export default {
       this.saveGenrePreference();
     },
     
-    // Save custom vibe preference to localStorage
-    saveCustomVibe() {
-      localStorage.setItem('tvCustomVibe', this.customVibe);
+    // Save custom vibe preference to server
+    async saveCustomVibe() {
+      try {
+        await apiService.saveSettings({ tvCustomVibe: this.customVibe });
+      } catch (error) {
+        console.error('Error saving custom vibe to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('tvCustomVibe', this.customVibe);
+      }
     },
     
     // Clear custom vibe input
@@ -1193,97 +1231,227 @@ export default {
       this.saveCustomVibe();
     },
     
-    // Save language preference to localStorage
-    saveLanguagePreference() {
-      localStorage.setItem('tvLanguagePreference', this.selectedLanguage);
+    // Save language preference to server
+    async saveLanguagePreference() {
+      try {
+        await apiService.saveSettings({ tvLanguagePreference: this.selectedLanguage });
+      } catch (error) {
+        console.error('Error saving language preference to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('tvLanguagePreference', this.selectedLanguage);
+      }
     },
     
     // Save Plex history mode preference
-    savePlexHistoryMode() {
-      localStorage.setItem('plexHistoryMode', this.plexHistoryMode);
-      this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
+    async savePlexHistoryMode() {
+      try {
+        await apiService.saveSettings({ plexHistoryMode: this.plexHistoryMode });
+        this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
+      } catch (error) {
+        console.error('Error saving Plex history mode to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('plexHistoryMode', this.plexHistoryMode);
+        this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
+      }
     },
     
     // Save Jellyfin history mode preference
-    saveJellyfinHistoryMode() {
-      localStorage.setItem('jellyfinHistoryMode', this.jellyfinHistoryMode);
-      this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+    async saveJellyfinHistoryMode() {
+      try {
+        await apiService.saveSettings({ jellyfinHistoryMode: this.jellyfinHistoryMode });
+        this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+      } catch (error) {
+        console.error('Error saving Jellyfin history mode to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('jellyfinHistoryMode', this.jellyfinHistoryMode);
+        this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+      }
     },
     
     // Save Plex only mode preference
-    savePlexOnlyMode() {
-      localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
-      
-      // If enabling Plex only mode, disable Jellyfin only mode
-      if (this.plexOnlyMode && this.jellyfinOnlyMode) {
-        this.jellyfinOnlyMode = false;
-        localStorage.setItem('jellyfinOnlyMode', 'false');
-        this.$emit('jellyfinOnlyModeChanged', false);
-      }
-      
-      this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
-    },
-    
-    // Save Jellyfin only mode preference
-    saveJellyfinOnlyMode() {
-      localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
-      
-      // If enabling Jellyfin only mode, disable Plex only mode and Tautulli only mode
-      if (this.jellyfinOnlyMode) {
-        if (this.plexOnlyMode) {
-          this.plexOnlyMode = false;
-          localStorage.setItem('plexOnlyMode', 'false');
-          this.$emit('plexOnlyModeChanged', false);
+    async savePlexOnlyMode() {
+      try {
+        // If enabling Plex only mode, disable Jellyfin only mode
+        if (this.plexOnlyMode && this.jellyfinOnlyMode) {
+          this.jellyfinOnlyMode = false;
+          await apiService.saveSettings({ 
+            plexOnlyMode: this.plexOnlyMode,
+            jellyfinOnlyMode: false
+          });
+          this.$emit('jellyfinOnlyModeChanged', false);
+        } else {
+          await apiService.saveSettings({ plexOnlyMode: this.plexOnlyMode });
         }
-        if (this.tautulliOnlyMode) {
-          this.tautulliOnlyMode = false;
-          localStorage.setItem('tautulliOnlyMode', 'false');
-          this.$emit('tautulliOnlyModeChanged', false);
-        }
-      }
-      
-      this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
-    },
-    
-    // Save Tautulli history mode preference
-    saveTautulliHistoryMode() {
-      localStorage.setItem('tautulliHistoryMode', this.tautulliHistoryMode);
-      this.$emit('tautulliHistoryModeChanged', this.tautulliHistoryMode);
-    },
-    
-    // Save Tautulli only mode preference
-    saveTautulliOnlyMode() {
-      localStorage.setItem('tautulliOnlyMode', this.tautulliOnlyMode.toString());
-      
-      // If enabling Tautulli only mode, disable Plex only mode and Jellyfin only mode
-      if (this.tautulliOnlyMode) {
-        if (this.plexOnlyMode) {
-          this.plexOnlyMode = false;
-          localStorage.setItem('plexOnlyMode', 'false');
-          this.$emit('plexOnlyModeChanged', false);
-        }
-        if (this.jellyfinOnlyMode) {
+        
+        this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
+      } catch (error) {
+        console.error('Error saving Plex only mode to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
+        
+        // If enabling Plex only mode, disable Jellyfin only mode
+        if (this.plexOnlyMode && this.jellyfinOnlyMode) {
           this.jellyfinOnlyMode = false;
           localStorage.setItem('jellyfinOnlyMode', 'false');
           this.$emit('jellyfinOnlyModeChanged', false);
         }
+        
+        this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
       }
-      
-      this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
     },
     
-    // Save previous recommendations to localStorage
-    savePreviousRecommendations() {
-      if (this.isMovieMode) {
-        localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
-      } else {
-        localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+    // Save Jellyfin only mode preference
+    async saveJellyfinOnlyMode() {
+      try {
+        // If enabling Jellyfin only mode, disable Plex only mode and Tautulli only mode
+        if (this.jellyfinOnlyMode) {
+          const settings = { jellyfinOnlyMode: this.jellyfinOnlyMode };
+          
+          if (this.plexOnlyMode) {
+            this.plexOnlyMode = false;
+            settings.plexOnlyMode = false;
+            this.$emit('plexOnlyModeChanged', false);
+          }
+          
+          if (this.tautulliOnlyMode) {
+            this.tautulliOnlyMode = false;
+            settings.tautulliOnlyMode = false;
+            this.$emit('tautulliOnlyModeChanged', false);
+          }
+          
+          await apiService.saveSettings(settings);
+        } else {
+          await apiService.saveSettings({ jellyfinOnlyMode: this.jellyfinOnlyMode });
+        }
+        
+        this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
+      } catch (error) {
+        console.error('Error saving Jellyfin only mode to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
+        
+        // If enabling Jellyfin only mode, disable Plex only mode and Tautulli only mode
+        if (this.jellyfinOnlyMode) {
+          if (this.plexOnlyMode) {
+            this.plexOnlyMode = false;
+            localStorage.setItem('plexOnlyMode', 'false');
+            this.$emit('plexOnlyModeChanged', false);
+          }
+          if (this.tautulliOnlyMode) {
+            this.tautulliOnlyMode = false;
+            localStorage.setItem('tautulliOnlyMode', 'false');
+            this.$emit('tautulliOnlyModeChanged', false);
+          }
+        }
+        
+        this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
+      }
+    },
+    
+    // Save Tautulli history mode preference
+    async saveTautulliHistoryMode() {
+      try {
+        await apiService.saveSettings({ tautulliHistoryMode: this.tautulliHistoryMode });
+        this.$emit('tautulliHistoryModeChanged', this.tautulliHistoryMode);
+      } catch (error) {
+        console.error('Error saving Tautulli history mode to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('tautulliHistoryMode', this.tautulliHistoryMode);
+        this.$emit('tautulliHistoryModeChanged', this.tautulliHistoryMode);
+      }
+    },
+    
+    // Save Tautulli only mode preference
+    async saveTautulliOnlyMode() {
+      try {
+        // If enabling Tautulli only mode, disable Plex only mode and Jellyfin only mode
+        if (this.tautulliOnlyMode) {
+          const settings = { tautulliOnlyMode: this.tautulliOnlyMode };
+          
+          if (this.plexOnlyMode) {
+            this.plexOnlyMode = false;
+            settings.plexOnlyMode = false;
+            this.$emit('plexOnlyModeChanged', false);
+          }
+          
+          if (this.jellyfinOnlyMode) {
+            this.jellyfinOnlyMode = false;
+            settings.jellyfinOnlyMode = false;
+            this.$emit('jellyfinOnlyModeChanged', false);
+          }
+          
+          await apiService.saveSettings(settings);
+        } else {
+          await apiService.saveSettings({ tautulliOnlyMode: this.tautulliOnlyMode });
+        }
+        
+        this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
+      } catch (error) {
+        console.error('Error saving Tautulli only mode to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('tautulliOnlyMode', this.tautulliOnlyMode.toString());
+        
+        // If enabling Tautulli only mode, disable Plex only mode and Jellyfin only mode
+        if (this.tautulliOnlyMode) {
+          if (this.plexOnlyMode) {
+            this.plexOnlyMode = false;
+            localStorage.setItem('plexOnlyMode', 'false');
+            this.$emit('plexOnlyModeChanged', false);
+          }
+          if (this.jellyfinOnlyMode) {
+            this.jellyfinOnlyMode = false;
+            localStorage.setItem('jellyfinOnlyMode', 'false');
+            this.$emit('jellyfinOnlyModeChanged', false);
+          }
+        }
+        
+        this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
+      }
+    },
+    
+    // Save previous recommendations to server
+    async savePreviousRecommendations() {
+      try {
+        // Save both the list of titles (for history) and the current recommendations (for restoring session)
+        if (this.isMovieMode) {
+          // If we have active recommendations, save them
+          if (this.recommendations && this.recommendations.length > 0) {
+            await apiService.saveRecommendations('movie', this.recommendations);
+          } else {
+            // Otherwise just save the history titles
+            await apiService.saveRecommendations('movie', this.previousMovieRecommendations);
+          }
+        } else {
+          // If we have active recommendations, save them
+          if (this.recommendations && this.recommendations.length > 0) {
+            await apiService.saveRecommendations('tv', this.recommendations);
+          } else {
+            // Otherwise just save the history titles
+            await apiService.saveRecommendations('tv', this.previousShowRecommendations);
+          }
+        }
+      } catch (error) {
+        console.error('Error saving recommendations to server:', error);
+        // Fallback to localStorage
+        if (this.isMovieMode) {
+          // Save both history and current recommendations
+          localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
+          if (this.recommendations && this.recommendations.length > 0) {
+            localStorage.setItem('currentMovieRecommendations', JSON.stringify(this.recommendations));
+          }
+        } else {
+          // Save both history and current recommendations
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+          if (this.recommendations && this.recommendations.length > 0) {
+            localStorage.setItem('currentTVRecommendations', JSON.stringify(this.recommendations));
+          }
+        }
       }
     },
     
     // Add current recommendations to the history
-    addToRecommendationHistory(newRecommendations) {
-      // Extract just the titles for storage
+    async addToRecommendationHistory(newRecommendations) {
+      // Extract just the titles for the title-only history array
       const titlesToAdd = newRecommendations.map(rec => rec.title);
       
       // Reference to the correct history array based on mode
@@ -1323,12 +1491,28 @@ export default {
         }
       }
       
-      // Save to localStorage
-      this.savePreviousRecommendations();
+      // Save both the title history and the full recommendations to the server
+      try {
+        // Save the full recommendations
+        if (this.isMovieMode) {
+          await apiService.saveRecommendations('movie', newRecommendations);
+        } else {
+          await apiService.saveRecommendations('tv', newRecommendations);
+        }
+        console.log(`Saved full ${this.isMovieMode ? 'movie' : 'TV'} recommendations to server`);
+      } catch (error) {
+        console.error('Error saving full recommendations to server:', error);
+        // Fallback to localStorage for the full recommendations
+        if (this.isMovieMode) {
+          localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
+        } else {
+          localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
+        }
+      }
     },
     
     // Clear recommendation history
-    clearRecommendationHistory() {
+    async clearRecommendationHistory() {
       // Ask for confirmation with appropriate content type
       const contentType = this.isMovieMode ? 'movies' : 'shows';
       if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended ${contentType}?`)) {
@@ -1339,7 +1523,7 @@ export default {
           this.previousShowRecommendations = [];
           this.previousRecommendations = [];
         }
-        this.savePreviousRecommendations();
+        await this.savePreviousRecommendations();
       }
     },
     
@@ -1353,13 +1537,15 @@ export default {
         }
       } else {
         this.isCustomModel = false;
-        // Save the selected model to localStorage
-        localStorage.setItem('openaiModel', this.selectedModel);
-        openAIService.model = this.selectedModel;
         
-        // Also save it to the server-side credentials as a backup
         try {
-          // Update just the model in the credentials using the current service settings
+          // Save model setting to server
+          await apiService.saveSettings({ openaiModel: this.selectedModel });
+          
+          // Update service
+          openAIService.model = this.selectedModel;
+          
+          // Also save to the server-side credentials
           await openAIService.configure(
             openAIService.apiKey, 
             this.selectedModel,
@@ -1370,7 +1556,10 @@ export default {
             openAIService.sampleSize
           );
         } catch (error) {
-          console.error('Error saving model to credentials:', error);
+          console.error('Error saving model settings:', error);
+          // Fallback to localStorage
+          localStorage.setItem('openaiModel', this.selectedModel);
+          openAIService.model = this.selectedModel;
         }
       }
     },
@@ -1378,12 +1567,14 @@ export default {
     // Update the custom model name
     async updateCustomModel() {
       if (this.customModel.trim()) {
-        localStorage.setItem('openaiModel', this.customModel);
-        openAIService.model = this.customModel;
-        
-        // Also save custom model to the server-side credentials as a backup
         try {
-          // Update just the model in the credentials using the current service settings
+          // Save custom model setting to server
+          await apiService.saveSettings({ openaiModel: this.customModel });
+          
+          // Update service
+          openAIService.model = this.customModel;
+          
+          // Also save to the server-side credentials
           await openAIService.configure(
             openAIService.apiKey, 
             this.customModel,
@@ -1394,30 +1585,53 @@ export default {
             openAIService.sampleSize
           );
         } catch (error) {
-          console.error('Error saving custom model to credentials:', error);
+          console.error('Error saving custom model settings:', error);
+          // Fallback to localStorage
+          localStorage.setItem('openaiModel', this.customModel);
+          openAIService.model = this.customModel;
         }
       }
     },
     
-    // Update temperature and save to localStorage
-    updateTemperature() {
-      // Save to localStorage
-      localStorage.setItem('aiTemperature', this.temperature.toString());
-      
-      // Update in OpenAI service
-      openAIService.temperature = this.temperature;
+    // Update temperature and save to server
+    async updateTemperature() {
+      try {
+        await apiService.saveSettings({ aiTemperature: this.temperature.toString() });
+        
+        // Update in OpenAI service
+        openAIService.temperature = this.temperature;
+      } catch (error) {
+        console.error('Error saving temperature to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('aiTemperature', this.temperature.toString());
+        openAIService.temperature = this.temperature;
+      }
     },
     
-    // Save library mode preference to localStorage
-    saveLibraryModePreference() {
-      localStorage.setItem('useSampledLibrary', this.useSampledLibrary.toString());
-      openAIService.useSampledLibrary = this.useSampledLibrary;
+    // Save library mode preference to server
+    async saveLibraryModePreference() {
+      try {
+        await apiService.saveSettings({ useSampledLibrary: this.useSampledLibrary });
+        openAIService.useSampledLibrary = this.useSampledLibrary;
+      } catch (error) {
+        console.error('Error saving library mode preference to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('useSampledLibrary', this.useSampledLibrary.toString());
+        openAIService.useSampledLibrary = this.useSampledLibrary;
+      }
     },
     
-    // Save sample size to localStorage
-    saveSampleSize() {
-      localStorage.setItem('librarySampleSize', this.sampleSize.toString());
-      openAIService.sampleSize = this.sampleSize;
+    // Save sample size to server
+    async saveSampleSize() {
+      try {
+        await apiService.saveSettings({ librarySampleSize: this.sampleSize });
+        openAIService.sampleSize = this.sampleSize;
+      } catch (error) {
+        console.error('Error saving sample size to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('librarySampleSize', this.sampleSize.toString());
+        openAIService.sampleSize = this.sampleSize;
+      }
     },
     
     // Fetch available models from the API
@@ -1483,7 +1697,7 @@ export default {
     },
     
     // Like a TV show recommendation
-    likeRecommendation(title) {
+    async likeRecommendation(title) {
       // If it's already liked, remove it from liked list (toggle behavior)
       if (this.isLiked(title)) {
         this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
@@ -1497,12 +1711,12 @@ export default {
         }
       }
       
-      // Save to localStorage
-      this.saveLikedDislikedLists();
+      // Save to server (this will also fall back to localStorage if needed)
+      await this.saveLikedDislikedLists();
     },
     
     // Dislike a TV show recommendation
-    dislikeRecommendation(title) {
+    async dislikeRecommendation(title) {
       // If it's already disliked, remove it from disliked list (toggle behavior)
       if (this.isDisliked(title)) {
         this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
@@ -1516,8 +1730,8 @@ export default {
         }
       }
       
-      // Save to localStorage
-      this.saveLikedDislikedLists();
+      // Save to server (this will also fall back to localStorage if needed)
+      await this.saveLikedDislikedLists();
     },
     
     // Check if a TV show is liked
@@ -1530,10 +1744,22 @@ export default {
       return this.dislikedRecommendations.includes(title);
     },
     
-    // Save liked and disliked lists to localStorage
-    saveLikedDislikedLists() {
-      localStorage.setItem('likedTVRecommendations', JSON.stringify(this.likedRecommendations));
-      localStorage.setItem('dislikedTVRecommendations', JSON.stringify(this.dislikedRecommendations));
+    // Save liked and disliked lists to server
+    async saveLikedDislikedLists() {
+      try {
+        if (this.isMovieMode) {
+          await apiService.savePreferences('movie', 'liked', this.likedRecommendations);
+          await apiService.savePreferences('movie', 'disliked', this.dislikedRecommendations);
+        } else {
+          await apiService.savePreferences('tv', 'liked', this.likedRecommendations);
+          await apiService.savePreferences('tv', 'disliked', this.dislikedRecommendations);
+        }
+      } catch (error) {
+        console.error('Error saving preferences to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('likedTVRecommendations', JSON.stringify(this.likedRecommendations));
+        localStorage.setItem('dislikedTVRecommendations', JSON.stringify(this.dislikedRecommendations));
+      }
     },
     
     /**
@@ -2531,25 +2757,136 @@ export default {
     this.previousShowRecommendations = [];
     this.previousMovieRecommendations = [];
     
-    // Load previous TV recommendations from localStorage
-    const savedPreviousTVRecommendations = localStorage.getItem('previousTVRecommendations');
-    if (savedPreviousTVRecommendations) {
-      try {
-        this.previousShowRecommendations = JSON.parse(savedPreviousTVRecommendations) || [];
-      } catch (error) {
-        console.error('Error parsing previous TV recommendations:', error);
-        this.previousShowRecommendations = [];
+    try {
+      console.log("Loading recommendations from server...");
+      
+      // Try to load recommendations from server first
+      const tvRecsResponse = await apiService.getRecommendations('tv');
+      const movieRecsResponse = await apiService.getRecommendations('movie');
+      
+      console.log("TV recommendations from server:", tvRecsResponse);
+      console.log("Movie recommendations from server:", movieRecsResponse);
+      
+      // Process TV recommendations
+      if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
+        if (typeof tvRecsResponse[0] === 'string') {
+          // Simple array of titles
+          this.previousShowRecommendations = tvRecsResponse;
+        } else {
+          // Full recommendation objects
+          // Store them as full recommendations if we're in TV mode
+          if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && rec.description)) {
+            this.recommendations = tvRecsResponse;
+          }
+          
+          // Extract titles for the history
+          this.previousShowRecommendations = tvRecsResponse
+            .map(rec => typeof rec === 'string' ? rec : rec.title)
+            .filter(title => !!title);
+        }
       }
-    }
-    
-    // Load previous movie recommendations from localStorage
-    const savedPreviousMovieRecommendations = localStorage.getItem('previousMovieRecommendations');
-    if (savedPreviousMovieRecommendations) {
+      
+      // Process movie recommendations
+      if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
+        if (typeof movieRecsResponse[0] === 'string') {
+          // Simple array of titles
+          this.previousMovieRecommendations = movieRecsResponse;
+        } else {
+          // Full recommendation objects
+          // Store them as full recommendations if we're in movie mode
+          if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && rec.description)) {
+            this.recommendations = movieRecsResponse;
+          }
+          
+          // Extract titles for the history
+          this.previousMovieRecommendations = movieRecsResponse
+            .map(rec => typeof rec === 'string' ? rec : rec.title)
+            .filter(title => !!title);
+        }
+      }
+      
+      // Load liked/disliked preferences from server
       try {
-        this.previousMovieRecommendations = JSON.parse(savedPreviousMovieRecommendations) || [];
-      } catch (error) {
-        console.error('Error parsing previous movie recommendations:', error);
-        this.previousMovieRecommendations = [];
+        const likedTV = await apiService.getPreferences('tv', 'liked');
+        if (Array.isArray(likedTV)) {
+          this.likedRecommendations = likedTV;
+        }
+        
+        const dislikedTV = await apiService.getPreferences('tv', 'disliked');
+        if (Array.isArray(dislikedTV)) {
+          this.dislikedRecommendations = dislikedTV;
+        }
+      } catch (prefError) {
+        console.error("Error loading preferences from server:", prefError);
+      }
+      
+    } catch (error) {
+      console.error("Error loading from server, falling back to localStorage:", error);
+      
+      // Fall back to loading from localStorage
+      // Load previous TV recommendations from localStorage
+      const savedPreviousTVRecommendations = localStorage.getItem('previousTVRecommendations');
+      if (savedPreviousTVRecommendations) {
+        try {
+          this.previousShowRecommendations = JSON.parse(savedPreviousTVRecommendations) || [];
+        } catch (error) {
+          console.error('Error parsing previous TV recommendations:', error);
+          this.previousShowRecommendations = [];
+        }
+      }
+      
+      // Load previous movie recommendations from localStorage
+      const savedPreviousMovieRecommendations = localStorage.getItem('previousMovieRecommendations');
+      if (savedPreviousMovieRecommendations) {
+        try {
+          this.previousMovieRecommendations = JSON.parse(savedPreviousMovieRecommendations) || [];
+        } catch (error) {
+          console.error('Error parsing previous movie recommendations:', error);
+          this.previousMovieRecommendations = [];
+        }
+      }
+      
+      // Also try to load current recommendations
+      if (this.isMovieMode) {
+        const currentMovieRecs = localStorage.getItem('currentMovieRecommendations');
+        if (currentMovieRecs) {
+          try {
+            this.recommendations = JSON.parse(currentMovieRecs) || [];
+          } catch (error) {
+            console.error('Error parsing current movie recommendations:', error);
+          }
+        }
+      } else {
+        const currentTVRecs = localStorage.getItem('currentTVRecommendations');
+        if (currentTVRecs) {
+          try {
+            this.recommendations = JSON.parse(currentTVRecs) || [];
+          } catch (error) {
+            console.error('Error parsing current TV recommendations:', error);
+          }
+        }
+      }
+      
+      // Load liked TV recommendations from localStorage
+      const savedLikedRecommendations = localStorage.getItem('likedTVRecommendations');
+      if (savedLikedRecommendations) {
+        try {
+          this.likedRecommendations = JSON.parse(savedLikedRecommendations);
+        } catch (error) {
+          console.error('Error parsing liked TV recommendations:', error);
+          this.likedRecommendations = [];
+        }
+      }
+      
+      // Load disliked TV recommendations from localStorage
+      const savedDislikedRecommendations = localStorage.getItem('dislikedTVRecommendations');
+      if (savedDislikedRecommendations) {
+        try {
+          this.dislikedRecommendations = JSON.parse(savedDislikedRecommendations);
+        } catch (error) {
+          console.error('Error parsing disliked TV recommendations:', error);
+          this.dislikedRecommendations = [];
+        }
       }
     }
     
@@ -2558,28 +2895,6 @@ export default {
       this.previousRecommendations = [...this.previousMovieRecommendations];
     } else {
       this.previousRecommendations = [...this.previousShowRecommendations];
-    }
-    
-    // Load liked TV recommendations from localStorage
-    const savedLikedRecommendations = localStorage.getItem('likedTVRecommendations');
-    if (savedLikedRecommendations) {
-      try {
-        this.likedRecommendations = JSON.parse(savedLikedRecommendations);
-      } catch (error) {
-        console.error('Error parsing liked TV recommendations:', error);
-        this.likedRecommendations = [];
-      }
-    }
-    
-    // Load disliked TV recommendations from localStorage
-    const savedDislikedRecommendations = localStorage.getItem('dislikedTVRecommendations');
-    if (savedDislikedRecommendations) {
-      try {
-        this.dislikedRecommendations = JSON.parse(savedDislikedRecommendations);
-      } catch (error) {
-        console.error('Error parsing disliked TV recommendations:', error);
-        this.dislikedRecommendations = [];
-      }
     }
   },
   

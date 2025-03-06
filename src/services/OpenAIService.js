@@ -25,6 +25,16 @@ class OpenAIService {
   }
   
   /**
+   * Reset conversation history when switching between TV and movie modes
+   * Ensures fresh recommendations without context contamination
+   */
+  resetConversation() {
+    console.log('Resetting conversation history');
+    this.tvConversation = [];
+    this.movieConversation = [];
+  }
+  
+  /**
    * Load credentials and settings from server-side storage
    */
   async loadCredentials() {

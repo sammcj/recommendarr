@@ -256,6 +256,19 @@ app.post('/api/proxy', async (req, res) => {
   }
   
   console.log(`Proxy request to: ${url} (${method})`);
+  
+  // Debug headers for OpenAI requests
+  if (url.includes('openai.com')) {
+    const sanitizedHeaders = {...headers};
+    // Mask the API key for security but show format
+    if (sanitizedHeaders.Authorization) {
+      const authHeader = sanitizedHeaders.Authorization;
+      sanitizedHeaders.Authorization = authHeader.substring(0, 15) + '...';
+      console.log('OpenAI request headers:', JSON.stringify(sanitizedHeaders));
+    } else {
+      console.warn('OpenAI request missing Authorization header');
+    }
+  }
 
   // Process URL to handle local network services
   let processedUrl = url;
@@ -313,6 +326,20 @@ app.post('/api/proxy', async (req, res) => {
     });
     
     console.log(`Proxy response from: ${processedUrl}, status: ${response.status}`);
+    
+    // Log detailed information for OpenAI API errors
+    if (processedUrl.includes('openai.com') && response.status >= 400) {
+      console.error('OpenAI API error response:', JSON.stringify({
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        headers: {
+          ...response.headers,
+          // Redact any sensitive headers
+          authorization: response.headers.authorization ? '[REDACTED]' : undefined
+        }
+      }));
+    }
     
     res.json({
       status: response.status,

@@ -587,21 +587,25 @@ export default {
     // Helper function to normalize and convert objects to strings
     normalizeArray(arr) {
       if (!arr) return [];
-      return arr.map(item => {
-        // If item is an object, get its title property or convert to string
-        if (item !== null && typeof item === 'object') {
-          console.log('Found object in recommendations:', item);
-          // Try to get title property if it exists
-          if (item.title) {
-            return item.title;
-          } else {
-            // Otherwise convert to JSON string
-            return JSON.stringify(item);
+      // First filter out null/undefined values
+      return arr
+        .filter(item => item !== null && item !== undefined)
+        .map(item => {
+          // If item is an object, get its title property or convert to string
+          if (typeof item === 'object') {
+            console.log('Found object in recommendations:', item);
+            // Try to get title property if it exists
+            if (item.title) {
+              return item.title;
+            } else {
+              // Otherwise convert to JSON string
+              return JSON.stringify(item);
+            }
           }
-        }
-        // If already a string or other primitive, convert to string
-        return String(item || '');
-      });
+          // If already a string or other primitive, convert to string
+          return String(item || '');
+        })
+        .filter(str => str.trim() !== ''); // Remove empty strings
     },
     
     async loadRecommendationHistory() {

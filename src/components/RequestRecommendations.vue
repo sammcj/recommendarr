@@ -1461,7 +1461,7 @@ export default {
       // Combine with existing recommendations, remove duplicates
       const combinedRecommendations = [...historyArray, ...titlesToAdd];
       
-      // Keep only unique recommendations
+      // Keep only unique recommendations (as strings)
       const uniqueRecommendations = [...new Set(combinedRecommendations)];
       
       // If over the limit, remove oldest recommendations
@@ -1491,21 +1491,34 @@ export default {
         }
       }
       
-      // Save both the title history and the full recommendations to the server
+      // Save only the title history to the server for consistency
       try {
-        // Save the full recommendations
         if (this.isMovieMode) {
-          await apiService.saveRecommendations('movie', newRecommendations);
-        } else {
-          await apiService.saveRecommendations('tv', newRecommendations);
-        }
-        console.log(`Saved full ${this.isMovieMode ? 'movie' : 'TV'} recommendations to server`);
-      } catch (error) {
-        console.error('Error saving full recommendations to server:', error);
-        // Fallback to localStorage for the full recommendations
-        if (this.isMovieMode) {
+          // Save only the titles array to the server
+          await apiService.saveRecommendations('movie', this.previousMovieRecommendations);
+          
+          // Store the full recommendations in localStorage for the current session
+          localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
           localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
         } else {
+          // Save only the titles array to the server
+          await apiService.saveRecommendations('tv', this.previousShowRecommendations);
+          
+          // Store the full recommendations in localStorage for the current session
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+          localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
+        }
+        
+        console.log(`Saved ${this.isMovieMode ? 'movie' : 'TV'} recommendation history to server (${this.previousRecommendations.length} items)`);
+      } catch (error) {
+        console.error('Error saving recommendation history to server:', error);
+        
+        // Fallback to localStorage
+        if (this.isMovieMode) {
+          localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
+          localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
+        } else {
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
           localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
         }
       }
@@ -1517,13 +1530,38 @@ export default {
       const contentType = this.isMovieMode ? 'movies' : 'shows';
       if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended ${contentType}?`)) {
         if (this.isMovieMode) {
+          // Clear movie history
           this.previousMovieRecommendations = [];
           this.previousRecommendations = [];
+          
+          // Clear from localStorage
+          localStorage.removeItem('previousMovieRecommendations');
+          
+          // Clear from server
+          try {
+            await apiService.saveRecommendations('movie', []);
+            console.log('Successfully cleared movie history from server');
+          } catch (error) {
+            console.error('Failed to clear movie history from server:', error);
+          }
         } else {
+          // Clear TV history
           this.previousShowRecommendations = [];
           this.previousRecommendations = [];
+          
+          // Clear from localStorage
+          localStorage.removeItem('previousTVRecommendations');
+          
+          // Clear from server
+          try {
+            await apiService.saveRecommendations('tv', []);
+            console.log('Successfully cleared TV history from server');
+          } catch (error) {
+            console.error('Failed to clear TV history from server:', error);
+          }
         }
-        await this.savePreviousRecommendations();
+        
+        // No need to call savePreviousRecommendations since we already saved to both localStorage and server
       }
     },
     
@@ -2764,46 +2802,107 @@ export default {
       const tvRecsResponse = await apiService.getRecommendations('tv');
       const movieRecsResponse = await apiService.getRecommendations('movie');
       
-      console.log("TV recommendations from server:", tvRecsResponse);
-      console.log("Movie recommendations from server:", movieRecsResponse);
+      console.log("TV recommendations from server:", tvRecsResponse ? tvRecsResponse.length : 0, "items");
+      console.log("Movie recommendations from server:", movieRecsResponse ? movieRecsResponse.length : 0, "items");
       
       // Process TV recommendations
       if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
         if (typeof tvRecsResponse[0] === 'string') {
-          // Simple array of titles
+          // Simple array of titles - this is the history list
+          console.log("Loaded TV history from server (string array):", tvRecsResponse.length, "items");
           this.previousShowRecommendations = tvRecsResponse;
+          
+          // Make sure we update the currently displayed history count if in TV mode
+          if (!this.isMovieMode) {
+            this.previousRecommendations = [...this.previousShowRecommendations];
+          }
+          
+          // Save to localStorage for backup
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(tvRecsResponse));
         } else {
-          // Full recommendation objects
+          // Full recommendation objects with title property
+          console.log("Loaded full TV recommendations from server:", tvRecsResponse.length, "items");
+          
           // Store them as full recommendations if we're in TV mode
-          if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && rec.description)) {
+          if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
             this.recommendations = tvRecsResponse;
+            
+            // Save current recommendations to localStorage for backup
+            localStorage.setItem('currentTVRecommendations', JSON.stringify(tvRecsResponse));
           }
           
           // Extract titles for the history
-          this.previousShowRecommendations = tvRecsResponse
+          const extractedTitles = tvRecsResponse
             .map(rec => typeof rec === 'string' ? rec : rec.title)
             .filter(title => !!title);
+            
+          // Combine with existing history, handling duplicates
+          const existingTitles = this.previousShowRecommendations || [];
+          const combinedTitles = [...new Set([...existingTitles, ...extractedTitles])];
+          
+          this.previousShowRecommendations = combinedTitles;
+          
+          // Make sure we update the currently displayed history count if in TV mode
+          if (!this.isMovieMode) {
+            this.previousRecommendations = [...this.previousShowRecommendations];
+          }
+          
+          // Save to localStorage
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(combinedTitles));
         }
       }
       
       // Process movie recommendations
       if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
         if (typeof movieRecsResponse[0] === 'string') {
-          // Simple array of titles
+          // Simple array of titles - this is the history list
+          console.log("Loaded movie history from server (string array):", movieRecsResponse.length, "items");
           this.previousMovieRecommendations = movieRecsResponse;
+          
+          // Make sure we update the currently displayed history count if in movie mode
+          if (this.isMovieMode) {
+            this.previousRecommendations = [...this.previousMovieRecommendations];
+          }
+          
+          // Save to localStorage for backup
+          localStorage.setItem('previousMovieRecommendations', JSON.stringify(movieRecsResponse));
         } else {
-          // Full recommendation objects
+          // Full recommendation objects with title property
+          console.log("Loaded full movie recommendations from server:", movieRecsResponse.length, "items");
+          
           // Store them as full recommendations if we're in movie mode
-          if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && rec.description)) {
+          if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
             this.recommendations = movieRecsResponse;
+            
+            // Save current recommendations to localStorage for backup
+            localStorage.setItem('currentMovieRecommendations', JSON.stringify(movieRecsResponse));
           }
           
           // Extract titles for the history
-          this.previousMovieRecommendations = movieRecsResponse
+          const extractedTitles = movieRecsResponse
             .map(rec => typeof rec === 'string' ? rec : rec.title)
             .filter(title => !!title);
+            
+          // Combine with existing history, handling duplicates
+          const existingTitles = this.previousMovieRecommendations || [];
+          const combinedTitles = [...new Set([...existingTitles, ...extractedTitles])];
+          
+          this.previousMovieRecommendations = combinedTitles;
+          
+          // Make sure we update the currently displayed history count if in movie mode
+          if (this.isMovieMode) {
+            this.previousRecommendations = [...this.previousMovieRecommendations];
+          }
+          
+          // Save to localStorage
+          localStorage.setItem('previousMovieRecommendations', JSON.stringify(combinedTitles));
         }
       }
+      
+      // Debug current history counts
+      console.log("After loading from server - TV history count:", this.previousShowRecommendations.length);
+      console.log("After loading from server - Movie history count:", this.previousMovieRecommendations.length);
+      console.log("Currently displayed history count:", this.previousRecommendations.length);
       
       // Load liked/disliked preferences from server
       try {

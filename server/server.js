@@ -274,10 +274,36 @@ app.post('/api/recommendations/:type', async (req, res) => {
   const { type } = req.params;
   const recommendations = req.body;
   
+  if (!Array.isArray(recommendations)) {
+    return res.status(400).json({ error: 'Recommendations must be an array' });
+  }
+  
+  console.log(`Saving ${recommendations.length} ${type} recommendations to server`);
+  
+  // Normalize recommendations to always be an array of strings (titles)
+  // This ensures consistent storage format regardless of what client sends
+  const normalizedRecommendations = recommendations.map(rec => {
+    if (rec === null || rec === undefined) return '';
+    if (typeof rec === 'string') return rec;
+    if (typeof rec === 'object' && rec.title) return rec.title;
+    return String(rec);
+  });
+  
+  // Filter out empty strings and store only the normalized array
+  const filteredRecommendations = normalizedRecommendations.filter(title => title.trim() !== '');
+  
   if (type === 'tv') {
-    userData.tvRecommendations = recommendations;
+    userData.tvRecommendations = filteredRecommendations;
+    // Clear any legacy full recommendation objects that might exist
+    if (userData.tvRecommendationsDetails) {
+      delete userData.tvRecommendationsDetails;
+    }
   } else if (type === 'movie') {
-    userData.movieRecommendations = recommendations;
+    userData.movieRecommendations = filteredRecommendations;
+    // Clear any legacy full recommendation objects that might exist
+    if (userData.movieRecommendationsDetails) {
+      delete userData.movieRecommendationsDetails;
+    }
   } else {
     return res.status(400).json({ error: 'Invalid recommendation type' });
   }

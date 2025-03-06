@@ -83,9 +83,6 @@ class OpenAIService {
       throw new Error('OpenAI service is not configured. Please set apiKey.');
     }
     
-    // Import ApiService dynamically to avoid circular dependency
-    const apiService = (await import('./ApiService')).default;
-    
     // Validate API key - check if it's empty or whitespace
     if (!this.apiKey || this.apiKey.trim() === '') {
       throw new Error('API key cannot be empty. Please provide a valid API key.');
@@ -103,19 +100,22 @@ class OpenAIService {
     } else {
       // Ensure the authorization header is properly formatted for OpenAI API
       // Always include Bearer prefix and ensure no extra whitespace
-      headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+      // Try adjusting header case - some proxies might be case-sensitive
+      headers['authorization'] = `Bearer ${this.apiKey.trim()}`; // lowercase header key
       console.log('Using OpenAI headers for models request');
+      console.log('Authorization header format:', headers['authorization'].substring(0, 15) + '...');
     }
     
-    // Add content type header
-    headers['Content-Type'] = 'application/json';
+    // Add content type header - lowercase for consistency
+    headers['content-type'] = 'application/json';
     
     const modelsUrl = this.getModelsUrl();
     console.log(`Fetching models from: ${modelsUrl}`);
     
     try {
-      // Use proxy service to fetch models
-      const response = await apiService.proxyRequest({
+      // Use direct axios call to fetch models
+      const axios = (await import('axios')).default;
+      const response = await axios({
         url: modelsUrl,
         method: 'GET',
         headers: headers
@@ -123,7 +123,7 @@ class OpenAIService {
       
       console.log(`Models response status: ${response.status}`);
       
-      // Check if the proxy request was successful
+      // Check if the direct request was successful
       if (response && response.status >= 200 && response.status < 300 && response.data) {
         if (response.data.data) {
           console.log(`Successfully retrieved ${response.data.data.length} models`);
@@ -839,8 +839,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    */
   async getFormattedRecommendationsWithConversation(conversation) {
     try {
-      // Import the ApiService dynamically to avoid circular dependency
-      const apiService = (await import('./ApiService')).default;
+      // Import axios dynamically
+      const axios = (await import('axios')).default;
       
       // Define headers based on the API endpoint
       const headers = {};
@@ -852,17 +852,19 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         headers['anthropic-version'] = '2023-06-01';
         console.log('Using Anthropic headers configuration');
       } else if (this.apiKey) { // Only add Authorization header if apiKey is present
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
+        headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
         console.log('Using OpenAI Authorization header (Bearer token)');
+        console.log('Authorization header format:', headers['Authorization'].substring(0, 15) + '...');
+        console.log('API URL:', this.apiUrl);
       } else {
         console.warn('No API key provided for authentication');
       }
       
       headers['Content-Type'] = 'application/json';
-      console.log(`Making API request to: ${this.apiUrl} with model: ${this.model}`);
+      console.log(`Making direct API request to: ${this.apiUrl} with model: ${this.model}`);
 
-      // Make the API request through the proxy with the full conversation history
-      const response = await apiService.proxyRequest({
+      // Make the API request directly without proxy
+      const response = await axios({
         url: this.apiUrl,
         method: 'POST',
         data: {
@@ -877,6 +879,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       });
 
       // Check if response contains expected data structure
+      // Direct axios response has data directly, not in data.data
       if (!response.data || response.data.error) {
         console.error('API Error:', response.data?.error || 'Unknown error');
         throw new Error(response.data?.error || 'The AI API returned an error. Please check your API key and try again.');
@@ -910,8 +913,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    */
   async getFormattedRecommendations(messages) {
     try {
-      // Import the ApiService dynamically to avoid circular dependency
-      const apiService = (await import('./ApiService')).default;
+      // Import axios dynamically
+      const axios = (await import('axios')).default;
       
       // Define headers based on the API endpoint
       const headers = {};
@@ -922,7 +925,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
         headers['anthropic-version'] = '2023-06-01';
       } else if (this.apiKey) { // Only add Authorization header if apiKey is present
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
+        headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
       }
       
       headers['Content-Type'] = 'application/json';
@@ -942,8 +945,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         // We need to split into chunks
         response = await this.sendChunkedMessages(systemMessage, userMessage, headers);
       } else {
-        // We can send in a single request through the proxy
-        response = await apiService.proxyRequest({
+        // We can send in a single request directly without proxy
+        response = await axios({
           url: this.apiUrl,
           method: 'POST',
           data: {
@@ -988,8 +991,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @returns {Promise<Object>} - The API response
    */
   async sendChunkedMessages(systemMessage, userMessage, headers) {
-    // Import the ApiService dynamically to avoid circular dependency
-    const apiService = (await import('./ApiService')).default;
+    // Import axios dynamically
+    const axios = (await import('axios')).default;
     
     // Chunk size in characters (roughly 3000 tokens)
     const CHUNK_SIZE = 12000;
@@ -1013,8 +1016,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         content: `Part ${i+1}/${chunks.length} of my request: ${chunks[i]}\n\nThis is part of a multi-part message. Please wait for all parts before responding.`
       });
       
-      // Send intermediate chunks without expecting a full response through the proxy
-      await apiService.proxyRequest({
+      // Send intermediate chunks without expecting a full response directly
+      await axios({
         url: this.apiUrl,
         method: 'POST',
         data: {
@@ -1039,8 +1042,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       content: `Final part ${chunks.length}/${chunks.length}: ${chunks[chunks.length - 1]}\n\nThat's the complete request. Please provide recommendations based on all parts of my message.`
     });
     
-    // Get full response from the final message through the proxy
-    return await apiService.proxyRequest({
+    // Get full response from the final message directly without proxy
+    return await axios({
       url: this.apiUrl,
       method: 'POST',
       data: {

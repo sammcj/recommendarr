@@ -153,12 +153,18 @@
             @openTautulliUserSelect="openTautulliUserSelect"
           />
           
-          <MovieRecommendations 
+          <TVRecommendations 
             v-if="activeTab === 'movie-recommendations'" 
+            :initialMovieMode="true"
+            :series="series"
             :movies="movies"
+            :sonarrConfigured="sonarrConnected"
             :radarrConfigured="radarrConnected"
+            :recentlyWatchedShows="recentlyWatchedShows"
             :recentlyWatchedMovies="recentlyWatchedMovies"
+            :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
             :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
+            :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
             :tautulliRecentlyWatchedMovies="tautulliRecentlyWatchedMovies"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
@@ -207,8 +213,7 @@ import PlexConnection from './components/PlexConnection.vue'
 import JellyfinConnection from './components/JellyfinConnection.vue'
 import TautulliConnection from './components/TautulliConnection.vue'
 import AppNavigation from './components/Navigation.vue'
-import TVRecommendations from './components/TVRecommendations.vue'
-import MovieRecommendations from './components/MovieRecommendations.vue'
+import TVRecommendations from './components/RequestRecommendations.vue'
 import History from './components/History.vue'
 import AISettings from './components/AISettings.vue'
 import sonarrService from './services/SonarrService'
@@ -228,7 +233,6 @@ export default {
     TautulliConnection,
     AppNavigation,
     TVRecommendations,
-    MovieRecommendations,
     History,
     AISettings
   },
@@ -759,8 +763,13 @@ export default {
         this.fetchSeriesData();
       }
       
-      // If we're switching to movie recommendations, ensure we have movies data
-      if (tab === 'movie-recommendations' && this.movies.length === 0 && this.radarrConnected) {
+      // If we're switching to movie recommendations, always try to fetch movies data
+      if (tab === 'movie-recommendations') {
+        // Check if Radarr is connected
+        console.log('Radarr connected:', this.radarrConnected);
+        console.log('Current movies array:', this.movies);
+        
+        // Try to fetch movies data regardless of array length or connection status
         this.fetchMoviesData();
       }
     },
@@ -774,9 +783,30 @@ export default {
     
     async fetchMoviesData() {
       try {
-        this.movies = await radarrService.getMovies();
+        console.log('Fetching movies data...');
+        console.log('Radarr configured:', radarrService.isConfigured());
+        console.log('Radarr baseUrl:', radarrService.baseUrl);
+        console.log('Radarr apiKey:', radarrService.apiKey ? '✓ Set' : '✗ Not set');
+        
+        // Try to load credentials explicitly
+        await radarrService.loadCredentials();
+        
+        // If still not configured, log a message
+        if (!radarrService.isConfigured()) {
+          console.log('Radarr service is still not configured after loading credentials');
+          this.radarrConnected = false;
+          return;
+        }
+        
+        // Fetch movies
+        const movies = await radarrService.getMovies();
+        console.log('Fetched movies:', movies);
+        
+        this.movies = movies;
+        this.radarrConnected = true;
       } catch (error) {
         console.error('Failed to fetch movies data for recommendations:', error);
+        this.radarrConnected = false;
       }
     },
     

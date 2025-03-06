@@ -13,20 +13,33 @@ class ImageService {
    * Get a poster URL for a TV show by title
    * @param {string} title - The TV show title
    * @param {boolean} [skipCache=false] - Whether to skip the cache
+   * @param {boolean} [useProxy=false] - Whether to use the image proxy
    * @returns {Promise<string|null>} - The poster URL or null if not found
    */
-  async getPosterForShow(title, skipCache = false) {
+  async getPosterForShow(title, skipCache = false, useProxy = false) {
+    // Ensure title is a string
+    if (title === null || title === undefined) {
+      console.warn('getPosterForShow called with null/undefined title');
+      return null;
+    }
+    
+    // Convert to string if it's not already
+    if (typeof title !== 'string') {
+      title = String(title);
+    }
+    
     // Clean the title for consistent cache keys
     const cleanTitle = title.replace(/[:.!?]+$/, '').trim();
+    const cacheKey = useProxy ? `proxy_${cleanTitle}` : cleanTitle;
     
     // Check cache first unless skipCache is true
-    if (!skipCache && this.posterCache.has(cleanTitle)) {
-      return this.posterCache.get(cleanTitle);
+    if (!skipCache && this.posterCache.has(cacheKey)) {
+      return this.posterCache.get(cacheKey);
     }
     
     // If skipCache is true and we're retrying, clear the cache for this title
-    if (skipCache && this.posterCache.has(cleanTitle)) {
-      this.posterCache.delete(cleanTitle);
+    if (skipCache && this.posterCache.has(cacheKey)) {
+      this.posterCache.delete(cacheKey);
     }
     
     try {
@@ -58,11 +71,25 @@ class ImageService {
         return null;
       }
       
-      // Store in cache for future requests
-      const posterUrl = poster.remoteUrl;
-      this.posterCache.set(cleanTitle, posterUrl);
+      // Get original URL from Sonarr
+      const originalUrl = poster.remoteUrl;
+      console.log(`Found TV poster URL: ${originalUrl} for title: ${title}`);
       
-      return posterUrl;
+      // Return either direct URL or proxied URL based on useProxy flag
+      if (useProxy) {
+        // Create a proxied URL to avoid CORS and network issues
+        const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
+        const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+        console.log(`Using proxied URL for TV poster: ${proxiedUrl}`);
+        
+        // Store in cache for future requests
+        this.posterCache.set(cacheKey, proxiedUrl);
+        return proxiedUrl;
+      } else {
+        // Use direct URL for recommendations page
+        this.posterCache.set(cacheKey, originalUrl);
+        return originalUrl;
+      }
     } catch (error) {
       console.error(`Error fetching poster for "${title}":`, error);
       return null;
@@ -76,6 +103,17 @@ class ImageService {
    * @returns {Promise<string|null>} - The poster URL or null if not found
    */
   async getPosterForMovie(title, skipCache = false) {
+    // Ensure title is a string
+    if (title === null || title === undefined) {
+      console.warn('getPosterForMovie called with null/undefined title');
+      return null;
+    }
+    
+    // Convert to string if it's not already
+    if (typeof title !== 'string') {
+      title = String(title);
+    }
+    
     // Clean the title for consistent cache keys
     const cleanTitle = title.replace(/[:.!?]+$/, '').trim();
     const cacheKey = `movie_${cleanTitle}`;
@@ -119,11 +157,19 @@ class ImageService {
         return null;
       }
       
-      // Store in cache for future requests
-      const posterUrl = poster.remoteUrl;
-      this.posterCache.set(cacheKey, posterUrl);
+      // Get original URL from Radarr
+      const originalUrl = poster.remoteUrl;
+      console.log(`Found movie poster URL: ${originalUrl} for title: ${title}`);
       
-      return posterUrl;
+      // Create a proxied URL to avoid CORS and network issues
+      const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
+      const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+      console.log(`Using proxied URL for movie poster: ${proxiedUrl}`);
+      
+      // Store in cache for future requests
+      this.posterCache.set(cacheKey, proxiedUrl);
+      
+      return proxiedUrl;
     } catch (error) {
       console.error(`Error fetching movie poster for "${title}":`, error);
       return null;
@@ -136,6 +182,16 @@ class ImageService {
    * @returns {string} - A fallback image URL or data URL
    */
   getFallbackImageUrl(title) {
+    // Ensure title is a string
+    if (title === null || title === undefined) {
+      title = 'Unknown';
+    }
+    
+    // Convert to string if it's not already
+    if (typeof title !== 'string') {
+      title = String(title);
+    }
+    
     // Use clean title for consistent cache keys
     const cleanTitle = title.replace(/[:.!?]+$/, '').trim();
     
@@ -177,6 +233,11 @@ class ImageService {
    * @returns {number} - A numeric hash
    */
   simpleHash(str) {
+    // Ensure input is a string
+    if (typeof str !== 'string') {
+      str = String(str || '');
+    }
+    
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       hash = ((hash << 5) - hash) + str.charCodeAt(i);
@@ -191,7 +252,17 @@ class ImageService {
    * @returns {string} - The initials
    */
   getInitials(title) {
-    if (!title) return '';
+    // Handle null/undefined cases
+    if (title === null || title === undefined) {
+      return '?';
+    }
+    
+    // Ensure input is a string
+    if (typeof title !== 'string') {
+      title = String(title);
+    }
+    
+    if (!title || title.trim() === '') return '?';
     
     return title
       .split(' ')

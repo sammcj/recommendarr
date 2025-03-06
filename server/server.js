@@ -5,6 +5,7 @@ const dns = require('dns').promises;
 const fs = require('fs').promises;
 const path = require('path');
 const encryptionService = require('./utils/encryption');
+const proxyService = require('./services/ProxyService');
 
 const app = express();
 const PORT = process.env.PORT || 3050;
@@ -536,6 +537,61 @@ app.post('/api/proxy', async (req, res) => {
     }
     
     res.status(error.response?.status || 500).json(errorDetails);
+  }
+});
+
+// Image proxy endpoint (make sure this exactly matches the client request path)
+app.get('/api/image-proxy', async (req, res) => {
+  console.log('Image proxy request received:', req.query.url);
+  const imageUrl = req.query.url;
+  if (!imageUrl) {
+    return res.status(400).json({ error: 'Image URL is required' });
+  }
+  
+  console.log(`Proxying image request for: ${imageUrl}`);
+  
+  try {
+    // Process URL to handle local network services in Docker
+    let processedUrl = imageUrl;
+    
+    // In Docker environment, handle localhost references
+    if (process.env.DOCKER_ENV === 'true') {
+      try {
+        const parsedUrl = new URL(imageUrl);
+        if (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1') {
+          processedUrl = imageUrl.replace(/(localhost|127\.0\.0\.1)/, 'host.docker.internal');
+          console.log(`Converted localhost URL to Docker-friendly format: ${processedUrl}`);
+        }
+      } catch (error) {
+        console.error(`Error parsing image URL ${imageUrl}:`, error.message);
+      }
+    }
+    
+    // Fetch the image
+    const response = await axios({
+      url: processedUrl,
+      method: 'GET',
+      responseType: 'arraybuffer',
+      timeout: 5000,
+      validateStatus: function (status) {
+        return status < 500; // Accept any status code less than 500
+      }
+    });
+    
+    // If error, return 404
+    if (response.status >= 400) {
+      console.error(`Error fetching image: ${response.status}`);
+      return res.status(404).send('Image not found');
+    }
+    
+    // Set content type and send image
+    const contentType = response.headers['content-type'];
+    res.setHeader('Content-Type', contentType || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    res.send(response.data);
+  } catch (error) {
+    console.error('Image proxy error:', error.message);
+    res.status(500).send('Error fetching image');
   }
 });
 

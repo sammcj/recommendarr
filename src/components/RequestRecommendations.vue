@@ -812,6 +812,47 @@ export default {
       ];
     }
   },
+  watch: {
+    // Watch for changes to radarrConfigured prop (for example when saving credentials)
+    radarrConfigured: {
+      handler(newValue, oldValue) {
+        console.log('RequestRecommendations: radarrConfigured prop changed:', newValue);
+        // Only fetch if the value actually changed from false to true
+        // and we don't already have movies data
+        if (newValue && !oldValue && this.isMovieMode) {
+          // If radarrConfigured became true while in movie mode, try to load movies
+          console.log('Radarr is now configured and we are in movie mode, checking movies data');
+          if ((!this.movies || this.movies.length === 0) && 
+              (!this.localMovies || this.localMovies.length === 0)) {
+            console.log('Movies array is empty, trying to fetch from radarr service');
+            radarrService.getMovies().then(moviesData => {
+              if (moviesData && moviesData.length > 0) {
+                console.log(`Successfully loaded ${moviesData.length} movies`);
+                // Update localMovies instead of directly mutating the prop
+                this.localMovies = moviesData;
+              }
+            }).catch(err => {
+              console.error('Error fetching movies after radarrConfigured changed:', err);
+            });
+          } else {
+            console.log('Skipping fetch as we already have movies data:', 
+                        this.localMovies?.length || 0, 'local movies,',
+                        this.movies?.length || 0, 'prop movies');
+          }
+        }
+      },
+      immediate: false // Changed to false to prevent double loading on mount
+    },
+    
+    // Watch for changes to movies prop to update localMovies
+    movies: {
+      handler(newValue) {
+        console.log('Movies prop changed, updating localMovies');
+        this.localMovies = [...newValue];
+      },
+      immediate: true
+    }
+  },
   data() {
     return {
       openaiConfigured: false,
@@ -832,6 +873,7 @@ export default {
       jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
       tautulliHistoryMode: 'all', // 'all' or 'recent'
       tautulliOnlyMode: false, // Whether to use only Tautulli history for recommendations
+      localMovies: [], // Local copy of movies prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       rootFolders: [], // Available Sonarr root folders
@@ -1554,9 +1596,19 @@ export default {
     },
     
     async getRecommendations() {
+      // Debug the radarrConfigured prop state when requesting recommendations
+      console.log('RequestRecommendations: Starting getRecommendations');
+      console.log('radarrConfigured prop:', this.radarrConfigured);
+      console.log('radarrService.isConfigured():', radarrService.isConfigured());
+      console.log('radarrService state:', {
+        baseUrl: radarrService.baseUrl,
+        apiKey: radarrService.apiKey ? 'set' : 'not set'
+      });
+      
       // Verify we have content and OpenAI is configured
+      // Force-check radarrService.isConfigured() for movie mode to bypass the issue
       const isServiceConfigured = this.isMovieMode 
-        ? this.radarrConfigured
+        ? (this.radarrConfigured || radarrService.isConfigured()) 
         : this.sonarrConfigured;
       
       if (!isServiceConfigured) {
@@ -1565,11 +1617,20 @@ export default {
       }
       
       // Check if the service is actually ready with a valid connection
-      if (this.isMovieMode && (!radarrService.isConfigured() || !radarrService.apiKey || !radarrService.baseUrl)) {
+      if (this.isMovieMode) {
+        // Always try to load the latest Radarr credentials if we're in movie mode
+        console.log('Movie mode active, loading latest Radarr credentials');
         await radarrService.loadCredentials();
+        
         if (!radarrService.isConfigured()) {
+          console.error("Radarr service isn't fully configured after loading credentials");
           this.error = "Radarr service isn't fully configured. Please check your connection settings.";
           return;
+        } else {
+          console.log('Radarr credentials loaded successfully', {
+            baseUrl: radarrService.baseUrl, 
+            apiKey: radarrService.apiKey ? 'set' : 'not set'
+          });
         }
       } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
         await sonarrService.loadCredentials();
@@ -1581,12 +1642,38 @@ export default {
       
       // Check if the library is empty
       const libraryEmpty = this.isMovieMode 
-        ? (!this.movies || this.movies.length === 0)
+        ? (!this.localMovies || this.localMovies.length === 0)
         : (!this.series || this.series.length === 0);
         
       if (libraryEmpty) {
-        this.error = `Your ${this.isMovieMode ? 'Radarr' : 'Sonarr'} library is empty. Add some ${this.isMovieMode ? 'movies' : 'TV shows'} to get recommendations.`;
-        return;
+        if (this.isMovieMode && radarrService.isConfigured()) {
+          // First check if we already have movies in our local cache
+          // to avoid unnecessary API calls
+          if (this.localMovies && this.localMovies.length > 0) {
+            console.log(`Using ${this.localMovies.length} movies from local cache`);
+          } else {
+            // Try to fetch movies directly from Radarr if Radarr is configured but movies prop is empty
+            console.log('Movies array is empty but Radarr is configured, attempting to fetch movies');
+            try {
+              const moviesData = await radarrService.getMovies();
+              if (moviesData && moviesData.length > 0) {
+                console.log(`Successfully fetched ${moviesData.length} movies from Radarr directly`);
+                // Use the movies we just fetched for recommendations
+                this.localMovies = moviesData;
+              } else {
+                this.error = `Your Radarr library is empty. Add some movies to get recommendations.`;
+                return;
+              }
+            } catch (error) {
+              console.error('Error fetching movies directly from Radarr:', error);
+              this.error = `Your Radarr library appears to be empty or inaccessible. Add some movies to get recommendations.`;
+              return;
+            }
+          }
+        } else {
+          this.error = `Your ${this.isMovieMode ? 'Radarr' : 'Sonarr'} library is empty. Add some ${this.isMovieMode ? 'movies' : 'TV shows'} to get recommendations.`;
+          return;
+        }
       }
       
       if (!openAIService.isConfigured()) {
@@ -1644,7 +1731,7 @@ export default {
         // Get initial recommendations using the appropriate service method based on mode
         if (this.isMovieMode) {
           console.log("Starting movie recommendations...");
-          console.log("Movies array:", this.movies ? this.movies.length : 0, "items");
+          console.log("Movies array:", this.localMovies ? this.localMovies.length : 0, "items");
           console.log("NumRecommendations:", this.numRecommendations);
           console.log("GenreString:", genreString);
           console.log("PreviousMovieRecommendations:", this.previousMovieRecommendations.length, "items");
@@ -1653,7 +1740,7 @@ export default {
           try {
             // Use movie recommendations method
             this.recommendations = await openAIService.getMovieRecommendations(
-              this.movies, // Use movies array for movie mode
+              this.localMovies, // Use localMovies array for movie mode
               this.numRecommendations,
               genreString,
               this.previousMovieRecommendations, // Use movie-specific history
@@ -1852,7 +1939,7 @@ export default {
         // Create a normalized map of existing titles in the library
         const existingTitles = new Set(
           this.isMovieMode 
-            ? this.movies.map(movie => movie.title.toLowerCase())
+            ? this.localMovies.map(movie => movie.title.toLowerCase())
             : this.series.map(show => show.title.toLowerCase())
         );
         
@@ -2292,7 +2379,31 @@ export default {
       this.$forceUpdate();
     }
   },
-  mounted() {
+  async mounted() {
+    console.log('RequestRecommendations component mounted');
+    console.log('Props: radarrConfigured=', this.radarrConfigured);
+    
+    // Check if Radarr service is configured directly
+    if (this.isMovieMode) {
+      // First check props
+      console.log('Movie mode active, checking Radarr configuration');
+      
+      // Only load credentials if needed and if movies array is empty
+      // This prevents double loading
+      if ((!this.movies || this.movies.length === 0) && 
+          (!this.radarrConfigured || !radarrService.isConfigured())) {
+        console.log('radarrConfigured prop is false or no movies loaded, checking service directly');
+        
+        // Check if Radarr service is configured directly
+        if (!radarrService.isConfigured()) {
+          console.log('Radarr service not configured in memory, trying to load credentials');
+          // Try to load credentials from server-side storage
+          await radarrService.loadCredentials();
+          console.log('After loading credentials, Radarr service configured:', radarrService.isConfigured());
+        }
+      }
+    }
+    
     // Check if OpenAI is already configured
     this.openaiConfigured = openAIService.isConfigured();
     

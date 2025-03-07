@@ -259,6 +259,7 @@
                       id="customVibe" 
                       v-model="customVibe"
                       @change="saveCustomVibe"
+                      @input="this.recommendationsRequested = false"
                       placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
                       class="vibe-input"
                       rows="2"
@@ -304,124 +305,283 @@
                 </div>
                 
                 <div v-if="plexConfigured" class="plex-options">
-                  <label>Plex Watch History:</label>
-                  <div class="plex-history-toggle">
-                    <label class="toggle-option">
-                      <input 
-                        type="radio" 
-                        v-model="plexHistoryMode" 
-                        value="all"
-                        @change="savePlexHistoryMode"
-                      >
-                      All watch history
-                    </label>
-                    <label class="toggle-option">
-                      <input 
-                        type="radio" 
-                        v-model="plexHistoryMode" 
-                        value="recent"
-                        @change="savePlexHistoryMode"
-                      >
-                      Recent (30 days)
-                    </label>
+                  <div class="service-header">
+                    <label>Plex Watch History:</label>
+                    <div class="service-controls">
+                      <label class="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          v-model="plexUseHistory" 
+                          @change="savePlexUseHistory"
+                        >
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
+                      </label>
+                    </div>
                   </div>
                   
-                  <div class="plex-only-toggle">
-                    <label class="checkbox-label">
-                      <input 
-                        type="checkbox" 
-                        v-model="plexOnlyMode" 
-                        @change="savePlexOnlyMode"
-                      >
-                      Use only Plex history for recommendations (ignore library)
-                    </label>
+                  <div v-if="plexUseHistory" class="service-settings">
+                    <div class="plex-history-toggle">
+                      <div class="history-selection">
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="plexHistoryMode" 
+                            value="all"
+                            @change="savePlexHistoryMode"
+                          >
+                          All watch history
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="plexHistoryMode" 
+                            value="recent"
+                            @change="savePlexHistoryMode"
+                          >
+                          Recent (30 days)
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="plexHistoryMode" 
+                            value="custom"
+                            @change="savePlexHistoryMode"
+                          >
+                          Custom period
+                        </label>
+                      </div>
+                      
+                      <div v-if="plexHistoryMode === 'custom'" class="days-slider-container">
+                        <div class="slider-header">
+                          <label for="plexDaysSlider">Days of history</label>
+                          <span class="slider-value">{{ plexCustomHistoryDays }}</span>
+                        </div>
+                        <div class="modern-slider-container">
+                          <div class="slider-track-container">
+                            <input 
+                              type="range" 
+                              id="plexDaysSlider"
+                              v-model.number="plexCustomHistoryDays"
+                              min="1" 
+                              max="365"
+                              class="modern-slider"
+                              @change="savePlexCustomHistoryDays"
+                            >
+                            <div class="slider-track" :style="{ width: `${(plexCustomHistoryDays - 1) / 364 * 100}%` }"></div>
+                          </div>
+                          <div class="slider-range-labels">
+                            <span>1</span>
+                            <span>365</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="plex-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="plexOnlyMode" 
+                          @change="savePlexOnlyMode"
+                          :disabled="!plexUseHistory"
+                        >
+                        Use only Plex history for recommendations (ignore library)
+                      </label>
+                    </div>
                   </div>
-                  
                 </div>
                 
                 <div v-if="jellyfinConfigured" class="jellyfin-options">
-                  <label>Jellyfin Watch History:</label>
-                  <div class="jellyfin-history-toggle">
-                    <label class="toggle-option">
-                      <input 
-                        type="radio" 
-                        v-model="jellyfinHistoryMode" 
-                        value="all"
-                        @change="saveJellyfinHistoryMode"
-                      >
-                      All watch history
-                    </label>
-                    <label class="toggle-option">
-                      <input 
-                        type="radio" 
-                        v-model="jellyfinHistoryMode" 
-                        value="recent"
-                        @change="saveJellyfinHistoryMode"
-                      >
-                      Recent (30 days)
-                    </label>
+                  <div class="service-header">
+                    <label>Jellyfin Watch History:</label>
+                    <div class="service-controls">
+                      <label class="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          v-model="jellyfinUseHistory" 
+                          @change="saveJellyfinUseHistory"
+                        >
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">{{ jellyfinUseHistory ? 'Include' : 'Exclude' }}</span>
+                      </label>
+                    </div>
                   </div>
                   
-                  <div class="jellyfin-only-toggle">
-                    <label class="checkbox-label">
-                      <input 
-                        type="checkbox" 
-                        v-model="jellyfinOnlyMode" 
-                        @change="saveJellyfinOnlyMode"
-                      >
-                      Use only Jellyfin history for recommendations (ignore library)
-                    </label>
+                  <div v-if="jellyfinUseHistory" class="service-settings">
+                    <div class="jellyfin-history-toggle">
+                      <div class="history-selection">
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="jellyfinHistoryMode" 
+                            value="all"
+                            @change="saveJellyfinHistoryMode"
+                          >
+                          All watch history
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="jellyfinHistoryMode" 
+                            value="recent"
+                            @change="saveJellyfinHistoryMode"
+                          >
+                          Recent (30 days)
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="jellyfinHistoryMode" 
+                            value="custom"
+                            @change="saveJellyfinHistoryMode"
+                          >
+                          Custom period
+                        </label>
+                      </div>
+                      
+                      <div v-if="jellyfinHistoryMode === 'custom'" class="days-slider-container">
+                        <div class="slider-header">
+                          <label for="jellyfinDaysSlider">Days of history</label>
+                          <span class="slider-value">{{ jellyfinCustomHistoryDays }}</span>
+                        </div>
+                        <div class="modern-slider-container">
+                          <div class="slider-track-container">
+                            <input 
+                              type="range" 
+                              id="jellyfinDaysSlider"
+                              v-model.number="jellyfinCustomHistoryDays"
+                              min="1" 
+                              max="365"
+                              class="modern-slider"
+                              @change="saveJellyfinCustomHistoryDays"
+                            >
+                            <div class="slider-track" :style="{ width: `${(jellyfinCustomHistoryDays - 1) / 364 * 100}%` }"></div>
+                          </div>
+                          <div class="slider-range-labels">
+                            <span>1</span>
+                            <span>365</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="jellyfin-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="jellyfinOnlyMode" 
+                          @change="saveJellyfinOnlyMode"
+                          :disabled="!jellyfinUseHistory"
+                        >
+                        Use only Jellyfin history for recommendations (ignore library)
+                      </label>
+                    </div>
+                    
+                    <button 
+                      class="action-button jellyfin-user-select-button"
+                      @click="$emit('openJellyfinUserSelect')"
+                      style="padding: 6px 12px; font-size: 13px; background-color: #34A853; color: white;"
+                    >
+                      Change User
+                    </button>
                   </div>
-                  
-                  <button 
-                    class="jellyfin-user-select-button action-button small-button"
-                    @click="$emit('openJellyfinUserSelect')"
-                  >
-                    Change User
-                  </button>
                 </div>
                 
                 <div v-if="tautulliConfigured" class="tautulli-options">
-                  <label>Tautulli Watch History:</label>
-                  <div class="tautulli-history-toggle">
-                    <label class="toggle-option">
-                      <input 
-                        type="radio" 
-                        v-model="tautulliHistoryMode" 
-                        value="all"
-                        @change="saveTautulliHistoryMode"
-                      >
-                      All watch history
-                    </label>
-                    <label class="toggle-option">
-                      <input 
-                        type="radio" 
-                        v-model="tautulliHistoryMode" 
-                        value="recent"
-                        @change="saveTautulliHistoryMode"
-                      >
-                      Recent (30 days)
-                    </label>
+                  <div class="service-header">
+                    <label>Tautulli Watch History:</label>
+                    <div class="service-controls">
+                      <label class="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          v-model="tautulliUseHistory" 
+                          @change="saveTautulliUseHistory"
+                        >
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">{{ tautulliUseHistory ? 'Include' : 'Exclude' }}</span>
+                      </label>
+                    </div>
                   </div>
                   
-                  <div class="tautulli-only-toggle">
-                    <label class="checkbox-label">
-                      <input 
-                        type="checkbox" 
-                        v-model="tautulliOnlyMode" 
-                        @change="saveTautulliOnlyMode"
-                      >
-                      Use only Tautulli history for recommendations (ignore library)
-                    </label>
+                  <div v-if="tautulliUseHistory" class="service-settings">
+                    <div class="tautulli-history-toggle">
+                      <div class="history-selection">
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="tautulliHistoryMode" 
+                            value="all"
+                            @change="saveTautulliHistoryMode"
+                          >
+                          All watch history
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="tautulliHistoryMode" 
+                            value="recent"
+                            @change="saveTautulliHistoryMode"
+                          >
+                          Recent (30 days)
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="tautulliHistoryMode" 
+                            value="custom"
+                            @change="saveTautulliHistoryMode"
+                          >
+                          Custom period
+                        </label>
+                      </div>
+                      
+                      <div v-if="tautulliHistoryMode === 'custom'" class="days-slider-container">
+                        <div class="slider-header">
+                          <label for="tautulliDaysSlider">Days of history</label>
+                          <span class="slider-value">{{ tautulliCustomHistoryDays }}</span>
+                        </div>
+                        <div class="modern-slider-container">
+                          <div class="slider-track-container">
+                            <input 
+                              type="range" 
+                              id="tautulliDaysSlider"
+                              v-model.number="tautulliCustomHistoryDays"
+                              min="1" 
+                              max="365"
+                              class="modern-slider"
+                              @change="saveTautulliCustomHistoryDays"
+                            >
+                            <div class="slider-track" :style="{ width: `${(tautulliCustomHistoryDays - 1) / 364 * 100}%` }"></div>
+                          </div>
+                          <div class="slider-range-labels">
+                            <span>1</span>
+                            <span>365</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="tautulli-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="tautulliOnlyMode" 
+                          @change="saveTautulliOnlyMode"
+                          :disabled="!tautulliUseHistory"
+                        >
+                        Use only Tautulli history for recommendations (ignore library)
+                      </label>
+                    </div>
+                    
+                    <button 
+                      class="action-button tautulli-user-select-button"
+                      @click="$emit('openTautulliUserSelect')"
+                      style="padding: 6px 12px; font-size: 13px; background-color: #34A853; color: white;"
+                    >
+                      Change User
+                    </button>
                   </div>
-                  
-                  <button 
-                    class="action-button tautulli-user-select-button"
-                    @click="$emit('openTautulliUserSelect')"
-                    style="padding: 6px 12px; font-size: 13px; background-color: #34A853; color: white;"
-                  >
-                    Change User
-                  </button>
                 </div>
               </div>
             </div>
@@ -936,12 +1096,20 @@ export default {
       isMovieMode: this.initialMovieMode || false, // Toggle between TV shows (false) and movies (true)
       selectedGenres: [], // Multiple genre selections
       customVibe: '', // Custom vibe/mood input from user
-      plexHistoryMode: 'all', // 'all' or 'recent'
+      plexHistoryMode: 'all', // 'all', 'recent', or 'custom'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
-      jellyfinHistoryMode: 'all', // 'all' or 'recent'
+      plexUseHistory: true, // Whether to include Plex watch history at all
+      plexCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
+      
+      jellyfinHistoryMode: 'all', // 'all', 'recent', or 'custom'
       jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
-      tautulliHistoryMode: 'all', // 'all' or 'recent'
+      jellyfinUseHistory: true, // Whether to include Jellyfin watch history at all
+      jellyfinCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
+      
+      tautulliHistoryMode: 'all', // 'all', 'recent', or 'custom'
       tautulliOnlyMode: false, // Whether to use only Tautulli history for recommendations
+      tautulliUseHistory: true, // Whether to include Tautulli watch history at all
+      tautulliCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
       localMovies: [], // Local copy of movies prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
@@ -1359,21 +1527,27 @@ export default {
       this.saveGenrePreference();
     },
     
-    // Save custom vibe preference to server
+    // Save custom vibe preference to server and reset conversation
     async saveCustomVibe() {
       try {
         await apiService.saveSettings({ tvCustomVibe: this.customVibe });
+        // Reset OpenAI conversation context when vibe changes
+        openAIService.resetConversation();
+        console.log('Custom vibe updated, conversation history cleared');
       } catch (error) {
         console.error('Error saving custom vibe to server:', error);
         // Fallback to localStorage
         localStorage.setItem('tvCustomVibe', this.customVibe);
+        // Still reset conversation even if server save fails
+        openAIService.resetConversation();
       }
     },
     
-    // Clear custom vibe input
+    // Clear custom vibe input and reset conversation
     clearCustomVibe() {
       this.customVibe = '';
       this.saveCustomVibe();
+      // Reset OpenAI conversation is handled in saveCustomVibe
     },
     
     // Save language preference to server
@@ -1397,26 +1571,80 @@ export default {
     // Save Plex history mode preference
     async savePlexHistoryMode() {
       try {
-        await apiService.saveSettings({ plexHistoryMode: this.plexHistoryMode });
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ 
+          plexHistoryMode: this.plexHistoryMode,
+          plexCustomHistoryDays: this.plexCustomHistoryDays
+        });
         this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
       } catch (error) {
         console.error('Error saving Plex history mode to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('plexHistoryMode', this.plexHistoryMode);
-        this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
+      }
+    },
+    
+    // Save Plex use history preference
+    async savePlexUseHistory() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ plexUseHistory: this.plexUseHistory });
+        
+        // If turning off history usage, also turn off the plex-only mode
+        if (!this.plexUseHistory && this.plexOnlyMode) {
+          this.plexOnlyMode = false;
+          await this.savePlexOnlyMode();
+        }
+      } catch (error) {
+        console.error('Error saving Plex use history preference to server:', error);
+      }
+    },
+    
+    // Save Plex custom history days
+    async savePlexCustomHistoryDays() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ plexCustomHistoryDays: this.plexCustomHistoryDays });
+      } catch (error) {
+        console.error('Error saving Plex custom history days to server:', error);
       }
     },
     
     // Save Jellyfin history mode preference
     async saveJellyfinHistoryMode() {
       try {
-        await apiService.saveSettings({ jellyfinHistoryMode: this.jellyfinHistoryMode });
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ 
+          jellyfinHistoryMode: this.jellyfinHistoryMode,
+          jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays
+        });
         this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
       } catch (error) {
         console.error('Error saving Jellyfin history mode to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('jellyfinHistoryMode', this.jellyfinHistoryMode);
-        this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+      }
+    },
+    
+    // Save Jellyfin use history preference
+    async saveJellyfinUseHistory() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ jellyfinUseHistory: this.jellyfinUseHistory });
+        
+        // If turning off history usage, also turn off the jellyfin-only mode
+        if (!this.jellyfinUseHistory && this.jellyfinOnlyMode) {
+          this.jellyfinOnlyMode = false;
+          await this.saveJellyfinOnlyMode();
+        }
+      } catch (error) {
+        console.error('Error saving Jellyfin use history preference to server:', error);
+      }
+    },
+    
+    // Save Jellyfin custom history days
+    async saveJellyfinCustomHistoryDays() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays });
+      } catch (error) {
+        console.error('Error saving Jellyfin custom history days to server:', error);
       }
     },
     
@@ -1503,13 +1731,40 @@ export default {
     // Save Tautulli history mode preference
     async saveTautulliHistoryMode() {
       try {
-        await apiService.saveSettings({ tautulliHistoryMode: this.tautulliHistoryMode });
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ 
+          tautulliHistoryMode: this.tautulliHistoryMode,
+          tautulliCustomHistoryDays: this.tautulliCustomHistoryDays
+        });
         this.$emit('tautulliHistoryModeChanged', this.tautulliHistoryMode);
       } catch (error) {
         console.error('Error saving Tautulli history mode to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('tautulliHistoryMode', this.tautulliHistoryMode);
-        this.$emit('tautulliHistoryModeChanged', this.tautulliHistoryMode);
+      }
+    },
+    
+    // Save Tautulli use history preference
+    async saveTautulliUseHistory() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ tautulliUseHistory: this.tautulliUseHistory });
+        
+        // If turning off history usage, also turn off the tautulli-only mode
+        if (!this.tautulliUseHistory && this.tautulliOnlyMode) {
+          this.tautulliOnlyMode = false;
+          await this.saveTautulliOnlyMode();
+        }
+      } catch (error) {
+        console.error('Error saving Tautulli use history preference to server:', error);
+      }
+    },
+    
+    // Save Tautulli custom history days
+    async saveTautulliCustomHistoryDays() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ tautulliCustomHistoryDays: this.tautulliCustomHistoryDays });
+      } catch (error) {
+        console.error('Error saving Tautulli custom history days to server:', error);
       }
     },
     
@@ -1953,6 +2208,72 @@ export default {
     },
     
     /**
+     * Filter watch history based on the selected history mode
+     * @param {Array} historyArray - The original history array to filter
+     * @param {string} service - The service ('plex', 'jellyfin', or 'tautulli')
+     * @returns {Array} - The filtered history array
+     */
+    filterWatchHistory(historyArray, service) {
+      if (!historyArray || !historyArray.length) {
+        return [];
+      }
+      
+      // Get the appropriate mode and custom days settings based on service
+      let historyMode, customDays;
+      
+      switch (service) {
+        case 'plex':
+          historyMode = this.plexHistoryMode;
+          customDays = this.plexCustomHistoryDays;
+          break;
+        case 'jellyfin':
+          historyMode = this.jellyfinHistoryMode;
+          customDays = this.jellyfinCustomHistoryDays;
+          break;
+        case 'tautulli':
+          historyMode = this.tautulliHistoryMode;
+          customDays = this.tautulliCustomHistoryDays;
+          break;
+        default:
+          // Default to 'all' if service is unknown
+          return historyArray;
+      }
+      
+      // Return unfiltered array if using 'all' mode
+      if (historyMode === 'all') {
+        return historyArray;
+      }
+      
+      // Calculate the cut-off date based on mode
+      const now = new Date();
+      let cutoffDate;
+      
+      if (historyMode === 'recent') {
+        // Recent mode is hardcoded to 30 days
+        cutoffDate = new Date(now);
+        cutoffDate.setDate(now.getDate() - 30);
+      } else if (historyMode === 'custom') {
+        // Custom mode uses user-specified days
+        cutoffDate = new Date(now);
+        cutoffDate.setDate(now.getDate() - customDays);
+      } else {
+        // Unknown mode, return original array
+        return historyArray;
+      }
+      
+      // Filter history by date
+      // Note: The history item format depends on the source, but generally has a lastWatched property
+      return historyArray.filter(item => {
+        if (!item || !item.lastWatched) {
+          return false;
+        }
+        
+        const watchDate = new Date(item.lastWatched);
+        return watchDate >= cutoffDate;
+      });
+    },
+    
+    /**
      * Start the rotating loading message animation
      */
     startLoadingMessages() {
@@ -1960,18 +2281,32 @@ export default {
       const contentType = this.isMovieMode ? 'movie' : 'TV show';
       let baseMessage = `Analyzing your ${contentType} library and generating recommendations...`;
       
-      if (this.plexOnlyMode) {
-        baseMessage = 'Analyzing your Plex watch history...';
-      } else if (this.jellyfinOnlyMode) {
-        baseMessage = 'Analyzing your Jellyfin watch history...';
-      } else if (this.tautulliOnlyMode) {
-        baseMessage = 'Analyzing your Tautulli watch history...';
-      } else if (this.plexConfigured && this.jellyfinConfigured) {
-        baseMessage = `Analyzing your ${contentType} library, Plex and Jellyfin watch history...`;
-      } else if (this.plexConfigured) {
-        baseMessage = `Analyzing your ${contentType} library and Plex watch history...`;
-      } else if (this.jellyfinConfigured) {
-        baseMessage = `Analyzing your ${contentType} library and Jellyfin watch history...`;
+      // Prepare history service names to include in message
+      const activeServices = [];
+      if (this.plexConfigured && this.plexUseHistory) {
+        activeServices.push('Plex');
+        if (this.plexOnlyMode) {
+          baseMessage = 'Analyzing your Plex watch history...';
+        }
+      }
+      
+      if (this.jellyfinConfigured && this.jellyfinUseHistory) {
+        activeServices.push('Jellyfin');
+        if (this.jellyfinOnlyMode) {
+          baseMessage = 'Analyzing your Jellyfin watch history...';
+        }
+      }
+      
+      if (this.tautulliConfigured && this.tautulliUseHistory) {
+        activeServices.push('Tautulli');
+        if (this.tautulliOnlyMode) {
+          baseMessage = 'Analyzing your Tautulli watch history...';
+        }
+      }
+      
+      // If we're not in "only mode" but we have active services, include them in the message
+      if (!this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && activeServices.length > 0) {
+        baseMessage = `Analyzing your ${contentType} library and ${activeServices.join('/')} watch history...`;
       }
       
       this.currentLoadingMessage = baseMessage;
@@ -2133,16 +2468,43 @@ export default {
           ? this.selectedGenres.join(', ')
           : '';
         
-        // Get the watch history based on selected mode and content type using computed properties
-        const watchHistory = this.isMovieMode
-          ? (this.plexOnlyMode ? (this.recentlyWatchedMovies || []) : 
-             this.jellyfinOnlyMode ? (this.jellyfinRecentlyWatchedMovies || []) :
-             this.tautulliOnlyMode ? (this.tautulliRecentlyWatchedMovies || []) :
-             this.allMovieWatchHistory)
-          : (this.plexOnlyMode ? (this.recentlyWatchedShows || []) : 
-             this.jellyfinOnlyMode ? (this.jellyfinRecentlyWatchedShows || []) :
-             this.tautulliOnlyMode ? (this.tautulliRecentlyWatchedShows || []) :
-             this.allTVWatchHistory);
+        // Prepare watch history based on user configuration
+        let watchHistory = [];
+        
+        // Plex history processing - only include if plexUseHistory is true
+        const plexHistory = this.isMovieMode ? this.recentlyWatchedMovies || [] : this.recentlyWatchedShows || [];
+        const plexHistoryFiltered = this.plexUseHistory ? this.filterWatchHistory(plexHistory, 'plex') : [];
+        
+        // Jellyfin history processing - only include if jellyfinUseHistory is true
+        const jellyfinHistory = this.isMovieMode ? this.jellyfinRecentlyWatchedMovies || [] : this.jellyfinRecentlyWatchedShows || [];
+        const jellyfinHistoryFiltered = this.jellyfinUseHistory ? this.filterWatchHistory(jellyfinHistory, 'jellyfin') : [];
+        
+        // Tautulli history processing - only include if tautulliUseHistory is true
+        const tautulliHistory = this.isMovieMode ? this.tautulliRecentlyWatchedMovies || [] : this.tautulliRecentlyWatchedShows || [];
+        const tautulliHistoryFiltered = this.tautulliUseHistory ? this.filterWatchHistory(tautulliHistory, 'tautulli') : [];
+        
+        // Combine histories based on "only mode" settings
+        if (this.plexOnlyMode && this.plexUseHistory) {
+          watchHistory = plexHistoryFiltered;
+        } else if (this.jellyfinOnlyMode && this.jellyfinUseHistory) {
+          watchHistory = jellyfinHistoryFiltered;
+        } else if (this.tautulliOnlyMode && this.tautulliUseHistory) {
+          watchHistory = tautulliHistoryFiltered;
+        } else {
+          // Combine all enabled histories
+          watchHistory = [
+            ...plexHistoryFiltered,
+            ...jellyfinHistoryFiltered,
+            ...tautulliHistoryFiltered
+          ];
+        }
+        
+        console.log(`Using watch history: ${watchHistory.length} items (Plex: ${plexHistoryFiltered.length}, Jellyfin: ${jellyfinHistoryFiltered.length}, Tautulli: ${tautulliHistoryFiltered.length})`);
+        
+        // If no watch history is available or all are disabled, use empty array
+        if (watchHistory.length === 0) {
+          console.log('No watch history is being used for recommendations');
+        }
         
         // Get initial recommendations using the appropriate service method based on mode
         if (this.isMovieMode) {
@@ -2796,11 +3158,84 @@ export default {
     handleResize() {
       // Force a re-computation of the gridStyle computed property
       this.$forceUpdate();
+    },
+    
+    /**
+     * Load all saved settings from server via API service
+     */
+    async loadSavedSettings() {
+      try {
+        // Fetch all settings from the server
+        const settings = await apiService.getSettings();
+        
+        if (!settings) {
+          console.log('No settings found on server');
+          return;
+        }
+        
+        console.log('Loaded settings from server:', settings);
+        
+        // Plex settings
+        if (settings.plexHistoryMode) {
+          this.plexHistoryMode = settings.plexHistoryMode;
+        }
+        
+        if (settings.plexOnlyMode !== undefined) {
+          this.plexOnlyMode = settings.plexOnlyMode;
+        }
+        
+        if (settings.plexUseHistory !== undefined) {
+          this.plexUseHistory = settings.plexUseHistory;
+        }
+        
+        if (settings.plexCustomHistoryDays) {
+          this.plexCustomHistoryDays = parseInt(settings.plexCustomHistoryDays, 10);
+        }
+        
+        // Jellyfin settings
+        if (settings.jellyfinHistoryMode) {
+          this.jellyfinHistoryMode = settings.jellyfinHistoryMode;
+        }
+        
+        if (settings.jellyfinOnlyMode !== undefined) {
+          this.jellyfinOnlyMode = settings.jellyfinOnlyMode;
+        }
+        
+        if (settings.jellyfinUseHistory !== undefined) {
+          this.jellyfinUseHistory = settings.jellyfinUseHistory;
+        }
+        
+        if (settings.jellyfinCustomHistoryDays) {
+          this.jellyfinCustomHistoryDays = parseInt(settings.jellyfinCustomHistoryDays, 10);
+        }
+        
+        // Tautulli settings
+        if (settings.tautulliHistoryMode) {
+          this.tautulliHistoryMode = settings.tautulliHistoryMode;
+        }
+        
+        if (settings.tautulliOnlyMode !== undefined) {
+          this.tautulliOnlyMode = settings.tautulliOnlyMode;
+        }
+        
+        if (settings.tautulliUseHistory !== undefined) {
+          this.tautulliUseHistory = settings.tautulliUseHistory;
+        }
+        
+        if (settings.tautulliCustomHistoryDays) {
+          this.tautulliCustomHistoryDays = parseInt(settings.tautulliCustomHistoryDays, 10);
+        }
+      } catch (error) {
+        console.error('Error loading settings from server:', error);
+      }
     }
   },
   async mounted() {
     console.log('RequestRecommendations component mounted');
     console.log('Props: radarrConfigured=', this.radarrConfigured);
+    
+    // Load all saved settings from the server
+    await this.loadSavedSettings();
     
     // Check if Radarr service is configured directly
     if (this.isMovieMode) {
@@ -2922,10 +3357,16 @@ export default {
       }
     }
     
-    // Restore saved custom vibe if it exists
-    const savedVibe = localStorage.getItem('tvCustomVibe');
-    if (savedVibe) {
-      this.customVibe = savedVibe;
+    // Load custom vibe from settings
+    const settings = await apiService.getSettings();
+    if (settings && settings.tvCustomVibe) {
+      this.customVibe = settings.tvCustomVibe;
+    } else {
+      // Fallback to localStorage if not in server settings
+      const savedVibe = localStorage.getItem('tvCustomVibe');
+      if (savedVibe) {
+        this.customVibe = savedVibe;
+      }
     }
     
     // Restore saved language preference if it exists
@@ -2944,6 +3385,18 @@ export default {
     const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
     if (savedPlexOnlyMode) {
       this.plexOnlyMode = savedPlexOnlyMode === 'true';
+    }
+    
+    // Restore saved Plex use history setting
+    const savedPlexUseHistory = localStorage.getItem('plexUseHistory');
+    if (savedPlexUseHistory !== null) {
+      this.plexUseHistory = savedPlexUseHistory === 'true';
+    }
+    
+    // Restore saved Plex custom history days
+    const savedPlexCustomHistoryDays = localStorage.getItem('plexCustomHistoryDays');
+    if (savedPlexCustomHistoryDays) {
+      this.plexCustomHistoryDays = parseInt(savedPlexCustomHistoryDays, 10);
     }
     
     // Initialize history arrays with empty arrays to prevent issues
@@ -3413,17 +3866,17 @@ h2 {
 .retry-button {
   margin-top: 15px;
   background-color: transparent;
-  color: #7c3aed;
+  color: #34A853;
   font-size: 15px;
   padding: 8px 20px;
   min-width: 120px;
-  border: 2px solid #7c3aed;
+  border: 2px solid #34A853;
   border-radius: 10px;
   transition: all 0.2s ease;
 }
 
 .retry-button:hover:not(:disabled) {
-  background-color: rgba(124, 58, 237, 0.08);
+  background-color: rgba(52, 168, 83, 0.08);
   transform: translateY(-1px);
 }
 
@@ -3714,7 +4167,7 @@ h2 {
 
 .slider-track-container {
   position: relative;
-  height: 24px;
+  height: 40px; /* Significantly increased height for better centering */
   display: flex;
   align-items: center;
 }
@@ -3724,18 +4177,19 @@ h2 {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 6px;
+  height: 4px; /* Thinner track for better contrast with handle */
   background: linear-gradient(to right, #34A853, #27AE60);
-  border-radius: 3px;
+  border-radius: 2px;
   z-index: 1;
   transition: width 0.2s ease;
 }
 
 .modern-slider {
   -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  height: 6px;
-  border-radius: 3px;
+  height: 4px; /* Match track height */
+  border-radius: 2px;
   background: #e5e7eb;
   outline: none;
   position: relative;
@@ -3757,7 +4211,8 @@ h2 {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   position: relative;
   z-index: 3;
-  margin-top: -5px;
+  /* Fine-tuned perfect centering */
+  transform: translateY(0px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -3771,18 +4226,19 @@ h2 {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   position: relative;
   z-index: 3;
+  transform: translateY(0px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .modern-slider::-webkit-slider-thumb:hover,
 .modern-slider:active::-webkit-slider-thumb {
-  transform: scale(1.1);
+  transform: translateY(0px) scale(1.1);
   box-shadow: 0 3px 8px rgba(52, 168, 83, 0.3);
 }
 
 .modern-slider::-moz-range-thumb:hover,
 .modern-slider:active::-moz-range-thumb {
-  transform: scale(1.1);
+  transform: translateY(0px) scale(1.1);
   box-shadow: 0 3px 8px rgba(52, 168, 83, 0.3);
 }
 
@@ -3944,12 +4400,12 @@ select {
 }
 
 select:hover {
-  border-color: #7c3aed;
+  border-color: #34A853;
 }
 
 select:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+  border-color: #34A853;
+  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
   outline: none;
 }
 
@@ -4750,19 +5206,38 @@ select:focus {
 .plex-options, .jellyfin-options, .tautulli-options {
   margin-top: 20px;
   padding: 15px;
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: rgba(52, 168, 83, 0.05); /* Light green background for all services */
   border-radius: 8px;
+  border: 1px solid rgba(52, 168, 83, 0.1);
 }
 
-.tautulli-options {
-  background-color: rgba(52, 168, 83, 0.05); /* Light green background for Tautulli */
+.service-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.service-settings {
+  margin-top: 10px;
+  padding: 12px;
+  background-color: rgba(52, 168, 83, 0.02);
+  border-radius: 8px;
+  border: 1px solid rgba(52, 168, 83, 0.1);
 }
 
 .plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle {
-  margin-top: 10px;
+  margin-top: 5px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.history-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 15px;
 }
 
 .toggle-option {
@@ -4784,22 +5259,73 @@ select:focus {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.jellyfin-user-select-button {
-  margin-top: 15px;
-  width: auto;
-  max-width: 200px;
-  padding: 8px 16px;
-  font-size: 14px;
+.days-slider-container {
+  margin-top: 5px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: rgba(52, 168, 83, 0.05);
+  border-radius: 8px;
+  border: 1px dashed rgba(52, 168, 83, 0.2);
 }
 
-.tautulli-user-select-button {
+/* Toggle Switch Styles */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-slider {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+  background-color: #e0e0e0;
+  border-radius: 34px;
+  transition: .4s;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: .3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #34A853;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+.toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 60px;
+  text-align: left;
+}
+
+.jellyfin-user-select-button, .tautulli-user-select-button {
   margin-top: 15px;
   width: auto;
   max-width: 200px;
-  padding: 8px 16px;
-  font-size: 14px;
-  background-color: #7c3aed; /* Tautulli purple color */
-  color: white;
 }
 
 .request-button {
@@ -5028,6 +5554,10 @@ select:focus {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.language-select:hover {
+  border-color: #34A853;
 }
 
 .language-select:focus {

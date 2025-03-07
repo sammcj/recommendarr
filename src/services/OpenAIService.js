@@ -25,6 +25,16 @@ class OpenAIService {
   }
   
   /**
+   * Reset conversation history when switching between TV and movie modes
+   * Ensures fresh recommendations without context contamination
+   */
+  resetConversation() {
+    console.log('Resetting conversation history');
+    this.tvConversation = [];
+    this.movieConversation = [];
+  }
+  
+  /**
    * Load credentials and settings from server-side storage
    */
   async loadCredentials() {
@@ -294,7 +304,7 @@ class OpenAIService {
       const recommendationCount = Math.min(Math.max(count, 1), 50);
 
       // Base prompt
-      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new shows I might enjoy that are CRITICALLY ACCLAIMED and HIGHLY RATED. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} high-quality shows I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -312,40 +322,29 @@ class OpenAIService {
         userPrompt += ` Please ONLY recommend TV shows in ${language} language.`;
       }
       
-      // Add instructions for diverse, high-quality recommendations using analytical approaches
-      userPrompt += ` When selecting recommendations, use multiple analytical approaches:
+      // Add instructions for diverse, high-quality recommendations focusing on the "vibe" and feel
+      userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and aesthetic qualities of my library:
 
-1. STATISTICAL ANALYSIS:
-   - Identify shows with consistently high ratings across multiple platforms
-   - Consider rating stability across seasons rather than just averages
-   - Analyze viewership retention patterns and growth trends
+1. AESTHETIC & TONAL QUALITIES:
+   - Consider the overall mood, atmosphere, and emotional experience
+   - Look for shows with similar pacing, visual style, and thematic resonance
+   - Capture the feeling and vibe rather than just statistical similarity
 
-2. QUANTITATIVE ANALYSIS: 
-   - Evaluate concrete metrics like awards received, cultural citations, and completion rates
-   - Consider episode count, season longevity, and production investment
-   - Assess viewership numbers and growth over time
+2. CREATIVE VISION:
+   - Recommend shows with distinctive directorial styles and creative approaches
+   - Focus on storytelling methods that might appeal based on my library
+   - Consider writing quality, character development, and thematic depth
 
-3. QUALITATIVE ANALYSIS:
-   - Evaluate writing strength, acting performances, and production quality 
-   - Assess narrative complexity, character development, and thematic depth
-   - Consider directorial vision and creative uniqueness
-
-4. COMPARATIVE ANALYSIS:
-   - Benchmark against the strongest titles in my current library
-   - Identify shows that pioneered or perfected elements seen in my favorites
-   - Find content that represents the best of its specific genre or format
-
-5. CULTURAL IMPACT:
-   - Consider shows with lasting influence on their genre or medium
-   - Identify content with strong relevance to contemporary themes
-   - Include shows with dedicated followings or critical reassessment
+3. CULTURAL CONTEXT:
+   - Identify shows with cultural significance that match my interests
+   - Consider shows that inspired or were inspired by my favorites
+   - Include both acclaimed classics and overlooked gems
 
 Prioritize shows that:
-- Represent the highest overall quality based on these analyses
-- Show strong thematic or stylistic connections to my current library
-- Offer diversity in content (not just the most obvious recommendations)
+- Have a similar emotional resonance or "feel" to my current library
+- Offer something distinctive while matching my apparent taste
 - Include both popular standouts and lesser-known hidden gems
-- Are complete or ongoing with consistent quality, not canceled after 1-2 seasons`;
+- Are complete or ongoing with consistent quality, avoiding shows canceled early`;
       
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
@@ -417,7 +416,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       this.tvConversation = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant. Your task is to recommend new TV shows based on the user's current library and recently watched content. ⚠️ CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. ANY deviation from the formatting requirements will BREAK the application completely. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend shows that exist in the user's library, liked shows list, or any exclusion list provided\n2. Only recommend shows that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include ANY extra text, explanations, headings, introductions or conclusions\n6. Format each recommendation EXACTLY as instructed - even minor deviations will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified\n9. Begin your response IMMEDIATELY with '1. [Show Title]:' with NO preamble text\n10. ONLY use the section titles exactly as specified: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
+          content: "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists\n2. Recommend shows matching the emotional and stylistic feel of the user's library\n3. NO Markdown formatting\n4. NO extra text, introductions or conclusions\n5. Format recommendations EXACTLY as instructed\n6. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n7. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",
@@ -464,6 +463,19 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @returns {Promise<Array>} - List of recommended movies
    */
   async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '', language = '') {
+    console.log("OpenAIService: getMovieRecommendations called", {
+      moviesCount: movies ? movies.length : 0,
+      count,
+      genre,
+      previousRecsCount: previousRecommendations ? previousRecommendations.length : 0,
+      likedRecsCount: likedRecommendations ? likedRecommendations.length : 0,
+      dislikedRecsCount: dislikedRecommendations ? dislikedRecommendations.length : 0,
+      recentlyWatchedCount: recentlyWatchedMovies ? recentlyWatchedMovies.length : 0,
+      plexOnlyMode,
+      customVibe,
+      language
+    });
+    
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -476,6 +488,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
     try {
       // Only initialize conversation history if it doesn't exist yet
       if (this.movieConversation.length === 0) {
+        console.log("Initializing new movie conversation");
       
       // Determine if we should use only Plex history or include the library
       let sourceText;
@@ -522,7 +535,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       const recommendationCount = Math.min(Math.max(count, 1), 50);
       
       // Base prompt
-      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} new movies I might enjoy that are CRITICALLY ACCLAIMED and HIGHLY RATED. Be brief and direct - no more than 2-3 sentences per section.`;
+      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} high-quality movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -540,40 +553,29 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         userPrompt += ` Please ONLY recommend movies in ${language} language.`;
       }
       
-      // Add instructions for diverse, high-quality recommendations using analytical approaches
-      userPrompt += ` When selecting recommendations, use multiple analytical approaches:
+      // Add instructions for diverse, high-quality recommendations focusing on the "vibe" and feel
+      userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and cinematic qualities of my library:
 
-1. STATISTICAL ANALYSIS:
-   - Identify movies with consistently high ratings across multiple platforms
-   - Consider audience-critic rating correlation and distribution
-   - Analyze long-term rating stability rather than just initial reception
+1. AESTHETIC & EMOTIONAL QUALITIES:
+   - Consider the overall mood, tone, and emotional experience
+   - Look for films with similar visual language, pacing, and atmosphere
+   - Capture the feeling and vibe rather than just statistical similarity
 
-2. QUANTITATIVE ANALYSIS: 
-   - Evaluate concrete metrics like box office performance relative to budget
-   - Consider awards received, nominations, and festival recognitions
-   - Assess commercial success balanced with artistic achievement
+2. DIRECTORIAL VISION:
+   - Recommend films with distinctive styles and creative approaches
+   - Focus on storytelling methods and cinematic techniques that align with my taste
+   - Consider both visually striking films and character-driven narratives
 
-3. QUALITATIVE ANALYSIS:
-   - Evaluate directorial vision, screenplay strength, and performance quality
-   - Assess technical elements including cinematography, editing, and sound design
-   - Consider narrative innovation, thematic depth, and emotional impact
-
-4. COMPARATIVE ANALYSIS:
-   - Benchmark against the strongest titles in my current library
-   - Identify films that pioneered or perfected elements seen in my favorites
-   - Find content that represents the best of its specific genre or era
-
-5. CULTURAL IMPACT:
-   - Consider films with lasting influence on cinema and popular culture
-   - Identify content with strong relevance to contemporary themes
-   - Include movies with dedicated followings or critical reassessment over time
+3. CULTURAL RESONANCE:
+   - Identify films that occupy a similar cultural space to my favorites
+   - Consider influential works that connect thematically with my library
+   - Include both widely acclaimed films and overlooked gems
 
 Prioritize movies that:
-- Represent the highest overall quality based on these analyses
-- Show strong thematic or stylistic connections to my current library
-- Offer diversity in content (not just the most obvious recommendations)
-- Include both popular standouts and lesser-known hidden gems
-- Consider both classic and recent releases that have stood the test of time`;
+- Evoke similar emotional responses to films in my current library
+- Offer something distinctive while matching my apparent taste preferences
+- Include both celebrated classics and lesser-known discoveries
+- Come from directors, writers, or eras that align with my viewing patterns`;
       
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
@@ -645,7 +647,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       this.movieConversation = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant. Your task is to recommend new movies based on the user's current library and recently watched content. ⚠️ CRITICAL: You MUST follow the EXACT output format specified - no deviations are permitted. ANY deviation from the formatting requirements will BREAK the application completely. You MUST adhere to these ABSOLUTE rules:\n\n1. NEVER recommend movies that exist in the user's library, liked movies list, or any exclusion list provided\n2. Only recommend movies that truly match the user's preferences\n3. VERIFY each recommendation is not in ANY of the exclusion lists before suggesting it\n4. DO NOT use any Markdown formatting like ** for bold or * for italic\n5. DO NOT include ANY extra text, explanations, headings, introductions or conclusions\n6. Format each recommendation EXACTLY as instructed - even minor deviations will break the application\n7. Follow the numbering format precisely (1., 2., etc.)\n8. Each recommendation MUST have all required sections in the EXACT order specified\n9. Begin your response IMMEDIATELY with '1. [Movie Title]:' with NO preamble text\n10. ONLY use the section titles exactly as specified: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
+          content: "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists\n2. Recommend movies matching the mood, style, and emotional resonance of the user's library\n3. NO Markdown formatting\n4. NO extra text, introductions or conclusions\n5. Format recommendations EXACTLY as instructed\n6. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n7. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",
@@ -661,16 +663,23 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       }
       
       // Get initial recommendations using the conversation
+      console.log("Getting formatted movie recommendations with conversation");
+      console.log("Movie conversation length:", this.movieConversation.length);
+      
       const recommendations = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
+      console.log("Raw recommendations from API:", recommendations);
       
       // Perform final verification to ensure no existing/liked content is returned
-      return this.verifyRecommendations(
+      const verifiedRecommendations = this.verifyRecommendations(
         recommendations,
         movies,                   // Library items
         likedRecommendations,     // Liked items
         dislikedRecommendations,  // Disliked items
         previousRecommendations   // Previous recommendations
       );
+      
+      console.log("Verified recommendations:", verifiedRecommendations);
+      return verifiedRecommendations;
     } catch (error) {
       console.error('Error getting movie recommendations:', error);
       throw error;
@@ -725,31 +734,31 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         throw new Error('No TV conversation history found. Make initial recommendation request first.');
       }
       
-      // Create a much simpler prompt that just requests more recommendations
-      let userPrompt = `I need ${recommendationCount} more DIFFERENT TV shows that are just as good as your previous recommendations. Be brief and direct.`;
+      // Create a simpler prompt for additional recommendations
+      let userPrompt = `I need ${recommendationCount} more TV shows that match the emotional and stylistic qualities of my library and your previous recommendations.`;
       
       // Add genre preference if specified
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
-        userPrompt += ` Focus specifically on shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
+        userPrompt += ` Focus on shows in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
       // Add custom vibe if specified
       if (customVibe && customVibe.trim()) {
-        userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+        userPrompt += ` Match this vibe/mood: "${customVibe.trim()}".`;
       }
       
       // Add language preference if specified
       if (language) {
-        userPrompt += ` Please ONLY recommend TV shows in ${language} language.`;
+        userPrompt += ` ONLY recommend TV shows in ${language} language.`;
       }
       
       // Add previous recommendations to avoid repeating them
       if (previousRecommendations.length > 0) {
-        userPrompt += `\n\nMake sure NOT to recommend any of these previously suggested shows: ${previousRecommendations.join(', ')}`;
+        userPrompt += `\n\nDO NOT recommend any of these shows: ${previousRecommendations.join(', ')}`;
       }
       
-      userPrompt += `\n\nUse the EXACT same format as before for each recommendation, following the same strict rules.`;
+      userPrompt += `\n\nUse the EXACT same format as before.`;
 
       // Add the new user message to the existing conversation
       this.tvConversation.push({
@@ -792,31 +801,31 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         throw new Error('No movie conversation history found. Make initial recommendation request first.');
       }
       
-      // Create a much simpler prompt that just requests more recommendations
-      let userPrompt = `I need ${recommendationCount} more DIFFERENT movies that are just as good as your previous recommendations. Be brief and direct.`;
+      // Create a simpler prompt for additional movie recommendations
+      let userPrompt = `I need ${recommendationCount} more movies that match the emotional and cinematic qualities of my library and your previous recommendations.`;
       
       // Add genre preference if specified
       if (genre) {
         const genreList = genre.includes(',') ? genre : `the ${genre}`;
-        userPrompt += ` Focus specifically on movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
+        userPrompt += ` Focus on movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
       }
       
       // Add custom vibe if specified
       if (customVibe && customVibe.trim()) {
-        userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+        userPrompt += ` Match this vibe/mood: "${customVibe.trim()}".`;
       }
       
       // Add language preference if specified
       if (language) {
-        userPrompt += ` Please ONLY recommend movies in ${language} language.`;
+        userPrompt += ` ONLY recommend movies in ${language} language.`;
       }
       
       // Add previous recommendations to avoid repeating them
       if (previousRecommendations.length > 0) {
-        userPrompt += `\n\nMake sure NOT to recommend any of these previously suggested movies: ${previousRecommendations.join(', ')}`;
+        userPrompt += `\n\nDO NOT recommend any of these movies: ${previousRecommendations.join(', ')}`;
       }
       
-      userPrompt += `\n\nUse the EXACT same format as before for each recommendation, following the same strict rules.`;
+      userPrompt += `\n\nUse the EXACT same format as before.`;
 
       // Add the new user message to the existing conversation
       this.movieConversation.push({
@@ -838,9 +847,30 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @returns {Promise<Array>} - List of formatted recommendations
    */
   async getFormattedRecommendationsWithConversation(conversation) {
+    console.log("API URL:", this.apiUrl);
+    console.log("Model:", this.model);
+    
     try {
-      // Import axios dynamically
-      const axios = (await import('axios')).default;
+      // Check if conversation is getting too large and reset if needed
+      // A typical message limit before hitting payload size issues is around 10-15 messages
+      const MESSAGE_LIMIT = 12; // Reset after this many messages to prevent payload size issues
+      
+      // If conversation exceeds the limit, reset it to just the system message + latest user message
+      if (conversation.length > MESSAGE_LIMIT) {
+        console.log(`Conversation history too large (${conversation.length} messages). Resetting context.`);
+        const systemMessage = conversation[0]; // Keep system prompt
+        const userMessage = conversation[conversation.length - 1]; // Keep latest user message
+        
+        // Reset conversation to just system + latest user message
+        conversation.splice(0, conversation.length);
+        conversation.push(systemMessage, userMessage);
+        
+        console.log(`Conversation reset to ${conversation.length} messages to avoid payload size limits.`);
+      }
+      
+      // Import the ApiService dynamically to avoid circular dependency
+      // eslint-disable-next-line no-unused-vars
+      const apiService = (await import('./ApiService')).default;
       
       // Define headers based on the API endpoint
       const headers = {};
@@ -860,10 +890,16 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         console.warn('No API key provided for authentication');
       }
       
+      console.log("Is API configured:", this.isConfigured());
+      console.log("Conversation length:", conversation.length);
+      console.log("First message role:", conversation[0]?.role);
+      console.log("Last message role:", conversation[conversation.length-1]?.role);
+      
       headers['Content-Type'] = 'application/json';
       console.log(`Making direct API request to: ${this.apiUrl} with model: ${this.model}`);
 
       // Make the API request directly without proxy
+      const axios = (await import('axios')).default;
       const response = await axios({
         url: this.apiUrl,
         method: 'POST',

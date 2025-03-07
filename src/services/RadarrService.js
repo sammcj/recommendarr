@@ -14,12 +14,27 @@ class RadarrService {
   
   /**
    * Load credentials from server-side storage
+   * @returns {Promise<boolean>} - Whether credentials were loaded successfully
    */
   async loadCredentials() {
-    const credentials = await credentialsService.getCredentials('radarr');
-    if (credentials) {
-      this.baseUrl = credentials.baseUrl || '';
-      this.apiKey = credentials.apiKey || '';
+    try {
+      const credentials = await credentialsService.getCredentials('radarr');
+      
+      if (credentials && credentials.baseUrl && credentials.apiKey) {
+        console.log('Found Radarr credentials in server storage');
+        
+        // Only update if the credentials are valid (non-empty)
+        this.baseUrl = credentials.baseUrl;
+        this.apiKey = credentials.apiKey;
+        
+        return true;
+      } else {
+        console.log('No valid Radarr credentials found in server storage');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error loading Radarr credentials:', error);
+      return false;
     }
   }
   

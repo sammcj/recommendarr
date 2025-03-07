@@ -140,7 +140,13 @@
           <p v-else>No TV shows to display with current filter settings.</p>
         </div>
         <div v-else class="recommendation-grid" :style="{ gridTemplateColumns: gridTemplateStyle }">
-          <div v-for="(show, index) in hideExistingContent ? filteredTVRecommendations : tvRecommendations" :key="`tv-${index}`" class="recommendation-item">
+          <div 
+            v-for="(show, index) in displayedTVShows" 
+            :key="`tv-${index}`" 
+            class="recommendation-item"
+            ref="tvItem"
+            :data-index="index"
+          >
             <div class="poster-container">
               <div 
                 class="poster" 
@@ -157,7 +163,7 @@
                   </button>
                 </div>
               </div>
-              <div class="item-title">{{ show }}</div>
+              <div class="item-title">{{ typeof show === 'string' ? show : String(show || 'Unknown') }}</div>
               <div v-if="tvShowDetails[show]" class="item-description">
                 <div v-if="tvShowDetails[show].overview" class="item-overview">
                   {{ truncateText(tvShowDetails[show].overview, 120) }}
@@ -179,6 +185,10 @@
               </div>
             </div>
           </div>
+          <div v-if="hasMoreTVShows" class="loading-more-container" ref="tvLoadMoreTrigger">
+            <div class="loading-more-spinner"></div>
+            <span>Loading more...</span>
+          </div>
         </div>
       </div>
       
@@ -189,7 +199,13 @@
           <p v-else>No movies to display with current filter settings.</p>
         </div>
         <div v-else class="recommendation-grid" :style="{ gridTemplateColumns: gridTemplateStyle }">
-          <div v-for="(movie, index) in hideExistingContent ? filteredMovieRecommendations : movieRecommendations" :key="`movie-${index}`" class="recommendation-item">
+          <div 
+            v-for="(movie, index) in displayedMovies" 
+            :key="`movie-${index}`" 
+            class="recommendation-item"
+            ref="movieItem"
+            :data-index="index"
+          >
             <div class="poster-container">
               <div 
                 class="poster" 
@@ -206,7 +222,7 @@
                   </button>
                 </div>
               </div>
-              <div class="item-title">{{ movie }}</div>
+              <div class="item-title">{{ typeof movie === 'string' ? movie : String(movie || 'Unknown') }}</div>
               <div v-if="movieDetails[movie]" class="item-description">
                 <div v-if="movieDetails[movie].overview" class="item-overview">
                   {{ truncateText(movieDetails[movie].overview, 120) }}
@@ -227,6 +243,10 @@
                 </button>
               </div>
             </div>
+          </div>
+          <div v-if="hasMoreMovies" class="loading-more-container" ref="movieLoadMoreTrigger">
+            <div class="loading-more-spinner"></div>
+            <span>Loading more...</span>
           </div>
         </div>
       </div>
@@ -393,6 +413,15 @@
 import imageService from '../services/ImageService.js';
 import sonarrService from '../services/SonarrService.js';
 import radarrService from '../services/RadarrService.js';
+import apiService from '../services/ApiService.js';
+import axios from 'axios';
+
+// Debug services availability
+console.log('History component - Services loaded:');
+console.log('imageService available:', !!imageService);
+console.log('sonarrService available:', !!sonarrService);
+console.log('radarrService available:', !!radarrService);
+console.log('apiService available:', !!apiService);
 
 export default {
   name: 'RecommendationHistory',
@@ -413,13 +442,25 @@ export default {
       movieRecommendations: [],
       filteredTVRecommendations: [],
       filteredMovieRecommendations: [],
+      displayedTVShows: [],
+      displayedMovies: [],
+      tvPageSize: 20,
+      tvCurrentPage: 1,
+      moviePageSize: 20,
+      movieCurrentPage: 1,
       loading: true,
+      loadingMoreTV: false,
+      loadingMoreMovies: false,
       columnsCount: 4,
       posters: new Map(),
       loadingPosters: new Map(),
       hideExistingContent: true,
       hideLikedContent: true,
       hideDislikedContent: true,
+      
+      // Intersection observer
+      tvObserver: null,
+      movieObserver: null,
       
       // TV/Movie details
       tvShowDetails: {},
@@ -461,7 +502,10 @@ export default {
       movieQualityProfiles: [],
       movieRootFolders: [],
       selectedMovieQualityProfile: null,
-      selectedMovieRootFolder: null
+      selectedMovieRootFolder: null,
+      
+      // For aborting in-flight requests when component is unmounted
+      abortController: null
     };
   },
   computed: {
@@ -476,6 +520,14 @@ export default {
     },
     gridTemplateStyle() {
       return `repeat(${this.columnsCount}, 1fr)`;
+    },
+    hasMoreTVShows() {
+      const source = this.hideExistingContent ? this.filteredTVRecommendations : this.tvRecommendations;
+      return this.displayedTVShows.length < source.length && !this.loadingMoreTV;
+    },
+    hasMoreMovies() {
+      const source = this.hideExistingContent ? this.filteredMovieRecommendations : this.movieRecommendations;
+      return this.displayedMovies.length < source.length && !this.loadingMoreMovies;
     }
   },
   created() {
@@ -484,9 +536,48 @@ export default {
     this.loadFilterPreferences();
     this.loadLikedDislikedContent();
   },
-  mounted() {
-    this.fetchAllPosters();
-    this.loadLibraryContent();
+  async mounted() {
+    console.log('History component mounted');
+    
+    // Make sure services are loaded before proceeding
+    await sonarrService.loadCredentials();
+    await radarrService.loadCredentials();
+    
+    // Check if services are configured after loading credentials
+    const sonarrReady = sonarrService.isConfigured();
+    const radarrReady = radarrService.isConfigured();
+    
+    console.log('Service configuration status:');
+    console.log('- sonarrConfigured prop:', this.sonarrConfigured);
+    console.log('- radarrConfigured prop:', this.radarrConfigured);
+    console.log('- Sonarr ready after credential load:', sonarrReady);
+    console.log('- Radarr ready after credential load:', radarrReady);
+    
+    // Load library content first to check if items exist in library
+    await this.loadLibraryContent();
+    
+    // Initialize intersection observer for lazy loading
+    this.initIntersectionObserver();
+    
+    // Load initial items 
+    this.loadInitialItems();
+  },
+  
+  beforeUnmount() {
+    // Abort any in-flight requests when component is unmounted
+    if (this.abortController) {
+      console.log('History component unmounting, aborting in-flight requests');
+      this.abortController.abort();
+      this.loading = false;
+    }
+    
+    // Disconnect observers
+    if (this.tvObserver) {
+      this.tvObserver.disconnect();
+    }
+    if (this.movieObserver) {
+      this.movieObserver.disconnect();
+    }
   },
   watch: {
     existingTVShows() {
@@ -507,96 +598,459 @@ export default {
     dislikedMovies() {
       this.applyFilters();
     },
-    hideExistingContent() {
+    async hideExistingContent() {
       this.applyFilters();
+      // Reset pagination when filters change
+      this.resetPagination();
+      
+      // Save to localStorage
       localStorage.setItem('historyHideExisting', this.hideExistingContent.toString());
+      
+      // Save to server
+      try {
+        const settings = await apiService.getSettings();
+        settings.historyHideExisting = this.hideExistingContent;
+        await apiService.saveSettings(settings);
+      } catch (error) {
+        console.error('Failed to save historyHideExisting setting to server:', error);
+      }
     },
-    hideLikedContent() {
+    async hideLikedContent() {
       this.applyFilters();
+      // Reset pagination when filters change
+      this.resetPagination();
+      
+      // Save to localStorage
       localStorage.setItem('historyHideLiked', this.hideLikedContent.toString());
+      
+      // Save to server
+      try {
+        const settings = await apiService.getSettings();
+        settings.historyHideLiked = this.hideLikedContent;
+        await apiService.saveSettings(settings);
+      } catch (error) {
+        console.error('Failed to save historyHideLiked setting to server:', error);
+      }
     },
-    hideDislikedContent() {
+    async hideDislikedContent() {
       this.applyFilters();
+      // Reset pagination when filters change
+      this.resetPagination();
+      
+      // Save to localStorage
       localStorage.setItem('historyHideDisliked', this.hideDislikedContent.toString());
+      
+      // Save to server
+      try {
+        const settings = await apiService.getSettings();
+        settings.historyHideDisliked = this.hideDislikedContent;
+        await apiService.saveSettings(settings);
+      } catch (error) {
+        console.error('Failed to save historyHideDisliked setting to server:', error);
+      }
     },
     tvRecommendations() {
       this.applyFilters();
+      this.resetPagination();
     },
     movieRecommendations() {
       this.applyFilters();
+      this.resetPagination();
+    },
+    filteredTVRecommendations() {
+      this.resetPagination();
+    },
+    filteredMovieRecommendations() {
+      this.resetPagination();
+    },
+    activeView() {
+      // When view changes, we need to reset pagination
+      this.resetPagination();
     }
   },
   methods: {
-    loadRecommendationHistory() {
+    // Helper function to normalize and convert objects to strings
+    normalizeArray(arr) {
+      if (!arr) return [];
+      // First filter out null/undefined values
+      return arr
+        .filter(item => item !== null && item !== undefined)
+        .map(item => {
+          // If item is an object, get its title property or convert to string
+          if (typeof item === 'object') {
+            console.log('Found object in recommendations:', item);
+            // Try to get title property if it exists
+            if (item.title) {
+              return item.title;
+            } else {
+              // Otherwise convert to JSON string
+              return JSON.stringify(item);
+            }
+          }
+          // If already a string or other primitive, convert to string
+          return String(item || '');
+        })
+        .filter(str => str.trim() !== ''); // Remove empty strings
+    },
+    
+    async loadRecommendationHistory() {
       this.loading = true;
       
-      // Load TV recommendations from localStorage
-      const tvHistory = localStorage.getItem('previousTVRecommendations');
-      if (tvHistory) {
-        this.tvRecommendations = JSON.parse(tvHistory);
-      }
+      // Create a new AbortController and store the reference
+      this.abortController = new AbortController();
+      const signal = this.abortController.signal;
       
-      // Load movie recommendations from localStorage
-      const movieHistory = localStorage.getItem('previousMovieRecommendations');
-      if (movieHistory) {
-        this.movieRecommendations = JSON.parse(movieHistory);
+      try {
+        // First try to load TV recommendations from server with abort signal
+        const tvRecommendations = await this.fetchWithAbort(
+          () => apiService.getRecommendations('tv'),
+          signal,
+          'Loading TV recommendations'
+        );
+        
+        if (tvRecommendations && tvRecommendations.length > 0 && !signal.aborted) {
+          console.log('Loaded TV recommendations from server:', tvRecommendations.length);
+          // Normalize recommendations to ensure they're all strings
+          this.tvRecommendations = this.normalizeArray(tvRecommendations);
+          console.log('Normalized TV recommendations:', this.tvRecommendations);
+          // Update localStorage with server data
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.tvRecommendations));
+        } else if (!signal.aborted) {
+          // Fallback to localStorage if server returns empty
+          const tvHistory = localStorage.getItem('previousTVRecommendations');
+          if (tvHistory) {
+            const parsed = JSON.parse(tvHistory);
+            this.tvRecommendations = this.normalizeArray(parsed);
+            console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
+            // Don't save to server - server was empty by design (likely after a reset)
+          }
+        }
+        
+        // Then try to load movie recommendations from server with abort signal
+        if (!signal.aborted) {
+          const movieRecommendations = await this.fetchWithAbort(
+            () => apiService.getRecommendations('movie'),
+            signal,
+            'Loading movie recommendations'
+          );
+          
+          if (movieRecommendations && movieRecommendations.length > 0 && !signal.aborted) {
+            console.log('Loaded movie recommendations from server:', movieRecommendations.length);
+            // Normalize recommendations to ensure they're all strings
+            this.movieRecommendations = this.normalizeArray(movieRecommendations);
+            console.log('Normalized movie recommendations:', this.movieRecommendations);
+            // Update localStorage with server data
+            localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.movieRecommendations));
+          } else if (!signal.aborted) {
+            // Fallback to localStorage if server returns empty
+            const movieHistory = localStorage.getItem('previousMovieRecommendations');
+            if (movieHistory) {
+              const parsed = JSON.parse(movieHistory);
+              this.movieRecommendations = this.normalizeArray(parsed);
+              console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
+              // Don't save to server - server was empty by design (likely after a reset)
+            }
+          }
+        }
+      } catch (error) {
+        // Only log and handle errors if not aborted
+        if (!signal.aborted) {
+          console.error('Error loading recommendations from server:', error);
+          
+          // Fallback to localStorage on error
+          const tvHistory = localStorage.getItem('previousTVRecommendations');
+          if (tvHistory) {
+            const parsed = JSON.parse(tvHistory);
+            this.tvRecommendations = this.normalizeArray(parsed);
+            console.log('Loaded TV recommendations from localStorage (after server error)');
+          }
+          
+          const movieHistory = localStorage.getItem('previousMovieRecommendations');
+          if (movieHistory) {
+            const parsed = JSON.parse(movieHistory);
+            this.movieRecommendations = this.normalizeArray(parsed);
+            console.log('Loaded movie recommendations from localStorage (after server error)');
+          }
+        } else {
+          console.log('Request was aborted, skipping error handling');
+        }
+      } finally {
+        // Only update loading state if not aborted
+        if (!signal.aborted) {
+          this.loading = false;
+        }
       }
-      
-      this.loading = false;
     },
     
-    loadColumnsCount() {
-      const savedCount = localStorage.getItem('historyColumnsCount');
-      if (savedCount) {
-        this.columnsCount = parseInt(savedCount);
+    // Helper method to fetch with abort signal
+    async fetchWithAbort(fetchFunction, signal, logPrefix = '') {
+      try {
+        // Add the signal parameter to axios request if possible
+        // This is a workaround since we can't directly modify the apiService methods
+        const originalGet = axios.get;
+        const originalPost = axios.post;
+        
+        // Override axios methods to include the abort signal
+        axios.get = (url, config = {}) => {
+          return originalGet(url, { ...config, signal });
+        };
+        
+        axios.post = (url, data, config = {}) => {
+          return originalPost(url, data, { ...config, signal });
+        };
+        
+        const result = await fetchFunction();
+        
+        // Restore original axios methods
+        axios.get = originalGet;
+        axios.post = originalPost;
+        
+        return result;
+      } catch (error) {
+        // If aborted, log it and rethrow
+        if (error.name === 'AbortError' || signal.aborted) {
+          console.log(`${logPrefix} request was aborted`);
+          throw new Error('Request aborted');
+        }
+        
+        // Otherwise, log the actual error and rethrow
+        console.error(`${logPrefix} fetch error:`, error);
+        throw error;
       }
     },
     
-    saveColumnsCount() {
-      localStorage.setItem('historyColumnsCount', this.columnsCount);
+    async loadColumnsCount() {
+      try {
+        // First try to load from server settings
+        const settings = await apiService.getSettings();
+        if (settings && settings.historyColumnsCount) {
+          console.log('Loaded history columns count from server:', settings.historyColumnsCount);
+          this.columnsCount = settings.historyColumnsCount;
+          // Update localStorage
+          localStorage.setItem('historyColumnsCount', settings.historyColumnsCount.toString());
+        } else {
+          // Fall back to localStorage
+          const savedCount = localStorage.getItem('historyColumnsCount');
+          if (savedCount) {
+            this.columnsCount = parseInt(savedCount);
+            // Save to server for future use
+            if (settings) {
+              settings.historyColumnsCount = parseInt(savedCount);
+              await apiService.saveSettings(settings);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading columns count from server:', error);
+        // Fall back to localStorage
+        const savedCount = localStorage.getItem('historyColumnsCount');
+        if (savedCount) {
+          this.columnsCount = parseInt(savedCount);
+        }
+      }
     },
     
-    loadFilterPreferences() {
-      // Load existing content preference
-      const hideExisting = localStorage.getItem('historyHideExisting');
-      if (hideExisting !== null) {
-        this.hideExistingContent = hideExisting === 'true';
-      }
+    async saveColumnsCount() {
+      // Save to localStorage
+      localStorage.setItem('historyColumnsCount', this.columnsCount.toString());
       
-      // Load liked content preference
-      const hideLiked = localStorage.getItem('historyHideLiked');
-      if (hideLiked !== null) {
-        this.hideLikedContent = hideLiked === 'true';
-      }
-      
-      // Load disliked content preference
-      const hideDisliked = localStorage.getItem('historyHideDisliked');
-      if (hideDisliked !== null) {
-        this.hideDislikedContent = hideDisliked === 'true';
+      // Save to server
+      try {
+        const settings = await apiService.getSettings();
+        settings.historyColumnsCount = this.columnsCount;
+        await apiService.saveSettings(settings);
+      } catch (error) {
+        console.error('Failed to save historyColumnsCount setting to server:', error);
       }
     },
     
-    loadLikedDislikedContent() {
-      // Load liked/disliked TV shows
-      const likedTV = localStorage.getItem('likedTVRecommendations');
-      if (likedTV) {
-        this.likedTVShows = new Set(JSON.parse(likedTV).map(show => show.toLowerCase()));
+    async loadFilterPreferences() {
+      try {
+        // Try to load filter preferences from server first
+        const settings = await apiService.getSettings();
+        
+        // Load hide existing content preference
+        if (settings && settings.historyHideExisting !== undefined) {
+          console.log('Loaded historyHideExisting from server:', settings.historyHideExisting);
+          this.hideExistingContent = settings.historyHideExisting;
+          // Update localStorage
+          localStorage.setItem('historyHideExisting', settings.historyHideExisting.toString());
+        } else {
+          // Fall back to localStorage
+          const hideExisting = localStorage.getItem('historyHideExisting');
+          if (hideExisting !== null) {
+            this.hideExistingContent = hideExisting === 'true';
+            // Save to server for future use
+            if (settings) {
+              settings.historyHideExisting = hideExisting === 'true';
+              await apiService.saveSettings(settings);
+            }
+          }
+        }
+        
+        // Load hide liked content preference
+        if (settings && settings.historyHideLiked !== undefined) {
+          console.log('Loaded historyHideLiked from server:', settings.historyHideLiked);
+          this.hideLikedContent = settings.historyHideLiked;
+          // Update localStorage
+          localStorage.setItem('historyHideLiked', settings.historyHideLiked.toString());
+        } else {
+          // Fall back to localStorage
+          const hideLiked = localStorage.getItem('historyHideLiked');
+          if (hideLiked !== null) {
+            this.hideLikedContent = hideLiked === 'true';
+            // Save to server for future use
+            if (settings) {
+              settings.historyHideLiked = hideLiked === 'true';
+              await apiService.saveSettings(settings);
+            }
+          }
+        }
+        
+        // Load hide disliked content preference
+        if (settings && settings.historyHideDisliked !== undefined) {
+          console.log('Loaded historyHideDisliked from server:', settings.historyHideDisliked);
+          this.hideDislikedContent = settings.historyHideDisliked;
+          // Update localStorage
+          localStorage.setItem('historyHideDisliked', settings.historyHideDisliked.toString());
+        } else {
+          // Fall back to localStorage
+          const hideDisliked = localStorage.getItem('historyHideDisliked');
+          if (hideDisliked !== null) {
+            this.hideDislikedContent = hideDisliked === 'true';
+            // Save to server for future use
+            if (settings) {
+              settings.historyHideDisliked = hideDisliked === 'true';
+              await apiService.saveSettings(settings);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading filter preferences from server:', error);
+        
+        // Fall back to localStorage on error
+        // Load existing content preference
+        const hideExisting = localStorage.getItem('historyHideExisting');
+        if (hideExisting !== null) {
+          this.hideExistingContent = hideExisting === 'true';
+        }
+        
+        // Load liked content preference
+        const hideLiked = localStorage.getItem('historyHideLiked');
+        if (hideLiked !== null) {
+          this.hideLikedContent = hideLiked === 'true';
+        }
+        
+        // Load disliked content preference
+        const hideDisliked = localStorage.getItem('historyHideDisliked');
+        if (hideDisliked !== null) {
+          this.hideDislikedContent = hideDisliked === 'true';
+        }
       }
-      
-      const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
-      if (dislikedTV) {
-        this.dislikedTVShows = new Set(JSON.parse(dislikedTV).map(show => show.toLowerCase()));
-      }
-      
-      // Load liked/disliked movies
-      const likedMovies = localStorage.getItem('likedMovieRecommendations');
-      if (likedMovies) {
-        this.likedMovies = new Set(JSON.parse(likedMovies).map(movie => movie.toLowerCase()));
-      }
-      
-      const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
-      if (dislikedMovies) {
-        this.dislikedMovies = new Set(JSON.parse(dislikedMovies).map(movie => movie.toLowerCase()));
+    },
+    
+    async loadLikedDislikedContent() {
+      try {
+        // Try to load liked/disliked content from server first
+        
+        // Load liked TV shows
+        const likedTVFromServer = await apiService.getPreferences('tv', 'liked');
+        if (likedTVFromServer && likedTVFromServer.length > 0) {
+          console.log('Loaded liked TV shows from server:', likedTVFromServer.length);
+          this.likedTVShows = new Set(likedTVFromServer.map(show => show.toLowerCase()));
+          // Update localStorage
+          localStorage.setItem('likedTVRecommendations', JSON.stringify(likedTVFromServer));
+        } else {
+          // Fall back to localStorage
+          const likedTV = localStorage.getItem('likedTVRecommendations');
+          if (likedTV) {
+            const parsed = JSON.parse(likedTV);
+            this.likedTVShows = new Set(parsed.map(show => show.toLowerCase()));
+            console.log('Loaded liked TV shows from localStorage:', parsed.length);
+            // Save to server for future use
+            apiService.savePreferences('tv', 'liked', parsed);
+          }
+        }
+        
+        // Load disliked TV shows
+        const dislikedTVFromServer = await apiService.getPreferences('tv', 'disliked');
+        if (dislikedTVFromServer && dislikedTVFromServer.length > 0) {
+          console.log('Loaded disliked TV shows from server:', dislikedTVFromServer.length);
+          this.dislikedTVShows = new Set(dislikedTVFromServer.map(show => show.toLowerCase()));
+          // Update localStorage
+          localStorage.setItem('dislikedTVRecommendations', JSON.stringify(dislikedTVFromServer));
+        } else {
+          // Fall back to localStorage
+          const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
+          if (dislikedTV) {
+            const parsed = JSON.parse(dislikedTV);
+            this.dislikedTVShows = new Set(parsed.map(show => show.toLowerCase()));
+            console.log('Loaded disliked TV shows from localStorage:', parsed.length);
+            // Save to server for future use
+            apiService.savePreferences('tv', 'disliked', parsed);
+          }
+        }
+        
+        // Load liked movies
+        const likedMoviesFromServer = await apiService.getPreferences('movie', 'liked');
+        if (likedMoviesFromServer && likedMoviesFromServer.length > 0) {
+          console.log('Loaded liked movies from server:', likedMoviesFromServer.length);
+          this.likedMovies = new Set(likedMoviesFromServer.map(movie => movie.toLowerCase()));
+          // Update localStorage
+          localStorage.setItem('likedMovieRecommendations', JSON.stringify(likedMoviesFromServer));
+        } else {
+          // Fall back to localStorage
+          const likedMovies = localStorage.getItem('likedMovieRecommendations');
+          if (likedMovies) {
+            const parsed = JSON.parse(likedMovies);
+            this.likedMovies = new Set(parsed.map(movie => movie.toLowerCase()));
+            console.log('Loaded liked movies from localStorage:', parsed.length);
+            // Save to server for future use
+            apiService.savePreferences('movie', 'liked', parsed);
+          }
+        }
+        
+        // Load disliked movies
+        const dislikedMoviesFromServer = await apiService.getPreferences('movie', 'disliked');
+        if (dislikedMoviesFromServer && dislikedMoviesFromServer.length > 0) {
+          console.log('Loaded disliked movies from server:', dislikedMoviesFromServer.length);
+          this.dislikedMovies = new Set(dislikedMoviesFromServer.map(movie => movie.toLowerCase()));
+          // Update localStorage
+          localStorage.setItem('dislikedMovieRecommendations', JSON.stringify(dislikedMoviesFromServer));
+        } else {
+          // Fall back to localStorage
+          const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
+          if (dislikedMovies) {
+            const parsed = JSON.parse(dislikedMovies);
+            this.dislikedMovies = new Set(parsed.map(movie => movie.toLowerCase()));
+            console.log('Loaded disliked movies from localStorage:', parsed.length);
+            // Save to server for future use
+            apiService.savePreferences('movie', 'disliked', parsed);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading liked/disliked content from server:', error);
+        
+        // Fall back to localStorage on error
+        const likedTV = localStorage.getItem('likedTVRecommendations');
+        if (likedTV) {
+          this.likedTVShows = new Set(JSON.parse(likedTV).map(show => show.toLowerCase()));
+        }
+        
+        const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
+        if (dislikedTV) {
+          this.dislikedTVShows = new Set(JSON.parse(dislikedTV).map(show => show.toLowerCase()));
+        }
+        
+        const likedMovies = localStorage.getItem('likedMovieRecommendations');
+        if (likedMovies) {
+          this.likedMovies = new Set(JSON.parse(likedMovies).map(movie => movie.toLowerCase()));
+        }
+        
+        const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
+        if (dislikedMovies) {
+          this.dislikedMovies = new Set(JSON.parse(dislikedMovies).map(movie => movie.toLowerCase()));
+        }
       }
     },
     
@@ -613,20 +1067,38 @@ export default {
     },
     
     async loadLibraryContent() {
+      console.log('Loading library content in History component');
+      
       if (this.sonarrConfigured) {
+        console.log('Loading Sonarr library content');
         await this.loadSonarrLibrary();
+      } else {
+        console.log('Skipping Sonarr library load - not configured');
       }
       
       if (this.radarrConfigured) {
+        console.log('Loading Radarr library content');
         await this.loadRadarrLibrary();
+      } else {
+        console.log('Skipping Radarr library load - not configured');
       }
       
+      console.log('Library content loaded, fetching details');
       this.fetchAllDetails();
     },
     
     async loadSonarrLibrary() {
       try {
+        // Check if Sonarr is actually configured
+        if (!sonarrService.isConfigured()) {
+          console.warn('Sonarr service is not properly configured with API key and URL');
+          return;
+        }
+        
+        console.log('Requesting series list from Sonarr');
         const series = await sonarrService.getSeries();
+        console.log(`Received ${series.length} series from Sonarr`);
+        
         const titles = new Set(series.map(show => show.title.toLowerCase()));
         this.existingTVShows = titles;
       } catch (error) {
@@ -636,7 +1108,16 @@ export default {
     
     async loadRadarrLibrary() {
       try {
+        // Check if Radarr is actually configured
+        if (!radarrService.isConfigured()) {
+          console.warn('Radarr service is not properly configured with API key and URL');
+          return;
+        }
+        
+        console.log('Requesting movie list from Radarr');
         const movies = await radarrService.getMovies();
+        console.log(`Received ${movies.length} movies from Radarr`);
+        
         const titles = new Set(movies.map(movie => movie.title.toLowerCase()));
         this.existingMovies = titles;
       } catch (error) {
@@ -650,23 +1131,29 @@ export default {
       
       // Apply existing filter
       if (this.hideExistingContent && this.existingTVShows.size > 0) {
-        filteredTV = filteredTV.filter(
-          show => !this.existingTVShows.has(show.toLowerCase())
-        );
+        filteredTV = filteredTV.filter(show => {
+          if (show === null || show === undefined) return true; // Skip null/undefined
+          const showStr = typeof show === 'string' ? show : String(show);
+          return !this.existingTVShows.has(showStr.toLowerCase());
+        });
       }
       
       // Apply liked filter
       if (this.hideLikedContent && this.likedTVShows.size > 0) {
-        filteredTV = filteredTV.filter(
-          show => !this.likedTVShows.has(show.toLowerCase())
-        );
+        filteredTV = filteredTV.filter(show => {
+          if (show === null || show === undefined) return true; // Skip null/undefined
+          const showStr = typeof show === 'string' ? show : String(show);
+          return !this.likedTVShows.has(showStr.toLowerCase());
+        });
       }
       
       // Apply disliked filter
       if (this.hideDislikedContent && this.dislikedTVShows.size > 0) {
-        filteredTV = filteredTV.filter(
-          show => !this.dislikedTVShows.has(show.toLowerCase())
-        );
+        filteredTV = filteredTV.filter(show => {
+          if (show === null || show === undefined) return true; // Skip null/undefined
+          const showStr = typeof show === 'string' ? show : String(show);
+          return !this.dislikedTVShows.has(showStr.toLowerCase());
+        });
       }
       
       this.filteredTVRecommendations = filteredTV;
@@ -676,56 +1163,339 @@ export default {
       
       // Apply existing filter
       if (this.hideExistingContent && this.existingMovies.size > 0) {
-        filteredMovies = filteredMovies.filter(
-          movie => !this.existingMovies.has(movie.toLowerCase())
-        );
+        filteredMovies = filteredMovies.filter(movie => {
+          if (movie === null || movie === undefined) return true; // Skip null/undefined
+          const movieStr = typeof movie === 'string' ? movie : String(movie);
+          return !this.existingMovies.has(movieStr.toLowerCase());
+        });
       }
       
       // Apply liked filter
       if (this.hideLikedContent && this.likedMovies.size > 0) {
-        filteredMovies = filteredMovies.filter(
-          movie => !this.likedMovies.has(movie.toLowerCase())
-        );
+        filteredMovies = filteredMovies.filter(movie => {
+          if (movie === null || movie === undefined) return true; // Skip null/undefined
+          const movieStr = typeof movie === 'string' ? movie : String(movie);
+          return !this.likedMovies.has(movieStr.toLowerCase());
+        });
       }
       
       // Apply disliked filter
       if (this.hideDislikedContent && this.dislikedMovies.size > 0) {
-        filteredMovies = filteredMovies.filter(
-          movie => !this.dislikedMovies.has(movie.toLowerCase())
-        );
+        filteredMovies = filteredMovies.filter(movie => {
+          if (movie === null || movie === undefined) return true; // Skip null/undefined
+          const movieStr = typeof movie === 'string' ? movie : String(movie);
+          return !this.dislikedMovies.has(movieStr.toLowerCase());
+        });
       }
       
       this.filteredMovieRecommendations = filteredMovies;
     },
     
-    clearTVHistory() {
-      if (confirm('Are you sure you want to clear your TV show recommendation history?')) {
-        localStorage.removeItem('previousTVRecommendations');
-        this.tvRecommendations = [];
-      }
+    // Reset pagination and reinitialize displayed items
+    resetPagination() {
+      this.tvCurrentPage = 1;
+      this.movieCurrentPage = 1;
+      this.displayedTVShows = [];
+      this.displayedMovies = [];
+      
+      // Load initial items with a small delay to allow for DOM updates
+      setTimeout(() => {
+        this.loadInitialItems();
+      }, 50);
     },
     
-    clearMovieHistory() {
-      if (confirm('Are you sure you want to clear your movie recommendation history?')) {
-        localStorage.removeItem('previousMovieRecommendations');
-        this.movieRecommendations = [];
-      }
+    // Load initial batch of items for display
+    loadInitialItems() {
+      this.loadMoreTVShows();
+      this.loadMoreMovies();
     },
     
-    // Poster management
-    async fetchAllPosters() {
-      // TV show posters
-      for (const show of this.tvRecommendations) {
-        this.fetchPoster(show, 'tv');
+    // Initialize intersection observers for lazy loading
+    initIntersectionObserver() {
+      // Wait until component is fully mounted before creating observers
+      this.$nextTick(() => {
+        try {
+          // Options for Intersection Observer
+          const options = {
+            root: null, // Use viewport as root
+            rootMargin: '0px 0px 200px 0px', // Load more when within 200px of bottom
+            threshold: 0.1 // Trigger when 10% of element is visible
+          };
+          
+          // Create observer for TV load more trigger
+          this.tvObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting && this.hasMoreTVShows) {
+                this.loadMoreTVShows();
+              }
+            });
+          }, options);
+          
+          // Create observer for movie load more trigger
+          this.movieObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting && this.hasMoreMovies) {
+                this.loadMoreMovies();
+              }
+            });
+          }, options);
+          
+          console.log('Intersection Observers created');
+          
+          // Observe load more elements
+          setTimeout(() => {
+            if (this.$refs.tvLoadMoreTrigger && this.hasMoreTVShows && this.tvObserver) {
+              try {
+                this.tvObserver.observe(this.$refs.tvLoadMoreTrigger);
+                console.log('Initial TV load more trigger observed');
+              } catch (error) {
+                console.error('Error observing TV load more trigger:', error);
+              }
+            }
+            
+            if (this.$refs.movieLoadMoreTrigger && this.hasMoreMovies && this.movieObserver) {
+              try {
+                this.movieObserver.observe(this.$refs.movieLoadMoreTrigger);
+                console.log('Initial Movie load more trigger observed');
+              } catch (error) {
+                console.error('Error observing movie load more trigger:', error);
+              }
+            }
+          }, 500); // Give a longer delay for initial setup
+        } catch (error) {
+          console.error('Error initializing intersection observers:', error);
+        }
+      });
+    },
+    
+    // Load more TV shows 
+    loadMoreTVShows() {
+      if (this.loadingMoreTV) return;
+      
+      this.loadingMoreTV = true;
+      
+      const source = this.hideExistingContent ? this.filteredTVRecommendations : this.tvRecommendations;
+      
+      // Calculate start and end indices for current page
+      const startIndex = (this.tvCurrentPage - 1) * this.tvPageSize;
+      const endIndex = Math.min(startIndex + this.tvPageSize, source.length);
+      
+      // Skip if we're already at the end
+      if (startIndex >= source.length) {
+        this.loadingMoreTV = false;
+        return;
       }
       
-      // Movie posters
-      for (const movie of this.movieRecommendations) {
-        this.fetchPoster(movie, 'movie');
+      console.log(`Loading TV shows from ${startIndex} to ${endIndex} (page ${this.tvCurrentPage})`);
+      
+      // Get items for current page
+      const newItems = source.slice(startIndex, endIndex);
+      
+      // Add to displayed items
+      this.displayedTVShows = [...this.displayedTVShows, ...newItems];
+      
+      // Fetch details and posters for new items
+      this.loadDetailsForItems(newItems, 'tv');
+      
+      // Increment page number
+      this.tvCurrentPage++;
+      
+      // Reset loading flag
+      this.loadingMoreTV = false;
+      
+      // Observe the load more trigger after a short delay to allow for DOM updates
+      this.$nextTick(() => {
+        if (this.$refs.tvLoadMoreTrigger && this.hasMoreTVShows && this.tvObserver) {
+          try {
+            this.tvObserver.observe(this.$refs.tvLoadMoreTrigger);
+            console.log('TV load more trigger observed');
+          } catch (error) {
+            console.error('Error observing TV load more trigger:', error);
+          }
+        }
+      });
+    },
+    
+    // Load more movies
+    loadMoreMovies() {
+      if (this.loadingMoreMovies) return;
+      
+      this.loadingMoreMovies = true;
+      
+      const source = this.hideExistingContent ? this.filteredMovieRecommendations : this.movieRecommendations;
+      
+      // Calculate start and end indices for current page
+      const startIndex = (this.movieCurrentPage - 1) * this.moviePageSize;
+      const endIndex = Math.min(startIndex + this.moviePageSize, source.length);
+      
+      // Skip if we're already at the end
+      if (startIndex >= source.length) {
+        this.loadingMoreMovies = false;
+        return;
+      }
+      
+      console.log(`Loading movies from ${startIndex} to ${endIndex} (page ${this.movieCurrentPage})`);
+      
+      // Get items for current page
+      const newItems = source.slice(startIndex, endIndex);
+      
+      // Add to displayed items
+      this.displayedMovies = [...this.displayedMovies, ...newItems];
+      
+      // Fetch details and posters for new items
+      this.loadDetailsForItems(newItems, 'movie');
+      
+      // Increment page number
+      this.movieCurrentPage++;
+      
+      // Reset loading flag
+      this.loadingMoreMovies = false;
+      
+      // Observe the load more trigger after a short delay to allow for DOM updates
+      this.$nextTick(() => {
+        if (this.$refs.movieLoadMoreTrigger && this.hasMoreMovies && this.movieObserver) {
+          try {
+            this.movieObserver.observe(this.$refs.movieLoadMoreTrigger);
+            console.log('Movie load more trigger observed');
+          } catch (error) {
+            console.error('Error observing movie load more trigger:', error);
+          }
+        }
+      });
+    },
+    
+    // Load more items but defer poster and detail loading until they're visible
+    loadDetailsForItems(items, type) {
+      // We'll now just add the items to the display list
+      // but NOT load posters or details yet - we'll do that with a separate observer
+      console.log(`Deferred loading details for ${items.length} ${type} items`);
+      
+      // Setup lazy loading for these items in the next tick
+      this.$nextTick(() => {
+        this.setupItemObservers(type);
+      });
+    },
+    
+    // Set up observers for individual items
+    setupItemObservers(type) {
+      // Options for item observation (more aggressive threshold)
+      const options = {
+        root: null,
+        rootMargin: '50px', // Load when within 50px of viewport
+        threshold: 0.1
+      };
+      
+      // Get the relevant items
+      const itemRefs = type === 'tv' ? this.$refs.tvItem : this.$refs.movieItem;
+      
+      // Skip if no items
+      if (!itemRefs || itemRefs.length === 0) {
+        return;
+      }
+      
+      console.log(`Setting up observers for ${itemRefs.length} ${type} items`);
+      
+      // Create a new observer for this batch of items
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            // Get the item's data from the element's dataset
+            const itemEl = entry.target;
+            const itemTitle = itemEl.dataset.title;
+            
+            if (itemTitle) {
+              // Load data for this specific item
+              if (type === 'tv') {
+                this.fetchPoster(itemTitle, 'tv');
+                this.fetchTVShowDetails(itemTitle);
+              } else {
+                this.fetchPoster(itemTitle, 'movie');
+                this.fetchMovieDetails(itemTitle);
+              }
+              
+              // Stop observing this item once we've loaded its data
+              observer.unobserve(itemEl);
+            }
+          }
+        });
+      }, options);
+      
+      // Observe each item
+      itemRefs.forEach((itemEl) => {
+        // Only observe if we haven't loaded data for this item yet
+        const itemTitle = type === 'tv' 
+          ? this.displayedTVShows[parseInt(itemEl.dataset.index)] 
+          : this.displayedMovies[parseInt(itemEl.dataset.index)];
+          
+        if (itemTitle) {
+          // Store the title in the element's dataset for retrieval in the callback
+          itemEl.dataset.title = itemTitle;
+          
+          // Start observing
+          observer.observe(itemEl);
+        }
+      });
+    },
+    
+    // Remove unused methods as we're now using the load more trigger approach instead
+    
+    async clearTVHistory() {
+      if (confirm('Are you sure you want to clear your TV show recommendation history?')) {
+        // Clear from localStorage
+        localStorage.removeItem('previousTVRecommendations');
+        this.tvRecommendations = [];
+        
+        // Clear from server
+        try {
+          await apiService.saveRecommendations('tv', []);
+          console.log('Cleared TV recommendations from server');
+        } catch (error) {
+          console.error('Failed to clear TV recommendations from server:', error);
+        }
       }
     },
     
-    async fetchPoster(title, type) {
+    async clearMovieHistory() {
+      if (confirm('Are you sure you want to clear your movie recommendation history?')) {
+        // Clear from localStorage
+        localStorage.removeItem('previousMovieRecommendations');
+        this.movieRecommendations = [];
+        
+        // Clear from server
+        try {
+          await apiService.saveRecommendations('movie', []);
+          console.log('Cleared movie recommendations from server');
+        } catch (error) {
+          console.error('Failed to clear movie recommendations from server:', error);
+        }
+      }
+    },
+    
+    // Poster management is now handled by loadDetailsForItems method with lazy loading
+    // This method is kept for backward compatibility but is no longer used directly
+    async fetchAllPosters() {
+      console.log('fetchAllPosters is deprecated - posters are now loaded on demand');
+      return;
+    },
+    
+    async fetchPoster(title, type, signal) {
+      // Handle null/undefined
+      if (title === null || title === undefined) {
+        console.warn(`Attempted to fetch poster for null/undefined ${type} title`);
+        return;
+      }
+      
+      // Check if the request has been aborted
+      if (signal && signal.aborted) {
+        console.log(`Poster fetch for ${type} "${title}" aborted`);
+        return;
+      }
+      
+      // Convert to string if it's not already
+      if (typeof title !== 'string') {
+        title = String(title);
+      }
+      
       const key = type === 'tv' ? title : `movie_${title}`;
       
       // If already loading, skip
@@ -743,23 +1513,77 @@ export default {
       
       try {
         let posterUrl;
-        if (type === 'tv') {
-          posterUrl = await imageService.getPosterForShow(title);
-        } else {
-          posterUrl = await imageService.getPosterForMovie(title);
+        console.log(`Fetching ${type} poster for "${title}" via imageService`);
+        
+        // Check for abort before making request
+        if (signal && signal.aborted) {
+          console.log(`Poster fetch for ${type} "${title}" aborted before API call`);
+          return;
         }
         
-        // Store the poster URL (or null if not found)
-        this.posters.set(key, posterUrl);
+        // Wrap the imageService calls with our fetchWithAbort helper
+        if (type === 'tv') {
+          posterUrl = await this.fetchWithAbort(
+            () => imageService.getPosterForShow(title),
+            signal,
+            `TV Poster for "${title}"`
+          );
+          console.log(`TV Poster result for "${title}":`, posterUrl ? 'Found poster' : 'No poster found');
+        } else {
+          posterUrl = await this.fetchWithAbort(
+            () => imageService.getPosterForMovie(title),
+            signal,
+            `Movie Poster for "${title}"`
+          );
+          console.log(`Movie Poster result for "${title}":`, posterUrl ? 'Found poster' : 'No poster found');
+        }
+        
+        // Store the poster URL or fallback if not found
+        if (posterUrl) {
+          // Check if it's a proxied URL
+          if (posterUrl.includes('/api/image-proxy?url=')) {
+            // Try to extract the original URL as fallback in case proxy fails
+            try {
+              const originalUrl = decodeURIComponent(posterUrl.split('url=')[1]);
+              console.log(`Using direct URL for ${type} "${title}": ${originalUrl}`);
+              // Set the original URL instead of the proxy
+              this.posters.set(key, originalUrl);
+            } catch (err) {
+              console.log(`Could not extract original URL, using proxy: ${posterUrl}`);
+              this.posters.set(key, posterUrl);
+            }
+          } else {
+            this.posters.set(key, posterUrl);
+          }
+        } else {
+          // Set fallback image when no poster is found
+          const fallbackUrl = imageService.getFallbackImageUrl(title);
+          this.posters.set(key, fallbackUrl);
+          console.log(`Using fallback image for ${type} "${title}"`);
+        }
       } catch (error) {
         console.error(`Error fetching poster for ${type} "${title}":`, error);
-        this.posters.set(key, null);
+        // Use fallback image on error
+        const fallbackUrl = imageService.getFallbackImageUrl(title);
+        this.posters.set(key, fallbackUrl);
       } finally {
         this.loadingPosters.set(key, false);
       }
     },
     
     getPosterStyle(title, type) {
+      // Handle null/undefined
+      if (title === null || title === undefined) {
+        return {
+          backgroundColor: '#333'
+        };
+      }
+      
+      // Convert to string if it's not already
+      if (typeof title !== 'string') {
+        title = String(title);
+      }
+      
       const key = type === 'tv' ? title : `movie_${title}`;
       
       // If poster is loading, return empty
@@ -787,16 +1611,47 @@ export default {
     },
     
     isLoadingPoster(title, type) {
+      // Handle null/undefined
+      if (title === null || title === undefined) {
+        return false;
+      }
+      
+      // Convert to string if it's not already
+      if (typeof title !== 'string') {
+        title = String(title);
+      }
+      
       const key = type === 'tv' ? title : `movie_${title}`;
       return !!this.loadingPosters.get(key);
     },
     
     posterExists(title, type) {
+      // Handle null/undefined
+      if (title === null || title === undefined) {
+        return false;
+      }
+      
+      // Convert to string if it's not already
+      if (typeof title !== 'string') {
+        title = String(title);
+      }
+      
       const key = type === 'tv' ? title : `movie_${title}`;
       return !!this.posters.get(key);
     },
     
     async retryLoadPoster(title, type) {
+      // Handle null/undefined
+      if (title === null || title === undefined) {
+        console.warn(`Attempted to retry load poster for null/undefined ${type} title`);
+        return;
+      }
+      
+      // Convert to string if it's not already
+      if (typeof title !== 'string') {
+        title = String(title);
+      }
+      
       const key = type === 'tv' ? title : `movie_${title}`;
       
       // Remove existing poster and mark as loading
@@ -806,59 +1661,75 @@ export default {
       // Fetch with skipCache=true
       try {
         let posterUrl;
+        console.log(`Retrying ${type} poster for "${title}" via imageService with skipCache=true`);
         if (type === 'tv') {
           posterUrl = await imageService.getPosterForShow(title, true);
         } else {
           posterUrl = await imageService.getPosterForMovie(title, true);
         }
         
-        // Store the poster URL (or null if not found)
-        this.posters.set(key, posterUrl);
+        // Store the poster URL or fallback if not found
+        if (posterUrl) {
+          // Check if it's a proxied URL
+          if (posterUrl.includes('/api/image-proxy?url=')) {
+            // Try to extract the original URL as fallback in case proxy fails
+            try {
+              const originalUrl = decodeURIComponent(posterUrl.split('url=')[1]);
+              console.log(`Using direct URL after retry for ${type} "${title}": ${originalUrl}`);
+              // Set the original URL instead of the proxy
+              this.posters.set(key, originalUrl);
+            } catch (err) {
+              console.log(`Could not extract original URL after retry, using proxy: ${posterUrl}`);
+              this.posters.set(key, posterUrl);
+            }
+          } else {
+            this.posters.set(key, posterUrl);
+          }
+        } else {
+          // Set fallback image when no poster is found
+          const fallbackUrl = imageService.getFallbackImageUrl(title);
+          this.posters.set(key, fallbackUrl);
+          console.log(`Using fallback image for ${type} "${title}" after retry`);
+        }
       } catch (error) {
         console.error(`Error retrying poster for ${type} "${title}":`, error);
-        this.posters.set(key, null);
+        // Use fallback image on error
+        const fallbackUrl = imageService.getFallbackImageUrl(title);
+        this.posters.set(key, fallbackUrl);
       } finally {
         this.loadingPosters.set(key, false);
       }
     },
     
-    // Fetch all details automatically
+    // These methods are now replaced by loadDetailsForItems with lazy loading
+    // Kept for backward compatibility
     async fetchAllDetails() {
-      this.fetchAllTVDetails();
-      this.fetchAllMovieDetails();
+      console.log('fetchAllDetails is deprecated - details are now loaded on demand');
+      return;
     },
     
     async fetchAllTVDetails() {
-      if (!this.sonarrConfigured) return;
-      
-      const titlesToFetch = this.hideExistingContent ? this.filteredTVRecommendations : this.tvRecommendations;
-      
-      for (const title of titlesToFetch) {
-        // Only fetch if not already loaded
-        if (!this.tvShowDetails[title] && !this.loadingDetails[title]) {
-          // Fetch details with a slight delay to avoid overwhelming the API
-          await this.fetchTVShowDetails(title);
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      }
+      console.log('fetchAllTVDetails is deprecated - details are now loaded on demand');
+      return;
     },
     
     async fetchAllMovieDetails() {
-      if (!this.radarrConfigured) return;
-      
-      const titlesToFetch = this.hideExistingContent ? this.filteredMovieRecommendations : this.movieRecommendations;
-      
-      for (const title of titlesToFetch) {
-        // Only fetch if not already loaded
-        if (!this.movieDetails[title] && !this.loadingDetails[title]) {
-          // Fetch details with a slight delay to avoid overwhelming the API
-          await this.fetchMovieDetails(title);
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      }
+      console.log('fetchAllMovieDetails is deprecated - details are now loaded on demand');
+      return;
     },
     
     async fetchTVShowDetails(title) {
+      // Handle null/undefined
+      if (title === null || title === undefined) {
+        console.warn('Attempted to fetch TV details for null/undefined title');
+        return;
+      }
+      
+      // Convert to string if it's not already
+      if (typeof title !== 'string') {
+        title = String(title);
+      }
+      
       // If already loading, skip
       if (this.loadingDetails[title]) return;
       
@@ -887,6 +1758,17 @@ export default {
     },
     
     async fetchMovieDetails(title) {
+      // Handle null/undefined
+      if (title === null || title === undefined) {
+        console.warn('Attempted to fetch movie details for null/undefined title');
+        return;
+      }
+      
+      // Convert to string if it's not already
+      if (typeof title !== 'string') {
+        title = String(title);
+      }
+      
       // If already loading, skip
       if (this.loadingDetails[title]) return;
       
@@ -1324,13 +2206,19 @@ h2 {
   gap: 15px;
 }
 
-.spinner {
+.spinner, .loading-more-spinner {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(76, 175, 80, 0.2);
   border-left-color: var(--button-primary-bg);
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+.loading-more-spinner {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
 }
 
 @keyframes spin {
@@ -1342,6 +2230,19 @@ h2 {
   padding: 40px 0;
   color: var(--text-color);
   opacity: 0.7;
+}
+
+.loading-more-container {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+  gap: 10px;
+  color: var(--text-color);
+  opacity: 0.7;
+  font-size: 14px;
 }
 
 .history-section {

@@ -1,33 +1,32 @@
 services:
   recommendarr:
-    #IF NOT using a reverse proxy uncomment the image tag to use prebuilt
-    #image: tannermiddleton/recommendarr:latest
-    # Uncomment and build locally if you need a Reverse Proxy
-    build:
-      context: .
-      args:
-        # Build time arguments - set these for the Vue.js build process
-        #Reverse proxy example
-        #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
-        #Local example
-        - VUE_APP_API_URL=http://localhost:3050
-        - BASE_URL=/
+    # IF NOT using a reverse proxy uncomment the image tag to use prebuilt
+    image: tannermiddleton/recommendarr:latest
+    # For reverse proxy setup uncomment and setup the URLs:
+    # build:
+    #   context: .
+    #   args:
+    #    # Build time arguments - set these for the Vue.js build process
+    #    #Reverse proxy example
+    #    #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
+    #    #No Reverse proxy
+    #     - VUE_APP_API_URL=${BUILD_API_URL:-http://localhost:3050}
+    #     - BASE_URL=${BASE_URL:-/}
     container_name: recommendarr
     ports:
-      - "3030:3030"  # Frontend port
-      - "3050:3050"  # Backend API port
+      - "3030:3030"  # Frontend port - must be 3030:3030
+      - "3050:3050"  # Backend API port - must be 3050:3050
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
-      # Runtime environment variables - customize these as needed
-      # For local use, the defaults should work without changes
-      - PUBLIC_URL=http://localhost:3030
-      - VUE_APP_API_URL=http://localhost:3050
+      # Runtime environment variables
       # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
       #- PUBLIC_URL=https://myapp.recommendarr.com
       #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3030}
+      - VUE_APP_API_URL=${RUNTIME_API_URL:-http://localhost:3050}
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped

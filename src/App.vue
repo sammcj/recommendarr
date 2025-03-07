@@ -153,12 +153,18 @@
             @openTautulliUserSelect="openTautulliUserSelect"
           />
           
-          <MovieRecommendations 
+          <TVRecommendations 
             v-if="activeTab === 'movie-recommendations'" 
+            :initialMovieMode="true"
+            :series="series"
             :movies="movies"
+            :sonarrConfigured="sonarrConnected"
             :radarrConfigured="radarrConnected"
+            :recentlyWatchedShows="recentlyWatchedShows"
             :recentlyWatchedMovies="recentlyWatchedMovies"
+            :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
             :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
+            :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
             :tautulliRecentlyWatchedMovies="tautulliRecentlyWatchedMovies"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
@@ -207,8 +213,7 @@ import PlexConnection from './components/PlexConnection.vue'
 import JellyfinConnection from './components/JellyfinConnection.vue'
 import TautulliConnection from './components/TautulliConnection.vue'
 import AppNavigation from './components/Navigation.vue'
-import TVRecommendations from './components/TVRecommendations.vue'
-import MovieRecommendations from './components/MovieRecommendations.vue'
+import TVRecommendations from './components/RequestRecommendations.vue'
 import History from './components/History.vue'
 import AISettings from './components/AISettings.vue'
 import sonarrService from './services/SonarrService'
@@ -217,6 +222,7 @@ import plexService from './services/PlexService'
 import jellyfinService from './services/JellyfinService'
 import tautulliService from './services/TautulliService'
 import credentialsService from './services/CredentialsService'
+// apiService no longer needed since we use credentialsService.resetUserData()
 
 export default {
   name: 'App',
@@ -228,7 +234,6 @@ export default {
     TautulliConnection,
     AppNavigation,
     TVRecommendations,
-    MovieRecommendations,
     History,
     AISettings
   },
@@ -274,82 +279,64 @@ export default {
   },
   async created() {
     // Check if services have credentials stored server-side
+    // This will also set up connections and fetch data if credentials are found
     await this.checkStoredCredentials();
     
-    // Check if Sonarr is already configured on startup
-    if (sonarrService.isConfigured()) {
-      this.checkSonarrConnection();
-    }
-    
-    // Check if Radarr is already configured on startup
-    if (radarrService.isConfigured()) {
-      this.checkRadarrConnection();
-    }
-    
-    // Check if Plex is already configured on startup
-    if (plexService.isConfigured()) {
-      this.checkPlexConnection();
-    }
-    
-    // Check if Jellyfin is already configured on startup
-    if (jellyfinService.isConfigured()) {
-      this.checkJellyfinConnection();
-    }
-    
-    // Load Plex recent limit from localStorage if available
-    const savedPlexLimit = localStorage.getItem('plexRecentLimit');
-    if (savedPlexLimit) {
-      this.plexRecentLimit = parseInt(savedPlexLimit, 10);
-    }
-    
-    // Load Jellyfin recent limit from localStorage if available
-    const savedJellyfinLimit = localStorage.getItem('jellyfinRecentLimit');
-    if (savedJellyfinLimit) {
-      this.jellyfinRecentLimit = parseInt(savedJellyfinLimit, 10);
-    }
-    
-    // Load Plex history mode from localStorage if available
-    const savedPlexHistoryMode = localStorage.getItem('plexHistoryMode');
-    if (savedPlexHistoryMode) {
-      this.plexHistoryMode = savedPlexHistoryMode;
-    }
-    
-    // Load Jellyfin history mode from localStorage if available
-    const savedJellyfinHistoryMode = localStorage.getItem('jellyfinHistoryMode');
-    if (savedJellyfinHistoryMode) {
-      this.jellyfinHistoryMode = savedJellyfinHistoryMode;
-    }
-    
-    // Load Plex only mode from localStorage if available
-    const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
-    if (savedPlexOnlyMode) {
-      this.plexOnlyMode = savedPlexOnlyMode === 'true';
-    }
-    
-    // Load Jellyfin only mode from localStorage if available
-    const savedJellyfinOnlyMode = localStorage.getItem('jellyfinOnlyMode');
-    if (savedJellyfinOnlyMode) {
-      this.jellyfinOnlyMode = savedJellyfinOnlyMode === 'true';
-    }
-    
-    // Load Tautulli history mode from localStorage if available
-    const savedTautulliHistoryMode = localStorage.getItem('tautulliHistoryMode');
-    if (savedTautulliHistoryMode) {
-      this.tautulliHistoryMode = savedTautulliHistoryMode;
-    }
-    
-    // Load Tautulli only mode from localStorage if available
-    const savedTautulliOnlyMode = localStorage.getItem('tautulliOnlyMode');
-    if (savedTautulliOnlyMode) {
-      this.tautulliOnlyMode = savedTautulliOnlyMode === 'true';
-    }
-    
-    // Check if Tautulli is already configured on startup
-    if (tautulliService.isConfigured()) {
-      this.checkTautulliConnection();
-    }
+    // Load settings from localStorage
+    this.loadLocalSettings();
   },
+
   methods: {
+    // Load settings from localStorage
+    loadLocalSettings() {
+      // Load Plex recent limit from localStorage if available
+      const savedPlexLimit = localStorage.getItem('plexRecentLimit');
+      if (savedPlexLimit) {
+        this.plexRecentLimit = parseInt(savedPlexLimit, 10);
+      }
+      
+      // Load Jellyfin recent limit from localStorage if available
+      const savedJellyfinLimit = localStorage.getItem('jellyfinRecentLimit');
+      if (savedJellyfinLimit) {
+        this.jellyfinRecentLimit = parseInt(savedJellyfinLimit, 10);
+      }
+      
+      // Load Plex history mode from localStorage if available
+      const savedPlexHistoryMode = localStorage.getItem('plexHistoryMode');
+      if (savedPlexHistoryMode) {
+        this.plexHistoryMode = savedPlexHistoryMode;
+      }
+      
+      // Load Jellyfin history mode from localStorage if available
+      const savedJellyfinHistoryMode = localStorage.getItem('jellyfinHistoryMode');
+      if (savedJellyfinHistoryMode) {
+        this.jellyfinHistoryMode = savedJellyfinHistoryMode;
+      }
+      
+      // Load Plex only mode from localStorage if available
+      const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
+      if (savedPlexOnlyMode) {
+        this.plexOnlyMode = savedPlexOnlyMode === 'true';
+      }
+      
+      // Load Jellyfin only mode from localStorage if available
+      const savedJellyfinOnlyMode = localStorage.getItem('jellyfinOnlyMode');
+      if (savedJellyfinOnlyMode) {
+        this.jellyfinOnlyMode = savedJellyfinOnlyMode === 'true';
+      }
+      
+      // Load Tautulli history mode from localStorage if available
+      const savedTautulliHistoryMode = localStorage.getItem('tautulliHistoryMode');
+      if (savedTautulliHistoryMode) {
+        this.tautulliHistoryMode = savedTautulliHistoryMode;
+      }
+      
+      // Load Tautulli only mode from localStorage if available
+      const savedTautulliOnlyMode = localStorage.getItem('tautulliOnlyMode');
+      if (savedTautulliOnlyMode) {
+        this.tautulliOnlyMode = savedTautulliOnlyMode === 'true';
+      }
+    },
     
     // Check if we have credentials stored server-side
     async checkStoredCredentials() {
@@ -401,12 +388,29 @@ export default {
             
           case 'radarr':
             if (credentials.baseUrl && credentials.apiKey) {
+              console.log('Configuring Radarr from stored credentials');
               await radarrService.configure(credentials.baseUrl, credentials.apiKey);
+              
+              // Test the connection
+              console.log('Testing Radarr connection from stored credentials');
               const success = await radarrService.testConnection();
+              
               if (success) {
+                console.log('Radarr connection successful from stored credentials');
                 this.radarrConnected = true;
-                this.fetchMoviesData();
+                
+                // Fetch movies data if successful
+                if (this.movies.length === 0) {
+                  console.log('Fetching movies data from stored credentials');
+                  await this.fetchMoviesData();
+                }
+              } else {
+                this.radarrConnected = false;
+                console.log('Radarr connection test failed during configuration');
               }
+            } else {
+              this.radarrConnected = false;
+              console.log('Incomplete Radarr credentials (missing baseUrl or apiKey)');
             }
             break;
             
@@ -629,6 +633,11 @@ export default {
     
     async checkRadarrConnection() {
       try {
+        // Ensure credentials are loaded
+        if (!radarrService.isConfigured()) {
+          await radarrService.loadCredentials();
+        }
+        
         const success = await radarrService.testConnection();
         if (success) {
           this.radarrConnected = true;
@@ -636,9 +645,12 @@ export default {
           if (this.activeTab === 'tv-recommendations' && !this.sonarrConnected) {
             this.activeTab = 'movie-recommendations';
           }
+        } else {
+          this.radarrConnected = false;
         }
       } catch (error) {
         console.error('Failed to connect with stored Radarr credentials:', error);
+        this.radarrConnected = false;
       }
     },
     
@@ -759,9 +771,24 @@ export default {
         this.fetchSeriesData();
       }
       
-      // If we're switching to movie recommendations, ensure we have movies data
-      if (tab === 'movie-recommendations' && this.movies.length === 0 && this.radarrConnected) {
-        this.fetchMoviesData();
+      // If we're switching to movie recommendations, check if we need to fetch movies data
+      if (tab === 'movie-recommendations') {
+        // Check if Radarr is connected
+        console.log('Radarr connected:', this.radarrConnected);
+        console.log('Current movies array length:', this.movies.length);
+        
+        // Check if Radarr service is actually configured
+        if (radarrService.isConfigured()) {
+          this.radarrConnected = true;
+          
+          // Only fetch movies if we don't have any yet
+          if (this.movies.length === 0) {
+            console.log('Movie array is empty, fetching movies data');
+            this.fetchMoviesData();
+          } else {
+            console.log('Movie array already populated, skipping fetch');
+          }
+        }
       }
     },
     async fetchSeriesData() {
@@ -772,11 +799,46 @@ export default {
       }
     },
     
+    // Flag to track if fetchMoviesData is already in progress
+    _fetchingMovies: false,
+    
     async fetchMoviesData() {
+      // Prevent simultaneous calls to fetchMoviesData
+      if (this._fetchingMovies) {
+        console.log('fetchMoviesData already in progress, skipping duplicate call');
+        return;
+      }
+      
       try {
-        this.movies = await radarrService.getMovies();
+        this._fetchingMovies = true;
+        console.log('Fetching movies data...');
+        console.log('Radarr configured:', radarrService.isConfigured());
+        console.log('Radarr baseUrl:', radarrService.baseUrl);
+        console.log('Radarr apiKey:', radarrService.apiKey ? '✓ Set' : '✗ Not set');
+        
+        // Try to load credentials explicitly if not configured
+        if (!radarrService.isConfigured()) {
+          await radarrService.loadCredentials();
+        }
+        
+        // If still not configured, log a message
+        if (!radarrService.isConfigured()) {
+          console.log('Radarr service is still not configured after loading credentials');
+          this.radarrConnected = false;
+          return;
+        }
+        
+        // Fetch movies
+        const movies = await radarrService.getMovies();
+        console.log('Fetched movies:', movies);
+        
+        this.movies = movies;
+        this.radarrConnected = true;
       } catch (error) {
         console.error('Failed to fetch movies data for recommendations:', error);
+        this.radarrConnected = false;
+      } finally {
+        this._fetchingMovies = false;
       }
     },
     
@@ -885,20 +947,38 @@ export default {
     },
     
     async handleRadarrSettingsUpdated() {
+      console.log('Radarr settings updated event received');
+      
       // Check if Radarr service is configured in memory
-      if (radarrService.isConfigured()) {
+      const isConfigured = radarrService.isConfigured();
+      console.log('Is Radarr configured in memory:', isConfigured);
+      
+      if (isConfigured) {
         // Check the Radarr connection with the new settings
-        this.checkRadarrConnection();
-        console.log('Radarr settings updated, testing connection');
-        return;
+        console.log('Testing Radarr connection with existing credentials');
+        await this.checkRadarrConnection();
+      } else {
+        // Try to load credentials from server storage
+        console.log('Radarr not configured in memory, checking server storage');
+        try {
+          await radarrService.loadCredentials();
+          if (radarrService.isConfigured()) {
+            console.log('Loaded Radarr credentials from server, testing connection');
+            await this.checkRadarrConnection();
+          } else {
+            console.log('No Radarr credentials found in server storage');
+            this.radarrConnected = false;
+          }
+        } catch (error) {
+          console.error('Error loading Radarr credentials:', error);
+          this.radarrConnected = false;
+        }
       }
       
-      // If not in memory, check server storage
-      try {
-        await this.configureServiceFromCredentials('radarr');
-      } catch (error) {
-        console.error('Error loading Radarr credentials:', error);
-        this.radarrConnected = false;
+      // If we have movies and radarrService is configured, force the state to be true
+      if (this.movies.length > 0 && radarrService.isConfigured()) {
+        console.log('Radarr is configured and movies are loaded, setting radarrConnected to true');
+        this.radarrConnected = true;
       }
     },
     
@@ -956,6 +1036,7 @@ export default {
       }
     },
     async handleLogout() {
+      console.log("User clicked Clear Data...");
       // Clear all stored credentials from localStorage (for backwards compatibility)
       localStorage.removeItem('sonarrBaseUrl');
       localStorage.removeItem('sonarrApiKey');
@@ -980,18 +1061,37 @@ export default {
       localStorage.removeItem('jellyfinOnlyMode');
       localStorage.removeItem('tautulliOnlyMode');
       
-      // Delete all credentials from server
+      // Also clear recommendation history and preferences
+      // Remove from localStorage as well to ensure clear doesn't persist after reload
+      localStorage.removeItem('previousTVRecommendations');
+      localStorage.removeItem('previousMovieRecommendations');
+      localStorage.removeItem('currentTVRecommendations');
+      localStorage.removeItem('currentMovieRecommendations');
+      localStorage.removeItem('likedTVRecommendations');
+      localStorage.removeItem('dislikedTVRecommendations');
+      localStorage.removeItem('likedMovieRecommendations');
+      localStorage.removeItem('dislikedMovieRecommendations');
+      
+      // Additional localStorage history that might exist
+      localStorage.removeItem('historyColumnsCount');
+      
+      // Delete all data from the server - both user_data.json and credentials.json
       try {
-        await Promise.all([
-          credentialsService.deleteCredentials('sonarr'),
-          credentialsService.deleteCredentials('radarr'),
-          credentialsService.deleteCredentials('plex'),
-          credentialsService.deleteCredentials('jellyfin'),
-          credentialsService.deleteCredentials('tautulli'),
-          credentialsService.deleteCredentials('openai')
-        ]);
+        console.log("⚠️ Starting complete data reset process...");
+        
+        // Call the /api/reset endpoint which now resets BOTH user_data.json AND credentials.json
+        const resetSuccess = await credentialsService.resetUserData();
+        
+        if (resetSuccess) {
+          console.log('✅ Server data reset successful! Both user_data.json and credentials.json have been cleared.');
+        } else {
+          console.error('❌ Server data reset failed!');
+          alert('Error clearing data. Some data may not have been completely cleared.');
+        }
+        
       } catch (error) {
-        console.error('Error deleting server-side credentials:', error);
+        console.error('Error resetting server-side data:', error);
+        alert('Error clearing data. Please try again or restart the application.');
       }
       
       // Reset service configurations

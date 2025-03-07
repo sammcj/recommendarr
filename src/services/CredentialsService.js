@@ -10,6 +10,45 @@ class CredentialsService {
     // Used for migration from localStorage
     this.migrated = {};
   }
+  
+  /**
+   * Reset all user data on the server
+   * 
+   * @returns {Promise<boolean>} - Success status
+   */
+  async resetUserData() {
+    try {
+      // The correct endpoint is /api/reset - we were using the wrong path
+      console.log(`Calling reset endpoint at: ${this.baseUrl}/reset`);
+      
+      // Use manual URL to ensure correct path to reset user_data.json
+      // baseUrl is already something like http://localhost:3050/api/
+      const resetUrl = this.baseUrl.endsWith('/') 
+        ? `${this.baseUrl}reset` 
+        : `${this.baseUrl}/reset`;
+      
+      console.log(`Final reset URL: ${resetUrl}`);
+      const response = await axios.post(resetUrl);
+      console.log('Reset response:', response.data);
+      
+      // Verify the reset was successful
+      if (response.data && response.data.success) {
+        console.log('✓ Server confirmed user_data.json was reset successfully');
+        return true;
+      } else {
+        console.error('Server returned success=false for reset operation');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error resetting user data:', error);
+      console.error('Error details:', error.message);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Response status:', error.response.status);
+      }
+      return false;
+    }
+  }
 
   /**
    * Store credentials for a specific service
@@ -80,6 +119,17 @@ class CredentialsService {
       return false;
     }
   }
+
+  /**
+   * Deprecated: These methods have been moved to ApiService
+   * 
+   * Recommendations and preferences are now stored in the user_data file
+   * via the ApiService methods:
+   * - apiService.saveRecommendations(type, recommendations)
+   * - apiService.getRecommendations(type)
+   * - apiService.savePreferences(type, preference, items)
+   * - apiService.getPreferences(type, preference)
+   */
 
   /**
    * Migrate credentials from localStorage to server-side storage

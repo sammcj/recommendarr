@@ -186,49 +186,6 @@ docker run -d \
   recommendarr:local
 ```
 
-### Option 3: Using Pre-built Docker Images with Docker Compose
-
-If you prefer not to build the image locally and want to use the pre-built image from Docker Hub:
-
-```bash
-# Create a new directory
-mkdir recommendarr && cd recommendarr
-
-# Create a docker-compose.yml file with the following content:
-cat > docker-compose.yml << 'EOF'
-services:
-  recommendarr:
-    image: tannermiddleton/recommendarr:latest
-    build:
-      context: .
-      args:
-        # Build time arguments - set these for the Vue.js build process
-        - VUE_APP_API_URL=${VUE_APP_API_URL:-}
-        - BASE_URL=${BASE_URL:-}
-    container_name: recommendarr
-    ports:
-      # IMPORTANT: These port mappings must be exactly as shown
-      # The app requires 3030:3030 and 3050:3050 - do not change
-      - "3030:3030"
-      - "3050:3050"
-    environment:
-      - NODE_ENV=production
-      - DOCKER_ENV=true
-      # Runtime environment variables
-      - PUBLIC_URL=${PUBLIC_URL:-}
-    volumes:
-      - ${PWD}/server/data:/app/server/data
-    restart: unless-stopped
-EOF
-
-# Create the data directory
-mkdir -p server/data
-
-# Start with docker-compose
-docker-compose up -d
-```
-
-This will pull the pre-built image from Docker Hub and start the unified service that includes both the frontend (port 3030) and API server (port 3050).
 
 **Key benefits of using the Docker Compose method:**
 - The data directory is mounted as a volume, ensuring your credentials persist across container restarts
@@ -243,32 +200,61 @@ This will pull the pre-built image from Docker Hub and start the unified service
 
 If you want to run Recommendarr behind a reverse proxy (like Nginx, Traefik, or Caddy), you **must** build the image yourself with specific build arguments. The pre-built image will not work correctly with a reverse proxy.
 
-### Method 1: Using Docker Compose (Recommended)
+Your reverse proxy should be configured to (example):
+
+1. Forward requests from `https://recommendarr.yourdomain.com` to `http://your-docker-host:3030`
+2. Forward requests from `https://api.yourdomain.com` to `http://your-docker-host:3050`
+
+For now the proper reverse proxy setup is to either:
+
+- run a build command and pass in the args  (replace with your URLs)
+  - `docker build --build-arg VUE_APP_API_URL=https://api.myapp.recommendarr.com --build-arg PUBLIC_URL=https://myapp.recommendarr.com -t recommendarr:latest .`
+
+  
+  - `docker run -p 3030:3030 -p 3050:3050 -e VUE_APP_API_URL="https://api.myapp.recommendarr.com" -e PUBLIC_URL="https://myapp.recommendarr.com" -v recommendarr-data:/app/server/data . --build`
+
+- use the updated docker-compose and run `docker-compose up -d --build`, obviously replace the URLs with the ones correct for your setup.
 
 ```bash
-# Clone the repository
-git clone https://github.com/fingerthief/recommendarr.git
-cd recommendarr
+services:
+  recommendarr:
+    #IF NOT using a reverse proxy uncomment the image tag to use prebuilt
+    #image: tannermiddleton/recommendarr:latest
+    # Uncomment and build locally if you need a Reverse Proxy
+    build:
+      context: .
+      args:
+        # Build time arguments - set these for the Vue.js build process
+        #Reverse proxy example
+        - VUE_APP_API_URL=https://api.myapp.recommendarr.com
+        #Local example
+        #- VUE_APP_API_URL=http://localhost:3050
+        - BASE_URL=/
+    container_name: recommendarr
+    ports:
+      - "3030:3030"  # Frontend port
+      - "3050:3050"  # Backend API port
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=production
+      - DOCKER_ENV=true
+      # Runtime environment variables - customize these as needed
+      # For local use, the defaults should work without changes
+      #- PUBLIC_URL=http://localhost:3030
+      #- VUE_APP_API_URL=http://localhost:3050
+      # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
+      - PUBLIC_URL=https://myapp.recommendarr.com
+      - VUE_APP_API_URL=https://api.myapp.recommendarr.com
+    volumes:
+      - recommendarr-data:/app/server/data
+    restart: unless-stopped
 
-# Create an .env file with your reverse proxy configuration
-cat > .env << 'EOF'
-# This tells Docker to build from source rather than use the prebuilt image
-USE_PREBUILT_IMAGE=
-
-# Build-time URLs (used during the Vue.js build process)
-BUILD_API_URL=https://api.yourdomain.com
-BASE_URL=/
-
-# Runtime URLs (used by the app once it's running)
-PUBLIC_URL=https://recommendarr.yourdomain.com
-RUNTIME_API_URL=https://api.yourdomain.com
-EOF
-
-# Build and start with docker-compose
-docker-compose up -d --build
+volumes:
+  recommendarr-data:
 ```
 
-The docker-compose.yml file has been updated to use environment variables, making it easy to configure without editing the file directly.
+**IMPORTANT:** The internal port mappings in the Docker container must remain 3030:3030 and 3050:3050.
 
 ### Method 2: Manual Docker Build and Run
 
@@ -291,47 +277,6 @@ docker run -d \
   -v $(pwd)/server/data:/app/server/data \
   recommendarr:custom
 ```
-
-### Reverse Proxy Configuration
-
-Your reverse proxy should be configured to:
-
-1. Forward requests to `https://recommendarr.yourdomain.com` to `http://your-docker-host:3030`
-2. Forward requests to `https://api.yourdomain.com` to `http://your-docker-host:3050`
-
-**Example Nginx Configuration:**
-
-```nginx
-# Frontend
-server {
-    listen 443 ssl;
-    server_name recommendarr.yourdomain.com;
-    
-    # SSL settings here...
-    
-    location / {
-        proxy_pass http://your-docker-host:3030;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-
-# API
-server {
-    listen 443 ssl;
-    server_name api.yourdomain.com;
-    
-    # SSL settings here...
-    
-    location / {
-        proxy_pass http://your-docker-host:3050;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-**IMPORTANT:** The internal port mappings in the Docker container must remain 3030:3030 and 3050:3050.
 
 ## 🖥️ Compatible AI Services
 

@@ -1,21 +1,17 @@
 services:
   recommendarr:
-    # For standard local setup (no reverse proxy):
-    # Use image: tannermiddleton/recommendarr:latest
-    
-    # For reverse proxy setup:
-    # Comment out image and use build with proper environment variables
-    # image: ${USE_PREBUILT_IMAGE:-tannermiddleton/recommendarr:latest}
-    
-    # This build section is used only when image is commented out
-    # It's used automatically when USE_PREBUILT_IMAGE is empty
-    build:
-      context: .
-      args:
-        # Build time arguments - set these for the Vue.js build process
-        - VUE_APP_API_URL=${BUILD_API_URL:-http://localhost:3050}
-        - BASE_URL=${BASE_URL:-/}
-    
+    # IF NOT using a reverse proxy uncomment the image tag to use prebuilt
+    image: tannermiddleton/recommendarr:latest
+    # For reverse proxy setup uncomment and setup the URLs:
+    # build:
+    #   context: .
+    #   args:
+    #    # Build time arguments - set these for the Vue.js build process
+    #    #Reverse proxy example
+    #    #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
+    #    #No Reverse proxy
+    #     - VUE_APP_API_URL=${BUILD_API_URL:-http://localhost:3050}
+    #     - BASE_URL=${BASE_URL:-/}
     container_name: recommendarr
     ports:
       - "3030:3030"  # Frontend port - must be 3030:3030
@@ -26,6 +22,9 @@ services:
       - NODE_ENV=production
       - DOCKER_ENV=true
       # Runtime environment variables
+      # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
+      #- PUBLIC_URL=https://myapp.recommendarr.com
+      #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
       - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3030}
       - VUE_APP_API_URL=${RUNTIME_API_URL:-http://localhost:3050}
     volumes:

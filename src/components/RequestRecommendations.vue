@@ -583,6 +583,94 @@
                     </button>
                   </div>
                 </div>
+                
+                <div v-if="traktConfigured" class="trakt-options">
+                  <div class="service-header">
+                    <label>Trakt Watch History:</label>
+                    <div class="service-controls">
+                      <label class="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          v-model="traktUseHistory" 
+                          @change="saveTraktUseHistory"
+                        >
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">{{ traktUseHistory ? 'Include' : 'Exclude' }}</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div v-if="traktUseHistory" class="service-settings">
+                    <div class="trakt-history-toggle">
+                      <div class="history-selection">
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="traktHistoryMode" 
+                            value="all"
+                            @change="saveTraktHistoryMode"
+                          >
+                          All watch history
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="traktHistoryMode" 
+                            value="recent"
+                            @change="saveTraktHistoryMode"
+                          >
+                          Recent (30 days)
+                        </label>
+                        <label class="toggle-option">
+                          <input 
+                            type="radio" 
+                            v-model="traktHistoryMode" 
+                            value="custom"
+                            @change="saveTraktHistoryMode"
+                          >
+                          Custom period
+                        </label>
+                      </div>
+                      
+                      <div v-if="traktHistoryMode === 'custom'" class="days-slider-container">
+                        <div class="slider-header">
+                          <label for="traktDaysSlider">Days of history</label>
+                          <span class="slider-value">{{ traktCustomHistoryDays }}</span>
+                        </div>
+                        <div class="modern-slider-container">
+                          <div class="slider-track-container">
+                            <input 
+                              type="range" 
+                              id="traktDaysSlider"
+                              v-model.number="traktCustomHistoryDays"
+                              min="1" 
+                              max="365"
+                              class="modern-slider"
+                              @change="saveTraktCustomHistoryDays"
+                            >
+                            <div class="slider-track" :style="{ width: `${(traktCustomHistoryDays - 1) / 364 * 100}%` }"></div>
+                          </div>
+                          <div class="slider-range-labels">
+                            <span>1</span>
+                            <span>365</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="trakt-only-toggle">
+                      <label class="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          v-model="traktOnlyMode" 
+                          @change="saveTraktOnlyMode"
+                          :disabled="!traktUseHistory"
+                        >
+                        Use only Trakt history for recommendations (ignore library)
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -1005,6 +1093,18 @@ export default {
     tautulliRecentlyWatchedMovies: {
       type: Array,
       default: () => []
+    },
+    traktConfigured: {
+      type: Boolean,
+      default: false
+    },
+    traktRecentlyWatchedShows: {
+      type: Array,
+      default: () => []
+    },
+    traktRecentlyWatchedMovies: {
+      type: Array,
+      default: () => []
     }
   },
   computed: {
@@ -1110,6 +1210,11 @@ export default {
       tautulliOnlyMode: false, // Whether to use only Tautulli history for recommendations
       tautulliUseHistory: true, // Whether to include Tautulli watch history at all
       tautulliCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
+      
+      traktHistoryMode: 'all', // 'all', 'recent', or 'custom'
+      traktOnlyMode: false, // Whether to use only Trakt history for recommendations
+      traktUseHistory: true, // Whether to include Trakt watch history at all
+      traktCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
       localMovies: [], // Local copy of movies prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
@@ -1651,14 +1756,29 @@ export default {
     // Save Plex only mode preference
     async savePlexOnlyMode() {
       try {
-        // If enabling Plex only mode, disable Jellyfin only mode
-        if (this.plexOnlyMode && this.jellyfinOnlyMode) {
-          this.jellyfinOnlyMode = false;
-          await apiService.saveSettings({ 
-            plexOnlyMode: this.plexOnlyMode,
-            jellyfinOnlyMode: false
-          });
-          this.$emit('jellyfinOnlyModeChanged', false);
+        // If enabling Plex only mode, disable other only modes
+        if (this.plexOnlyMode) {
+          const settings = { plexOnlyMode: this.plexOnlyMode };
+          
+          if (this.jellyfinOnlyMode) {
+            this.jellyfinOnlyMode = false;
+            settings.jellyfinOnlyMode = false;
+            this.$emit('jellyfinOnlyModeChanged', false);
+          }
+          
+          if (this.tautulliOnlyMode) {
+            this.tautulliOnlyMode = false;
+            settings.tautulliOnlyMode = false;
+            this.$emit('tautulliOnlyModeChanged', false);
+          }
+          
+          if (this.traktOnlyMode) {
+            this.traktOnlyMode = false;
+            settings.traktOnlyMode = false;
+            this.$emit('traktOnlyModeChanged', false);
+          }
+          
+          await apiService.saveSettings(settings);
         } else {
           await apiService.saveSettings({ plexOnlyMode: this.plexOnlyMode });
         }
@@ -1669,11 +1789,25 @@ export default {
         // Fallback to localStorage
         localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
         
-        // If enabling Plex only mode, disable Jellyfin only mode
-        if (this.plexOnlyMode && this.jellyfinOnlyMode) {
-          this.jellyfinOnlyMode = false;
-          localStorage.setItem('jellyfinOnlyMode', 'false');
-          this.$emit('jellyfinOnlyModeChanged', false);
+        // If enabling Plex only mode, disable other only modes
+        if (this.plexOnlyMode) {
+          if (this.jellyfinOnlyMode) {
+            this.jellyfinOnlyMode = false;
+            localStorage.setItem('jellyfinOnlyMode', 'false');
+            this.$emit('jellyfinOnlyModeChanged', false);
+          }
+          
+          if (this.tautulliOnlyMode) {
+            this.tautulliOnlyMode = false;
+            localStorage.setItem('tautulliOnlyMode', 'false');
+            this.$emit('tautulliOnlyModeChanged', false);
+          }
+          
+          if (this.traktOnlyMode) {
+            this.traktOnlyMode = false;
+            localStorage.setItem('traktOnlyMode', 'false');
+            this.$emit('traktOnlyModeChanged', false);
+          }
         }
         
         this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
@@ -1683,7 +1817,7 @@ export default {
     // Save Jellyfin only mode preference
     async saveJellyfinOnlyMode() {
       try {
-        // If enabling Jellyfin only mode, disable Plex only mode and Tautulli only mode
+        // If enabling Jellyfin only mode, disable other only modes
         if (this.jellyfinOnlyMode) {
           const settings = { jellyfinOnlyMode: this.jellyfinOnlyMode };
           
@@ -1699,6 +1833,12 @@ export default {
             this.$emit('tautulliOnlyModeChanged', false);
           }
           
+          if (this.traktOnlyMode) {
+            this.traktOnlyMode = false;
+            settings.traktOnlyMode = false;
+            this.$emit('traktOnlyModeChanged', false);
+          }
+          
           await apiService.saveSettings(settings);
         } else {
           await apiService.saveSettings({ jellyfinOnlyMode: this.jellyfinOnlyMode });
@@ -1710,17 +1850,24 @@ export default {
         // Fallback to localStorage
         localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
         
-        // If enabling Jellyfin only mode, disable Plex only mode and Tautulli only mode
+        // If enabling Jellyfin only mode, disable other only modes
         if (this.jellyfinOnlyMode) {
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
             localStorage.setItem('plexOnlyMode', 'false');
             this.$emit('plexOnlyModeChanged', false);
           }
+          
           if (this.tautulliOnlyMode) {
             this.tautulliOnlyMode = false;
             localStorage.setItem('tautulliOnlyMode', 'false');
             this.$emit('tautulliOnlyModeChanged', false);
+          }
+          
+          if (this.traktOnlyMode) {
+            this.traktOnlyMode = false;
+            localStorage.setItem('traktOnlyMode', 'false');
+            this.$emit('traktOnlyModeChanged', false);
           }
         }
         
@@ -1771,7 +1918,7 @@ export default {
     // Save Tautulli only mode preference
     async saveTautulliOnlyMode() {
       try {
-        // If enabling Tautulli only mode, disable Plex only mode and Jellyfin only mode
+        // If enabling Tautulli only mode, disable Plex only mode, Jellyfin only mode, and Trakt only mode
         if (this.tautulliOnlyMode) {
           const settings = { tautulliOnlyMode: this.tautulliOnlyMode };
           
@@ -1787,6 +1934,12 @@ export default {
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           
+          if (this.traktOnlyMode) {
+            this.traktOnlyMode = false;
+            settings.traktOnlyMode = false;
+            this.$emit('traktOnlyModeChanged', false);
+          }
+          
           await apiService.saveSettings(settings);
         } else {
           await apiService.saveSettings({ tautulliOnlyMode: this.tautulliOnlyMode });
@@ -1798,7 +1951,7 @@ export default {
         // Fallback to localStorage
         localStorage.setItem('tautulliOnlyMode', this.tautulliOnlyMode.toString());
         
-        // If enabling Tautulli only mode, disable Plex only mode and Jellyfin only mode
+        // If enabling Tautulli only mode, disable other only modes
         if (this.tautulliOnlyMode) {
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
@@ -1810,9 +1963,113 @@ export default {
             localStorage.setItem('jellyfinOnlyMode', 'false');
             this.$emit('jellyfinOnlyModeChanged', false);
           }
+          if (this.traktOnlyMode) {
+            this.traktOnlyMode = false;
+            localStorage.setItem('traktOnlyMode', 'false');
+            this.$emit('traktOnlyModeChanged', false);
+          }
         }
         
         this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
+      }
+    },
+    
+    // Save Trakt history mode preference
+    async saveTraktHistoryMode() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ 
+          traktHistoryMode: this.traktHistoryMode,
+          traktCustomHistoryDays: this.traktCustomHistoryDays
+        });
+        this.$emit('traktHistoryModeChanged', this.traktHistoryMode);
+      } catch (error) {
+        console.error('Error saving Trakt history mode to server:', error);
+      }
+    },
+    
+    // Save Trakt use history preference
+    async saveTraktUseHistory() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ traktUseHistory: this.traktUseHistory });
+        
+        // If turning off history usage, also turn off the trakt-only mode
+        if (!this.traktUseHistory && this.traktOnlyMode) {
+          this.traktOnlyMode = false;
+          await this.saveTraktOnlyMode();
+        }
+      } catch (error) {
+        console.error('Error saving Trakt use history preference to server:', error);
+      }
+    },
+    
+    // Save Trakt custom history days
+    async saveTraktCustomHistoryDays() {
+      try {
+        // Save to User_Data.json via API service
+        await apiService.saveSettings({ traktCustomHistoryDays: this.traktCustomHistoryDays });
+      } catch (error) {
+        console.error('Error saving Trakt custom history days to server:', error);
+      }
+    },
+    
+    // Save Trakt only mode preference
+    async saveTraktOnlyMode() {
+      try {
+        // If enabling Trakt only mode, disable other only modes
+        if (this.traktOnlyMode) {
+          const settings = { traktOnlyMode: this.traktOnlyMode };
+          
+          if (this.plexOnlyMode) {
+            this.plexOnlyMode = false;
+            settings.plexOnlyMode = false;
+            this.$emit('plexOnlyModeChanged', false);
+          }
+          
+          if (this.jellyfinOnlyMode) {
+            this.jellyfinOnlyMode = false;
+            settings.jellyfinOnlyMode = false;
+            this.$emit('jellyfinOnlyModeChanged', false);
+          }
+          
+          if (this.tautulliOnlyMode) {
+            this.tautulliOnlyMode = false;
+            settings.tautulliOnlyMode = false;
+            this.$emit('tautulliOnlyModeChanged', false);
+          }
+          
+          await apiService.saveSettings(settings);
+        } else {
+          await apiService.saveSettings({ traktOnlyMode: this.traktOnlyMode });
+        }
+        
+        this.$emit('traktOnlyModeChanged', this.traktOnlyMode);
+      } catch (error) {
+        console.error('Error saving Trakt only mode to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('traktOnlyMode', this.traktOnlyMode.toString());
+        
+        // If enabling Trakt only mode, disable other only modes
+        if (this.traktOnlyMode) {
+          if (this.plexOnlyMode) {
+            this.plexOnlyMode = false;
+            localStorage.setItem('plexOnlyMode', 'false');
+            this.$emit('plexOnlyModeChanged', false);
+          }
+          if (this.jellyfinOnlyMode) {
+            this.jellyfinOnlyMode = false;
+            localStorage.setItem('jellyfinOnlyMode', 'false');
+            this.$emit('jellyfinOnlyModeChanged', false);
+          }
+          if (this.tautulliOnlyMode) {
+            this.tautulliOnlyMode = false;
+            localStorage.setItem('tautulliOnlyMode', 'false');
+            this.$emit('tautulliOnlyModeChanged', false);
+          }
+        }
+        
+        this.$emit('traktOnlyModeChanged', this.traktOnlyMode);
       }
     },
     
@@ -2234,6 +2491,10 @@ export default {
           historyMode = this.tautulliHistoryMode;
           customDays = this.tautulliCustomHistoryDays;
           break;
+        case 'trakt':
+          historyMode = this.traktHistoryMode;
+          customDays = this.traktCustomHistoryDays;
+          break;
         default:
           // Default to 'all' if service is unknown
           return historyArray;
@@ -2304,8 +2565,15 @@ export default {
         }
       }
       
+      if (this.traktConfigured && this.traktUseHistory) {
+        activeServices.push('Trakt');
+        if (this.traktOnlyMode) {
+          baseMessage = 'Analyzing your Trakt watch history...';
+        }
+      }
+      
       // If we're not in "only mode" but we have active services, include them in the message
-      if (!this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && activeServices.length > 0) {
+      if (!this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && !this.traktOnlyMode && activeServices.length > 0) {
         baseMessage = `Analyzing your ${contentType} library and ${activeServices.join('/')} watch history...`;
       }
       
@@ -2483,6 +2751,10 @@ export default {
         const tautulliHistory = this.isMovieMode ? this.tautulliRecentlyWatchedMovies || [] : this.tautulliRecentlyWatchedShows || [];
         const tautulliHistoryFiltered = this.tautulliUseHistory ? this.filterWatchHistory(tautulliHistory, 'tautulli') : [];
         
+        // Trakt history processing - only include if traktUseHistory is true
+        const traktHistory = this.isMovieMode ? this.traktRecentlyWatchedMovies || [] : this.traktRecentlyWatchedShows || [];
+        const traktHistoryFiltered = this.traktUseHistory ? this.filterWatchHistory(traktHistory, 'trakt') : [];
+        
         // Combine histories based on "only mode" settings
         if (this.plexOnlyMode && this.plexUseHistory) {
           watchHistory = plexHistoryFiltered;
@@ -2490,16 +2762,19 @@ export default {
           watchHistory = jellyfinHistoryFiltered;
         } else if (this.tautulliOnlyMode && this.tautulliUseHistory) {
           watchHistory = tautulliHistoryFiltered;
+        } else if (this.traktOnlyMode && this.traktUseHistory) {
+          watchHistory = traktHistoryFiltered;
         } else {
           // Combine all enabled histories
           watchHistory = [
             ...plexHistoryFiltered,
             ...jellyfinHistoryFiltered,
-            ...tautulliHistoryFiltered
+            ...tautulliHistoryFiltered,
+            ...traktHistoryFiltered
           ];
         }
         
-        console.log(`Using watch history: ${watchHistory.length} items (Plex: ${plexHistoryFiltered.length}, Jellyfin: ${jellyfinHistoryFiltered.length}, Tautulli: ${tautulliHistoryFiltered.length})`);
+        console.log(`Using watch history: ${watchHistory.length} items (Plex: ${plexHistoryFiltered.length}, Jellyfin: ${jellyfinHistoryFiltered.length}, Tautulli: ${tautulliHistoryFiltered.length}, Trakt: ${traktHistoryFiltered.length})`);
         
         // If no watch history is available or all are disabled, use empty array
         if (watchHistory.length === 0) {
@@ -2525,7 +2800,7 @@ export default {
               this.likedRecommendations,
               this.dislikedRecommendations,
               watchHistory,
-              this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode,
+              this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode || this.traktOnlyMode,
               this.customVibe,
               this.selectedLanguage
             );
@@ -2544,7 +2819,7 @@ export default {
             this.likedRecommendations,
             this.dislikedRecommendations,
             watchHistory,
-            this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode,
+            this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode || this.traktOnlyMode,
             this.customVibe,
             this.selectedLanguage
           );
@@ -2560,7 +2835,9 @@ export default {
             source = 'Jellyfin watch history';
           } else if (this.tautulliOnlyMode) {
             source = 'Tautulli watch history';
-          } else if (this.plexConfigured || this.jellyfinConfigured || this.tautulliConfigured) {
+          } else if (this.traktOnlyMode) {
+            source = 'Trakt watch history';
+          } else if (this.plexConfigured || this.jellyfinConfigured || this.tautulliConfigured || this.traktConfigured) {
             source = `${this.isMovieMode ? 'movie' : 'TV'} library and watch history`;
           }
           
@@ -2568,7 +2845,7 @@ export default {
         }
         
         // Filter out content that is already in the library
-        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode) {
+        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && !this.traktOnlyMode) {
           this.recommendations = await this.filterExistingShows(this.recommendations);
         }
         
@@ -3224,6 +3501,23 @@ export default {
         
         if (settings.tautulliCustomHistoryDays) {
           this.tautulliCustomHistoryDays = parseInt(settings.tautulliCustomHistoryDays, 10);
+        }
+        
+        // Trakt settings
+        if (settings.traktHistoryMode) {
+          this.traktHistoryMode = settings.traktHistoryMode;
+        }
+        
+        if (settings.traktOnlyMode !== undefined) {
+          this.traktOnlyMode = settings.traktOnlyMode;
+        }
+        
+        if (settings.traktUseHistory !== undefined) {
+          this.traktUseHistory = settings.traktUseHistory;
+        }
+        
+        if (settings.traktCustomHistoryDays) {
+          this.traktCustomHistoryDays = parseInt(settings.traktCustomHistoryDays, 10);
         }
       } catch (error) {
         console.error('Error loading settings from server:', error);

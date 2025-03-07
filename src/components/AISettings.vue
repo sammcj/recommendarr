@@ -46,10 +46,17 @@
       >
         Tautulli
       </button>
+      <button 
+        @click="activeTab = 'trakt'" 
+        :class="{ active: activeTab === 'trakt' }" 
+        class="tab-button"
+      >
+        Trakt
+      </button>
     </div>
     
     <!-- Connected Services Section -->
-    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected" class="section-card connected-services-wrapper">
+    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected" class="section-card connected-services-wrapper">
       <div class="collapsible-header" @click="toggleConnectionsPanel">
         <h3>Manage Connected Services</h3>
         <button class="collapse-toggle">
@@ -79,6 +86,10 @@
           </button>
           <button v-if="radarrConnected" class="connection-button radarr-button" @click="showRadarrConnectModal">
             <span class="connection-name">Radarr</span>
+            <span class="connection-action">Manage Connection</span>
+          </button>
+          <button v-if="traktConnected" class="connection-button trakt-button" @click="showTraktConnectModal">
+            <span class="connection-name">Trakt</span>
             <span class="connection-action">Manage Connection</span>
           </button>
         </div>
@@ -184,6 +195,27 @@
           </div>
           <div class="modal-footer">
             <button class="modal-close-button" @click="closeTautulliModal">Close</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Trakt Connection Management Modal -->
+      <div v-if="showTraktConnect" class="connection-modal-overlay" @click.self="closeTraktModal">
+        <div class="connection-modal">
+          <div class="modal-header">
+            <h3>Manage Trakt Connection</h3>
+            <button class="modal-close-x" @click="closeTraktModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <TraktConnection 
+              :connected="traktConnected" 
+              @connected="handleTraktConnected" 
+              @disconnected="handleTraktDisconnected" 
+              @limitChanged="handleTraktLimitChanged"
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="modal-close-button" @click="closeTraktModal">Close</button>
           </div>
         </div>
       </div>
@@ -711,6 +743,84 @@
       </div>
     </div>
     
+    <!-- Trakt Settings Tab -->
+    <div v-if="activeTab === 'trakt'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to your Trakt.tv account to access your watch history. Your credentials will be stored locally in your browser.</p>
+      </div>
+      
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="traktClientId">Client ID:</label>
+          <input 
+            id="traktClientId" 
+            v-model="traktSettings.clientId" 
+            type="text" 
+            placeholder="Your Trakt Client ID"
+            required
+          />
+          <div class="field-hint">Obtain by creating an app in your Trakt account settings</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="traktAccessToken">Access Token:</label>
+          <div class="api-key-input">
+            <input 
+              id="traktAccessToken" 
+              v-model="traktSettings.accessToken" 
+              :type="showTraktToken ? 'text' : 'password'" 
+              placeholder="Your Trakt Access Token"
+              required
+            />
+            <button type="button" class="toggle-button" @click="showTraktToken = !showTraktToken">
+              {{ showTraktToken ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">Generate an access token with permission to read your watch history</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="traktRecentLimit">Number of recently watched items:</label>
+          <div class="slider-container">
+            <input 
+              id="traktRecentLimit" 
+              v-model.number="traktSettings.recentLimit" 
+              type="range" 
+              min="1" 
+              max="100" 
+              step="1" 
+            />
+            <span class="slider-value">{{ traktSettings.recentLimit }}</span>
+          </div>
+          <div class="field-hint">How many recently watched items to include in recommendations</div>
+        </div>
+        
+        <div class="actions">
+          <button type="button" @click="testTraktConnection" class="test-button" :disabled="testingTrakt">
+            {{ testingTrakt ? 'Testing...' : 'Test Connection' }}
+          </button>
+          <button type="button" @click="saveTraktSettings" class="save-button" :disabled="testingTrakt">
+            Save Trakt Settings
+          </button>
+        </div>
+        
+        <div v-if="traktConnectionMessage" class="connection-message" :class="{ 'success': traktConnectionStatus, 'error': !traktConnectionStatus }">
+          <div class="notification-content">
+            <span class="notification-icon">
+              <svg v-if="traktConnectionStatus" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </span>
+            {{ traktConnectionMessage }}
+          </div>
+        </div>
+      </div>
+    </div>
+    
     
     <!-- Fixed Position Notification Toast -->
     <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
@@ -739,12 +849,14 @@ import radarrService from '../services/RadarrService';
 import plexService from '../services/PlexService';
 import jellyfinService from '../services/JellyfinService';
 import tautulliService from '../services/TautulliService';
+import traktService from '../services/TraktService';
 import credentialsService from '../services/CredentialsService';
 import PlexConnection from './PlexConnection.vue';
 import JellyfinConnection from './JellyfinConnection.vue';
 import TautulliConnection from './TautulliConnection.vue';
 import SonarrConnection from './SonarrConnection.vue';
 import RadarrConnection from './RadarrConnection.vue';
+import TraktConnection from './TraktConnection.vue';
 
 export default {
   name: 'AIServiceSettings',
@@ -753,7 +865,8 @@ export default {
     JellyfinConnection,
     TautulliConnection,
     SonarrConnection,
-    RadarrConnection
+    RadarrConnection,
+    TraktConnection
   },
   props: {
     sonarrConnected: {
@@ -775,6 +888,10 @@ export default {
     tautulliConnected: {
       type: Boolean,
       default: false
+    },
+    traktConnected: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -785,6 +902,8 @@ export default {
       showRadarrConnect: false,
       showPlexConnect: false,
       showJellyfinConnect: false,
+      showTautulliConnect: false,
+      showTraktConnect: false,
       
       // AI Settings
       aiSettings: {
@@ -854,6 +973,17 @@ export default {
       testingTautulli: false,
       tautulliConnectionMessage: '',
       tautulliConnectionStatus: false,
+      
+      // Trakt Settings
+      traktSettings: {
+        clientId: '',
+        accessToken: '',
+        recentLimit: 50
+      },
+      showTraktToken: false,
+      testingTrakt: false,
+      traktConnectionMessage: '',
+      traktConnectionStatus: false,
       
       // Common
       saveMessage: '',
@@ -963,6 +1093,16 @@ export default {
       document.body.style.overflow = '';
     },
     
+    showTraktConnectModal() {
+      this.showTraktConnect = true;
+      document.body.style.overflow = 'hidden';
+    },
+    
+    closeTraktModal() {
+      this.showTraktConnect = false;
+      document.body.style.overflow = '';
+    },
+    
     // Connection Event Handlers
     handleSonarrConnected() {
       this.$emit('sonarr-settings-updated');
@@ -1033,6 +1173,24 @@ export default {
       this.closeTautulliModal();
     },
     
+    handleTraktConnected() {
+      this.$emit('trakt-settings-updated');
+      this.closeTraktModal();
+    },
+    
+    handleTraktDisconnected() {
+      // Clear Trakt settings in the form
+      this.traktSettings.clientId = '';
+      this.traktSettings.accessToken = '';
+      this.traktSettings.recentLimit = 50;
+      this.$emit('trakt-settings-updated');
+      this.closeTraktModal();
+    },
+    
+    handleTraktLimitChanged(limit) {
+      this.traktSettings.recentLimit = limit;
+    },
+    
     async loadAllSettings() {
       // Load all settings from their respective services
       await this.loadAISettings();
@@ -1041,6 +1199,7 @@ export default {
       await this.loadPlexSettings();
       await this.loadJellyfinSettings();
       await this.loadTautulliSettings();
+      await this.loadTraktSettings();
     },
     
     async loadAISettings() {
@@ -1195,6 +1354,28 @@ export default {
         }
       } catch (error) {
         console.error('Error loading Tautulli settings:', error);
+      }
+    },
+    
+    async loadTraktSettings() {
+      try {
+        // First try to get from service directly
+        if (traktService.isConfigured()) {
+          this.traktSettings.clientId = traktService.clientId;
+          this.traktSettings.accessToken = traktService.accessToken;
+          this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
+          return;
+        }
+        
+        // If not configured, try to get from server-side storage
+        const credentials = await credentialsService.getCredentials('trakt');
+        if (credentials) {
+          this.traktSettings.clientId = credentials.clientId || '';
+          this.traktSettings.accessToken = credentials.accessToken || '';
+          this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
+        }
+      } catch (error) {
+        console.error('Error loading Trakt settings:', error);
       }
     },
     
@@ -1682,6 +1863,77 @@ export default {
         console.error('Error saving Tautulli settings:', error);
         this.saveSuccess = false;
         this.saveMessage = 'Failed to save Tautulli settings';
+        this.clearSaveMessage();
+      }
+    },
+    
+    // Trakt Service Methods
+    async testTraktConnection() {
+      if (!this.traktSettings.clientId || !this.traktSettings.accessToken) {
+        this.traktConnectionStatus = false;
+        this.traktConnectionMessage = 'Client ID and Access Token are required';
+        return;
+      }
+      
+      this.testingTrakt = true;
+      this.traktConnectionMessage = '';
+      
+      try {
+        // Configure the service with provided details
+        await traktService.configure(this.traktSettings.clientId, this.traktSettings.accessToken);
+        
+        // Store the recent limit in localStorage (server doesn't need this)
+        localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
+        
+        // Test the connection
+        const success = await traktService.testConnection();
+        
+        // Update status based on response
+        this.traktConnectionStatus = success;
+        this.traktConnectionMessage = success 
+          ? 'Connected successfully!'
+          : 'Connection failed. Please check your Client ID and Access Token.';
+        
+        // If successful, emit event to notify parent component
+        if (success) {
+          this.$emit('trakt-settings-updated');
+        }
+          
+      } catch (error) {
+        console.error('Error connecting to Trakt:', error);
+        this.traktConnectionStatus = false;
+        this.traktConnectionMessage = 'Connection error. Please check your Client ID and Access Token.';
+      } finally {
+        this.testingTrakt = false;
+      }
+    },
+    
+    async saveTraktSettings() {
+      try {
+        if (!this.traktSettings.clientId || !this.traktSettings.accessToken) {
+          this.saveSuccess = false;
+          this.saveMessage = 'Trakt Client ID and Access Token are required';
+          this.clearSaveMessage();
+          return;
+        }
+        
+        // Store the recent limit in localStorage (server doesn't need this)
+        localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
+        
+        // Configure the service (which will store credentials server-side)
+        await traktService.configure(this.traktSettings.clientId, this.traktSettings.accessToken);
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Trakt settings saved successfully!';
+        
+        // Emit event to notify parent component
+        this.$emit('trakt-settings-updated');
+        
+        this.clearSaveMessage();
+      } catch (error) {
+        console.error('Error saving Trakt settings:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Trakt settings';
         this.clearSaveMessage();
       }
     },
@@ -2429,6 +2681,15 @@ body.dark-theme .model-warning {
 
 .radarr-button:hover {
   background-color: rgba(249, 58, 47, 0.08);
+}
+
+.trakt-button {
+  border-color: #ED1C24; /* Trakt red color */
+  color: #ED1C24;
+}
+
+.trakt-button:hover {
+  background-color: rgba(237, 28, 36, 0.08);
 }
 
 /* Connection Modal Styling */

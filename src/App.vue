@@ -221,6 +221,7 @@ import radarrService from './services/RadarrService'
 import plexService from './services/PlexService'
 import jellyfinService from './services/JellyfinService'
 import tautulliService from './services/TautulliService'
+import traktService from './services/TraktService'
 import credentialsService from './services/CredentialsService'
 // apiService no longer needed since we use credentialsService.resetUserData()
 
@@ -1035,6 +1036,25 @@ export default {
         this.tautulliConnected = false;
       }
     },
+    
+    async handleTraktSettingsUpdated() {
+      // Check if Trakt service is configured in memory
+      if (traktService.isConfigured()) {
+        // Check the Trakt connection with the new settings
+        this.checkTraktConnection();
+        console.log('Trakt settings updated, testing connection');
+        return;
+      }
+      
+      // If not in memory, check server storage
+      try {
+        await this.configureServiceFromCredentials('trakt');
+      } catch (error) {
+        console.error('Error loading Trakt credentials:', error);
+        this.traktConnected = false;
+      }
+    },
+    
     async handleLogout() {
       console.log("User clicked Clear Data...");
       // Clear all stored credentials from localStorage (for backwards compatibility)
@@ -1052,14 +1072,19 @@ export default {
       localStorage.removeItem('tautulliBaseUrl');
       localStorage.removeItem('tautulliApiKey');
       localStorage.removeItem('tautulliRecentLimit');
+      localStorage.removeItem('traktClientId');
+      localStorage.removeItem('traktAccessToken');
+      localStorage.removeItem('traktRecentLimit');
       localStorage.removeItem('openaiApiKey');
       localStorage.removeItem('openaiModel');
       localStorage.removeItem('plexHistoryMode');
       localStorage.removeItem('jellyfinHistoryMode');
       localStorage.removeItem('tautulliHistoryMode');
+      localStorage.removeItem('traktHistoryMode');
       localStorage.removeItem('plexOnlyMode');
       localStorage.removeItem('jellyfinOnlyMode');
       localStorage.removeItem('tautulliOnlyMode');
+      localStorage.removeItem('traktOnlyMode');
       
       // Also clear recommendation history and preferences
       // Remove from localStorage as well to ensure clear doesn't persist after reload

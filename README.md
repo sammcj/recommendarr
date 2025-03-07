@@ -6,6 +6,8 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 > **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open port 3030 on your router/firewall.
 
+> **⚠️ PORT REQUIREMENT**: The application currently requires mapping exactly to ports 3030 (frontend) and 3050 (API). These port mappings cannot be changed without breaking functionality. You must map 3030:3030 and 3050:3050 in your Docker configuration.
+
 ## 🌟 Features
 
 - **AI-Powered Recommendations**: Get personalized TV show and movie suggestions based on your existing library
@@ -59,6 +61,7 @@ You can also run the unified container manually:
 docker pull tannermiddleton/recommendarr:latest
 
 # Run the container
+# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
@@ -150,21 +153,12 @@ The easiest way to run Recommendarr:
 docker pull tannermiddleton/recommendarr:latest
 
 # Run the container (basic)
+# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
   -p 3050:3050 \
   -v $(pwd)/server/data:/app/server/data \
-  tannermiddleton/recommendarr:latest
-
-# Run with custom URL configuration
-docker run -d \
-  --name recommendarr \
-  -p 3030:3030 \
-  -p 3050:3050 \
-  -v $(pwd)/server/data:/app/server/data \
-  --build-arg BASE_URL=https://recommendarr.example.com \
-  --build-arg VUE_APP_API_URL=https://api.example.com \
   tannermiddleton/recommendarr:latest
 ```
 
@@ -183,6 +177,7 @@ cd recommendarr
 docker build -t recommendarr:local .
 
 # Run the container
+# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
@@ -212,6 +207,8 @@ services:
         - BASE_URL=${BASE_URL:-}
     container_name: recommendarr
     ports:
+      # IMPORTANT: These port mappings must be exactly as shown
+      # The app requires 3030:3030 and 3050:3050 - do not change
       - "3030:3030"
       - "3050:3050"
     environment:
@@ -240,14 +237,101 @@ This will pull the pre-built image from Docker Hub and start the unified service
 - CORS issues are automatically handled through the proxy service
 - Custom URL configuration for reverse proxy setups (via environment variables)
 
-**Note:** If you want to customize port mappings or other settings, edit the `docker-compose.yml` file before running the command.
+**Note:** You cannot change the port mappings without breaking functionality. The app must use ports 3030 and 3050 internally.
 
-**Custom URL Configuration:**
-- `BASE_URL`: The base URL for the frontend application (e.g., `https://recommendarr.example.com`)
-- `VUE_APP_API_URL`: The URL for the API server (e.g., `https://api.example.com`)
-- `PUBLIC_URL`: Runtime URL for the application (for reverse proxy setups)
+## 🌐 Setting Up with a Reverse Proxy
 
-**Note:** You can also configure these URL settings directly in the app by going to Settings → App Config, without needing to rebuild the Docker image.
+If you want to run Recommendarr behind a reverse proxy (like Nginx, Traefik, or Caddy), you **must** build the image yourself with specific build arguments. The pre-built image will not work correctly with a reverse proxy.
+
+### Method 1: Using Docker Compose (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/fingerthief/recommendarr.git
+cd recommendarr
+
+# Create an .env file with your reverse proxy configuration
+cat > .env << 'EOF'
+# This tells Docker to build from source rather than use the prebuilt image
+USE_PREBUILT_IMAGE=
+
+# Build-time URLs (used during the Vue.js build process)
+BUILD_API_URL=https://api.yourdomain.com
+BASE_URL=/
+
+# Runtime URLs (used by the app once it's running)
+PUBLIC_URL=https://recommendarr.yourdomain.com
+RUNTIME_API_URL=https://api.yourdomain.com
+EOF
+
+# Build and start with docker-compose
+docker-compose up -d --build
+```
+
+The docker-compose.yml file has been updated to use environment variables, making it easy to configure without editing the file directly.
+
+### Method 2: Manual Docker Build and Run
+
+```bash
+# Clone the repository
+git clone https://github.com/fingerthief/recommendarr.git
+cd recommendarr
+
+# Build the image with your URLs
+docker build -t recommendarr:custom \
+  --build-arg BASE_URL=https://recommendarr.yourdomain.com \
+  --build-arg VUE_APP_API_URL=https://api.yourdomain.com \
+  .
+
+# Run the container
+docker run -d \
+  --name recommendarr \
+  -p 3030:3030 \
+  -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
+  recommendarr:custom
+```
+
+### Reverse Proxy Configuration
+
+Your reverse proxy should be configured to:
+
+1. Forward requests to `https://recommendarr.yourdomain.com` to `http://your-docker-host:3030`
+2. Forward requests to `https://api.yourdomain.com` to `http://your-docker-host:3050`
+
+**Example Nginx Configuration:**
+
+```nginx
+# Frontend
+server {
+    listen 443 ssl;
+    server_name recommendarr.yourdomain.com;
+    
+    # SSL settings here...
+    
+    location / {
+        proxy_pass http://your-docker-host:3030;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+
+# API
+server {
+    listen 443 ssl;
+    server_name api.yourdomain.com;
+    
+    # SSL settings here...
+    
+    location / {
+        proxy_pass http://your-docker-host:3050;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+**IMPORTANT:** The internal port mappings in the Docker container must remain 3030:3030 and 3050:3050.
 
 ## 🖥️ Compatible AI Services
 

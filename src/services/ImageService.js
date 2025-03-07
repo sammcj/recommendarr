@@ -100,9 +100,10 @@ class ImageService {
    * Get a poster URL for a movie by title
    * @param {string} title - The movie title
    * @param {boolean} [skipCache=false] - Whether to skip the cache
+   * @param {boolean} [useProxy=false] - Whether to use the image proxy
    * @returns {Promise<string|null>} - The poster URL or null if not found
    */
-  async getPosterForMovie(title, skipCache = false) {
+  async getPosterForMovie(title, skipCache = false, useProxy = false) {
     // Ensure title is a string
     if (title === null || title === undefined) {
       console.warn('getPosterForMovie called with null/undefined title');
@@ -116,7 +117,7 @@ class ImageService {
     
     // Clean the title for consistent cache keys
     const cleanTitle = title.replace(/[:.!?]+$/, '').trim();
-    const cacheKey = `movie_${cleanTitle}`;
+    const cacheKey = useProxy ? `proxy_movie_${cleanTitle}` : `movie_${cleanTitle}`;
     
     // Check cache first unless skipCache is true
     if (!skipCache && this.posterCache.has(cacheKey)) {
@@ -161,15 +162,21 @@ class ImageService {
       const originalUrl = poster.remoteUrl;
       console.log(`Found movie poster URL: ${originalUrl} for title: ${title}`);
       
-      // Create a proxied URL to avoid CORS and network issues
-      const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
-      const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-      console.log(`Using proxied URL for movie poster: ${proxiedUrl}`);
-      
-      // Store in cache for future requests
-      this.posterCache.set(cacheKey, proxiedUrl);
-      
-      return proxiedUrl;
+      // Return either direct URL or proxied URL based on useProxy flag
+      if (useProxy) {
+        // Create a proxied URL to avoid CORS and network issues
+        const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
+        const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+        console.log(`Using proxied URL for movie poster: ${proxiedUrl}`);
+        
+        // Store in cache for future requests
+        this.posterCache.set(cacheKey, proxiedUrl);
+        return proxiedUrl;
+      } else {
+        // Use direct URL for recommendations page
+        this.posterCache.set(cacheKey, originalUrl);
+        return originalUrl;
+      }
     } catch (error) {
       console.error(`Error fetching movie poster for "${title}":`, error);
       return null;

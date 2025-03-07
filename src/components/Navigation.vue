@@ -47,13 +47,9 @@
         
         <button 
           @click="confirmClearData" 
-          @click="confirmClearData" 
           class="action-button logout-button"
           title="Clear all saved data"
-          title="Clear all saved data"
         >
-          <span class="nav-icon">🗑️</span>
-          <span class="action-text">Clear Data</span>
           <span class="nav-icon">🗑️</span>
           <span class="action-text">Clear Data</span>
         </button>
@@ -109,11 +105,8 @@
         
         <button 
           @click="confirmClearData" 
-          @click="confirmClearData" 
           class="mobile-action logout-button"
         >
-          <span class="nav-icon">🗑️</span>
-          <span>Clear Data</span>
           <span class="nav-icon">🗑️</span>
           <span>Clear Data</span>
         </button>

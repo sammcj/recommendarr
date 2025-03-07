@@ -588,6 +588,14 @@
                   <div class="service-header">
                     <label>Trakt Watch History:</label>
                     <div class="service-controls">
+                      <button 
+                        v-if="isMovieMode"
+                        @click="$emit('refreshTraktHistory')" 
+                        class="refresh-button"
+                        title="Refresh Trakt History"
+                      >
+                        ⟳ Refresh
+                      </button>
                       <label class="toggle-switch">
                         <input 
                           type="checkbox" 
@@ -1990,12 +1998,18 @@ export default {
     
     // Save Trakt use history preference
     async saveTraktUseHistory() {
+      console.log('Saving Trakt use history preference:', this.traktUseHistory);
       try {
+        // Explicitly convert to boolean to avoid any string conversion issues
+        const useHistoryValue = this.traktUseHistory === true;
+        
         // Save to User_Data.json via API service
-        await apiService.saveSettings({ traktUseHistory: this.traktUseHistory });
+        await apiService.saveSettings({ traktUseHistory: useHistoryValue });
+        console.log('Successfully saved traktUseHistory setting:', useHistoryValue);
         
         // If turning off history usage, also turn off the trakt-only mode
         if (!this.traktUseHistory && this.traktOnlyMode) {
+          console.log('Trakt history disabled but "only mode" was on - turning off "only mode"');
           this.traktOnlyMode = false;
           await this.saveTraktOnlyMode();
         }
@@ -2472,8 +2486,11 @@ export default {
      */
     filterWatchHistory(historyArray, service) {
       if (!historyArray || !historyArray.length) {
+        console.log(`Empty ${service} history array`);
         return [];
       }
+      
+      console.log(`Filtering ${historyArray.length} items for ${service} history`);
       
       // Get the appropriate mode and custom days settings based on service
       let historyMode, customDays;
@@ -2494,6 +2511,7 @@ export default {
         case 'trakt':
           historyMode = this.traktHistoryMode;
           customDays = this.traktCustomHistoryDays;
+          console.log(`Trakt history mode: ${historyMode}, custom days: ${customDays}`);
           break;
         default:
           // Default to 'all' if service is unknown
@@ -2502,6 +2520,7 @@ export default {
       
       // Return unfiltered array if using 'all' mode
       if (historyMode === 'all') {
+        console.log(`${service} using 'all' mode, returning all ${historyArray.length} items`);
         return historyArray;
       }
       
@@ -2513,30 +2532,46 @@ export default {
         // Recent mode is hardcoded to 30 days
         cutoffDate = new Date(now);
         cutoffDate.setDate(now.getDate() - 30);
+        console.log(`${service} using 'recent' mode, cut-off date: ${cutoffDate.toISOString()}`);
       } else if (historyMode === 'custom') {
         // Custom mode uses user-specified days
         cutoffDate = new Date(now);
         cutoffDate.setDate(now.getDate() - customDays);
+        console.log(`${service} using 'custom' mode (${customDays} days), cut-off date: ${cutoffDate.toISOString()}`);
       } else {
         // Unknown mode, return original array
+        console.log(`${service} using unknown mode '${historyMode}', returning all items`);
         return historyArray;
       }
       
       // Filter history by date
       // Note: The history item format depends on the source (has lastWatched or watched property)
-      return historyArray.filter(item => {
+      const filteredArray = historyArray.filter(item => {
         if (!item) return false;
         
         // Handle different property names for watched date (compatibility with different sources)
         const watchDateStr = item.lastWatched || item.watched;
         if (!watchDateStr) {
-          console.log('Item missing watch date:', item);
+          console.log(`${service} item missing watch date:`, item);
           return false;
         }
         
         const watchDate = new Date(watchDateStr);
-        return watchDate >= cutoffDate;
+        const shouldInclude = watchDate >= cutoffDate;
+        
+        if (service === 'trakt' && !shouldInclude) {
+          console.log(`Filtering out Trakt item with date ${watchDate.toISOString()} before cutoff ${cutoffDate.toISOString()}`);
+        }
+        
+        return shouldInclude;
       });
+      
+      console.log(`${service} history: filtered from ${historyArray.length} to ${filteredArray.length} items`);
+      if (filteredArray.length > 0) {
+        console.log(`${service} first filtered item:`, filteredArray[0]);
+      }
+      
+      return filteredArray;
     },
     
     /**
@@ -2757,7 +2792,29 @@ export default {
         const tautulliHistoryFiltered = this.tautulliUseHistory ? this.filterWatchHistory(tautulliHistory, 'tautulli') : [];
         
         // Trakt history processing - only include if traktUseHistory is true
+        console.log(`Processing Trakt history with props:`, {
+          isMovieMode: this.isMovieMode,
+          traktConfigured: this.traktConfigured,
+          traktUseHistory: this.traktUseHistory,
+          traktHistoryMode: this.traktHistoryMode,
+          moviesLength: this.traktRecentlyWatchedMovies ? this.traktRecentlyWatchedMovies.length : 0,
+          showsLength: this.traktRecentlyWatchedShows ? this.traktRecentlyWatchedShows.length : 0
+        });
+        
+        // Check if the prop is defined and has data
+        if (this.isMovieMode) {
+          console.log(`Trakt recently watched movies prop:`, this.traktRecentlyWatchedMovies);
+        } else {
+          console.log(`Trakt recently watched shows prop:`, this.traktRecentlyWatchedShows);
+        }
+        
         const traktHistory = this.isMovieMode ? this.traktRecentlyWatchedMovies || [] : this.traktRecentlyWatchedShows || [];
+        // Log the Trakt history to debug
+        console.log(`Trakt history for ${this.isMovieMode ? 'movies' : 'TV shows'}:`, traktHistory ? traktHistory.length : 0, 'items');
+        console.log('Trakt history use status:', this.traktUseHistory);
+        if (traktHistory && traktHistory.length > 0) {
+          console.log('First Trakt history item sample:', traktHistory[0]);
+        }
         const traktHistoryFiltered = this.traktUseHistory ? this.filterWatchHistory(traktHistory, 'trakt') : [];
         
         // Combine histories based on "only mode" settings
@@ -2823,14 +2880,30 @@ export default {
             // Log a sample of watch history items to debug
             const watchHistorySample = watchHistory.slice(0, 3);
             console.log("Watch history sample (first 3 items):", 
-              watchHistorySample.map(item => ({
-                title: item.title,
-                watched: item.watched || item.lastWatched,
-                source: item.type === 'movie' && item.traktId ? 'trakt' : 
-                        item.plexLibraryTitle ? 'plex' : 
-                        item.jellyfinId ? 'jellyfin' :
-                        item.tautulliId ? 'tautulli' : 'unknown'
-              }))
+              watchHistorySample.map(item => {
+                try {
+                  let source = 'unknown';
+                  if (item.type === 'movie' && item.traktId) {
+                    source = 'trakt';
+                  } else if (item.plexLibraryTitle) {
+                    source = 'plex';
+                  } else if (item.jellyfinId) {
+                    source = 'jellyfin';
+                  } else if (item.tautulliId) {
+                    source = 'tautulli';
+                  }
+                  
+                  return {
+                    title: item.title || item.name || (typeof item === 'string' ? item : ''),
+                    watched: item.watched || item.lastWatched || 'no date',
+                    source,
+                    type: item.type || 'unknown'
+                  };
+                } catch (error) {
+                  console.error('Error mapping watch history item:', error, item);
+                  return { title: 'Error parsing item', error: error.message };
+                }
+              })
             );
             console.log("Movie recommendations completed successfully:", this.recommendations);
           } catch (error) {
@@ -3532,6 +3605,13 @@ export default {
         }
         
         // Trakt settings
+        console.log('Loading Trakt settings from server:', { 
+          traktHistoryMode: settings.traktHistoryMode, 
+          traktOnlyMode: settings.traktOnlyMode,
+          traktUseHistory: settings.traktUseHistory,
+          traktCustomHistoryDays: settings.traktCustomHistoryDays
+        });
+        
         if (settings.traktHistoryMode) {
           this.traktHistoryMode = settings.traktHistoryMode;
         }
@@ -3541,7 +3621,11 @@ export default {
         }
         
         if (settings.traktUseHistory !== undefined) {
-          this.traktUseHistory = settings.traktUseHistory;
+          // Make sure we convert it to a boolean in case it's stored as a string
+          this.traktUseHistory = settings.traktUseHistory === true || settings.traktUseHistory === 'true';
+          console.log('Trakt history use flag set to:', this.traktUseHistory, 'from value:', settings.traktUseHistory);
+        } else {
+          console.log('traktUseHistory setting not found in server settings, using default:', this.traktUseHistory);
         }
         
         if (settings.traktCustomHistoryDays) {
@@ -5642,6 +5726,23 @@ select:focus {
   font-weight: 500;
   min-width: 60px;
   text-align: left;
+}
+
+.refresh-button {
+  background-color: rgba(52, 168, 83, 0.1);
+  color: #34A853;
+  border: 1px solid rgba(52, 168, 83, 0.3);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: all 0.2s ease;
+}
+
+.refresh-button:hover {
+  background-color: rgba(52, 168, 83, 0.2);
+  transform: translateY(-1px);
 }
 
 .jellyfin-user-select-button, .tautulli-user-select-button {

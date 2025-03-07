@@ -163,6 +163,7 @@
             @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
             @traktHistoryModeChanged="handleTraktHistoryModeChanged"
             @traktOnlyModeChanged="handleTraktOnlyModeChanged"
+            @refreshTraktHistory="fetchTraktData"
             @openJellyfinUserSelect="openJellyfinUserSelect"
             @openTautulliUserSelect="openTautulliUserSelect"
           />
@@ -195,6 +196,7 @@
             @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
             @traktHistoryModeChanged="handleTraktHistoryModeChanged"
             @traktOnlyModeChanged="handleTraktOnlyModeChanged"
+            @refreshTraktHistory="fetchTraktData"
             @openJellyfinUserSelect="openJellyfinUserSelect"
             @openTautulliUserSelect="openTautulliUserSelect"
           />
@@ -628,22 +630,40 @@ export default {
     },
     
     async fetchTraktData() {
+      console.log('🔄 fetchTraktData called - refreshing Trakt history data');
+      
       if (!traktService.isConfigured()) {
-        console.log('Trakt service is not configured, skipping data fetch');
+        console.log('❌ Trakt service is not configured, skipping data fetch');
         return;
       }
       
       try {
-        console.log('Fetching Trakt watch history...');
+        console.log('🔍 Fetching Trakt watch history with settings:', {
+          historyMode: this.traktHistoryMode,
+          recentLimit: this.traktRecentLimit || 50,
+          onlyMode: this.traktOnlyMode
+        });
         
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.traktHistoryMode === 'recent' ? 30 : 0;
         
-        // Fetch both shows and movies in parallel for efficiency
-        const [moviesResponse, showsResponse] = await Promise.all([
-          traktService.getRecentlyWatchedMovies(this.traktRecentLimit || 50, daysAgo),
-          traktService.getRecentlyWatchedShows(this.traktRecentLimit || 50, daysAgo)
-        ]);
+        console.log(`Requesting Trakt history with daysAgo=${daysAgo}`);
+        
+        // Fetch movies and track timing
+        console.time('Trakt movies fetch');
+        const moviesPromise = traktService.getRecentlyWatchedMovies(this.traktRecentLimit || 50, daysAgo);
+        
+        // Fetch shows and track timing
+        console.time('Trakt shows fetch');
+        const showsPromise = traktService.getRecentlyWatchedShows(this.traktRecentLimit || 50, daysAgo);
+        
+        // Wait for both to complete
+        const [moviesResponse, showsResponse] = await Promise.all([moviesPromise, showsPromise]);
+        console.timeEnd('Trakt movies fetch');
+        console.timeEnd('Trakt shows fetch');
+        
+        console.log(`📊 Trakt movies response: ${moviesResponse ? moviesResponse.length : 0} items`);
+        console.log(`📊 Trakt shows response: ${showsResponse ? showsResponse.length : 0} items`);
         
         this.traktRecentlyWatchedMovies = moviesResponse;
         this.traktRecentlyWatchedShows = showsResponse;
@@ -652,6 +672,19 @@ export default {
           moviesCount: this.traktRecentlyWatchedMovies.length,
           showsCount: this.traktRecentlyWatchedShows.length
         });
+        
+        // Log a sample of the first movie and show to verify data structure
+        if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+          console.log('Trakt movie sample:', this.traktRecentlyWatchedMovies[0]);
+        } else {
+          console.log('No Trakt movies in watch history');
+        }
+        
+        if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+          console.log('Trakt show sample:', this.traktRecentlyWatchedShows[0]);
+        } else {
+          console.log('No Trakt shows in watch history');
+        }
       } catch (error) {
         console.error('Failed to fetch Trakt watch history:', error);
       }

@@ -389,6 +389,7 @@ class TraktService {
   }
   
   async getRecentlyWatchedMovies(limit = 50, daysAgo = 0) {
+    console.log(`TraktService: Getting ${limit} recently watched movies, daysAgo=${daysAgo}`);
     try {
       let options = {
         limit,
@@ -401,12 +402,24 @@ class TraktService {
         past.setDate(today.getDate() - daysAgo);
         
         options.startDate = past.toISOString();
+        console.log(`TraktService: Using startDate filter: ${options.startDate}`);
       }
       
       const historyData = await this.getWatchHistory(options);
+      console.log(`TraktService: Received ${historyData ? historyData.length : 0} movie history items from Trakt API`);
+      
+      if (!historyData || historyData.length === 0) {
+        console.log('TraktService: No movie history data returned from API');
+        return [];
+      }
       
       // Process and format the movie data
-      return historyData.map(item => {
+      const formattedData = historyData.map(item => {
+        if (!item.movie) {
+          console.warn('TraktService: Trakt history item missing movie property:', item);
+          return null;
+        }
+        
         const movie = item.movie;
         return {
           title: movie.title,
@@ -417,7 +430,14 @@ class TraktService {
           lastWatched: new Date(item.watched_at).toISOString(), // Add lastWatched for compatibility
           type: 'movie'
         };
-      });
+      }).filter(item => item !== null); // Filter out any null items
+      
+      console.log(`TraktService: Returning ${formattedData.length} formatted watched movies`);
+      if (formattedData.length > 0) {
+        console.log('TraktService: First movie sample:', formattedData[0]);
+      }
+      
+      return formattedData;
     } catch (error) {
       console.error('Failed to get recently watched movies from Trakt:', error);
       return [];

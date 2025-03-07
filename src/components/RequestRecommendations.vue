@@ -418,7 +418,7 @@
                   <button 
                     class="action-button tautulli-user-select-button"
                     @click="$emit('openTautulliUserSelect')"
-                    style="padding: 6px 12px; font-size: 13px; background-color: #7c3aed; color: white;"
+                    style="padding: 6px 12px; font-size: 13px; background-color: #34A853; color: white;"
                   >
                     Change User
                   </button>
@@ -3212,7 +3212,7 @@ h2 {
 .content-type-selector {
   display: flex;
   align-items: center;
-  background-color: rgba(124, 58, 237, 0.08);
+  background-color: rgba(52, 168, 83, 0.08);
   border-radius: 12px;
   margin-left: 15px;
   padding: 4px;
@@ -3240,13 +3240,13 @@ h2 {
 }
 
 .content-type-button:hover {
-  background-color: rgba(124, 58, 237, 0.08);
+  background-color: rgba(52, 168, 83, 0.08);
 }
 
 .content-type-button.active {
-  background-color: var(--button-primary-bg, #7c3aed);
+  background-color: var(--button-primary-bg, #34A853);
   color: white;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 2px 8px rgba(52, 168, 83, 0.3);
 }
 
 .content-type-button .button-icon {
@@ -3516,11 +3516,11 @@ h2 {
 }
 
 .info-section {
-  background-color: rgba(124, 58, 237, 0.03);
+  background-color: rgba(52, 168, 83, 0.03);
   padding: 20px;
   border-radius: 12px;
   margin-bottom: 24px;
-  border: 1px solid rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(52, 168, 83, 0.1);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
@@ -3533,10 +3533,10 @@ h2 {
 .info-section-title {
   margin: 0 0 16px 0;
   font-size: 16px;
-  color: #7c3aed;
+  color: #34A853;
   font-weight: 600;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(124, 58, 237, 0.15);
+  border-bottom: 1px solid rgba(52, 168, 83, 0.15);
   display: flex;
   align-items: center;
 }
@@ -3547,7 +3547,7 @@ h2 {
   width: 4px;
   height: 16px;
   margin-right: 8px;
-  background: linear-gradient(to bottom, #7c3aed, #9333ea);
+  background: linear-gradient(to bottom, #34A853, #27AE60);
   border-radius: 2px;
 }
 
@@ -3571,16 +3571,16 @@ h2 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
-  background-color: rgba(124, 58, 237, 0.05);
+  background-color: rgba(52, 168, 83, 0.05);
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(52, 168, 83, 0.1);
 }
 
 .fetch-models-button {
   background: none;
-  border: 1px solid rgba(124, 58, 237, 0.2);
-  color: #7c3aed;
+  border: 1px solid rgba(52, 168, 83, 0.2);
+  color: #34A853;
   font-size: 16px;
   cursor: pointer;
   padding: 4px 8px;
@@ -3592,7 +3592,7 @@ h2 {
 }
 
 .fetch-models-button:hover:not(:disabled) {
-  background-color: rgba(124, 58, 237, 0.1);
+  background-color: rgba(52, 168, 83, 0.1);
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -3629,7 +3629,7 @@ h2 {
 .model-select {
   padding: 12px 15px;
   border-radius: 8px;
-  border: 1px solid rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(52, 168, 83, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
@@ -3640,13 +3640,13 @@ h2 {
 }
 
 .model-select:hover {
-  border-color: #7c3aed;
+  border-color: #34A853;
 }
 
 .model-select:focus {
-  border-color: #7c3aed;
+  border-color: #34A853;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
 }
 
 .model-select-custom {
@@ -3656,7 +3656,7 @@ h2 {
 .custom-model-input {
   padding: 12px 15px;
   border-radius: 8px;
-  border: 1px solid rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(52, 168, 83, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
@@ -3666,13 +3666,13 @@ h2 {
 }
 
 .custom-model-input:hover {
-  border-color: #7c3aed;
+  border-color: #34A853;
 }
 
 .custom-model-input:focus {
-  border-color: #7c3aed;
+  border-color: #34A853;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
 }
 
 /* Modern Slider Components */
@@ -3696,8 +3696,8 @@ h2 {
 
 .slider-value {
   font-weight: 600;
-  color: #7c3aed;
-  background-color: rgba(124, 58, 237, 0.1);
+  color: #34A853;
+  background-color: rgba(52, 168, 83, 0.1);
   border-radius: 30px;
   padding: 1px 8px;
   min-width: 20px;
@@ -3725,7 +3725,7 @@ h2 {
   top: 50%;
   transform: translateY(-50%);
   height: 6px;
-  background: linear-gradient(to right, #7c3aed, #9333ea);
+  background: linear-gradient(to right, #34A853, #27AE60);
   border-radius: 3px;
   z-index: 1;
   transition: width 0.2s ease;
@@ -3753,7 +3753,7 @@ h2 {
   border-radius: 50%;
   background: #fff;
   cursor: pointer;
-  border: 2px solid #7c3aed;
+  border: 2px solid #34A853;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   position: relative;
   z-index: 3;
@@ -3767,7 +3767,7 @@ h2 {
   border-radius: 50%;
   background: #fff;
   cursor: pointer;
-  border: 2px solid #7c3aed;
+  border: 2px solid #34A853;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   position: relative;
   z-index: 3;
@@ -3777,13 +3777,13 @@ h2 {
 .modern-slider::-webkit-slider-thumb:hover,
 .modern-slider:active::-webkit-slider-thumb {
   transform: scale(1.1);
-  box-shadow: 0 3px 8px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 3px 8px rgba(52, 168, 83, 0.3);
 }
 
 .modern-slider::-moz-range-thumb:hover,
 .modern-slider:active::-moz-range-thumb {
   transform: scale(1.1);
-  box-shadow: 0 3px 8px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 3px 8px rgba(52, 168, 83, 0.3);
 }
 
 .slider-labels {
@@ -3824,7 +3824,7 @@ h2 {
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  background-color: #7c3aed;
+  background-color: #34A853;
   color: white;
   border-radius: 10px;
   font-size: 12px;
@@ -3841,7 +3841,7 @@ h2 {
   padding: 5px 0;
   margin-bottom: 10px;
   scrollbar-width: thin;
-  scrollbar-color: #7c3aed rgba(124, 58, 237, 0.1);
+  scrollbar-color: #34A853 rgba(52, 168, 83, 0.1);
 }
 
 .genre-tags-container::-webkit-scrollbar {
@@ -3849,12 +3849,12 @@ h2 {
 }
 
 .genre-tags-container::-webkit-scrollbar-track {
-  background: rgba(124, 58, 237, 0.05);
+  background: rgba(52, 168, 83, 0.05);
   border-radius: 3px;
 }
 
 .genre-tags-container::-webkit-scrollbar-thumb {
-  background-color: rgba(124, 58, 237, 0.4);
+  background-color: rgba(52, 168, 83, 0.4);
   border-radius: 3px;
 }
 
@@ -3862,8 +3862,8 @@ h2 {
   display: inline-flex;
   align-items: center;
   padding: 6px 12px;
-  background-color: rgba(124, 58, 237, 0.05);
-  border: 1px solid rgba(124, 58, 237, 0.15);
+  background-color: rgba(52, 168, 83, 0.05);
+  border: 1px solid rgba(52, 168, 83, 0.15);
   border-radius: 30px;
   color: var(--text-color);
   font-size: 13px;
@@ -3873,19 +3873,19 @@ h2 {
 }
 
 .genre-tag:hover {
-  background-color: rgba(124, 58, 237, 0.1);
+  background-color: rgba(52, 168, 83, 0.1);
   transform: translateY(-1px);
 }
 
 .genre-tag.selected {
-  background-color: #7c3aed;
+  background-color: #34A853;
   color: white;
-  border-color: #7c3aed;
-  box-shadow: 0 2px 5px rgba(124, 58, 237, 0.3);
+  border-color: #34A853;
+  box-shadow: 0 2px 5px rgba(52, 168, 83, 0.3);
 }
 
 .genre-tag.selected:hover {
-  background-color: #6d32d1;
+  background-color: #2E9648;
 }
 
 .clear-all-button {
@@ -3914,10 +3914,10 @@ h2 {
   box-sizing: border-box;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
   padding: 15px;
-  background-color: rgba(124, 58, 237, 0.03);
+  background-color: rgba(52, 168, 83, 0.03);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(52, 168, 83, 0.1);
 }
 
 .count-selector {
@@ -3991,9 +3991,9 @@ select:focus {
   width: 100%;
   max-width: 320px;
   padding: 0;
-  background: linear-gradient(105deg, #7c3aed, #9333ea);
+  background: linear-gradient(105deg, #34A853, #27AE60);
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+  box-shadow: 0 4px 12px rgba(52, 168, 83, 0.25);
   overflow: hidden;
   border: none;
   transition: all 0.3s ease-out;
@@ -4012,13 +4012,13 @@ select:focus {
 
 .discover-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(124, 58, 237, 0.3);
-  background: linear-gradient(105deg, #6d32d1, #8229d8);
+  box-shadow: 0 8px 16px rgba(52, 168, 83, 0.3);
+  background: linear-gradient(105deg, #2E9648, #229954);
 }
 
 .discover-button:active:not(:disabled) {
   transform: translateY(1px);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+  box-shadow: 0 2px 8px rgba(52, 168, 83, 0.2);
 }
 
 .discover-button:disabled {
@@ -4585,9 +4585,9 @@ select:focus {
   margin-top: 10px;
   margin-left: 22px;
   padding: 10px;
-  background-color: rgba(124, 58, 237, 0.03);
+  background-color: rgba(52, 168, 83, 0.03);
   border-radius: 12px;
-  border: 1px solid rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(52, 168, 83, 0.1);
 }
 
 .clear-history-button:hover {
@@ -4755,7 +4755,7 @@ select:focus {
 }
 
 .tautulli-options {
-  background-color: rgba(124, 58, 237, 0.05); /* Light purple background for Tautulli */
+  background-color: rgba(52, 168, 83, 0.05); /* Light green background for Tautulli */
 }
 
 .plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle {
@@ -4928,7 +4928,7 @@ select:focus {
   width: 100%;
   padding: 12px 15px;
   border-radius: 10px;
-  border: 1px solid rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(52, 168, 83, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
@@ -4942,8 +4942,8 @@ select:focus {
 
 .vibe-input:focus {
   outline: none;
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+  border-color: #34A853;
+  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
 }
 
 .vibe-input::placeholder {
@@ -4979,7 +4979,7 @@ select:focus {
 .tip-icon {
   width: 16px;
   height: 16px;
-  color: #7c3aed;
+  color: #34A853;
   opacity: 0.7;
 }
 
@@ -4991,8 +4991,8 @@ select:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(124, 58, 237, 0.1);
-  color: #7c3aed;
+  background-color: rgba(52, 168, 83, 0.1);
+  color: #34A853;
   border-radius: 30px;
   font-size: 12px;
   font-weight: 500;
@@ -5019,7 +5019,7 @@ select:focus {
   width: 100%;
   padding: 12px 15px;
   border-radius: 10px;
-  border: 1px solid rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(52, 168, 83, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
@@ -5032,7 +5032,7 @@ select:focus {
 
 .language-select:focus {
   outline: none;
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+  border-color: #34A853;
+  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
 }
 </style>

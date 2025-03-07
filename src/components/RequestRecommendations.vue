@@ -1143,13 +1143,36 @@ export default {
         return '??';
       }
       
-      // Try to extract score percentage
-      const scoreMatch = ratingText.match(/(\d+)%/);
+      // Try to extract score percentage with various patterns
+      // First try to match a standard percentage pattern like "85%"
+      let scoreMatch = ratingText.match(/(\d+)%/);
+      
+      // If that doesn't work, try to match a pattern like "85/100"
       if (!scoreMatch) {
-        return '??';
+        scoreMatch = ratingText.match(/(\d+)\s*\/\s*100/);
       }
       
-      return scoreMatch[1];
+      // If that doesn't work, try to match a pattern like "8.5/10" and convert to percentage
+      if (!scoreMatch) {
+        const decimalMatch = ratingText.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
+        if (decimalMatch) {
+          const decimal = parseFloat(decimalMatch[1]);
+          return Math.round(decimal * 10).toString();
+        }
+      }
+      
+      // If that doesn't work, look for just a number followed by any text
+      if (!scoreMatch) {
+        scoreMatch = ratingText.match(/(\d+)/);
+      }
+      
+      // If we find any match, return the first capture group
+      if (scoreMatch) {
+        return scoreMatch[1];
+      }
+      
+      // If no pattern matches, return placeholder
+      return '??';
     },
     
     // Extract the details portion of the rating
@@ -1158,12 +1181,40 @@ export default {
         return 'No rating information available';
       }
       
-      // Find everything after the percentage
-      const detailsMatch = ratingText.match(/\d+%\s*-\s*(.*)/);
+      // Try various patterns to extract details after the rating
+      
+      // Pattern 1: "85% - Details here"
+      let detailsMatch = ratingText.match(/\d+%\s*-\s*(.*)/);
       if (detailsMatch && detailsMatch[1]) {
         return detailsMatch[1].trim();
       }
       
+      // Pattern 2: "85/100 - Details here"
+      detailsMatch = ratingText.match(/\d+\s*\/\s*100\s*-\s*(.*)/);
+      if (detailsMatch && detailsMatch[1]) {
+        return detailsMatch[1].trim();
+      }
+      
+      // Pattern 3: "8.5/10 - Details here"
+      detailsMatch = ratingText.match(/\d+(?:\.\d+)?\s*\/\s*10\s*-\s*(.*)/);
+      if (detailsMatch && detailsMatch[1]) {
+        return detailsMatch[1].trim();
+      }
+      
+      // Pattern 4: Look for a colon followed by details
+      detailsMatch = ratingText.match(/:\s*(.*)/);
+      if (detailsMatch && detailsMatch[1]) {
+        return detailsMatch[1].trim();
+      }
+      
+      // If no specific pattern matches, remove any numbers and rating symbols
+      const cleanedText = ratingText.replace(/(\d+%|\d+\/\d+|\d+\.\d+\/\d+|\d+)/, '').trim();
+      if (cleanedText && cleanedText !== ratingText) {
+        // If we removed something and have text left, return that
+        return cleanedText.replace(/^[-:\s]+/, '').trim();
+      }
+      
+      // Fall back to the original text if no patterns match
       return ratingText;
     },
     
@@ -1173,13 +1224,15 @@ export default {
         return 'score-unknown';
       }
       
-      // Try to extract score percentage
-      const scoreMatch = scoreText.match(/(\d+)%/);
-      if (!scoreMatch) {
+      // Get a numeric score from the text using our extract method
+      const scoreValue = this.extractScore(scoreText);
+      
+      // If we couldn't extract a meaningful value, return unknown
+      if (scoreValue === '??') {
         return 'score-unknown';
       }
       
-      const score = parseInt(scoreMatch[1], 10);
+      const score = parseInt(scoreValue, 10);
       
       // Apply our rating scale
       if (score >= 90) {

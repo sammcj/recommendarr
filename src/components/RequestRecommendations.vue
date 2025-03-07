@@ -2,17 +2,23 @@
   <div class="recommendations">
     <div class="recommendation-header">
       <h2>{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h2>
-      <div class="content-type-toggle">
-        <span class="toggle-label" :class="{ 'active': !isMovieMode }">TV Shows</span>
-        <label class="toggle-switch">
-          <input 
-            type="checkbox" 
-            v-model="isMovieMode"
-            @change="saveContentTypePreference"
-          >
-          <span class="toggle-slider"></span>
-        </label>
-        <span class="toggle-label" :class="{ 'active': isMovieMode }">Movies</span>
+      <div class="content-type-selector">
+        <button 
+          class="content-type-button" 
+          :class="{ 'active': !isMovieMode }"
+          @click="setContentType(false)"
+        >
+          <span class="button-icon">📺</span>
+          <span>TV Shows</span>
+        </button>
+        <button 
+          class="content-type-button" 
+          :class="{ 'active': isMovieMode }"
+          @click="setContentType(true)"
+        >
+          <span class="button-icon">🎬</span>
+          <span>Movies</span>
+        </button>
       </div>
     </div>
     
@@ -197,16 +203,16 @@
                 </div>
                 
                 <div class="vibe-selector">
-                  <label for="customVibe">Specify a vibe/mood:</label>
+                  <label for="customVibe">Specify a vibe/mood or custom prompt:</label>
                   <div class="vibe-input-container">
-                    <input 
-                      type="text" 
+                    <textarea 
                       id="customVibe" 
                       v-model="customVibe"
                       @change="saveCustomVibe"
-                      placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel"
+                      placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel, or write a longer prompt to guide the AI recommendations"
                       class="vibe-input"
-                    >
+                      rows="3"
+                    ></textarea>
                     <button 
                       v-if="customVibe" 
                       @click="clearCustomVibe" 
@@ -215,7 +221,7 @@
                     >×</button>
                   </div>
                   <div class="setting-description">
-                    Specify the mood or "vibe" you're looking for to guide the recommendations.
+                    Specify the mood, vibe, or detailed prompt to guide the AI recommendations. You can be specific about themes, styles, or preferences.
                   </div>
                 </div>
                 
@@ -978,6 +984,15 @@ export default {
   methods: {
     goToSettings() {
       this.$emit('navigate', 'settings');
+    },
+    
+    // Set content type and save preference
+    async setContentType(isMovie) {
+      // Only proceed if the mode actually changed
+      if (this.isMovieMode !== isMovie) {
+        this.isMovieMode = isMovie;
+        await this.saveContentTypePreference();
+      }
     },
     
     // Save content type preference (TV or Movies)
@@ -3059,81 +3074,62 @@ h2 {
   transition: color var(--transition-speed);
 }
 
-.content-type-toggle {
+.content-type-selector {
   display: flex;
   align-items: center;
-  background-color: var(--card-bg-color);
-  border-radius: 20px;
-  padding: 4px 10px;
+  background-color: rgba(124, 58, 237, 0.08);
+  border-radius: 12px;
+  margin-left: 15px;
+  padding: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.content-type-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  border: 1px solid var(--border-color);
-  transition: background-color var(--transition-speed), border-color var(--transition-speed);
-}
-
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 40px;
-  height: 24px;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
   cursor: pointer;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(125, 125, 125, 0.3);
-  border-radius: 34px;
-  transition: background-color .4s;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  border-radius: 50%;
-  transition: .4s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-.toggle-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-color);
-  opacity: 0.6;
-  cursor: pointer;
-  transition: color 0.3s, opacity 0.3s;
-}
-
-.toggle-label.active {
-  color: var(--button-primary-bg, #7c3aed);
-  opacity: 1;
+  transition: all 0.2s ease-out;
+  font-size: 15px;
   font-weight: 600;
-  text-shadow: 0 0 1px rgba(255, 255, 255, 0.2);
+  color: var(--text-color);
+  position: relative;
+  min-width: 120px;
+  outline: none;
 }
 
-input:checked + .toggle-slider {
+.content-type-button:hover {
+  background-color: rgba(124, 58, 237, 0.08);
+}
+
+.content-type-button.active {
   background-color: var(--button-primary-bg, #7c3aed);
+  color: white;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
 }
 
-input:focus + .toggle-slider {
-  box-shadow: 0 0 2px var(--button-primary-bg, #7c3aed);
+.content-type-button .button-icon {
+  font-size: 16px;
+  margin-right: 2px;
 }
 
-input:checked + .toggle-slider:before {
-  transform: translateX(16px);
+@media (max-width: 600px) {
+  .content-type-selector {
+    margin-left: 0;
+    margin-top: 10px;
+    width: 100%;
+  }
+  
+  .content-type-button {
+    flex: 1;
+    padding: 10px 8px;
+  }
 }
 
 .setup-section {
@@ -4725,30 +4721,42 @@ select:hover {
 
 .vibe-input {
   width: 100%;
-  padding: 10px 30px 10px 10px;
-  border-radius: 4px;
+  padding: 12px 30px 12px 12px;
+  border-radius: 8px;
   border: 1px solid var(--input-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
+  line-height: 1.5;
+  min-height: 100px;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.vibe-input:focus {
+  outline: none;
+  border-color: var(--button-primary-bg, #7c3aed);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 
 .clear-vibe-button {
   position: absolute;
-  right: 5px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: 8px;
+  top: 12px;
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 20px;
   color: var(--text-color);
   opacity: 0.5;
   cursor: pointer;
   padding: 5px;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .clear-vibe-button:hover {
-  opacity: 1;
+  opacity: 0.9;
+  transform: scale(1.1);
 }
 
 .language-selector {

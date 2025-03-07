@@ -456,7 +456,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @param {Array} [previousRecommendations=[]] - List of movies to exclude from recommendations
    * @param {Array} [likedRecommendations=[]] - List of movies the user has liked
    * @param {Array} [dislikedRecommendations=[]] - List of movies the user has disliked
-   * @param {Array} [recentlyWatchedMovies=[]] - List of recently watched movies from Plex
+   * @param {Array} [recentlyWatchedMovies=[]] - List of recently watched movies from Plex/Jellyfin/Tautulli/Trakt
    * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
    * @param {string} [customVibe=''] - Optional custom vibe/mood for recommendations
    * @param {string} [language=''] - Optional language preference for recommendations
@@ -471,7 +471,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       likedRecsCount: likedRecommendations ? likedRecommendations.length : 0,
       dislikedRecsCount: dislikedRecommendations ? dislikedRecommendations.length : 0,
       recentlyWatchedCount: recentlyWatchedMovies ? recentlyWatchedMovies.length : 0,
-      plexOnlyMode,
+      watchHistoryMode: plexOnlyMode ? 'Plex Only' : 'Combined Sources',
       customVibe,
       language
     });
@@ -601,9 +601,19 @@ Prioritize movies that:
         userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
-      // Add recently watched movies from Plex if available and not already using them as the primary source
+      // Add recently watched movies from various services if available and not already using them as the primary source
       if (!plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
-        const recentTitles = recentlyWatchedMovies.map(movie => movie.title).join(', ');
+        // Debug watch history data structure
+        console.log("Watch history data structures sample:", 
+          recentlyWatchedMovies.slice(0, 2).map(movie => typeof movie === 'object' ? 
+            Object.keys(movie) : typeof movie));
+        
+        const recentTitles = recentlyWatchedMovies.map(movie => {
+          // Handle different formats from different services (Plex, Jellyfin, Tautulli, Trakt)
+          if (typeof movie === 'string') return movie;
+          return movie.title || movie.name || (typeof movie === 'object' ? JSON.stringify(movie) : movie);
+        }).join(', ');
+        
         userPrompt += `\n\nI've recently watched these movies, so please consider them for better recommendations: ${recentTitles}`;
       }
       

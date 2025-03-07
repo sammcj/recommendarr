@@ -6,10 +6,16 @@ class TraktService {
   constructor() {
     this.baseUrl = 'https://api.trakt.tv';
     this.clientId = '';
+    this.clientSecret = '';
     this.accessToken = '';
+    this.refreshToken = '';
+    this.expiresAt = null;
+    this.redirectUri = window.location.origin + '/trakt-callback';
     this.configured = false;
     // Flag to determine if we should use the proxy
     this.useProxy = true;
+    
+    console.log('TraktService: Initialized with redirectUri:', this.redirectUri);
     
     // Try to load saved credentials
     this.loadCredentials();
@@ -23,8 +29,17 @@ class TraktService {
       const credentials = await credentialsService.getCredentials('trakt');
       if (credentials) {
         this.clientId = credentials.clientId || '';
+        this.clientSecret = credentials.clientSecret || '';
         this.accessToken = credentials.accessToken || '';
+        this.refreshToken = credentials.refreshToken || '';
+        this.expiresAt = credentials.expiresAt || null;
         this.configured = !!(this.clientId && this.accessToken);
+        
+        // Check if token is expired and needs refresh
+        if (this.isTokenExpired() && this.refreshToken) {
+          this.refreshAccessToken();
+        }
+        
         return true;
       }
     } catch (error) {
@@ -33,16 +48,190 @@ class TraktService {
     return false;
   }
 
-  async configure(clientId, accessToken) {
-    if (clientId && accessToken) {
+  /**
+   * Start OAuth authorization flow
+   */
+  async startOAuthFlow() {
+    if (!this.clientId) {
+      throw new Error('Client ID is required to start OAuth flow');
+    }
+    
+    // Store the client ID in local storage temporarily
+    localStorage.setItem('trakt_client_id', this.clientId);
+    
+    // If client secret is provided, store it too
+    if (this.clientSecret) {
+      localStorage.setItem('trakt_client_secret', this.clientSecret);
+    }
+    
+    // Generate random state value for security
+    const state = Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('trakt_oauth_state', state);
+    
+    // Construct the authorization URL
+    const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${this.clientId}&redirect_uri=${encodeURIComponent(this.redirectUri)}&state=${state}`;
+    
+    console.log('TraktService: Starting OAuth flow with URL:', authUrl);
+    console.log('TraktService: Redirect URI is:', this.redirectUri);
+    
+    // Redirect the user to the authorization page
+    window.location.href = authUrl;
+  }
+  
+  /**
+   * Handle OAuth callback by exchanging authorization code for tokens
+   */
+  async handleOAuthCallback(code, state) {
+    // Verify state parameter matches what we stored
+    const storedState = localStorage.getItem('trakt_oauth_state');
+    if (state !== storedState) {
+      throw new Error('OAuth state mismatch - possible CSRF attack');
+    }
+    
+    // Get client ID from localStorage
+    const clientId = localStorage.getItem('trakt_client_id');
+    if (!clientId) {
+      throw new Error('Client ID not found in localStorage');
+    }
+    
+    // Get client secret from localStorage if available
+    const clientSecret = localStorage.getItem('trakt_client_secret') || '';
+    
+    // Clear localStorage values
+    localStorage.removeItem('trakt_oauth_state');
+    localStorage.removeItem('trakt_client_id');
+    localStorage.removeItem('trakt_client_secret');
+    
+    // Exchange code for tokens using our proxy to avoid CORS issues
+    try {
+      console.log('Using proxy for OAuth token exchange to avoid CORS issues');
+      
+      const tokenResponse = await apiService.proxyRequest({
+        url: 'https://api.trakt.tv/oauth/token',
+        method: 'POST',
+        data: {
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: this.redirectUri,
+          grant_type: 'authorization_code'
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!tokenResponse.data || tokenResponse.status >= 400) {
+        console.error('Proxy request failed:', tokenResponse);
+        throw new Error(tokenResponse.data?.error || 'Failed to exchange authorization code for token');
+      }
+      
+      // Set tokens and expiration
+      const data = tokenResponse.data;
+      const expiresAt = Date.now() + (data.expires_in * 1000);
+      
+      console.log('Successfully obtained tokens from Trakt');
+      
+      // Update service properties
       this.clientId = clientId;
-      this.accessToken = accessToken;
+      this.clientSecret = clientSecret;
+      this.accessToken = data.access_token;
+      this.refreshToken = data.refresh_token;
+      this.expiresAt = expiresAt;
       this.configured = true;
       
       // Store credentials on the server
       await credentialsService.storeCredentials('trakt', {
         clientId: this.clientId,
-        accessToken: this.accessToken
+        clientSecret: this.clientSecret,
+        accessToken: this.accessToken,
+        refreshToken: this.refreshToken,
+        expiresAt: this.expiresAt
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to exchange code for token:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Check if the access token is expired
+   */
+  isTokenExpired() {
+    if (!this.expiresAt) return true;
+    // Consider token expired 5 minutes before actual expiration to avoid edge cases
+    return Date.now() > (this.expiresAt - 5 * 60 * 1000);
+  }
+  
+  /**
+   * Refresh the access token using the refresh token
+   */
+  async refreshAccessToken() {
+    if (!this.refreshToken || !this.clientId) {
+      throw new Error('Refresh token and client ID are required to refresh access token');
+    }
+    
+    try {
+      console.log('Refreshing Trakt access token using proxy to avoid CORS issues');
+      
+      const tokenResponse = await apiService.proxyRequest({
+        url: 'https://api.trakt.tv/oauth/token',
+        method: 'POST',
+        data: {
+          refresh_token: this.refreshToken,
+          client_id: this.clientId,
+          client_secret: this.clientSecret || '',
+          redirect_uri: this.redirectUri,
+          grant_type: 'refresh_token'
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!tokenResponse.data || tokenResponse.status >= 400) {
+        console.error('Proxy request failed:', tokenResponse);
+        throw new Error(tokenResponse.data?.error || 'Failed to refresh access token');
+      }
+      
+      // Update tokens and expiration
+      const data = tokenResponse.data;
+      const expiresAt = Date.now() + (data.expires_in * 1000);
+      
+      console.log('Successfully refreshed Trakt access token');
+      
+      this.accessToken = data.access_token;
+      this.refreshToken = data.refresh_token;
+      this.expiresAt = expiresAt;
+      
+      // Store updated credentials
+      await credentialsService.storeCredentials('trakt', {
+        clientId: this.clientId,
+        clientSecret: this.clientSecret,
+        accessToken: this.accessToken,
+        refreshToken: this.refreshToken,
+        expiresAt: this.expiresAt
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to refresh access token:', error);
+      throw error;
+    }
+  }
+
+  async configure(clientId, clientSecret = '') {
+    if (clientId) {
+      this.clientId = clientId;
+      this.clientSecret = clientSecret;
+      
+      // We don't immediately set this as configured since we need to complete OAuth
+      // Store partial credentials on the server
+      await credentialsService.storeCredentials('trakt', {
+        clientId: this.clientId,
+        clientSecret: this.clientSecret
       });
       
       return true;
@@ -70,13 +259,23 @@ class TraktService {
     }
   }
   
-  async _apiRequest(endpoint, params = {}) {
+  async _apiRequest(endpoint, params = {}, method = 'GET', data = null) {
     if (!this.isConfigured()) {
       // Try to load credentials again in case they weren't ready during init
       await this.loadCredentials();
       
       if (!this.isConfigured()) {
         throw new Error('Trakt service is not configured');
+      }
+    }
+    
+    // Check if token is expired and refresh if needed
+    if (this.isTokenExpired() && this.refreshToken) {
+      try {
+        await this.refreshAccessToken();
+      } catch (refreshError) {
+        console.error('Error refreshing Trakt token:', refreshError);
+        throw new Error('Session expired. Please reconnect to Trakt.');
       }
     }
     
@@ -92,12 +291,13 @@ class TraktService {
     try {
       if (this.useProxy) {
         // Log attempt to connect through proxy for debugging
-        console.log(`Making request to Trakt via proxy: endpoint=${endpoint}`);
+        console.log(`Making request to Trakt via proxy: endpoint=${endpoint}, method=${method}`);
         
         const response = await apiService.proxyRequest({
           url,
-          method: 'GET',
+          method,
           params,
+          data,
           headers
         });
         
@@ -105,17 +305,47 @@ class TraktService {
         return response.data;
       } else {
         // Direct API request
-        console.log(`Making direct request to Trakt: endpoint=${endpoint}`);
+        console.log(`Making direct request to Trakt: endpoint=${endpoint}, method=${method}`);
         
-        const response = await axios.get(url, {
+        const options = {
           params,
           headers
-        });
+        };
+        
+        let response;
+        if (method === 'GET') {
+          response = await axios.get(url, options);
+        } else if (method === 'POST') {
+          response = await axios.post(url, data, options);
+        } else if (method === 'PUT') {
+          response = await axios.put(url, data, options);
+        } else if (method === 'DELETE') {
+          response = await axios.delete(url, options);
+        } else {
+          throw new Error(`Unsupported HTTP method: ${method}`);
+        }
         
         return response.data;
       }
     } catch (error) {
       console.error(`Trakt API error (${endpoint}):`, error);
+      
+      // Check for 401 Unauthorized, which might mean token is invalid
+      if (error.response && error.response.status === 401) {
+        // If we have a refresh token, try to refresh and retry
+        if (this.refreshToken) {
+          try {
+            await this.refreshAccessToken();
+            // Retry the request with the new token
+            return this._apiRequest(endpoint, params, method, data);
+          } catch (refreshError) {
+            console.error('Error refreshing token after 401:', refreshError);
+            throw new Error('Your Trakt authorization has expired. Please reconnect to Trakt.');
+          }
+        } else {
+          throw new Error('Trakt authentication failed. Please reconnect to Trakt.');
+        }
+      }
       
       // Enhance the error with more helpful information
       const enhancedError = {
@@ -184,6 +414,7 @@ class TraktService {
           tmdbId: movie.ids.tmdb,
           traktId: movie.ids.trakt,
           watched: new Date(item.watched_at).toISOString(),
+          lastWatched: new Date(item.watched_at).toISOString(), // Add lastWatched for compatibility
           type: 'movie'
         };
       });

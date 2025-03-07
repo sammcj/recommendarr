@@ -2523,13 +2523,18 @@ export default {
       }
       
       // Filter history by date
-      // Note: The history item format depends on the source, but generally has a lastWatched property
+      // Note: The history item format depends on the source (has lastWatched or watched property)
       return historyArray.filter(item => {
-        if (!item || !item.lastWatched) {
+        if (!item) return false;
+        
+        // Handle different property names for watched date (compatibility with different sources)
+        const watchDateStr = item.lastWatched || item.watched;
+        if (!watchDateStr) {
+          console.log('Item missing watch date:', item);
           return false;
         }
         
-        const watchDate = new Date(item.lastWatched);
+        const watchDate = new Date(watchDateStr);
         return watchDate >= cutoffDate;
       });
     },
@@ -2799,10 +2804,33 @@ export default {
               this.previousMovieRecommendations, // Use movie-specific history
               this.likedRecommendations,
               this.dislikedRecommendations,
-              watchHistory,
+              watchHistory,  // This includes Trakt history if traktUseHistory is true
               this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode || this.traktOnlyMode,
               this.customVibe,
               this.selectedLanguage
+            );
+            
+            // Log what watch history was actually used
+            console.log("Watch history used for recommendations:", {
+              total: watchHistory.length,
+              plex: this.plexUseHistory ? plexHistoryFiltered.length : 0,
+              jellyfin: this.jellyfinUseHistory ? jellyfinHistoryFiltered.length : 0,
+              tautulli: this.tautulliUseHistory ? tautulliHistoryFiltered.length : 0,
+              trakt: this.traktUseHistory ? traktHistoryFiltered.length : 0,
+              onlyMode: this.plexOnlyMode ? 'plex' : this.jellyfinOnlyMode ? 'jellyfin' : this.tautulliOnlyMode ? 'tautulli' : this.traktOnlyMode ? 'trakt' : 'combined'
+            });
+            
+            // Log a sample of watch history items to debug
+            const watchHistorySample = watchHistory.slice(0, 3);
+            console.log("Watch history sample (first 3 items):", 
+              watchHistorySample.map(item => ({
+                title: item.title,
+                watched: item.watched || item.lastWatched,
+                source: item.type === 'movie' && item.traktId ? 'trakt' : 
+                        item.plexLibraryTitle ? 'plex' : 
+                        item.jellyfinId ? 'jellyfin' :
+                        item.tautulliId ? 'tautulli' : 'unknown'
+              }))
             );
             console.log("Movie recommendations completed successfully:", this.recommendations);
           } catch (error) {

@@ -1,12 +1,17 @@
 <template>
   <div class="app-container">
-    <header class="app-header">
-      <img alt="App logo" src="./assets/logo.png" class="logo">
-      <h1>Recommendarr</h1>
-    </header>
+    <!-- Check if this is a Trakt callback and show the callback handler if it is -->
+    <TraktCallback v-if="isTraktCallback" />
     
-    <main>
-      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected">
+    <!-- Regular app content if it's not a callback URL -->
+    <template v-else>
+      <header class="app-header">
+        <img alt="App logo" src="./assets/logo.png" class="logo">
+        <h1>Recommendarr</h1>
+      </header>
+      
+      <main>
+      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected && !traktConnected">
         <p class="choose-service">Choose a service to connect to:</p>
         <div class="service-buttons">
           <button class="service-button" @click="showSonarrConnect = true">
@@ -28,6 +33,10 @@
           <button class="service-button tautulli-button" @click="showTautulliConnect = true">
             Connect to Tautulli
             <small>For Plex watch history statistics</small>
+          </button>
+          <button class="service-button trakt-button" @click="showTraktConnect = true">
+            Connect to Trakt
+            <small>For Trakt watch history integration</small>
           </button>
         </div>
       </div>
@@ -123,8 +132,9 @@
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @disconnected="handlePlexDisconnected" @limitChanged="handlePlexLimitChanged" />
       <JellyfinConnection v-if="showJellyfinConnect && !jellyfinConnected" @connected="handleJellyfinConnected" @disconnected="handleJellyfinDisconnected" @limitChanged="handleJellyfinLimitChanged" />
       <TautulliConnection v-if="showTautulliConnect && !tautulliConnected" @connected="handleTautulliConnected" @disconnected="handleTautulliDisconnected" @limitChanged="handleTautulliLimitChanged" />
+      <TraktConnection v-if="showTraktConnect && !traktConnected" @connected="handleTraktConnected" @disconnected="handleTraktDisconnected" @limitChanged="handleTraktLimitChanged" />
       
-      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected">
+      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected">
         <AppNavigation 
           :activeTab="activeTab" 
           @navigate="handleNavigate"
@@ -139,9 +149,11 @@
             :recentlyWatchedShows="recentlyWatchedShows"
             :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
             :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
+            :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
             :tautulliConfigured="tautulliConnected"
+            :traktConfigured="traktConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
@@ -149,6 +161,8 @@
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
             @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
             @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
+            @traktHistoryModeChanged="handleTraktHistoryModeChanged"
+            @traktOnlyModeChanged="handleTraktOnlyModeChanged"
             @openJellyfinUserSelect="openJellyfinUserSelect"
             @openTautulliUserSelect="openTautulliUserSelect"
           />
@@ -166,9 +180,12 @@
             :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
             :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
             :tautulliRecentlyWatchedMovies="tautulliRecentlyWatchedMovies"
+            :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
+            :traktRecentlyWatchedMovies="traktRecentlyWatchedMovies"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
             :tautulliConfigured="tautulliConnected"
+            :traktConfigured="traktConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
@@ -176,6 +193,8 @@
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
             @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
             @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
+            @traktHistoryModeChanged="handleTraktHistoryModeChanged"
+            @traktOnlyModeChanged="handleTraktOnlyModeChanged"
             @openJellyfinUserSelect="openJellyfinUserSelect"
             @openTautulliUserSelect="openTautulliUserSelect"
           />
@@ -193,6 +212,7 @@
             :plexConnected="plexConnected"
             :jellyfinConnected="jellyfinConnected"
             :tautulliConnected="tautulliConnected"
+            :traktConnected="traktConnected"
             @settings-updated="handleSettingsUpdated"
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
@@ -203,6 +223,7 @@
         </div>
       </div>
     </main>
+    </template>
   </div>
 </template>
 
@@ -212,6 +233,8 @@ import RadarrConnection from './components/RadarrConnection.vue'
 import PlexConnection from './components/PlexConnection.vue'
 import JellyfinConnection from './components/JellyfinConnection.vue'
 import TautulliConnection from './components/TautulliConnection.vue'
+import TraktConnection from './components/TraktConnection.vue'
+import TraktCallback from './components/TraktCallback.vue'
 import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/RequestRecommendations.vue'
 import History from './components/History.vue'
@@ -233,6 +256,8 @@ export default {
     PlexConnection,
     JellyfinConnection,
     TautulliConnection,
+    TraktConnection,
+    TraktCallback,
     AppNavigation,
     TVRecommendations,
     History,
@@ -240,16 +265,24 @@ export default {
   },
   data() {
     return {
+      isTraktCallback: window.location.pathname === '/trakt-callback',
       sonarrConnected: false,
       radarrConnected: false,
       plexConnected: false,
       jellyfinConnected: false,
       tautulliConnected: false,
+      traktConnected: false,
+      traktRecentlyWatchedMovies: [],
+      traktRecentlyWatchedShows: [],
+      traktRecentLimit: 50,
+      traktHistoryMode: 'all',
+      traktOnlyMode: false,
       showSonarrConnect: false,
       showRadarrConnect: false,
       showPlexConnect: false,
       showJellyfinConnect: false,
       showTautulliConnect: false,
+      showTraktConnect: false,
       showJellyfinUserSelect: false,
       showTautulliUserSelect: false,
       jellyfinUsers: [],
@@ -279,6 +312,11 @@ export default {
     }
   },
   async created() {
+    // If this is a Trakt callback URL, we only need to show the callback component
+    if (this.isTraktCallback) {
+      return; // No need to do the other initializations yet
+    }
+    
     // Check if services have credentials stored server-side
     // This will also set up connections and fetch data if credentials are found
     await this.checkStoredCredentials();
@@ -348,7 +386,8 @@ export default {
           credentialsService.hasCredentials('radarr'),
           credentialsService.hasCredentials('plex'),
           credentialsService.hasCredentials('jellyfin'),
-          credentialsService.hasCredentials('tautulli')
+          credentialsService.hasCredentials('tautulli'),
+          credentialsService.hasCredentials('trakt')
         ]);
         
         // If any service has credentials, set up the appropriate services
@@ -359,7 +398,8 @@ export default {
             this.configureServiceFromCredentials('radarr'),
             this.configureServiceFromCredentials('plex'),
             this.configureServiceFromCredentials('jellyfin'),
-            this.configureServiceFromCredentials('tautulli')
+            this.configureServiceFromCredentials('tautulli'),
+            this.configureServiceFromCredentials('trakt')
           ]);
         }
       } catch (error) {
@@ -444,6 +484,28 @@ export default {
               if (success) {
                 this.tautulliConnected = true;
                 this.fetchTautulliData();
+              }
+            }
+            break;
+            
+          case 'trakt':
+            if (credentials.clientId && credentials.accessToken) {
+              console.log('Configuring Trakt from stored credentials');
+              traktService.clientId = credentials.clientId;
+              traktService.clientSecret = credentials.clientSecret || '';
+              traktService.accessToken = credentials.accessToken;
+              traktService.refreshToken = credentials.refreshToken || '';
+              traktService.expiresAt = credentials.expiresAt || null;
+              traktService.configured = true;
+              
+              const success = await traktService.testConnection();
+              if (success) {
+                console.log('Trakt connection successful from stored credentials');
+                this.traktConnected = true;
+                await this.fetchTraktData();
+              } else {
+                this.traktConnected = false;
+                console.log('Trakt connection test failed during configuration');
               }
             }
             break;
@@ -536,6 +598,63 @@ export default {
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('tautulli');
+    },
+    
+    async handleTraktConnected() {
+      this.traktConnected = true;
+      this.showTraktConnect = false; // Don't show connect modal
+      await this.fetchTraktData();
+      console.log('Trakt connected successfully, data fetched');
+    },
+    
+    async handleTraktDisconnected() {
+      this.traktConnected = false;
+      this.showTraktConnect = false; // Don't show connect modal
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
+      
+      // Clean up localStorage
+      localStorage.removeItem('traktClientId');
+      localStorage.removeItem('traktAccessToken');
+      localStorage.removeItem('traktRecentLimit');
+      
+      // Delete credentials from server
+      await credentialsService.deleteCredentials('trakt');
+    },
+    
+    async handleTraktLimitChanged(limit) {
+      this.traktRecentLimit = limit;
+      await this.fetchTraktData();
+    },
+    
+    async fetchTraktData() {
+      if (!traktService.isConfigured()) {
+        console.log('Trakt service is not configured, skipping data fetch');
+        return;
+      }
+      
+      try {
+        console.log('Fetching Trakt watch history...');
+        
+        // Determine if we should apply a days filter based on the history mode
+        const daysAgo = this.traktHistoryMode === 'recent' ? 30 : 0;
+        
+        // Fetch both shows and movies in parallel for efficiency
+        const [moviesResponse, showsResponse] = await Promise.all([
+          traktService.getRecentlyWatchedMovies(this.traktRecentLimit || 50, daysAgo),
+          traktService.getRecentlyWatchedShows(this.traktRecentLimit || 50, daysAgo)
+        ]);
+        
+        this.traktRecentlyWatchedMovies = moviesResponse;
+        this.traktRecentlyWatchedShows = showsResponse;
+        
+        console.log('Fetched Trakt watch history:', {
+          moviesCount: this.traktRecentlyWatchedMovies.length,
+          showsCount: this.traktRecentlyWatchedShows.length
+        });
+      } catch (error) {
+        console.error('Failed to fetch Trakt watch history:', error);
+      }
     },
     
     async openJellyfinUserSelect() {
@@ -691,6 +810,24 @@ export default {
       }
     },
     
+    async checkTraktConnection() {
+      try {
+        console.log('Checking Trakt connection...');
+        const success = await traktService.testConnection();
+        if (success) {
+          console.log('Trakt connection successful');
+          this.traktConnected = true;
+          await this.fetchTraktData();
+        } else {
+          console.log('Trakt connection test failed');
+          this.traktConnected = false;
+        }
+      } catch (error) {
+        console.error('Failed to connect with stored Trakt credentials:', error);
+        this.traktConnected = false;
+      }
+    },
+    
     handleSonarrConnected() {
       this.sonarrConnected = true;
       this.showSonarrConnect = false;
@@ -753,6 +890,12 @@ export default {
       this.fetchTautulliData();
     },
     
+    handleTraktHistoryModeChanged(mode) {
+      console.log('Trakt history mode changed to:', mode);
+      this.traktHistoryMode = mode;
+      this.fetchTraktData();
+    },
+    
     handlePlexOnlyModeChanged(enabled) {
       this.plexOnlyMode = enabled;
     },
@@ -763,6 +906,11 @@ export default {
     
     handleTautulliOnlyModeChanged(enabled) {
       this.tautulliOnlyMode = enabled;
+    },
+    
+    handleTraktOnlyModeChanged(enabled) {
+      console.log('Trakt only mode changed to:', enabled);
+      this.traktOnlyMode = enabled;
     },
     handleNavigate(tab) {
       this.activeTab = tab;

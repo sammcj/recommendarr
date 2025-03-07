@@ -6,62 +6,78 @@
         Connect to your Trakt.tv account to access watch history statistics.
       </p>
       
-      <div class="form-group">
-        <label for="clientId">Client ID:</label>
-        <input 
-          id="clientId" 
-          v-model="clientId" 
-          type="text" 
-          placeholder="Your Trakt Client ID"
-          required
-          @keyup.enter="connectToTrakt"
-        />
-        <div class="field-hint">Obtain by creating an app in your Trakt account settings</div>
-      </div>
-      
-      <div class="form-group">
-        <label for="accessToken">Access Token:</label>
-        <div class="api-key-input">
+      <div class="oauth-explanation">
+        <h3>Connect with OAuth</h3>
+        <p>
+          This will securely connect to your Trakt account by redirecting you to Trakt.tv,
+          where you can authorize this application. No need to manually create access tokens.
+        </p>
+        
+        <div class="redirect-info">
+          <strong>Important:</strong> Make sure your Trakt application has this callback URL configured:
+          <div class="redirect-url">{{ redirectUri }}</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="clientId">Client ID:</label>
           <input 
-            id="accessToken" 
-            v-model="accessToken" 
-            :type="showToken ? 'text' : 'password'" 
-            placeholder="Your Trakt Access Token"
+            id="clientId" 
+            v-model="clientId" 
+            type="text" 
+            placeholder="Your Trakt Client ID"
             required
-            @keyup.enter="connectToTrakt"
           />
-          <button type="button" class="toggle-button" @click="showToken = !showToken">
-            {{ showToken ? 'Hide' : 'Show' }}
+          <div class="field-hint">Obtain by creating an app in your Trakt account settings</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="clientSecret">Client Secret: <span class="optional">(Optional)</span></label>
+          <div class="api-key-input">
+            <input 
+              id="clientSecret" 
+              v-model="clientSecret" 
+              :type="showSecret ? 'text' : 'password'" 
+              placeholder="Your Trakt Client Secret (optional)"
+            />
+            <button type="button" class="toggle-button" @click="showSecret = !showSecret">
+              {{ showSecret ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          <div class="field-hint">
+            Optional, but recommended. Found in your Trakt API application settings.
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="recentLimit">Number of recent items to fetch:</label>
+          <div class="limit-input">
+            <input 
+              id="recentLimit" 
+              v-model.number="recentLimit" 
+              type="number" 
+              min="1" 
+              max="100" 
+            />
+          </div>
+        </div>
+        
+        <div class="actions">
+          <button 
+            @click="startOAuthFlow" 
+            :disabled="isConnecting || !clientId"
+            class="primary-button"
+          >
+            <span v-if="isConnecting" class="loading-spinner"></span>
+            {{ isConnecting ? 'Connecting...' : 'Connect with Trakt' }}
           </button>
         </div>
-        <div class="field-hint">
-          Generate an access token with permission to read your watch history.
+        
+        <div class="oauth-note">
+          <p>
+            <strong>Note:</strong> You'll be redirected to Trakt.tv to securely authorize this application.
+            After you authorize, you'll be redirected back here to complete the connection.
+          </p>
         </div>
-      </div>
-      
-      <div class="form-group">
-        <label for="recentLimit">Number of recent items to fetch:</label>
-        <div class="limit-input">
-          <input 
-            id="recentLimit" 
-            v-model.number="recentLimit" 
-            type="number" 
-            min="1" 
-            max="100" 
-            @keyup.enter="connectToTrakt"
-          />
-        </div>
-      </div>
-      
-      <div class="actions">
-        <button 
-          @click="connectToTrakt" 
-          :disabled="isConnecting || !clientId || !accessToken"
-          class="primary-button"
-        >
-          <span v-if="isConnecting" class="loading-spinner"></span>
-          {{ isConnecting ? 'Connecting...' : 'Connect' }}
-        </button>
       </div>
       
       <div v-if="errorMessage" class="error-message">
@@ -80,8 +96,24 @@
       
       <div class="server-info">
         <div class="info-row">
+          <span class="info-label">Connection Type:</span>
+          <span class="info-value">OAuth Authorization</span>
+        </div>
+        
+        <div class="info-row">
           <span class="info-label">Client ID:</span>
           <span class="info-value">{{ maskedClientId }}</span>
+        </div>
+        
+        <div class="info-row">
+          <span class="info-label">Authorization:</span>
+          <span class="info-value auth-status">
+            <span class="auth-indicator connected"></span>
+            Authorized
+            <span class="auth-expiry" v-if="expiresAt">
+              (expires {{ formatExpiryDate(expiresAt) }})
+            </span>
+          </span>
         </div>
         
         <div class="info-row">
@@ -127,13 +159,15 @@ export default {
   data() {
     return {
       clientId: '',
-      accessToken: '',
+      clientSecret: '',
       recentLimit: 50,
-      showToken: false,
+      expiresAt: null,
+      showSecret: false,
       isConnecting: false,
       errorMessage: '',
       editLimit: false,
-      newLimit: 50
+      newLimit: 50,
+      redirectUri: window.location.origin + '/trakt-callback'
     };
   },
   computed: {
@@ -144,6 +178,17 @@ export default {
     }
   },
   async created() {
+    // Check for OAuth callback parameters in URL
+    if (!this.connected) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      
+      if (code && state) {
+        this.handleOAuthCallback(code, state);
+      }
+    }
+    
     // If we're already connected, populate with existing credentials
     if (this.connected) {
       // Make sure credentials are loaded
@@ -153,7 +198,8 @@ export default {
       
       if (traktService.isConfigured()) {
         this.clientId = traktService.clientId;
-        this.accessToken = traktService.accessToken;
+        this.clientSecret = traktService.clientSecret;
+        this.expiresAt = traktService.expiresAt;
         
         // Load recent limit from localStorage if available
         const savedLimit = localStorage.getItem('traktRecentLimit');
@@ -165,9 +211,17 @@ export default {
     }
   },
   methods: {
-    async connectToTrakt() {
-      if (!this.clientId || !this.accessToken) {
-        this.errorMessage = 'Please enter both Client ID and Access Token';
+    // Format expiry date for display
+    formatExpiryDate(timestamp) {
+      if (!timestamp) return 'unknown';
+      const date = new Date(timestamp);
+      return date.toLocaleString();
+    },
+    
+    // Start OAuth flow
+    async startOAuthFlow() {
+      if (!this.clientId) {
+        this.errorMessage = 'Please enter your Trakt Client ID';
         return;
       }
       
@@ -175,34 +229,63 @@ export default {
       this.errorMessage = '';
       
       try {
-        // Configure the Trakt service with the credentials
-        await traktService.configure(this.clientId, this.accessToken);
+        // Configure Trakt service with client ID and secret
+        await traktService.configure(this.clientId, this.clientSecret);
         
-        // Test the connection
+        // Save the recent limit to localStorage
+        localStorage.setItem('traktRecentLimit', this.recentLimit.toString());
+        
+        // Start OAuth flow
+        await traktService.startOAuthFlow();
+        
+        // The page will redirect to Trakt.tv
+      } catch (error) {
+        console.error('Error starting OAuth flow:', error);
+        this.errorMessage = error.message || 'Failed to connect to Trakt';
+        this.isConnecting = false;
+      }
+    },
+    
+    // Handle OAuth callback
+    async handleOAuthCallback(code, state) {
+      this.isConnecting = true;
+      this.errorMessage = '';
+      
+      try {
+        // Exchange code for token
+        await traktService.handleOAuthCallback(code, state);
+        
+        // Test connection with the obtained token
         const success = await traktService.testConnection();
         
         if (success) {
-          // Save the recent limit to localStorage
-          localStorage.setItem('traktRecentLimit', this.recentLimit.toString());
-          
           // Emit connected event
           this.$emit('connected');
           
           // Emit limit changed event
-          this.$emit('limitChanged', this.recentLimit);
+          const recentLimit = localStorage.getItem('traktRecentLimit') || '50';
+          this.$emit('limitChanged', parseInt(recentLimit, 10));
+          
+          // Clean up URL to remove OAuth parameters
+          const url = new URL(window.location.href);
+          url.search = '';
+          window.history.replaceState({}, document.title, url.toString());
         } else {
-          this.errorMessage = 'Could not connect to Trakt. Please verify your credentials.';
+          this.errorMessage = 'Could not connect to Trakt after authorization.';
         }
       } catch (error) {
-        console.error('Error connecting to Trakt:', error);
-        this.errorMessage = error.response?.data?.message || 'Failed to connect to Trakt';
+        console.error('Error handling OAuth callback:', error);
+        this.errorMessage = error.message || 'Failed to complete Trakt authorization';
       } finally {
         this.isConnecting = false;
       }
     },
     
     async disconnectTrakt() {
-      if (confirm('Are you sure you want to disconnect from Trakt?')) {
+      if (confirm('Are you sure you want to disconnect from Trakt? This will revoke your authorization.')) {
+        // If we wanted to, we could revoke the token on Trakt.tv here
+        
+        // Emit disconnected event
         this.$emit('disconnected');
       }
     },
@@ -521,5 +604,83 @@ input[type="number"] {
 
 .disconnect-button:hover {
   background-color: rgba(255, 59, 48, 0.2);
+}
+
+/* OAuth related styles */
+.oauth-explanation {
+  background-color: rgba(237, 28, 36, 0.05);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-left: 3px solid #ED1C24; /* Trakt red */
+}
+
+.oauth-explanation h3 {
+  margin-top: 0;
+  color: #ED1C24; /* Trakt red */
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.redirect-info {
+  background-color: #f8f9fa;
+  border-left: 3px solid #2563eb;
+  padding: 10px 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.redirect-url {
+  font-family: monospace;
+  background-color: #333;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  word-break: break-all;
+  margin-top: 8px;
+}
+
+.oauth-note {
+  margin-top: 20px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  padding: 10px 15px;
+  font-size: 13px;
+}
+
+.oauth-note p {
+  margin: 0;
+}
+
+.optional {
+  font-size: 12px;
+  font-weight: normal;
+  color: #888;
+}
+
+.auth-status {
+  display: flex;
+  align-items: center;
+}
+
+.auth-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.auth-indicator.connected {
+  background-color: #4CAF50; /* Green */
+  box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+}
+
+.auth-expiry {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
 }
 </style>

@@ -88,21 +88,27 @@
                     </div>
                     
                     <div class="temperature-control">
-                      <label for="temperature-slider">Temperature: <span class="temp-value">{{ temperature.toFixed(1) }}</span></label>
-                      <div class="slider-container">
-                        <div class="temp-labels">
-                          <div class="temp-label-right">Creative</div>
+                      <div class="slider-header">
+                        <label for="temperature-slider">Temperature</label>
+                        <span class="slider-value">{{ temperature.toFixed(1) }}</span>
+                      </div>
+                      <div class="modern-slider-container">
+                        <div class="slider-labels">
+                          <span>Precise</span>
+                          <span>Creative</span>
+                        </div>
+                        <div class="slider-track-container">
                           <input 
-                          type="range" 
-                          id="temperature-slider"
-                          v-model.number="temperature"
-                          min="0" 
-                          max="1"
-                          step="0.1"
-                          class="temp-slider"
-                          @change="updateTemperature"
-                        />
-                        <div class="temp-label-left">Precise</div>
+                            type="range" 
+                            id="temperature-slider"
+                            v-model.number="temperature"
+                            min="0" 
+                            max="1"
+                            step="0.1"
+                            class="modern-slider"
+                            @change="updateTemperature"
+                          />
+                          <div class="slider-track" :style="{ width: `${temperature * 100}%` }"></div>
                         </div>
                       </div>
                     </div>
@@ -121,17 +127,27 @@
                       </div>
                       
                       <div v-if="useSampledLibrary" class="sample-size-control">
-                        <label for="sampleSizeSlider">Sample size: <span class="count-display">{{ sampleSize }}</span></label>
-                        <div class="slider-container sample-slider-container">
-                          <input 
-                            type="range" 
-                            id="sampleSizeSlider"
-                            v-model.number="sampleSize"
-                            min="5" 
-                            max="50"
-                            class="count-slider"
-                            @change="saveSampleSize"
-                          >
+                        <div class="slider-header">
+                          <label for="sampleSizeSlider">Sample size</label>
+                          <span class="slider-value">{{ sampleSize }}</span>
+                        </div>
+                        <div class="modern-slider-container">
+                          <div class="slider-track-container">
+                            <input 
+                              type="range" 
+                              id="sampleSizeSlider"
+                              v-model.number="sampleSize"
+                              min="5" 
+                              max="50"
+                              class="modern-slider"
+                              @change="saveSampleSize"
+                            >
+                            <div class="slider-track" :style="{ width: `${(sampleSize - 5) / 45 * 100}%` }"></div>
+                          </div>
+                          <div class="slider-range-labels">
+                            <span>5</span>
+                            <span>50</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -150,96 +166,140 @@
                 </div>
                 
                 <div class="count-selector">
-                  <label for="recommendationsSlider">Number of recommendations: <span class="count-display">{{ numRecommendations }}</span></label>
-                  <div class="slider-container">
-                    <input 
-                      type="range" 
-                      id="recommendationsSlider"
-                      v-model.number="numRecommendations"
-                      min="1" 
-                      max="50"
-                      class="count-slider"
-                      @change="saveRecommendationCount"
-                    >
+                  <div class="slider-header">
+                    <label for="recommendationsSlider">Number of recommendations</label>
+                    <span class="slider-value">{{ numRecommendations }}</span>
+                  </div>
+                  <div class="modern-slider-container">
+                    <div class="slider-track-container">
+                      <input 
+                        type="range" 
+                        id="recommendationsSlider"
+                        v-model.number="numRecommendations"
+                        min="1" 
+                        max="50"
+                        class="modern-slider"
+                        @change="saveRecommendationCount"
+                      >
+                      <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
+                    </div>
+                    <div class="slider-range-labels">
+                      <span>1</span>
+                      <span>50</span>
+                    </div>
                   </div>
                 </div>
                 
                 <div class="count-selector">
-                  <label for="columnsSlider">Posters per row: <span class="count-display">{{ columnsCount }}</span></label>
-                  <div class="slider-container">
-                    <input 
-                      type="range" 
-                      id="columnsSlider"
-                      v-model.number="columnsCount"
-                      min="1" 
-                      max="4"
-                      class="count-slider"
-                      @change="saveColumnsCount"
-                    >
+                  <div class="slider-header">
+                    <label for="columnsSlider">Posters per row</label>
+                    <span class="slider-value">{{ columnsCount }}</span>
+                  </div>
+                  <div class="modern-slider-container">
+                    <div class="slider-track-container">
+                      <input 
+                        type="range" 
+                        id="columnsSlider"
+                        v-model.number="columnsCount"
+                        min="1" 
+                        max="4"
+                        class="modern-slider"
+                        @change="saveColumnsCount"
+                      >
+                      <div class="slider-track" :style="{ width: `${(columnsCount - 1) / 3 * 100}%` }"></div>
+                    </div>
+                    <div class="slider-range-labels">
+                      <span>1</span>
+                      <span>4</span>
+                    </div>
                   </div>
                 </div>
               </div>
               
               <div class="settings-right">
                 <div class="genre-selector">
-                  <label>Genre preferences:</label>
-                  <div class="genre-checkboxes">
-                    <div class="genre-checkbox-item" v-for="genre in availableGenres" :key="genre.value">
-                      <label class="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          :value="genre.value" 
-                          v-model="selectedGenres"
-                          @change="saveGenrePreference"
-                        >
-                        {{ genre.label }}
-                      </label>
+                  <div class="section-header">
+                    <label>Genre preferences</label>
+                    <span v-if="selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
+                  </div>
+                  <div class="genre-tags-container">
+                    <div 
+                      v-for="genre in availableGenres" 
+                      :key="genre.value"
+                      :class="['genre-tag', {'selected': selectedGenres.includes(genre.value)}]"
+                      @click="toggleGenre(genre.value)"
+                    >
+                      {{ genre.label }}
                     </div>
-                    <div v-if="selectedGenres.length > 0" class="selected-genres-summary">
-                      <div class="selected-genres-count">{{ selectedGenres.length }} genre{{ selectedGenres.length > 1 ? 's' : '' }} selected</div>
-                      <button @click="clearGenres" class="clear-genres-button">Clear All</button>
-                    </div>
+                    <button 
+                      v-if="selectedGenres.length > 0" 
+                      @click="clearGenres" 
+                      class="clear-all-button"
+                      title="Clear all selected genres"
+                    >
+                      Clear all
+                    </button>
                   </div>
                 </div>
                 
                 <div class="vibe-selector">
-                  <label for="customVibe">Specify a vibe/mood or custom prompt:</label>
+                  <div class="section-header">
+                    <label for="customVibe">Vibe/mood or custom prompt</label>
+                    <button 
+                      v-if="customVibe" 
+                      @click="clearCustomVibe" 
+                      class="clear-prompt-button"
+                      title="Clear prompt"
+                    >
+                      Clear
+                    </button>
+                  </div>
                   <div class="vibe-input-container">
                     <textarea 
                       id="customVibe" 
                       v-model="customVibe"
                       @change="saveCustomVibe"
-                      placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel, or write a longer prompt to guide the AI recommendations"
+                      placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
                       class="vibe-input"
-                      rows="3"
+                      rows="2"
                     ></textarea>
-                    <button 
-                      v-if="customVibe" 
-                      @click="clearCustomVibe" 
-                      class="clear-vibe-button"
-                      title="Clear vibe"
-                    >×</button>
                   </div>
-                  <div class="setting-description">
-                    Specify the mood, vibe, or detailed prompt to guide the AI recommendations. You can be specific about themes, styles, or preferences.
+                  <div class="setting-tip">
+                    <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
+                      <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <span>Guide the AI with specific themes, styles, or preferences</span>
                   </div>
                 </div>
                 
                 <div class="language-selector">
-                  <label for="languageSelect">Content language:</label>
-                  <select 
-                    id="languageSelect" 
-                    v-model="selectedLanguage"
-                    @change="saveLanguagePreference"
-                    class="language-select"
-                  >
-                    <option value="">Any language</option>
-                    <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
-                      {{ lang.name }}
-                    </option>
-                  </select>
-                  <div class="setting-description">
-                    Select a language to focus recommendations on content in that language.
+                  <div class="section-header">
+                    <label for="languageSelect">Content language</label>
+                    <span v-if="selectedLanguage" class="language-badge">{{ getLanguageName(selectedLanguage) }}</span>
+                  </div>
+                  <div class="select-wrapper">
+                    <select 
+                      id="languageSelect" 
+                      v-model="selectedLanguage"
+                      @change="saveLanguagePreference"
+                      class="language-select"
+                    >
+                      <option value="">Any language</option>
+                      <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+                        {{ lang.name }}
+                      </option>
+                    </select>
+                    <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <div class="setting-tip">
+                    <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
+                      <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <span>Focus recommendations on content in a specific language</span>
                   </div>
                 </div>
                 
@@ -370,19 +430,21 @@
               <button 
                 @click="getRecommendations" 
                 :disabled="loading"
-                class="action-button fun-button"
+                class="action-button discover-button"
               >
-                <span class="button-content">
+                <div class="discover-button-inner">
                   <span class="button-icon">{{ isMovieMode ? '🎬' : '📺' }}</span>
                   <span class="button-text">
                     {{ loading 
-                      ? (isMovieMode ? 'Finding Movie Treasures...' : 'Finding TV Treasures...') 
-                      : (isMovieMode ? 'Discover Movie Treasures!' : 'Discover TV Treasures!') 
+                      ? (isMovieMode ? 'Finding Recommendations...' : 'Finding Recommendations...') 
+                      : (isMovieMode ? 'Discover Recommendations' : 'Discover Recommendations') 
                     }}
                   </span>
-                  <span class="button-icon">✨</span>
-                </span>
-                <span class="button-glow"></span>
+                  <svg class="arrow-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div class="button-shine"></div>
               </button>
             </div>
           </div>
@@ -1278,6 +1340,19 @@ export default {
       }
     },
     
+    // Toggle a genre selection
+    toggleGenre(genreValue) {
+      const index = this.selectedGenres.indexOf(genreValue);
+      if (index === -1) {
+        // Genre not selected, add it
+        this.selectedGenres.push(genreValue);
+      } else {
+        // Genre already selected, remove it
+        this.selectedGenres.splice(index, 1);
+      }
+      this.saveGenrePreference();
+    },
+    
     // Clear all selected genres
     clearGenres() {
       this.selectedGenres = [];
@@ -1310,6 +1385,13 @@ export default {
         // Fallback to localStorage
         localStorage.setItem('tvLanguagePreference', this.selectedLanguage);
       }
+    },
+    
+    // Get language name from code
+    getLanguageName(code) {
+      if (!code) return '';
+      const language = this.availableLanguages.find(lang => lang.code === code);
+      return language ? language.name : code;
     },
     
     // Save Plex history mode preference
@@ -3229,9 +3311,19 @@ h2 {
 .settings-button {
   min-width: 200px;
   margin-top: 10px;
-  font-size: 15px;
+  font-size: 14px;
   background-color: #2196F3;
   margin-left: 10px;
+  border-radius: 10px;
+  border: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
+}
+
+.settings-button:hover:not(:disabled) {
+  background-color: #1976D2;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.4);
 }
 
 .actions {
@@ -3290,7 +3382,8 @@ h2 {
 .action-button-container {
   display: flex;
   justify-content: center;
-  margin-top: 20px;
+  align-items: center;
+  margin: 24px 0 10px;
   width: 100%;
 }
 
@@ -3319,15 +3412,19 @@ h2 {
 
 .retry-button {
   margin-top: 15px;
-  background-color: #ff9800;
-  color: white;
+  background-color: transparent;
+  color: #7c3aed;
   font-size: 15px;
   padding: 8px 20px;
   min-width: 120px;
+  border: 2px solid #7c3aed;
+  border-radius: 10px;
+  transition: all 0.2s ease;
 }
 
 .retry-button:hover:not(:disabled) {
-  background-color: #f57c00;
+  background-color: rgba(124, 58, 237, 0.08);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 600px) {
@@ -3419,27 +3516,48 @@ h2 {
 }
 
 .info-section {
-  background-color: rgba(0, 0, 0, 0.03);
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background-color: rgba(124, 58, 237, 0.03);
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(124, 58, 237, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.info-section:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 
 .info-section-title {
-  margin: 0 0 10px 0;
-  font-size: 15px;
-  color: var(--header-color);
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: #7c3aed;
   font-weight: 600;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(124, 58, 237, 0.15);
+  display: flex;
+  align-items: center;
+}
+
+.info-section-title::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  margin-right: 8px;
+  background: linear-gradient(to bottom, #7c3aed, #9333ea);
+  border-radius: 2px;
 }
 
 .model-info {
-  padding: 6px 0;
+  padding: 10px 0;
   font-size: 14px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
 .current-model {
@@ -3452,27 +3570,37 @@ h2 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  background-color: rgba(124, 58, 237, 0.05);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 58, 237, 0.1);
 }
 
 .fetch-models-button {
   background: none;
-  border: none;
-  color: var(--button-primary-bg);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  color: #7c3aed;
   font-size: 16px;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .fetch-models-button:hover:not(:disabled) {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(124, 58, 237, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .fetch-models-button:disabled {
   color: #ccc;
   cursor: not-allowed;
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
 .loading-icon {
@@ -3499,19 +3627,26 @@ h2 {
 }
 
 .model-select {
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--input-border);
+  padding: 12px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
   width: 100%;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+}
+
+.model-select:hover {
+  border-color: #7c3aed;
 }
 
 .model-select:focus {
-  border-color: var(--button-primary-bg);
+  border-color: #7c3aed;
   outline: none;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 
 .model-select-custom {
@@ -3519,174 +3654,257 @@ h2 {
 }
 
 .custom-model-input {
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--input-border);
+  padding: 12px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
   width: 100%;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.custom-model-input:hover {
+  border-color: #7c3aed;
 }
 
 .custom-model-input:focus {
-  border-color: var(--button-primary-bg);
+  border-color: #7c3aed;
   outline: none;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 
-.temperature-control {
-  margin-top: 15px;
+/* Modern Slider Components */
+.temperature-control,
+.sample-size-control {
+  margin-top: 10px;
 }
 
-.temperature-control label {
-  font-size: 14px;
-  color: var(--text-color);
-  font-weight: 500;
+.slider-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.slider-header label {
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.slider-value {
+  font-weight: 600;
+  color: #7c3aed;
+  background-color: rgba(124, 58, 237, 0.1);
+  border-radius: 30px;
+  padding: 1px 8px;
+  min-width: 20px;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-size: 13px;
+}
+
+.modern-slider-container {
+  position: relative;
+  padding: 0 2px;
   margin-bottom: 8px;
 }
 
-.temp-value {
-  font-weight: bold;
-  color: #4CAF50;
-  background-color: #f0f0f0;
-  border-radius: 4px;
-  padding: 2px 8px;
+.slider-track-container {
+  position: relative;
+  height: 24px;
+  display: flex;
+  align-items: center;
 }
 
-.temp-slider {
-  width: 100%;
-  -webkit-appearance: none;
+.slider-track {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
   height: 6px;
-  border-radius: 5px;
-  background: #ddd;
+  background: linear-gradient(to right, #7c3aed, #9333ea);
+  border-radius: 3px;
+  z-index: 1;
+  transition: width 0.2s ease;
+}
+
+.modern-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #e5e7eb;
   outline: none;
+  position: relative;
+  z-index: 2;
   margin: 0;
   padding: 0;
-  position: relative;
+  cursor: pointer;
 }
 
-.temp-slider::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 5px;
-}
-
-.temp-slider::-webkit-slider-thumb {
+.modern-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: #4CAF50;
+  background: #fff;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: background 0.2s, transform 0.2s;
-  margin-top: -6px;
+  border: 2px solid #7c3aed;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 3;
+  margin-top: -5px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.temp-slider::-webkit-slider-thumb:hover {
-  background: #43a047;
+.modern-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  border: 2px solid #7c3aed;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 3;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modern-slider::-webkit-slider-thumb:hover,
+.modern-slider:active::-webkit-slider-thumb {
   transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(124, 58, 237, 0.3);
 }
 
-.temp-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #4CAF50;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: background 0.2s, transform 0.2s;
-  border: none;
+.modern-slider::-moz-range-thumb:hover,
+.modern-slider:active::-moz-range-thumb {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(124, 58, 237, 0.3);
 }
 
-.temp-labels {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  color: var(--text-color);
-  opacity: 0.7;
-  width: 100%;
-}
-
-.temp-label-left {
-  margin-left: 10px;
-  width: 50px;
-}
-
-.temp-label-right {
-  margin-right: 10px;
-  width: 50px;
-}
-
-.temp-slider {
-  flex: 1;
-  margin: 0 10px;
-}
-
-.genre-checkboxes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 15px;
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  margin-bottom: 8px;
-  background-color: var(--input-bg);
-}
-
-.genre-checkbox-item {
-  display: flex;
-  align-items: center;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-weight: normal;
-  margin: 0;
-  font-size: 14px;
-}
-
-.checkbox-label input[type="checkbox"] {
-  margin-right: 8px;
-  cursor: pointer;
-}
-
-.selected-genres-summary {
-  grid-column: 1 / -1;
+.slider-labels {
   display: flex;
   justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-color);
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.slider-range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-color);
+  opacity: 0.6;
+  margin-top: 0;
+  padding: 0 2px;
+}
+
+.section-header {
+  display: flex;
   align-items: center;
-  padding-top: 10px;
-  margin-top: 10px;
-  border-top: 1px solid var(--border-color);
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 
-.selected-genres-count {
-  font-size: 13px;
-  color: var(--button-primary-bg);
+.section-header label {
+  font-size: 15px;
   font-weight: 500;
+  color: var(--text-color);
 }
 
-.clear-genres-button {
-  background: none;
-  border: none;
+.genre-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  background-color: #7c3aed;
+  color: white;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+.genre-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 5px 0;
+  margin-bottom: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #7c3aed rgba(124, 58, 237, 0.1);
+}
+
+.genre-tags-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.genre-tags-container::-webkit-scrollbar-track {
+  background: rgba(124, 58, 237, 0.05);
+  border-radius: 3px;
+}
+
+.genre-tags-container::-webkit-scrollbar-thumb {
+  background-color: rgba(124, 58, 237, 0.4);
+  border-radius: 3px;
+}
+
+.genre-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: rgba(124, 58, 237, 0.05);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 30px;
+  color: var(--text-color);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.genre-tag:hover {
+  background-color: rgba(124, 58, 237, 0.1);
+  transform: translateY(-1px);
+}
+
+.genre-tag.selected {
+  background-color: #7c3aed;
+  color: white;
+  border-color: #7c3aed;
+  box-shadow: 0 2px 5px rgba(124, 58, 237, 0.3);
+}
+
+.genre-tag.selected:hover {
+  background-color: #6d32d1;
+}
+
+.clear-all-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+  border-radius: 30px;
   color: #f44336;
   font-size: 13px;
-  padding: 2px 6px;
   cursor: pointer;
-  opacity: 0.8;
-  transition: opacity 0.2s;
+  transition: all 0.2s ease;
+  margin-left: 4px;
 }
 
-.clear-genres-button:hover {
-  opacity: 1;
-  text-decoration: underline;
+.clear-all-button:hover {
+  background-color: rgba(244, 67, 54, 0.15);
+  transform: translateY(-1px);
 }
 
 .count-selector, .genre-selector {
@@ -3696,14 +3914,15 @@ h2 {
   box-sizing: border-box;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
   padding: 15px;
-  background-color: rgba(0, 0, 0, 0.02);
-  border-radius: 8px;
+  background-color: rgba(124, 58, 237, 0.03);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(124, 58, 237, 0.1);
 }
 
 .count-selector {
-  margin-bottom: 25px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 14px;
+  padding: 10px;
 }
 
 .select-container {
@@ -3713,19 +3932,25 @@ h2 {
 
 select {
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   appearance: none;
   background-color: var(--input-bg);
   color: var(--input-text);
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
-  transition: border-color 0.2s, background-color var(--transition-speed), color var(--transition-speed);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color var(--transition-speed), color var(--transition-speed);
 }
 
 select:hover {
-  border-color: var(--button-primary-bg);
+  border-color: #7c3aed;
+}
+
+select:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+  outline: none;
 }
 
 .select-arrow {
@@ -3738,101 +3963,14 @@ select:hover {
   color: var(--input-text);
 }
 
-.count-selector label, .genre-selector label {
+.genre-selector label {
   font-size: 14px;
   color: var(--text-color);
   font-weight: 500;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   transition: color var(--transition-speed);
-}
-
-.slider-container {
-  width: 100%;
-  padding: 0 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.count-slider {
-  width: 100%;
-  -webkit-appearance: none;
-  height: 6px;
-  border-radius: 5px;
-  background: #ddd;
-  outline: none;
-  margin: 0;
-  padding: 0;
-  vertical-align: middle;
-}
-
-.count-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #4CAF50;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: background 0.2s, transform 0.2s;
-  margin-top: -7px; /* Fix vertical alignment */
-}
-
-.count-slider::-webkit-slider-thumb:hover {
-  background: #43a047;
-  transform: scale(1.1);
-}
-
-.count-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #4CAF50;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: background 0.2s, transform 0.2s;
-  border: none;
-}
-
-.count-slider::-moz-range-thumb:hover {
-  background: #43a047;
-  transform: scale(1.1);
-}
-
-.count-slider::-webkit-slider-runnable-track {
-  width: 100%;
-  height: 6px;
-  cursor: pointer;
-  background: #ddd;
-  border-radius: 5px;
-  margin: 0;
-  padding: 0;
-}
-
-.count-slider::-moz-range-track {
-  width: 100%;
-  height: 6px;
-  cursor: pointer;
-  background: #ddd;
-  border-radius: 5px;
-  margin: 0;
-  padding: 0;
-}
-
-.count-display {
-  font-size: 16px;
-  font-weight: bold;
-  min-width: 25px;
-  text-align: center;
-  color: #4CAF50;
-  background-color: #f0f0f0;
-  border-radius: 4px;
-  padding: 2px 8px;
-  margin-left: 10px;
 }
 
 .action-button {
@@ -3848,78 +3986,100 @@ select:hover {
   transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
-.fun-button {
+.discover-button {
   position: relative;
-  min-width: 300px;
-  width: 90%;
-  padding: 14px 24px;
-  background: linear-gradient(45deg, #673AB7, #9C27B0);
-  border-radius: 8px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 320px;
+  padding: 0;
+  background: linear-gradient(105deg, #7c3aed, #9333ea);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
   overflow: hidden;
-  transform-style: preserve-3d;
-  transition: all 0.3s ease;
+  border: none;
+  transition: all 0.3s ease-out;
+  margin: 5px auto;
 }
 
-.fun-button:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.01);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-  background: linear-gradient(45deg, #5E35B1, #8E24AA);
-}
-
-.fun-button:active:not(:disabled) {
-  transform: translateY(1px) scale(0.99);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-}
-
-.fun-button:disabled {
-  opacity: 0.7;
-  background: linear-gradient(45deg, #9E9E9E, #757575);
-  transform: none;
-}
-
-.button-content {
-  position: relative;
-  z-index: 2;
+.discover-button-inner {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
+  padding: 14px 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.discover-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(124, 58, 237, 0.3);
+  background: linear-gradient(105deg, #6d32d1, #8229d8);
+}
+
+.discover-button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+}
+
+.discover-button:disabled {
+  background: linear-gradient(105deg, #a9a9a9, #8a8a8a);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  cursor: not-allowed;
 }
 
 .button-text {
-  font-size: 18px;
-  font-weight: bold;
-  letter-spacing: 0.5px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: white;
 }
 
 .button-icon {
-  font-size: 20px;
-  display: inline-flex;
-  align-items: center;
+  font-size: 18px;
 }
 
-.button-glow {
+.arrow-icon {
+  transition: transform 0.3s ease;
+  stroke: white;
+  height: 18px;
+  width: 18px;
+}
+
+.discover-button:hover:not(:disabled) .arrow-icon {
+  transform: translateX(3px);
+}
+
+.button-shine {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transform: translateX(-100%);
+  background: linear-gradient(
+    110deg, 
+    rgba(255,255,255,0) 0%, 
+    rgba(255,255,255,0) 20%, 
+    rgba(255,255,255,0.1) 20.1%, 
+    rgba(255,255,255,0.1) 30%, 
+    rgba(255,255,255,0) 30.1%, 
+    rgba(255,255,255,0) 100%
+  );
   z-index: 1;
+  transition: transform 0.5s ease;
+  transform: translateX(-100%);
 }
 
-.fun-button:hover .button-glow {
-  animation: glow-effect 1.5s infinite;
+.discover-button:hover:not(:disabled) .button-shine {
+  transform: translateX(100%);
 }
 
-@keyframes glow-effect {
-  0% {
-    transform: translateX(-100%);
+@media (max-width: 600px) {
+  .discover-button {
+    max-width: 100%;
   }
-  100% {
-    transform: translateX(100%);
+  
+  .button-text {
+    font-size: 15px;
   }
 }
 
@@ -4424,11 +4584,10 @@ select:hover {
 .sample-size-control {
   margin-top: 10px;
   margin-left: 22px;
-  padding-top: 10px;
-}
-
-.sample-slider-container {
-  margin-top: 10px;
+  padding: 10px;
+  background-color: rgba(124, 58, 237, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(124, 58, 237, 0.1);
 }
 
 .clear-history-button:hover {
@@ -4760,13 +4919,6 @@ select:hover {
   margin-bottom: 20px;
 }
 
-.vibe-selector label {
-  display: block;
-  margin-bottom: 10px;
-  font-weight: 500;
-  font-size: 15px;
-}
-
 .vibe-input-container {
   position: relative;
   margin-bottom: 8px;
@@ -4774,56 +4926,113 @@ select:hover {
 
 .vibe-input {
   width: 100%;
-  padding: 12px 30px 12px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--input-border);
+  padding: 12px 15px;
+  border-radius: 10px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
   line-height: 1.5;
-  min-height: 100px;
+  min-height: 70px;
   resize: vertical;
   font-family: inherit;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .vibe-input:focus {
   outline: none;
-  border-color: var(--button-primary-bg, #7c3aed);
+  border-color: #7c3aed;
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 
-.clear-vibe-button {
-  position: absolute;
-  right: 8px;
-  top: 12px;
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: var(--text-color);
-  opacity: 0.5;
-  cursor: pointer;
-  padding: 5px;
-  transition: opacity 0.2s, transform 0.2s;
+.vibe-input::placeholder {
+  color: #9ca3af;
 }
 
-.clear-vibe-button:hover {
-  opacity: 0.9;
-  transform: scale(1.1);
+.clear-prompt-button {
+  background-color: transparent;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  color: #f44336;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-prompt-button:hover {
+  background-color: rgba(244, 67, 54, 0.08);
+  transform: translateY(-1px);
+}
+
+.setting-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+  padding-left: 2px;
+}
+
+.tip-icon {
+  width: 16px;
+  height: 16px;
+  color: #7c3aed;
+  opacity: 0.7;
 }
 
 .language-selector {
   margin-bottom: 20px;
 }
 
+.language-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 10px;
+}
+
+.select-wrapper {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.select-arrow-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+  pointer-events: none;
+}
+
 .language-select {
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--input-border);
+  padding: 12px 15px;
+  border-radius: 10px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
   margin-bottom: 8px;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.language-select:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 </style>

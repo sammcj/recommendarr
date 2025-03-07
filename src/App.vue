@@ -222,6 +222,7 @@ import plexService from './services/PlexService'
 import jellyfinService from './services/JellyfinService'
 import tautulliService from './services/TautulliService'
 import credentialsService from './services/CredentialsService'
+// apiService no longer needed since we use credentialsService.resetUserData()
 
 export default {
   name: 'App',
@@ -1035,6 +1036,7 @@ export default {
       }
     },
     async handleLogout() {
+      console.log("User clicked Clear Data...");
       // Clear all stored credentials from localStorage (for backwards compatibility)
       localStorage.removeItem('sonarrBaseUrl');
       localStorage.removeItem('sonarrApiKey');
@@ -1059,18 +1061,37 @@ export default {
       localStorage.removeItem('jellyfinOnlyMode');
       localStorage.removeItem('tautulliOnlyMode');
       
-      // Delete all credentials from server
+      // Also clear recommendation history and preferences
+      // Remove from localStorage as well to ensure clear doesn't persist after reload
+      localStorage.removeItem('previousTVRecommendations');
+      localStorage.removeItem('previousMovieRecommendations');
+      localStorage.removeItem('currentTVRecommendations');
+      localStorage.removeItem('currentMovieRecommendations');
+      localStorage.removeItem('likedTVRecommendations');
+      localStorage.removeItem('dislikedTVRecommendations');
+      localStorage.removeItem('likedMovieRecommendations');
+      localStorage.removeItem('dislikedMovieRecommendations');
+      
+      // Additional localStorage history that might exist
+      localStorage.removeItem('historyColumnsCount');
+      
+      // Delete all data from the server - both user_data.json and credentials.json
       try {
-        await Promise.all([
-          credentialsService.deleteCredentials('sonarr'),
-          credentialsService.deleteCredentials('radarr'),
-          credentialsService.deleteCredentials('plex'),
-          credentialsService.deleteCredentials('jellyfin'),
-          credentialsService.deleteCredentials('tautulli'),
-          credentialsService.deleteCredentials('openai')
-        ]);
+        console.log("⚠️ Starting complete data reset process...");
+        
+        // Call the /api/reset endpoint which now resets BOTH user_data.json AND credentials.json
+        const resetSuccess = await credentialsService.resetUserData();
+        
+        if (resetSuccess) {
+          console.log('✅ Server data reset successful! Both user_data.json and credentials.json have been cleared.');
+        } else {
+          console.error('❌ Server data reset failed!');
+          alert('Error clearing data. Some data may not have been completely cleared.');
+        }
+        
       } catch (error) {
-        console.error('Error deleting server-side credentials:', error);
+        console.error('Error resetting server-side data:', error);
+        alert('Error clearing data. Please try again or restart the application.');
       }
       
       // Reset service configurations

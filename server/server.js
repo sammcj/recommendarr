@@ -144,18 +144,160 @@ async function saveCredentials() {
 // Save user data to file with encryption
 async function saveUserData() {
   try {
+    console.log(`Saving userData (${userData.tvRecommendations.length} TV recommendations, ${userData.movieRecommendations.length} movie recommendations)`);
+    
     // Encrypt the user data object
     const encryptedData = encryptionService.encrypt(userData);
     
-    // Write encrypted data to file
-    await fs.writeFile(USER_DATA_FILE, JSON.stringify(encryptedData, null, 2), 'utf8');
+    // Convert to string with pretty formatting
+    const dataToWrite = JSON.stringify(encryptedData, null, 2);
+    
+    console.log(`Writing ${dataToWrite.length} bytes to ${USER_DATA_FILE}`);
+    
+    // Force a more direct approach - try to make sure the file is closed and reopened
+    try {
+      // First try to unlink/delete the file, ignoring errors if it doesn't exist
+      try {
+        await fs.unlink(USER_DATA_FILE);
+        console.log(`Deleted existing ${USER_DATA_FILE}`);
+      } catch (unlinkErr) {
+        console.log(`No existing file to delete: ${unlinkErr.message}`);
+      }
+      
+      // Write new file
+      await fs.writeFile(USER_DATA_FILE, dataToWrite, 'utf8');
+      console.log(`Successfully wrote new ${USER_DATA_FILE}`);
+    } catch (writeErr) {
+      console.error(`Error with direct file write approach: ${writeErr.message}`);
+      throw writeErr;
+    }
+    
+    // Wait a moment to ensure the write completes
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Verify the file was written
+    try {
+      const fileStats = await fs.stat(USER_DATA_FILE);
+      console.log(`✓ ${USER_DATA_FILE} exists, size=${fileStats.size} bytes, modified=${fileStats.mtime}`);
+      
+      // Read the file back to verify content
+      const savedContent = await fs.readFile(USER_DATA_FILE, 'utf8');
+      console.log(`✓ Read back file, content length: ${savedContent.length} bytes`);
+      
+      // Verify the content is valid JSON and has proper encryption fields
+      const parsedContent = JSON.parse(savedContent);
+      if (!parsedContent.encrypted || !parsedContent.iv || !parsedContent.authTag) {
+        console.error('❌ FILE ERROR: Saved file does not contain proper encryption fields');
+        throw new Error('Saved file is missing encryption fields');
+      } else {
+        console.log('✓ Verified file contains properly encrypted data');
+      }
+      
+      // Try to decrypt the saved content
+      const decryptedData = encryptionService.decrypt(parsedContent);
+      
+      // Check if decrypted data has the expected properties
+      if (!decryptedData.hasOwnProperty('tvRecommendations')) {
+        console.error('❌ DECRYPT ERROR: Decrypted data does not have tvRecommendations property');
+        throw new Error('Decrypted data missing expected properties');
+      }
+      
+      // Check if the arrays are correct lengths
+      console.log(`✓ Decrypted data has ${decryptedData.tvRecommendations.length} TV recommendations`);
+      console.log(`✓ Decrypted data has ${decryptedData.movieRecommendations.length} movie recommendations`);
+      
+      return true;
+    } catch (verifyErr) {
+      console.error(`❌ Error verifying saved file: ${verifyErr.message}`);
+      throw verifyErr;
+    }
   } catch (err) {
-    console.error('Error saving user data:', err);
+    console.error('❌ CRITICAL ERROR saving user data:', err);
+    throw err; // Rethrow to allow caller to handle the error
+  }
+}
+
+// Add migration function to move recommendation data from credentials to userData
+async function migrateRecommendationsFromCredentials() {
+  const recommendationKeys = [
+    'movie-recommendations',
+    'tv-recommendations', 
+    'liked-movies',
+    'disliked-movies', 
+    'liked-tv',
+    'disliked-tv'
+  ];
+  
+  let migrationNeeded = false;
+  
+  // Check if any recommendation data exists in credentials
+  for (const key of recommendationKeys) {
+    if (credentials[key] && credentials[key].titles && credentials[key].titles.length > 0) {
+      migrationNeeded = true;
+      break;
+    }
+  }
+  
+  if (migrationNeeded) {
+    console.log('Found recommendation data in credentials, migrating to user_data...');
+    
+    // Migrate movie recommendations
+    if (credentials['movie-recommendations'] && credentials['movie-recommendations'].titles) {
+      userData.movieRecommendations = [
+        ...new Set([...userData.movieRecommendations, ...credentials['movie-recommendations'].titles])
+      ];
+      console.log(`Migrated ${credentials['movie-recommendations'].titles.length} movie recommendations`);
+    }
+    
+    // Migrate TV recommendations
+    if (credentials['tv-recommendations'] && credentials['tv-recommendations'].titles) {
+      userData.tvRecommendations = [
+        ...new Set([...userData.tvRecommendations, ...credentials['tv-recommendations'].titles])
+      ];
+      console.log(`Migrated ${credentials['tv-recommendations'].titles.length} TV recommendations`);
+    }
+    
+    // Migrate liked/disliked movies
+    if (credentials['liked-movies'] && credentials['liked-movies'].titles) {
+      userData.likedMovies = [
+        ...new Set([...userData.likedMovies, ...credentials['liked-movies'].titles])
+      ];
+      console.log(`Migrated ${credentials['liked-movies'].titles.length} liked movies`);
+    }
+    
+    if (credentials['disliked-movies'] && credentials['disliked-movies'].titles) {
+      userData.dislikedMovies = [
+        ...new Set([...userData.dislikedMovies, ...credentials['disliked-movies'].titles])
+      ];
+      console.log(`Migrated ${credentials['disliked-movies'].titles.length} disliked movies`);
+    }
+    
+    // Migrate liked/disliked TV shows
+    if (credentials['liked-tv'] && credentials['liked-tv'].titles) {
+      userData.likedTV = [
+        ...new Set([...userData.likedTV, ...credentials['liked-tv'].titles])
+      ];
+      console.log(`Migrated ${credentials['liked-tv'].titles.length} liked TV shows`);
+    }
+    
+    if (credentials['disliked-tv'] && credentials['disliked-tv'].titles) {
+      userData.dislikedTV = [
+        ...new Set([...userData.dislikedTV, ...credentials['disliked-tv'].titles])
+      ];
+      console.log(`Migrated ${credentials['disliked-tv'].titles.length} disliked TV shows`);
+    }
+    
+    // Save the updated user data
+    await saveUserData();
+    console.log('Migration complete. Recommendations merged into user_data.');
   }
 }
 
 // Initialize storage on startup
-initStorage();
+initStorage().then(async () => {
+  // After initializing storage, migrate any recommendation data
+  await migrateRecommendationsFromCredentials();
+});
 
 // Enable CORS
 app.use(cors());
@@ -201,6 +343,24 @@ app.post('/api/credentials/:service', async (req, res) => {
   // Reject attempts to store app-config since the feature is removed
   if (service === 'app-config') {
     return res.status(400).json({ error: 'App configuration via API is not supported' });
+  }
+  
+  // Reject attempts to store recommendation data in credentials
+  const recommendationServices = [
+    'movie-recommendations', 
+    'tv-recommendations', 
+    'liked-movies', 
+    'disliked-movies', 
+    'liked-tv', 
+    'disliked-tv'
+  ];
+  
+  if (recommendationServices.includes(service)) {
+    console.log(`Rejected attempt to store recommendation data '${service}' in credentials. Use /api/recommendations or /api/preferences instead.`);
+    return res.status(400).json({ 
+      error: 'Recommendation data should not be stored in credentials', 
+      message: 'Please use the appropriate API endpoints for recommendations and preferences' 
+    });
   }
   
   if (!serviceCredentials) {
@@ -257,14 +417,52 @@ app.delete('/api/credentials/:service', async (req, res) => {
 
 // User data endpoints
 // Get all recommendations
-app.get('/api/recommendations/:type', (req, res) => {
+app.get('/api/recommendations/:type', async (req, res) => {
   const { type } = req.params;
   
+  console.log(`GET /api/recommendations/${type} requested`);
+  
+  // Force reload from disk to ensure we're using the latest data
+  // This is only needed because we're having issues with the reset functionality
+  try {
+    const reloadUserDataSuccess = await reloadUserDataFromDisk();
+    const reloadCredentialsSuccess = await reloadCredentialsFromDisk();
+    
+    if (reloadUserDataSuccess) {
+      console.log(`Reloaded user_data.json from disk`);
+    } else {
+      console.warn(`Failed to reload user_data.json - using in-memory data`);
+    }
+    
+    if (reloadCredentialsSuccess) {
+      console.log(`Reloaded credentials.json from disk`);
+    } else {
+      console.warn(`Failed to reload credentials.json - using in-memory data`);
+    }
+  } catch (reloadError) {
+    console.error(`Error reloading data: ${reloadError.message}`);
+  }
+  
   if (type === 'tv') {
-    res.json(userData.tvRecommendations || []);
+    console.log(`Returning ${userData.tvRecommendations ? userData.tvRecommendations.length : 0} TV recommendations`);
+    
+    // Deep copy to ensure we're not sending a reference to the original
+    const recommendations = Array.isArray(userData.tvRecommendations) 
+      ? [...userData.tvRecommendations] 
+      : [];
+      
+    res.json(recommendations);
   } else if (type === 'movie') {
-    res.json(userData.movieRecommendations || []);
+    console.log(`Returning ${userData.movieRecommendations ? userData.movieRecommendations.length : 0} movie recommendations`);
+    
+    // Deep copy to ensure we're not sending a reference to the original
+    const recommendations = Array.isArray(userData.movieRecommendations) 
+      ? [...userData.movieRecommendations] 
+      : [];
+      
+    res.json(recommendations);
   } else {
+    console.log(`Invalid recommendation type: ${type}`);
     res.status(400).json({ error: 'Invalid recommendation type' });
   }
 });
@@ -360,6 +558,278 @@ app.post('/api/settings', async (req, res) => {
   userData.settings = {...userData.settings, ...req.body};
   await saveUserData();
   res.json({ success: true });
+});
+
+// Force reload userData from disk
+async function reloadUserDataFromDisk() {
+  console.log('⚠️ Force reloading userData from disk');
+  try {
+    // First check if the file exists
+    const fileExists = await fs.access(USER_DATA_FILE).then(() => true).catch(() => false);
+    
+    if (!fileExists) {
+      console.log(`File ${USER_DATA_FILE} doesn't exist, nothing to reload`);
+      return false;
+    }
+    
+    // Read the file
+    const data = await fs.readFile(USER_DATA_FILE, 'utf8');
+    
+    // Parse the file content
+    let fileData;
+    try {
+      fileData = JSON.parse(data);
+    } catch (parseError) {
+      console.error(`Error parsing ${USER_DATA_FILE} as JSON:`, parseError);
+      return false;
+    }
+    
+    // Check if the data is properly encrypted
+    if (!fileData.encrypted || !fileData.iv || !fileData.authTag) {
+      console.error(`File ${USER_DATA_FILE} is not properly encrypted`);
+      return false;
+    }
+    
+    // Decrypt the data
+    try {
+      const decryptedData = encryptionService.decrypt(fileData);
+      userData = decryptedData;
+      console.log(`✓ Reloaded user data from disk: ${userData.tvRecommendations.length} TV recommendations, ${userData.movieRecommendations.length} movie recommendations`);
+      return true;
+    } catch (decryptError) {
+      console.error(`Error decrypting ${USER_DATA_FILE}:`, decryptError);
+      return false;
+    }
+  } catch (err) {
+    console.error('❌ Error reloading user data from disk:', err);
+    return false;
+  }
+}
+
+// Force reload credentials from disk
+async function reloadCredentialsFromDisk() {
+  console.log('⚠️ Force reloading credentials from disk');
+  try {
+    // First check if the file exists
+    const fileExists = await fs.access(CREDENTIALS_FILE).then(() => true).catch(() => false);
+    
+    if (!fileExists) {
+      console.log(`File ${CREDENTIALS_FILE} doesn't exist, nothing to reload`);
+      credentials = {}; // Reset to empty object
+      return true;
+    }
+    
+    // Read the file
+    const data = await fs.readFile(CREDENTIALS_FILE, 'utf8');
+    
+    // Parse the file content
+    let fileData;
+    try {
+      fileData = JSON.parse(data);
+    } catch (parseError) {
+      console.error(`Error parsing ${CREDENTIALS_FILE} as JSON:`, parseError);
+      return false;
+    }
+    
+    // Check if the data is properly encrypted
+    if (!fileData.encrypted || !fileData.iv || !fileData.authTag) {
+      console.error(`File ${CREDENTIALS_FILE} is not properly encrypted`);
+      return false;
+    }
+    
+    // Decrypt the data
+    try {
+      const decryptedData = encryptionService.decrypt(fileData);
+      credentials = decryptedData;
+      const numServices = Object.keys(credentials).length;
+      console.log(`✓ Reloaded credentials from disk: ${numServices} services`);
+      return true;
+    } catch (decryptError) {
+      console.error(`Error decrypting ${CREDENTIALS_FILE}:`, decryptError);
+      return false;
+    }
+  } catch (err) {
+    console.error('❌ Error reloading credentials from disk:', err);
+    return false;
+  }
+}
+
+// Reset all user data (recommendations, preferences, etc.) AND credentials
+app.post('/api/reset', async (req, res) => {
+  console.log('🔄 RESET ENDPOINT CALLED - Clearing ALL DATA (both user_data.json and credentials.json)');
+  
+  try {
+    // PART 1: CLEAR USER_DATA.JSON
+    console.log('PHASE 1: Clearing user_data.json...');
+    
+    // First try direct file deletion to ensure we're not dealing with any caching issues
+    try {
+      await fs.unlink(USER_DATA_FILE);
+      console.log(`✓ Directly deleted ${USER_DATA_FILE}`);
+      // Wait a moment for the filesystem
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (unlinkError) {
+      console.log(`Could not delete user_data.json directly: ${unlinkError.message}`);
+    }
+    
+    // Backup the current user data just in case
+    try {
+      const currentData = await fs.readFile(USER_DATA_FILE, 'utf8');
+      const backupPath = `${USER_DATA_FILE}.backup-${Date.now()}`;
+      await fs.writeFile(backupPath, currentData, 'utf8');
+      console.log(`Current user_data.json backed up to ${backupPath}`);
+    } catch (backupError) {
+      // Only log the error, don't stop the reset process
+      console.log('No existing user_data.json to back up or backup failed:', backupError.message);
+    }
+    
+    // Reset user data to default values with empty arrays
+    userData = {
+      tvRecommendations: [],
+      movieRecommendations: [],
+      likedTV: [],
+      dislikedTV: [],
+      likedMovies: [],
+      dislikedMovies: [],
+      settings: {
+        numRecommendations: 6,
+        columnsCount: 3,
+        historyColumnsCount: 3,
+        historyHideExisting: true,
+        historyHideLiked: false,
+        historyHideDisliked: false,
+        contentTypePreference: 'tv',
+        isMovieMode: false,
+        tvGenrePreferences: [],
+        tvCustomVibe: '',
+        tvLanguagePreference: 'en',
+        movieGenrePreferences: [],
+        movieCustomVibe: '',
+        movieLanguagePreference: 'en'
+      }
+    };
+    
+    // Save the reset user data to the file
+    console.log('Saving empty userData to user_data.json');
+    const saveUserDataSuccess = await saveUserData();
+    if (!saveUserDataSuccess) {
+      throw new Error('saveUserData returned false - file may not have been written');
+    }
+    
+    // Verification for user data
+    try {
+      const savedData = await fs.readFile(USER_DATA_FILE, 'utf8');
+      console.log(`✓ user_data.json exists and is ${savedData.length} bytes`);
+      
+      const fileData = JSON.parse(savedData);
+      if (fileData.encrypted && fileData.iv && fileData.authTag) {
+        // Decrypt to verify contents are empty
+        const decryptedData = encryptionService.decrypt(fileData);
+        if (decryptedData.tvRecommendations.length === 0 && decryptedData.movieRecommendations.length === 0) {
+          console.log('✓ Verified user_data.json has empty recommendation arrays');
+        } else {
+          console.error(`❌ user_data.json still has data after reset! TV: ${decryptedData.tvRecommendations.length}, Movie: ${decryptedData.movieRecommendations.length}`);
+        }
+      }
+    } catch (verifyError) {
+      console.error('❌ Error verifying user_data.json:', verifyError);
+    }
+    
+    // PART 2: RESET CREDENTIALS.JSON
+    console.log('PHASE 2: Clearing credentials.json...');
+    
+    // First try direct file deletion to ensure we're not dealing with any caching issues
+    try {
+      await fs.unlink(CREDENTIALS_FILE);
+      console.log(`✓ Directly deleted ${CREDENTIALS_FILE}`);
+      // Wait a moment for the filesystem
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (unlinkError) {
+      console.log(`Could not delete credentials.json directly: ${unlinkError.message}`);
+    }
+    
+    // Backup the current credentials just in case
+    try {
+      const currentCredentials = await fs.readFile(CREDENTIALS_FILE, 'utf8');
+      const backupPath = `${CREDENTIALS_FILE}.backup-${Date.now()}`;
+      await fs.writeFile(backupPath, currentCredentials, 'utf8');
+      console.log(`Current credentials.json backed up to ${backupPath}`);
+    } catch (backupError) {
+      // Only log the error, don't stop the reset process
+      console.log('No existing credentials.json to back up or backup failed:', backupError.message);
+    }
+    
+    // Reset credentials to an empty object
+    credentials = {};
+    
+    // Save the reset credentials to the file
+    console.log('Saving empty credentials to credentials.json');
+    await saveCredentials();
+    
+    // Verification for credentials
+    try {
+      const savedCredentials = await fs.readFile(CREDENTIALS_FILE, 'utf8');
+      console.log(`✓ credentials.json exists and is ${savedCredentials.length} bytes`);
+      
+      const fileData = JSON.parse(savedCredentials);
+      if (fileData.encrypted && fileData.iv && fileData.authTag) {
+        // Decrypt to verify contents are empty
+        const decryptedCredentials = encryptionService.decrypt(fileData);
+        const numServices = Object.keys(decryptedCredentials).length;
+        console.log(`✓ Verified credentials.json has ${numServices} services after reset`);
+      }
+    } catch (verifyError) {
+      console.error('❌ Error verifying credentials.json:', verifyError);
+    }
+    
+    // PART 3: FINAL VERIFICATION
+    console.log('PHASE 3: Final verification...');
+    
+    // Force reload both files from disk
+    await reloadUserDataFromDisk();
+    await reloadCredentialsFromDisk();
+    
+    // Check that userData is empty
+    if (userData.tvRecommendations.length === 0 && userData.movieRecommendations.length === 0) {
+      console.log('✓ Final verification: userData is properly reset in memory');
+    } else {
+      console.error('❌ Final verification failed: userData still has data in memory!');
+      console.log('Forcing userData reset in memory');
+      userData.tvRecommendations = [];
+      userData.movieRecommendations = [];
+      userData.likedTV = [];
+      userData.dislikedTV = [];
+      userData.likedMovies = [];
+      userData.dislikedMovies = [];
+      await saveUserData();
+    }
+    
+    // Verify credentials is empty
+    const credsCount = Object.keys(credentials).length;
+    console.log(`✓ Final verification: credentials has ${credsCount} services in memory`);
+    
+    console.log('✅ COMPLETE RESET SUCCESSFUL - Both user_data.json and credentials.json have been cleared');
+    res.json({ 
+      success: true, 
+      message: 'All data reset successfully',
+      details: {
+        userData: {
+          tvCount: userData.tvRecommendations.length,
+          movieCount: userData.movieRecommendations.length
+        },
+        credentials: {
+          serviceCount: Object.keys(credentials).length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ ERROR DURING COMPLETE RESET:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to reset data', 
+      details: error.message 
+    });
+  }
 });
 
 // Generic proxy endpoint for all services

@@ -25,3 +25,6 @@ pnpm-debug.log*
 # Security files
 server/data/.key
 server/data/credentials.json
+user_data.json
+server/data/user_data.json
+/server/data

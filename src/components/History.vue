@@ -628,8 +628,7 @@ export default {
             const parsed = JSON.parse(tvHistory);
             this.tvRecommendations = this.normalizeArray(parsed);
             console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
-            // Save to server for future use
-            apiService.saveRecommendations('tv', this.tvRecommendations);
+            // Don't save to server - server was empty by design (likely after a reset)
           }
         }
         
@@ -649,8 +648,7 @@ export default {
             const parsed = JSON.parse(movieHistory);
             this.movieRecommendations = this.normalizeArray(parsed);
             console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
-            // Save to server for future use
-            apiService.saveRecommendations('movie', this.movieRecommendations);
+            // Don't save to server - server was empty by design (likely after a reset)
           }
         }
       } catch (error) {

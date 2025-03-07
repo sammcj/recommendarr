@@ -1497,14 +1497,14 @@ export default {
           // Save only the titles array to the server
           await apiService.saveRecommendations('movie', this.previousMovieRecommendations);
           
-          // Store the full recommendations in localStorage for the current session
+          // Store in localStorage for backup only after successfully saving to server
           localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
           localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
         } else {
           // Save only the titles array to the server
           await apiService.saveRecommendations('tv', this.previousShowRecommendations);
           
-          // Store the full recommendations in localStorage for the current session
+          // Store in localStorage for backup only after successfully saving to server
           localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
           localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
         }
@@ -2799,8 +2799,14 @@ export default {
       console.log("Loading recommendations from server...");
       
       // Try to load recommendations from server first
-      const tvRecsResponse = await apiService.getRecommendations('tv');
-      const movieRecsResponse = await apiService.getRecommendations('movie');
+      const tvRecsResponse = await apiService.getRecommendations('tv') || [];
+      const movieRecsResponse = await apiService.getRecommendations('movie') || [];
+      
+      // When the tvRecsResponse or movieRecsResponse are empty arrays,
+      // this means the server cleared the data or doesn't have any data.
+      // In this case, we should:
+      // 1. Use the empty arrays (don't fall back to localStorage)
+      // 2. Clear localStorage itself to be consistent with server
       
       console.log("TV recommendations from server:", tvRecsResponse ? tvRecsResponse.length : 0, "items");
       console.log("Movie recommendations from server:", movieRecsResponse ? movieRecsResponse.length : 0, "items");
@@ -2817,8 +2823,13 @@ export default {
             this.previousRecommendations = [...this.previousShowRecommendations];
           }
           
-          // Save to localStorage for backup
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(tvRecsResponse));
+          // Only save to localStorage for backup if there are actually recommendations
+          if (tvRecsResponse && tvRecsResponse.length > 0) {
+            localStorage.setItem('previousTVRecommendations', JSON.stringify(tvRecsResponse));
+          } else {
+            // If the server returned empty, clear the localStorage as well
+            localStorage.removeItem('previousTVRecommendations');
+          }
         } else {
           // Full recommendation objects with title property
           console.log("Loaded full TV recommendations from server:", tvRecsResponse.length, "items");
@@ -2847,8 +2858,13 @@ export default {
             this.previousRecommendations = [...this.previousShowRecommendations];
           }
           
-          // Save to localStorage
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(combinedTitles));
+          // Only save to localStorage if there are actually recommendations
+          if (combinedTitles && combinedTitles.length > 0) {
+            localStorage.setItem('previousTVRecommendations', JSON.stringify(combinedTitles));
+          } else {
+            // If combined titles is empty, clear localStorage
+            localStorage.removeItem('previousTVRecommendations');
+          }
         }
       }
       
@@ -2864,8 +2880,13 @@ export default {
             this.previousRecommendations = [...this.previousMovieRecommendations];
           }
           
-          // Save to localStorage for backup
-          localStorage.setItem('previousMovieRecommendations', JSON.stringify(movieRecsResponse));
+          // Only save to localStorage for backup if there are actually recommendations
+          if (movieRecsResponse && movieRecsResponse.length > 0) {
+            localStorage.setItem('previousMovieRecommendations', JSON.stringify(movieRecsResponse));
+          } else {
+            // If the server returned empty, clear the localStorage as well
+            localStorage.removeItem('previousMovieRecommendations');
+          }
         } else {
           // Full recommendation objects with title property
           console.log("Loaded full movie recommendations from server:", movieRecsResponse.length, "items");
@@ -2894,8 +2915,13 @@ export default {
             this.previousRecommendations = [...this.previousMovieRecommendations];
           }
           
-          // Save to localStorage
-          localStorage.setItem('previousMovieRecommendations', JSON.stringify(combinedTitles));
+          // Only save to localStorage if there are actually recommendations
+          if (combinedTitles && combinedTitles.length > 0) {
+            localStorage.setItem('previousMovieRecommendations', JSON.stringify(combinedTitles));
+          } else {
+            // If combined titles is empty, clear localStorage
+            localStorage.removeItem('previousMovieRecommendations');
+          }
         }
       }
       

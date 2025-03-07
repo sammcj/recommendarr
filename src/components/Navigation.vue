@@ -156,7 +156,7 @@ export default {
       this.mobileMenuOpen = false; // Close mobile menu after navigation
     },
     confirmClearData() {
-      if (confirm('Are you sure you want to clear all saved data? This will remove all your API keys and settings from both local storage and the server.')) {
+      if (confirm('Are you sure you want to clear all saved data? This will remove all your API keys, settings, recommendation history, and preferences from both local storage and the server.')) {
         this.$emit('logout');
       }
     }

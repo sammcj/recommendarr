@@ -231,6 +231,40 @@ class ApiService {
       return false;
     }
   }
+
+  /**
+   * Get watch history from the server
+   * 
+   * @param {string} type - 'movies' or 'shows'
+   * @returns {Promise<Array>} - Watch history
+   */
+  async getWatchHistory(type) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/watch-history/${type}`);
+      return response.data || [];
+    } catch (error) {
+      console.error(`Failed to get ${type} watch history:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Save watch history to the server
+   * 
+   * @param {string} type - 'movies' or 'shows'
+   * @param {Array} items - Watch history items to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async saveWatchHistory(type, items) {
+    try {
+      await axios.post(`${this.baseUrl}/watch-history/${type}`, items);
+      console.log(`Saved ${items.length} ${type} watch history items to server`);
+      return true;
+    } catch (error) {
+      console.error(`Failed to save ${type} watch history:`, error);
+      return false;
+    }
+  }
 }
 
 // Create a singleton instance

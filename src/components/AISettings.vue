@@ -46,10 +46,17 @@
       >
         Tautulli
       </button>
+      <button 
+        @click="activeTab = 'trakt'" 
+        :class="{ active: activeTab === 'trakt' }" 
+        class="tab-button"
+      >
+        Trakt
+      </button>
     </div>
     
     <!-- Connected Services Section -->
-    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected" class="section-card connected-services-wrapper">
+    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected" class="section-card connected-services-wrapper">
       <div class="collapsible-header" @click="toggleConnectionsPanel">
         <h3>Manage Connected Services</h3>
         <button class="collapse-toggle">
@@ -79,6 +86,10 @@
           </button>
           <button v-if="radarrConnected" class="connection-button radarr-button" @click="showRadarrConnectModal">
             <span class="connection-name">Radarr</span>
+            <span class="connection-action">Manage Connection</span>
+          </button>
+          <button v-if="traktConnected" class="connection-button trakt-button" @click="showTraktConnectModal">
+            <span class="connection-name">Trakt</span>
             <span class="connection-action">Manage Connection</span>
           </button>
         </div>
@@ -184,6 +195,27 @@
           </div>
           <div class="modal-footer">
             <button class="modal-close-button" @click="closeTautulliModal">Close</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Trakt Connection Management Modal -->
+      <div v-if="showTraktConnect" class="connection-modal-overlay" @click.self="closeTraktConnectModal">
+        <div class="connection-modal">
+          <div class="modal-header">
+            <h3>Manage Trakt Connection</h3>
+            <button class="modal-close-x" @click="closeTraktConnectModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <TraktConnection 
+              :connected="traktConnected" 
+              @connected="onTraktConnectionSuccessful" 
+              @disconnected="disconnectTrakt" 
+              @limitChanged="onTraktLimitChange"
+            />
+          </div>
+          <div class="modal-footer">
+            <button class="modal-close-button" @click="closeTraktConnectModal">Close</button>
           </div>
         </div>
       </div>
@@ -711,6 +743,91 @@
       </div>
     </div>
     
+    <!-- Trakt Settings Tab -->
+    <div v-if="activeTab === 'trakt'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to your Trakt.tv account to access your watch history. Authentication is managed securely through OAuth.</p>
+      </div>
+      
+      <div v-if="!traktConnected">
+        <TraktConnection 
+          :connected="traktConnected" 
+          @connected="handleTraktConnected" 
+          @limitChanged="handleTraktLimitChanged"
+        />
+      </div>
+      
+      <div v-else class="settings-form">
+        <div class="connected-service">
+          <div class="service-header">
+            <div class="service-name">
+              <span class="connection-icon trakt">T</span>
+              <h3>Trakt.tv</h3>
+            </div>
+            <div class="connection-badge connected">
+              <span class="badge-icon">✓</span>
+              Connected
+            </div>
+          </div>
+          
+          <div class="service-details">
+            <div class="detail-row">
+              <span class="detail-label">Authentication:</span>
+              <span class="detail-value">OAuth (secure token)</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Recent History Limit:</span>
+              <span class="detail-value">{{ traktSettings.recentLimit }} items</span>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="traktRecentLimit">Number of recently watched items:</label>
+            <div class="slider-container">
+              <input 
+                id="traktRecentLimit" 
+                v-model.number="traktSettings.recentLimit" 
+                type="range" 
+                min="1" 
+                max="100" 
+                step="1" 
+              />
+              <span class="slider-value">{{ traktSettings.recentLimit }}</span>
+            </div>
+            <div class="field-hint">How many recently watched items to include in recommendations</div>
+          </div>
+          
+          <div class="actions">
+            <button type="button" @click="saveTraktLimit" class="save-button">
+              Update Limit
+            </button>
+            <button type="button" @click="reconnectTrakt" class="reconnect-button">
+              Reconnect with OAuth
+            </button>
+            <button type="button" @click="disconnectTrakt" class="disconnect-button">
+              Disconnect from Trakt
+            </button>
+          </div>
+        </div>
+        
+        <div v-if="traktConnectionMessage" class="connection-message" :class="{ 'success': traktConnectionStatus, 'error': !traktConnectionStatus }">
+          <div class="notification-content">
+            <span class="notification-icon">
+              <svg v-if="traktConnectionStatus" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </span>
+            {{ traktConnectionMessage }}
+          </div>
+        </div>
+      </div>
+    </div>
+    
     
     <!-- Fixed Position Notification Toast -->
     <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
@@ -739,12 +856,14 @@ import radarrService from '../services/RadarrService';
 import plexService from '../services/PlexService';
 import jellyfinService from '../services/JellyfinService';
 import tautulliService from '../services/TautulliService';
+import traktService from '../services/TraktService';
 import credentialsService from '../services/CredentialsService';
 import PlexConnection from './PlexConnection.vue';
 import JellyfinConnection from './JellyfinConnection.vue';
 import TautulliConnection from './TautulliConnection.vue';
 import SonarrConnection from './SonarrConnection.vue';
 import RadarrConnection from './RadarrConnection.vue';
+import TraktConnection from './TraktConnection.vue';
 
 export default {
   name: 'AIServiceSettings',
@@ -753,7 +872,8 @@ export default {
     JellyfinConnection,
     TautulliConnection,
     SonarrConnection,
-    RadarrConnection
+    RadarrConnection,
+    TraktConnection
   },
   props: {
     sonarrConnected: {
@@ -775,6 +895,10 @@ export default {
     tautulliConnected: {
       type: Boolean,
       default: false
+    },
+    traktConnected: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -785,6 +909,8 @@ export default {
       showRadarrConnect: false,
       showPlexConnect: false,
       showJellyfinConnect: false,
+      showTautulliConnect: false,
+      showTraktConnect: false,
       
       // AI Settings
       aiSettings: {
@@ -854,6 +980,17 @@ export default {
       testingTautulli: false,
       tautulliConnectionMessage: '',
       tautulliConnectionStatus: false,
+      
+      // Trakt Settings
+      traktSettings: {
+        clientId: '',
+        accessToken: '',
+        recentLimit: 50
+      },
+      showTraktToken: false,
+      testingTrakt: false,
+      traktConnectionMessage: '',
+      traktConnectionStatus: false,
       
       // Common
       saveMessage: '',
@@ -963,6 +1100,16 @@ export default {
       document.body.style.overflow = '';
     },
     
+    showTraktConnectModal() {
+      this.showTraktConnect = true;
+      document.body.style.overflow = 'hidden';
+    },
+    
+    closeTraktModal() {
+      this.showTraktConnect = false;
+      document.body.style.overflow = '';
+    },
+    
     // Connection Event Handlers
     handleSonarrConnected() {
       this.$emit('sonarr-settings-updated');
@@ -1033,6 +1180,24 @@ export default {
       this.closeTautulliModal();
     },
     
+    handleTraktConnected() {
+      this.$emit('trakt-settings-updated');
+      this.closeTraktModal();
+    },
+    
+    handleTraktDisconnected() {
+      // Clear Trakt settings in the form
+      this.traktSettings.clientId = '';
+      this.traktSettings.accessToken = '';
+      this.traktSettings.recentLimit = 50;
+      this.$emit('trakt-settings-updated');
+      this.closeTraktModal();
+    },
+    
+    handleTraktLimitChanged(limit) {
+      this.traktSettings.recentLimit = limit;
+    },
+    
     async loadAllSettings() {
       // Load all settings from their respective services
       await this.loadAISettings();
@@ -1041,6 +1206,7 @@ export default {
       await this.loadPlexSettings();
       await this.loadJellyfinSettings();
       await this.loadTautulliSettings();
+      await this.loadTraktSettings();
     },
     
     async loadAISettings() {
@@ -1195,6 +1361,26 @@ export default {
         }
       } catch (error) {
         console.error('Error loading Tautulli settings:', error);
+      }
+    },
+    
+    async loadTraktSettings() {
+      try {
+        // First try to get from service directly
+        if (traktService.isConfigured()) {
+          this.traktSettings.clientId = traktService.clientId;
+          this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
+          return;
+        }
+        
+        // If not configured, try to get from server-side storage
+        const credentials = await credentialsService.getCredentials('trakt');
+        if (credentials) {
+          this.traktSettings.clientId = credentials.clientId || '';
+          this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
+        }
+      } catch (error) {
+        console.error('Error loading Trakt settings:', error);
       }
     },
     
@@ -1517,11 +1703,28 @@ export default {
           return;
         }
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('plexRecentLimit', this.plexSettings.recentLimit.toString());
+        // Configure the service with the recent limit
+        await plexService.configure(
+          this.plexSettings.baseUrl, 
+          this.plexSettings.token,
+          this.plexSettings.recentLimit
+        );
         
-        // Configure the service (which will store credentials server-side)
-        await plexService.configure(this.plexSettings.baseUrl, this.plexSettings.token);
+        // Fetch and cache watch history after successful connection
+        try {
+          console.log('Fetching Plex watch history for caching...');
+          const movieHistory = await plexService.getRecentlyWatchedMovies(this.plexSettings.recentLimit);
+          const showHistory = await plexService.getRecentlyWatchedShows(this.plexSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Plex`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Plex watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
         
         this.saveSuccess = true;
         this.saveMessage = 'Plex settings saved successfully!';
@@ -1536,6 +1739,43 @@ export default {
         this.saveMessage = 'Failed to save Plex settings';
         this.clearSaveMessage();
       }
+    },
+    
+    async savePlexLimit() {
+      try {
+        // Update the server with the new limit
+        await plexService.configure(
+          plexService.baseUrl,
+          plexService.token,
+          this.plexSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history with new limit
+        try {
+          console.log('Fetching Plex watch history with updated limit for caching...');
+          const movieHistory = await plexService.getRecentlyWatchedMovies(this.plexSettings.recentLimit);
+          const showHistory = await plexService.getRecentlyWatchedShows(this.plexSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Plex with new limit`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Plex watch history with new limit:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Plex history limit updated successfully!';
+        this.$emit('plex-limit-changed', this.plexSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Plex limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Plex history limit';
+      }
+      
+      this.clearSaveMessage();
     },
     
     // Jellyfin Service Methods
@@ -1590,15 +1830,29 @@ export default {
           return;
         }
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('jellyfinRecentLimit', this.jellyfinSettings.recentLimit.toString());
-        
-        // Configure the service (which will store credentials server-side)
+        // Configure the service with the recent limit
         await jellyfinService.configure(
           this.jellyfinSettings.baseUrl, 
           this.jellyfinSettings.apiKey,
-          this.jellyfinSettings.userId
+          this.jellyfinSettings.userId,
+          this.jellyfinSettings.recentLimit
         );
+        
+        // Fetch and cache watch history after successful connection
+        try {
+          console.log('Fetching Jellyfin watch history for caching...');
+          const movieHistory = await jellyfinService.getRecentlyWatchedMovies(this.jellyfinSettings.recentLimit);
+          const showHistory = await jellyfinService.getRecentlyWatchedShows(this.jellyfinSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Jellyfin`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Jellyfin watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
         
         this.saveSuccess = true;
         this.saveMessage = 'Jellyfin settings saved successfully!';
@@ -1613,6 +1867,44 @@ export default {
         this.saveMessage = 'Failed to save Jellyfin settings';
         this.clearSaveMessage();
       }
+    },
+    
+    async saveJellyfinLimit() {
+      try {
+        // Update the server with the new limit
+        await jellyfinService.configure(
+          jellyfinService.baseUrl,
+          jellyfinService.apiKey,
+          jellyfinService.userId,
+          this.jellyfinSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history with new limit
+        try {
+          console.log('Fetching Jellyfin watch history with updated limit for caching...');
+          const movieHistory = await jellyfinService.getRecentlyWatchedMovies(this.jellyfinSettings.recentLimit);
+          const showHistory = await jellyfinService.getRecentlyWatchedShows(this.jellyfinSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Jellyfin with new limit`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Jellyfin watch history with new limit:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Jellyfin history limit updated successfully!';
+        this.$emit('jellyfin-limit-changed', this.jellyfinSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Jellyfin limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Jellyfin history limit';
+      }
+      
+      this.clearSaveMessage();
     },
     
     // Tautulli Service Methods
@@ -1665,11 +1957,28 @@ export default {
           return;
         }
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('tautulliRecentLimit', this.tautulliSettings.recentLimit.toString());
+        // Configure the service with the recent limit
+        await tautulliService.configure(
+          this.tautulliSettings.baseUrl, 
+          this.tautulliSettings.apiKey,
+          this.tautulliSettings.recentLimit
+        );
         
-        // Configure the service (which will store credentials server-side)
-        await tautulliService.configure(this.tautulliSettings.baseUrl, this.tautulliSettings.apiKey);
+        // Fetch and cache watch history after successful connection
+        try {
+          console.log('Fetching Tautulli watch history for caching...');
+          const movieHistory = await tautulliService.getRecentlyWatchedMovies(this.tautulliSettings.recentLimit);
+          const showHistory = await tautulliService.getRecentlyWatchedShows(this.tautulliSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Tautulli`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Tautulli watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
         
         this.saveSuccess = true;
         this.saveMessage = 'Tautulli settings saved successfully!';
@@ -1683,6 +1992,138 @@ export default {
         this.saveSuccess = false;
         this.saveMessage = 'Failed to save Tautulli settings';
         this.clearSaveMessage();
+      }
+    },
+    
+    async saveTautulliLimit() {
+      try {
+        // Update the server with the new limit
+        await tautulliService.configure(
+          tautulliService.baseUrl,
+          tautulliService.apiKey,
+          this.tautulliSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history with new limit
+        try {
+          console.log('Fetching Tautulli watch history with updated limit for caching...');
+          const movieHistory = await tautulliService.getRecentlyWatchedMovies(this.tautulliSettings.recentLimit);
+          const showHistory = await tautulliService.getRecentlyWatchedShows(this.tautulliSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Tautulli with new limit`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Tautulli watch history with new limit:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Tautulli history limit updated successfully!';
+        this.$emit('tautulli-limit-changed', this.tautulliSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Tautulli limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Tautulli history limit';
+      }
+      
+      this.clearSaveMessage();
+    },
+    
+    // Trakt Service Methods
+    openTraktConnectModal() {
+      this.showTraktConnect = true;
+      document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+    },
+    
+    closeTraktConnectModal() {
+      this.showTraktConnect = false;
+      document.body.style.overflow = ''; // Re-enable scrolling
+    },
+    
+    onTraktConnectionSuccessful() {
+      this.closeTraktConnectModal();
+      this.loadTraktSettings();
+      this.$emit('trakt-settings-updated');
+    },
+    
+    onTraktLimitChange(limit) {
+      this.traktSettings.recentLimit = limit;
+      localStorage.setItem('traktRecentLimit', limit.toString());
+      this.$emit('trakt-limit-changed', limit);
+    },
+    
+    async saveTraktLimit() {
+      // Save the recent limit to localStorage
+      localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
+      
+      try {
+        // Update the server with the new limit
+        await traktService.configure(
+          traktService.clientId,
+          traktService.clientSecret,
+          this.traktSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history after successful update
+        try {
+          console.log('Fetching Trakt watch history for caching...');
+          const movieHistory = await traktService.getRecentlyWatchedMovies(this.traktSettings.recentLimit);
+          const showHistory = await traktService.getRecentlyWatchedShows(this.traktSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Trakt`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Trakt watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Trakt history limit updated successfully!';
+        this.$emit('trakt-limit-changed', this.traktSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Trakt limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Trakt history limit';
+      }
+      
+      this.clearSaveMessage();
+    },
+    
+    async reconnectTrakt() {
+      this.openTraktConnectModal();
+    },
+    
+    async disconnectTrakt() {
+      if (confirm('Are you sure you want to disconnect from Trakt? This will revoke your authorization.')) {
+        try {
+          // Revoke the access token
+          await traktService.revokeAccess();
+          
+          // Reset Trakt settings
+          this.traktSettings = {
+            clientId: '',
+            accessToken: '',
+            recentLimit: 50
+          };
+          
+          // Notify parent component
+          this.$emit('trakt-disconnected');
+          
+          this.saveSuccess = true;
+          this.saveMessage = 'Disconnected from Trakt successfully';
+          this.clearSaveMessage();
+        } catch (error) {
+          console.error('Error disconnecting from Trakt:', error);
+          this.saveSuccess = false;
+          this.saveMessage = 'Failed to disconnect from Trakt';
+          this.clearSaveMessage();
+        }
       }
     },
     
@@ -2089,6 +2530,104 @@ input[type="password"] {
   background-color: rgba(248, 249, 250, 0.7);
 }
 
+/* Connected service styling */
+.connected-service {
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  margin-bottom: 20px;
+  padding: 20px;
+  transition: background-color var(--transition-speed), 
+              border-color var(--transition-speed);
+}
+
+.service-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.service-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.connection-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.connection-icon.trakt {
+  background-color: #ED1C24;
+  color: white;
+}
+
+.connection-badge {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  gap: 5px;
+}
+
+.connection-badge.connected {
+  background-color: rgba(76, 175, 80, 0.15);
+  color: #4CAF50;
+}
+
+.badge-icon {
+  font-size: 12px;
+}
+
+.service-details {
+  background-color: var(--bg-color);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
+  width: 140px;
+  font-weight: 500;
+}
+
+.reconnect-button {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.disconnect-button {
+  background-color: rgba(255, 59, 48, 0.1);
+  color: #FF3B30;
+  border: 1px solid #FF3B30;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .error-message {
   background-color: #f8d7da;
   color: #721c24;
@@ -2429,6 +2968,15 @@ body.dark-theme .model-warning {
 
 .radarr-button:hover {
   background-color: rgba(249, 58, 47, 0.08);
+}
+
+.trakt-button {
+  border-color: #ED1C24; /* Trakt red color */
+  color: #ED1C24;
+}
+
+.trakt-button:hover {
+  background-color: rgba(237, 28, 36, 0.08);
 }
 
 /* Connection Modal Styling */

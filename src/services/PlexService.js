@@ -20,6 +20,11 @@ class PlexService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.token = credentials.token || '';
+      
+      // Load recentLimit if available
+      if (credentials.recentLimit) {
+        localStorage.setItem('plexRecentLimit', credentials.recentLimit.toString());
+      }
     }
   }
 
@@ -28,16 +33,25 @@ class PlexService {
    * @param {string} baseUrl - The base URL of your Plex instance (e.g., http://localhost:32400)
    * @param {string} token - Your Plex token
    */
-  async configure(baseUrl, token) {
+  async configure(baseUrl, token, recentLimit = null) {
     // Normalize the URL by removing trailing slashes
     this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.token = token;
     
-    // Store credentials server-side
-    await credentialsService.storeCredentials('plex', {
+    const credentials = {
       baseUrl: this.baseUrl,
       token: this.token
-    });
+    };
+    
+    // If recentLimit is provided, store it with the credentials
+    if (recentLimit !== null) {
+      credentials.recentLimit = recentLimit;
+      // Also store in localStorage for client-side access
+      localStorage.setItem('plexRecentLimit', recentLimit.toString());
+    }
+    
+    // Store credentials server-side
+    await credentialsService.storeCredentials('plex', credentials);
   }
 
   /**

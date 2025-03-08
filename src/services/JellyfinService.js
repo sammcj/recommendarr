@@ -22,21 +22,35 @@ class JellyfinService {
       this.baseUrl = credentials.baseUrl || '';
       this.apiKey = credentials.apiKey || '';
       this.userId = credentials.userId || '';
+      
+      // Load recentLimit if available
+      if (credentials.recentLimit) {
+        localStorage.setItem('jellyfinRecentLimit', credentials.recentLimit.toString());
+      }
     }
   }
 
-  async configure(baseUrl, apiKey, userId) {
+  async configure(baseUrl, apiKey, userId, recentLimit = null) {
     // Ensure baseUrl doesn't end with a slash
     this.baseUrl = baseUrl ? baseUrl.replace(/\/$/, '') : '';
     this.apiKey = apiKey || '';
     this.userId = userId || '';
 
-    // Store credentials server-side
-    await credentialsService.storeCredentials('jellyfin', {
+    const credentials = {
       baseUrl: this.baseUrl,
       apiKey: this.apiKey,
       userId: this.userId
-    });
+    };
+    
+    // If recentLimit is provided, store it with the credentials
+    if (recentLimit !== null) {
+      credentials.recentLimit = recentLimit;
+      // Also store in localStorage for client-side access
+      localStorage.setItem('jellyfinRecentLimit', recentLimit.toString());
+    }
+    
+    // Store credentials server-side
+    await credentialsService.storeCredentials('jellyfin', credentials);
   }
 
   isConfigured() {

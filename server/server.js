@@ -34,6 +34,10 @@ let userData = {
   dislikedTV: [],
   likedMovies: [],
   dislikedMovies: [],
+  watchHistory: {
+    movies: [],
+    shows: []
+  },
   settings: {
     numRecommendations: 6,
     columnsCount: 3,
@@ -560,6 +564,52 @@ app.post('/api/settings', async (req, res) => {
   res.json({ success: true });
 });
 
+// Get watch history
+app.get('/api/watch-history/:type', (req, res) => {
+  const { type } = req.params;
+  
+  // Initialize watchHistory if it doesn't exist
+  if (!userData.watchHistory) {
+    userData.watchHistory = { movies: [], shows: [] };
+  }
+  
+  if (type === 'movies') {
+    res.json(userData.watchHistory.movies || []);
+  } else if (type === 'shows') {
+    res.json(userData.watchHistory.shows || []);
+  } else {
+    res.status(400).json({ error: 'Invalid watch history type. Use "movies" or "shows".' });
+  }
+});
+
+// Save watch history
+app.post('/api/watch-history/:type', async (req, res) => {
+  const { type } = req.params;
+  const items = req.body;
+  
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: 'Watch history must be an array' });
+  }
+  
+  console.log(`Saving ${items.length} ${type} watch history items to server`);
+  
+  // Initialize watchHistory if it doesn't exist
+  if (!userData.watchHistory) {
+    userData.watchHistory = { movies: [], shows: [] };
+  }
+  
+  if (type === 'movies') {
+    userData.watchHistory.movies = items;
+  } else if (type === 'shows') {
+    userData.watchHistory.shows = items;
+  } else {
+    return res.status(400).json({ error: 'Invalid watch history type. Use "movies" or "shows".' });
+  }
+  
+  await saveUserData();
+  res.json({ success: true });
+});
+
 // Force reload userData from disk
 async function reloadUserDataFromDisk() {
   console.log('⚠️ Force reloading userData from disk');
@@ -691,6 +741,10 @@ app.post('/api/reset', async (req, res) => {
       dislikedTV: [],
       likedMovies: [],
       dislikedMovies: [],
+      watchHistory: {
+        movies: [],
+        shows: []
+      },
       settings: {
         numRecommendations: 6,
         columnsCount: 3,

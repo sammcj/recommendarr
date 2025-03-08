@@ -1,12 +1,17 @@
 <template>
   <div class="app-container">
-    <header class="app-header">
-      <img alt="App logo" src="./assets/logo.png" class="logo">
-      <h1>Recommendarr</h1>
-    </header>
+    <!-- Check if this is a Trakt callback and show the callback handler if it is -->
+    <TraktCallback v-if="isTraktCallback" />
     
-    <main>
-      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected">
+    <!-- Regular app content if it's not a callback URL -->
+    <template v-else>
+      <header class="app-header">
+        <img alt="App logo" src="./assets/logo.png" class="logo">
+        <h1>Recommendarr</h1>
+      </header>
+      
+      <main>
+      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected && !traktConnected">
         <p class="choose-service">Choose a service to connect to:</p>
         <div class="service-buttons">
           <button class="service-button" @click="showSonarrConnect = true">
@@ -28,6 +33,10 @@
           <button class="service-button tautulli-button" @click="showTautulliConnect = true">
             Connect to Tautulli
             <small>For Plex watch history statistics</small>
+          </button>
+          <button class="service-button trakt-button" @click="showTraktConnect = true">
+            Connect to Trakt
+            <small>For Trakt watch history integration</small>
           </button>
         </div>
       </div>
@@ -123,8 +132,9 @@
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @disconnected="handlePlexDisconnected" @limitChanged="handlePlexLimitChanged" />
       <JellyfinConnection v-if="showJellyfinConnect && !jellyfinConnected" @connected="handleJellyfinConnected" @disconnected="handleJellyfinDisconnected" @limitChanged="handleJellyfinLimitChanged" />
       <TautulliConnection v-if="showTautulliConnect && !tautulliConnected" @connected="handleTautulliConnected" @disconnected="handleTautulliDisconnected" @limitChanged="handleTautulliLimitChanged" />
+      <TraktConnection v-if="showTraktConnect && !traktConnected" @connected="handleTraktConnected" @disconnected="handleTraktDisconnected" @limitChanged="handleTraktLimitChanged" />
       
-      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected">
+      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected">
         <AppNavigation 
           :activeTab="activeTab" 
           @navigate="handleNavigate"
@@ -139,9 +149,11 @@
             :recentlyWatchedShows="recentlyWatchedShows"
             :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
             :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
+            :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
             :tautulliConfigured="tautulliConnected"
+            :traktConfigured="traktConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
@@ -149,6 +161,9 @@
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
             @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
             @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
+            @traktHistoryModeChanged="handleTraktHistoryModeChanged"
+            @traktOnlyModeChanged="handleTraktOnlyModeChanged"
+            @refreshTraktHistory="fetchTraktData"
             @openJellyfinUserSelect="openJellyfinUserSelect"
             @openTautulliUserSelect="openTautulliUserSelect"
           />
@@ -166,9 +181,12 @@
             :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
             :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
             :tautulliRecentlyWatchedMovies="tautulliRecentlyWatchedMovies"
+            :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
+            :traktRecentlyWatchedMovies="traktRecentlyWatchedMovies"
             :plexConfigured="plexConnected"
             :jellyfinConfigured="jellyfinConnected"
             :tautulliConfigured="tautulliConnected"
+            :traktConfigured="traktConnected"
             @navigate="handleNavigate" 
             @plexHistoryModeChanged="handlePlexHistoryModeChanged"
             @plexOnlyModeChanged="handlePlexOnlyModeChanged"
@@ -176,6 +194,9 @@
             @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
             @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
             @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
+            @traktHistoryModeChanged="handleTraktHistoryModeChanged"
+            @traktOnlyModeChanged="handleTraktOnlyModeChanged"
+            @refreshTraktHistory="fetchTraktData"
             @openJellyfinUserSelect="openJellyfinUserSelect"
             @openTautulliUserSelect="openTautulliUserSelect"
           />
@@ -193,6 +214,7 @@
             :plexConnected="plexConnected"
             :jellyfinConnected="jellyfinConnected"
             :tautulliConnected="tautulliConnected"
+            :traktConnected="traktConnected"
             @settings-updated="handleSettingsUpdated"
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
@@ -203,6 +225,7 @@
         </div>
       </div>
     </main>
+    </template>
   </div>
 </template>
 
@@ -212,6 +235,8 @@ import RadarrConnection from './components/RadarrConnection.vue'
 import PlexConnection from './components/PlexConnection.vue'
 import JellyfinConnection from './components/JellyfinConnection.vue'
 import TautulliConnection from './components/TautulliConnection.vue'
+import TraktConnection from './components/TraktConnection.vue'
+import TraktCallback from './components/TraktCallback.vue'
 import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/RequestRecommendations.vue'
 import History from './components/History.vue'
@@ -221,8 +246,9 @@ import radarrService from './services/RadarrService'
 import plexService from './services/PlexService'
 import jellyfinService from './services/JellyfinService'
 import tautulliService from './services/TautulliService'
+import traktService from './services/TraktService'
 import credentialsService from './services/CredentialsService'
-// apiService no longer needed since we use credentialsService.resetUserData()
+import apiService from './services/ApiService'
 
 export default {
   name: 'App',
@@ -232,6 +258,8 @@ export default {
     PlexConnection,
     JellyfinConnection,
     TautulliConnection,
+    TraktConnection,
+    TraktCallback,
     AppNavigation,
     TVRecommendations,
     History,
@@ -239,16 +267,24 @@ export default {
   },
   data() {
     return {
+      isTraktCallback: window.location.pathname === '/trakt-callback',
       sonarrConnected: false,
       radarrConnected: false,
       plexConnected: false,
       jellyfinConnected: false,
       tautulliConnected: false,
+      traktConnected: false,
+      traktRecentlyWatchedMovies: [],
+      traktRecentlyWatchedShows: [],
+      traktRecentLimit: 50,
+      traktHistoryMode: 'all',
+      traktOnlyMode: false,
       showSonarrConnect: false,
       showRadarrConnect: false,
       showPlexConnect: false,
       showJellyfinConnect: false,
       showTautulliConnect: false,
+      showTraktConnect: false,
       showJellyfinUserSelect: false,
       showTautulliUserSelect: false,
       jellyfinUsers: [],
@@ -278,15 +314,254 @@ export default {
     }
   },
   async created() {
+    // If this is a Trakt callback URL, we only need to show the callback component
+    if (this.isTraktCallback) {
+      return; // No need to do the other initializations yet
+    }
+    
     // Check if services have credentials stored server-side
     // This will also set up connections and fetch data if credentials are found
     await this.checkStoredCredentials();
     
     // Load settings from localStorage
     this.loadLocalSettings();
+
+    // Load cached watch history from localStorage first
+    this.loadCachedWatchHistory();
+
+    // After connections are established, fetch and store watch history
+    if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
+      await this.fetchAndStoreWatchHistory();
+    }
   },
 
   methods: {
+    // Load cached watch history from localStorage
+    loadCachedWatchHistory() {
+      try {
+        // Try to load movies watch history from localStorage
+        const cachedMoviesHistory = localStorage.getItem('watchHistoryMovies');
+        if (cachedMoviesHistory) {
+          this.recentlyWatchedMovies = JSON.parse(cachedMoviesHistory);
+          console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from localStorage cache`);
+        }
+        
+        // Try to load shows watch history from localStorage
+        const cachedShowsHistory = localStorage.getItem('watchHistoryShows');
+        if (cachedShowsHistory) {
+          this.recentlyWatchedShows = JSON.parse(cachedShowsHistory);
+          console.log(`Loaded ${this.recentlyWatchedShows.length} shows from localStorage cache`);
+        }
+
+        // Try to load jellyfin history
+        const cachedJellyfinMoviesHistory = localStorage.getItem('jellyfinWatchHistoryMovies');
+        if (cachedJellyfinMoviesHistory) {
+          this.jellyfinRecentlyWatchedMovies = JSON.parse(cachedJellyfinMoviesHistory);
+          console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from localStorage cache`);
+        }
+
+        const cachedJellyfinShowsHistory = localStorage.getItem('jellyfinWatchHistoryShows');
+        if (cachedJellyfinShowsHistory) {
+          this.jellyfinRecentlyWatchedShows = JSON.parse(cachedJellyfinShowsHistory);
+          console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from localStorage cache`);
+        }
+
+        // Try to load tautulli history
+        const cachedTautulliMoviesHistory = localStorage.getItem('tautulliWatchHistoryMovies');
+        if (cachedTautulliMoviesHistory) {
+          this.tautulliRecentlyWatchedMovies = JSON.parse(cachedTautulliMoviesHistory);
+          console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from localStorage cache`);
+        }
+
+        const cachedTautulliShowsHistory = localStorage.getItem('tautulliWatchHistoryShows');
+        if (cachedTautulliShowsHistory) {
+          this.tautulliRecentlyWatchedShows = JSON.parse(cachedTautulliShowsHistory);
+          console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from localStorage cache`);
+        }
+
+        // Try to load trakt history
+        const cachedTraktMoviesHistory = localStorage.getItem('traktWatchHistoryMovies');
+        if (cachedTraktMoviesHistory) {
+          this.traktRecentlyWatchedMovies = JSON.parse(cachedTraktMoviesHistory);
+          console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from localStorage cache`);
+        }
+
+        const cachedTraktShowsHistory = localStorage.getItem('traktWatchHistoryShows');
+        if (cachedTraktShowsHistory) {
+          this.traktRecentlyWatchedShows = JSON.parse(cachedTraktShowsHistory);
+          console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from localStorage cache`);
+        }
+
+        // Also try to load from server if available
+        this.loadWatchHistoryFromServer();
+      } catch (error) {
+        console.error('Error loading cached watch history from localStorage:', error);
+      }
+    },
+
+    // Load watch history from server
+    async loadWatchHistoryFromServer() {
+      try {
+        // Load watch history from server
+        const moviesHistory = await apiService.getWatchHistory('movies');
+        const showsHistory = await apiService.getWatchHistory('shows');
+        
+        if (moviesHistory && moviesHistory.length > 0) {
+          // Parse the service-specific watch history
+          const plexMovies = moviesHistory.filter(item => item.source === 'plex');
+          const jellyfinMovies = moviesHistory.filter(item => item.source === 'jellyfin');
+          const tautulliMovies = moviesHistory.filter(item => item.source === 'tautulli');
+          const traktMovies = moviesHistory.filter(item => item.source === 'trakt');
+          
+          if (plexMovies.length > 0) {
+            this.recentlyWatchedMovies = plexMovies;
+            console.log(`Loaded ${plexMovies.length} Plex movies from server`);
+          }
+          
+          if (jellyfinMovies.length > 0) {
+            this.jellyfinRecentlyWatchedMovies = jellyfinMovies;
+            console.log(`Loaded ${jellyfinMovies.length} Jellyfin movies from server`);
+          }
+          
+          if (tautulliMovies.length > 0) {
+            this.tautulliRecentlyWatchedMovies = tautulliMovies;
+            console.log(`Loaded ${tautulliMovies.length} Tautulli movies from server`);
+          }
+          
+          if (traktMovies.length > 0) {
+            this.traktRecentlyWatchedMovies = traktMovies;
+            console.log(`Loaded ${traktMovies.length} Trakt movies from server`);
+          }
+        }
+        
+        if (showsHistory && showsHistory.length > 0) {
+          // Parse the service-specific watch history
+          const plexShows = showsHistory.filter(item => item.source === 'plex');
+          const jellyfinShows = showsHistory.filter(item => item.source === 'jellyfin');
+          const tautulliShows = showsHistory.filter(item => item.source === 'tautulli');
+          const traktShows = showsHistory.filter(item => item.source === 'trakt');
+          
+          if (plexShows.length > 0) {
+            this.recentlyWatchedShows = plexShows;
+            console.log(`Loaded ${plexShows.length} Plex shows from server`);
+          }
+          
+          if (jellyfinShows.length > 0) {
+            this.jellyfinRecentlyWatchedShows = jellyfinShows;
+            console.log(`Loaded ${jellyfinShows.length} Jellyfin shows from server`);
+          }
+          
+          if (tautulliShows.length > 0) {
+            this.tautulliRecentlyWatchedShows = tautulliShows;
+            console.log(`Loaded ${tautulliShows.length} Tautulli shows from server`);
+          }
+          
+          if (traktShows.length > 0) {
+            this.traktRecentlyWatchedShows = traktShows;
+            console.log(`Loaded ${traktShows.length} Trakt shows from server`);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading watch history from server:', error);
+      }
+    },
+
+    // Fetch watch history from all connected services and store it
+    async fetchAndStoreWatchHistory() {
+      console.log('Fetching watch history from all connected services...');
+      const fetchPromises = [];
+
+      // Plex
+      if (this.plexConnected) {
+        fetchPromises.push(this.fetchPlexData().then(() => {
+          if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
+            this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
+            localStorage.setItem('watchHistoryMovies', JSON.stringify(this.recentlyWatchedMovies));
+          }
+          if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
+            this.recentlyWatchedShows.forEach(item => item.source = 'plex');
+            localStorage.setItem('watchHistoryShows', JSON.stringify(this.recentlyWatchedShows));
+          }
+        }));
+      }
+
+      // Jellyfin
+      if (this.jellyfinConnected) {
+        fetchPromises.push(this.fetchJellyfinData().then(() => {
+          if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
+            this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
+            localStorage.setItem('jellyfinWatchHistoryMovies', JSON.stringify(this.jellyfinRecentlyWatchedMovies));
+          }
+          if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
+            this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
+            localStorage.setItem('jellyfinWatchHistoryShows', JSON.stringify(this.jellyfinRecentlyWatchedShows));
+          }
+        }));
+      }
+
+      // Tautulli
+      if (this.tautulliConnected) {
+        fetchPromises.push(this.fetchTautulliData().then(() => {
+          if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
+            this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
+            localStorage.setItem('tautulliWatchHistoryMovies', JSON.stringify(this.tautulliRecentlyWatchedMovies));
+          }
+          if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
+            this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
+            localStorage.setItem('tautulliWatchHistoryShows', JSON.stringify(this.tautulliRecentlyWatchedShows));
+          }
+        }));
+      }
+
+      // Trakt
+      if (this.traktConnected) {
+        fetchPromises.push(this.fetchTraktData().then(() => {
+          if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+            this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
+            localStorage.setItem('traktWatchHistoryMovies', JSON.stringify(this.traktRecentlyWatchedMovies));
+          }
+          if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+            this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
+            localStorage.setItem('traktWatchHistoryShows', JSON.stringify(this.traktRecentlyWatchedShows));
+          }
+        }));
+      }
+
+      try {
+        // Wait for all fetches to complete
+        await Promise.all(fetchPromises);
+        console.log('All watch history fetched and stored locally');
+
+        // Combine all watch history for server storage
+        const allMovies = [
+          ...(this.recentlyWatchedMovies || []),
+          ...(this.jellyfinRecentlyWatchedMovies || []),
+          ...(this.tautulliRecentlyWatchedMovies || []),
+          ...(this.traktRecentlyWatchedMovies || [])
+        ];
+
+        const allShows = [
+          ...(this.recentlyWatchedShows || []),
+          ...(this.jellyfinRecentlyWatchedShows || []),
+          ...(this.tautulliRecentlyWatchedShows || []),
+          ...(this.traktRecentlyWatchedShows || [])
+        ];
+
+        // Save combined history to server
+        if (allMovies.length > 0) {
+          await apiService.saveWatchHistory('movies', allMovies);
+        }
+        
+        if (allShows.length > 0) {
+          await apiService.saveWatchHistory('shows', allShows);
+        }
+
+        console.log('Watch history stored to server');
+      } catch (error) {
+        console.error('Error fetching and storing watch history:', error);
+      }
+    },
+
     // Load settings from localStorage
     loadLocalSettings() {
       // Load Plex recent limit from localStorage if available
@@ -347,7 +622,8 @@ export default {
           credentialsService.hasCredentials('radarr'),
           credentialsService.hasCredentials('plex'),
           credentialsService.hasCredentials('jellyfin'),
-          credentialsService.hasCredentials('tautulli')
+          credentialsService.hasCredentials('tautulli'),
+          credentialsService.hasCredentials('trakt')
         ]);
         
         // If any service has credentials, set up the appropriate services
@@ -358,7 +634,8 @@ export default {
             this.configureServiceFromCredentials('radarr'),
             this.configureServiceFromCredentials('plex'),
             this.configureServiceFromCredentials('jellyfin'),
-            this.configureServiceFromCredentials('tautulli')
+            this.configureServiceFromCredentials('tautulli'),
+            this.configureServiceFromCredentials('trakt')
           ]);
         }
       } catch (error) {
@@ -443,6 +720,28 @@ export default {
               if (success) {
                 this.tautulliConnected = true;
                 this.fetchTautulliData();
+              }
+            }
+            break;
+            
+          case 'trakt':
+            if (credentials.clientId && credentials.accessToken) {
+              console.log('Configuring Trakt from stored credentials');
+              traktService.clientId = credentials.clientId;
+              traktService.clientSecret = credentials.clientSecret || '';
+              traktService.accessToken = credentials.accessToken;
+              traktService.refreshToken = credentials.refreshToken || '';
+              traktService.expiresAt = credentials.expiresAt || null;
+              traktService.configured = true;
+              
+              const success = await traktService.testConnection();
+              if (success) {
+                console.log('Trakt connection successful from stored credentials');
+                this.traktConnected = true;
+                await this.fetchTraktData();
+              } else {
+                this.traktConnected = false;
+                console.log('Trakt connection test failed during configuration');
               }
             }
             break;
@@ -535,6 +834,94 @@ export default {
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('tautulli');
+    },
+    
+    async traktConnectionHandler() {
+      this.traktConnected = true;
+      this.showTraktConnect = false; // Don't show connect modal
+      await this.fetchTraktData();
+      console.log('Trakt connected successfully, data fetched');
+    },
+    
+    async traktDisconnectionHandler() {
+      this.traktConnected = false;
+      this.showTraktConnect = false; // Don't show connect modal
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
+      
+      // Clean up localStorage
+      localStorage.removeItem('traktClientId');
+      localStorage.removeItem('traktAccessToken');
+      localStorage.removeItem('traktRecentLimit');
+      
+      // Delete credentials from server
+      await credentialsService.deleteCredentials('trakt');
+    },
+    
+    async traktLimitChangeHandler(limit) {
+      this.traktRecentLimit = limit;
+      await this.fetchTraktData();
+    },
+    
+    async fetchTraktData() {
+      console.log('🔄 fetchTraktData called - refreshing Trakt history data');
+      
+      if (!traktService.isConfigured()) {
+        console.log('❌ Trakt service is not configured, skipping data fetch');
+        return;
+      }
+      
+      try {
+        console.log('🔍 Fetching Trakt watch history with settings:', {
+          historyMode: this.traktHistoryMode,
+          recentLimit: this.traktRecentLimit || 50,
+          onlyMode: this.traktOnlyMode
+        });
+        
+        // Determine if we should apply a days filter based on the history mode
+        const daysAgo = this.traktHistoryMode === 'recent' ? 30 : 0;
+        
+        console.log(`Requesting Trakt history with daysAgo=${daysAgo}`);
+        
+        // Fetch movies and track timing
+        console.time('Trakt movies fetch');
+        const moviesPromise = traktService.getRecentlyWatchedMovies(this.traktRecentLimit || 50, daysAgo);
+        
+        // Fetch shows and track timing
+        console.time('Trakt shows fetch');
+        const showsPromise = traktService.getRecentlyWatchedShows(this.traktRecentLimit || 50, daysAgo);
+        
+        // Wait for both to complete
+        const [moviesResponse, showsResponse] = await Promise.all([moviesPromise, showsPromise]);
+        console.timeEnd('Trakt movies fetch');
+        console.timeEnd('Trakt shows fetch');
+        
+        console.log(`📊 Trakt movies response: ${moviesResponse ? moviesResponse.length : 0} items`);
+        console.log(`📊 Trakt shows response: ${showsResponse ? showsResponse.length : 0} items`);
+        
+        this.traktRecentlyWatchedMovies = moviesResponse;
+        this.traktRecentlyWatchedShows = showsResponse;
+        
+        console.log('Fetched Trakt watch history:', {
+          moviesCount: this.traktRecentlyWatchedMovies.length,
+          showsCount: this.traktRecentlyWatchedShows.length
+        });
+        
+        // Log a sample of the first movie and show to verify data structure
+        if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+          console.log('Trakt movie sample:', this.traktRecentlyWatchedMovies[0]);
+        } else {
+          console.log('No Trakt movies in watch history');
+        }
+        
+        if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+          console.log('Trakt show sample:', this.traktRecentlyWatchedShows[0]);
+        } else {
+          console.log('No Trakt shows in watch history');
+        }
+      } catch (error) {
+        console.error('Failed to fetch Trakt watch history:', error);
+      }
     },
     
     async openJellyfinUserSelect() {
@@ -690,6 +1077,24 @@ export default {
       }
     },
     
+    async checkTraktConnection() {
+      try {
+        console.log('Checking Trakt connection...');
+        const success = await traktService.testConnection();
+        if (success) {
+          console.log('Trakt connection successful');
+          this.traktConnected = true;
+          await this.fetchTraktData();
+        } else {
+          console.log('Trakt connection test failed');
+          this.traktConnected = false;
+        }
+      } catch (error) {
+        console.error('Failed to connect with stored Trakt credentials:', error);
+        this.traktConnected = false;
+      }
+    },
+    
     handleSonarrConnected() {
       this.sonarrConnected = true;
       this.showSonarrConnect = false;
@@ -722,6 +1127,20 @@ export default {
       this.fetchTautulliData();
     },
     
+    onTraktConnected() {
+      this.traktConnected = true;
+      this.showTraktConnect = false;
+      this.fetchTraktData();
+    },
+    
+    onTraktDisconnected() {
+      this.traktConnected = false;
+      this.showTraktConnect = false;
+      // Clear trakt data
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
+    },
+    
     handlePlexLimitChanged(limit) {
       this.plexRecentLimit = limit;
       this.fetchPlexData();
@@ -735,6 +1154,11 @@ export default {
     handleTautulliLimitChanged(limit) {
       this.tautulliRecentLimit = limit;
       this.fetchTautulliData();
+    },
+    
+    onTraktLimitChange(limit) {
+      this.traktRecentLimit = limit;
+      this.fetchTraktData();
     },
     
     handlePlexHistoryModeChanged(mode) {
@@ -752,6 +1176,12 @@ export default {
       this.fetchTautulliData();
     },
     
+    handleTraktHistoryModeChanged(mode) {
+      console.log('Trakt history mode changed to:', mode);
+      this.traktHistoryMode = mode;
+      this.fetchTraktData();
+    },
+    
     handlePlexOnlyModeChanged(enabled) {
       this.plexOnlyMode = enabled;
     },
@@ -762,6 +1192,11 @@ export default {
     
     handleTautulliOnlyModeChanged(enabled) {
       this.tautulliOnlyMode = enabled;
+    },
+    
+    handleTraktOnlyModeChanged(enabled) {
+      console.log('Trakt only mode changed to:', enabled);
+      this.traktOnlyMode = enabled;
     },
     handleNavigate(tab) {
       this.activeTab = tab;
@@ -1035,6 +1470,25 @@ export default {
         this.tautulliConnected = false;
       }
     },
+    
+    async handleTraktSettingsUpdated() {
+      // Check if Trakt service is configured in memory
+      if (traktService.isConfigured()) {
+        // Check the Trakt connection with the new settings
+        this.checkTraktConnection();
+        console.log('Trakt settings updated, testing connection');
+        return;
+      }
+      
+      // If not in memory, check server storage
+      try {
+        await this.configureServiceFromCredentials('trakt');
+      } catch (error) {
+        console.error('Error loading Trakt credentials:', error);
+        this.traktConnected = false;
+      }
+    },
+    
     async handleLogout() {
       console.log("User clicked Clear Data...");
       // Clear all stored credentials from localStorage (for backwards compatibility)
@@ -1052,14 +1506,19 @@ export default {
       localStorage.removeItem('tautulliBaseUrl');
       localStorage.removeItem('tautulliApiKey');
       localStorage.removeItem('tautulliRecentLimit');
+      localStorage.removeItem('traktClientId');
+      localStorage.removeItem('traktAccessToken');
+      localStorage.removeItem('traktRecentLimit');
       localStorage.removeItem('openaiApiKey');
       localStorage.removeItem('openaiModel');
       localStorage.removeItem('plexHistoryMode');
       localStorage.removeItem('jellyfinHistoryMode');
       localStorage.removeItem('tautulliHistoryMode');
+      localStorage.removeItem('traktHistoryMode');
       localStorage.removeItem('plexOnlyMode');
       localStorage.removeItem('jellyfinOnlyMode');
       localStorage.removeItem('tautulliOnlyMode');
+      localStorage.removeItem('traktOnlyMode');
       
       // Also clear recommendation history and preferences
       // Remove from localStorage as well to ensure clear doesn't persist after reload
@@ -1074,6 +1533,16 @@ export default {
       
       // Additional localStorage history that might exist
       localStorage.removeItem('historyColumnsCount');
+      
+      // Clear cached watch history
+      localStorage.removeItem('watchHistoryMovies');
+      localStorage.removeItem('watchHistoryShows');
+      localStorage.removeItem('jellyfinWatchHistoryMovies');
+      localStorage.removeItem('jellyfinWatchHistoryShows');
+      localStorage.removeItem('tautulliWatchHistoryMovies');
+      localStorage.removeItem('tautulliWatchHistoryShows');
+      localStorage.removeItem('traktWatchHistoryMovies');
+      localStorage.removeItem('traktWatchHistoryShows');
       
       // Delete all data from the server - both user_data.json and credentials.json
       try {

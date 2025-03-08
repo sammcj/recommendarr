@@ -33,18 +33,26 @@
           <span class="nav-icon">⚙️</span>
           <span class="nav-text">Settings</span>
         </button>
+        
+        <!-- Theme toggle moved right after nav items -->
+        <div class="theme-toggle-wrapper" :title="isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'">
+          <label class="theme-toggle">
+            <input type="checkbox" @change="toggleTheme" :checked="isDarkTheme">
+            <span class="toggle-track">
+              <span class="toggle-icon sun">☀️</span>
+              <span class="toggle-icon moon">🌙</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
       </div>
       
       <div class="nav-actions">
-        <button 
-          @click="toggleTheme" 
-          class="action-button theme-button"
-          :title="isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'"
-        >
-          <span v-if="isDarkTheme" class="nav-icon">☀️</span>
-          <span v-else class="nav-icon">🌙</span>
-        </button>
-        
+        <!-- Empty nav-actions container -->
+      </div>
+      
+      <!-- Separate container for clear data button -->
+      <div class="clear-data-container">
         <button 
           @click="confirmClearData" 
           class="action-button logout-button"
@@ -94,14 +102,17 @@
       </button>
       
       <div class="mobile-actions">
-        <button 
-          @click="toggleTheme" 
-          class="mobile-action theme-button"
-        >
-          <span v-if="isDarkTheme" class="nav-icon">☀️</span>
-          <span v-else class="nav-icon">🌙</span>
+        <div class="mobile-action theme-action">
           <span>{{ isDarkTheme ? 'Light Mode' : 'Dark Mode' }}</span>
-        </button>
+          <label class="theme-toggle mobile">
+            <input type="checkbox" @change="toggleTheme" :checked="isDarkTheme">
+            <span class="toggle-track">
+              <span class="toggle-icon sun">☀️</span>
+              <span class="toggle-icon moon">🌙</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
         
         <button 
           @click="confirmClearData" 
@@ -187,10 +198,114 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: 24px;
+  min-width: auto; /* Allow natural width */
   font-weight: bold;
   font-size: 18px;
   color: var(--nav-active-text);
+}
+
+/* Modern theme toggle styling */
+.theme-toggle-wrapper {
+  margin-left: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.theme-toggle {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.theme-toggle:hover .toggle-track {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.theme-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: 0.4s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px;
+  overflow: hidden; /* Ensures content stays within rounded corners */
+}
+
+body.dark-theme .toggle-track {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.toggle-icon {
+  font-size: 12px;
+  z-index: 1;
+}
+
+.toggle-icon.sun {
+  margin-left: 2px;
+}
+
+.toggle-icon.moon {
+  margin-right: 2px;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.4s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input:checked + .toggle-track {
+  background-color: rgba(76, 175, 80, 0.7);
+}
+
+input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(26px);
+}
+
+/* Mobile theme toggle */
+.theme-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px;
+  background: transparent;
+  border: none;
+  color: var(--nav-text-color);
+  text-align: left;
+  font-size: 16px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.theme-action:hover {
+  background-color: var(--nav-hover-bg);
+}
+
+.theme-toggle.mobile {
+  margin-left: 10px;
 }
 
 .brand-icon {
@@ -214,6 +329,7 @@ export default {
     display: flex;
     align-items: center;
     gap: 4px;
+    margin-left: 15px; /* Aligns menu to the left, next to brand */
   }
 }
 
@@ -256,7 +372,21 @@ export default {
   .nav-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    margin-right: 20px;
+    margin-left: auto; /* Push to right side */
+  }
+  
+  .clear-data-container {
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+  }
+  
+  /* Hide clear-data-container on small screens */
+  @media (max-width: 767px) {
+    .clear-data-container {
+      display: none;
+    }
   }
 }
 
@@ -290,10 +420,18 @@ export default {
 @media (min-width: 992px) {
   .action-text {
     display: inline;
+    white-space: nowrap;
   }
   
   .action-button {
     padding: 8px 12px;
+    min-width: 120px;
+    justify-content: center;
+  }
+  
+  .theme-button {
+    min-width: auto;
+    padding: 8px;
   }
   
   .logout-button {

@@ -46,15 +46,6 @@
             <span v-if="loading">Logging in...</span>
             <span v-else>Login</span>
           </button>
-          
-          <button 
-            type="button" 
-            class="register-link" 
-            @click="showRegister = true"
-            :disabled="loading"
-          >
-            Create account
-          </button>
         </div>
       </form>
     </div>

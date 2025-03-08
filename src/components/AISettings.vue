@@ -5,6 +5,13 @@
     <!-- Settings Tabs -->
     <div class="settings-tabs">
       <button 
+        @click="activeTab = 'account'" 
+        :class="{ active: activeTab === 'account' }" 
+        class="tab-button"
+      >
+        Account
+      </button>
+      <button 
         @click="activeTab = 'ai'" 
         :class="{ active: activeTab === 'ai' }" 
         class="tab-button"
@@ -220,6 +227,82 @@
         </div>
       </div>
     </teleport>
+    
+    <!-- Account Settings Tab -->
+    <div v-if="activeTab === 'account'" class="settings-section">
+      <div class="settings-intro">
+        <p>Manage your account settings and change your password.</p>
+      </div>
+      
+      <div class="settings-form">
+        <div class="account-info">
+          <h3>Account Information</h3>
+          <div class="info-row">
+            <span class="info-label">Username:</span>
+            <span class="info-value">{{ currentUser?.username }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Role:</span>
+            <span class="info-value">{{ currentUser?.isAdmin ? 'Administrator' : 'User' }}</span>
+          </div>
+        </div>
+        
+        <div class="password-change-section">
+          <h3>Change Password</h3>
+          <div class="form-group">
+            <label for="currentPassword">Current Password:</label>
+            <input 
+              id="currentPassword" 
+              v-model="passwordForm.currentPassword" 
+              type="password" 
+              placeholder="Enter your current password" 
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="newPassword">New Password:</label>
+            <input 
+              id="newPassword" 
+              v-model="passwordForm.newPassword" 
+              type="password" 
+              placeholder="Enter your new password" 
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="confirmPassword">Confirm New Password:</label>
+            <input 
+              id="confirmPassword" 
+              v-model="passwordForm.confirmPassword" 
+              type="password" 
+              placeholder="Confirm your new password" 
+              required
+            />
+            <div v-if="passwordForm.newPassword && passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword" class="field-error">
+              Passwords do not match
+            </div>
+          </div>
+          
+          <div class="actions">
+            <button 
+              type="button" 
+              @click="changePassword" 
+              class="save-button"
+              :disabled="isChangingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword || passwordForm.newPassword !== passwordForm.confirmPassword"
+            >
+              <span v-if="isChangingPassword">Changing Password...</span>
+              <span v-else>Change Password</span>
+            </button>
+          </div>
+          
+          <div v-if="passwordMessage" class="password-message" :class="{ 'success': passwordSuccess, 'error': !passwordSuccess }">
+            {{ passwordMessage }}
+          </div>
+        </div>
+      </div>
+    </div>
     
     <!-- AI Service Settings Tab -->
     <div v-if="activeTab === 'ai'" class="settings-section">
@@ -858,6 +941,7 @@ import jellyfinService from '../services/JellyfinService';
 import tautulliService from '../services/TautulliService';
 import traktService from '../services/TraktService';
 import credentialsService from '../services/CredentialsService';
+import authService from '../services/AuthService';
 import PlexConnection from './PlexConnection.vue';
 import JellyfinConnection from './JellyfinConnection.vue';
 import TautulliConnection from './TautulliConnection.vue';
@@ -903,7 +987,7 @@ export default {
   },
   data() {
     return {
-      activeTab: 'ai',
+      activeTab: 'account',
       showConnectionsPanel: false,
       showSonarrConnect: false,
       showRadarrConnect: false,
@@ -911,6 +995,17 @@ export default {
       showJellyfinConnect: false,
       showTautulliConnect: false,
       showTraktConnect: false,
+      
+      // Account related data
+      currentUser: authService.getUser(),
+      passwordForm: {
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      },
+      isChangingPassword: false,
+      passwordMessage: '',
+      passwordSuccess: false,
       
       // AI Settings
       aiSettings: {
@@ -2127,6 +2222,48 @@ export default {
       }
     },
     
+    // Account Methods
+    async changePassword() {
+      if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
+        this.passwordSuccess = false;
+        this.passwordMessage = 'New passwords do not match.';
+        return;
+      }
+      
+      this.isChangingPassword = true;
+      this.passwordMessage = '';
+      
+      try {
+        const result = await authService.changePassword(
+          this.passwordForm.currentPassword,
+          this.passwordForm.newPassword
+        );
+        
+        if (result.success) {
+          this.passwordSuccess = true;
+          this.passwordMessage = 'Password changed successfully.';
+          // Clear the form
+          this.passwordForm.currentPassword = '';
+          this.passwordForm.newPassword = '';
+          this.passwordForm.confirmPassword = '';
+        } else {
+          this.passwordSuccess = false;
+          this.passwordMessage = result.message || 'Failed to change password.';
+        }
+      } catch (error) {
+        console.error('Error changing password:', error);
+        this.passwordSuccess = false;
+        this.passwordMessage = error.message || 'An error occurred while changing password.';
+      } finally {
+        this.isChangingPassword = false;
+        
+        // Clear message after a delay
+        setTimeout(() => {
+          this.passwordMessage = '';
+        }, 5000);
+      }
+    },
+    
     // Helper Methods
     clearSaveMessage() {
       // Clear message after a longer delay (matching animation duration)
@@ -2757,6 +2894,55 @@ input[type="password"] {
   opacity: 0.8;
   font-size: 13px !important;
   margin-top: 15px !important;
+}
+
+/* Account Settings Styles */
+.account-info {
+  background-color: var(--bg-color);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 25px;
+}
+
+.info-row {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.info-label {
+  min-width: 120px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.info-value {
+  color: var(--header-color);
+  font-weight: 500;
+}
+
+.password-change-section {
+  margin-top: 20px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 20px;
+}
+
+.password-message {
+  margin-top: 15px;
+  padding: 12px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.password-message.success {
+  background-color: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+  border-left: 3px solid #4CAF50;
+}
+
+.password-message.error {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #F44336;
+  border-left: 3px solid #F44336;
 }
 
 .model-warning {

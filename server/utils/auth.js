@@ -56,11 +56,11 @@ class AuthService {
           // File doesn't exist yet, initialize with empty object
           this.users = {};
           
-          // Create default admin user if no users exist
+          // Create default admin user with password "1234"
           console.log('Creating default admin user...');
           try {
             const salt = crypto.randomBytes(16).toString('hex');
-            const hash = crypto.pbkdf2Sync('admin', salt, 1000, 64, 'sha512').toString('hex');
+            const hash = crypto.pbkdf2Sync('1234', salt, 1000, 64, 'sha512').toString('hex');
             
             this.users['admin'] = {
               username: 'admin',
@@ -71,7 +71,7 @@ class AuthService {
             };
             
             await this.saveUsers();
-            console.log('Created default admin user and saved to file');
+            console.log('Created default admin user with password "1234" and saved to file');
           } catch (createErr) {
             console.error('Error creating default admin user:', createErr);
             this.users = {}; // Ensure we at least have an empty users object
@@ -80,6 +80,28 @@ class AuthService {
           console.error('Error reading users file:', err);
           // Initialize with empty object instead of throwing error
           this.users = {};
+        }
+      }
+      
+      // If we have an empty users object, create a default admin user
+      if (Object.keys(this.users).length === 0) {
+        console.log('No users found, creating default admin user...');
+        try {
+          const salt = crypto.randomBytes(16).toString('hex');
+          const hash = crypto.pbkdf2Sync('1234', salt, 1000, 64, 'sha512').toString('hex');
+          
+          this.users['admin'] = {
+            username: 'admin',
+            salt,
+            hash,
+            isAdmin: true,
+            createdAt: new Date().toISOString()
+          };
+          
+          await this.saveUsers();
+          console.log('Created default admin user with password "1234" and saved to file');
+        } catch (createErr) {
+          console.error('Error creating default admin user:', createErr);
         }
       }
       

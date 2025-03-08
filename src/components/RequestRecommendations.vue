@@ -2779,43 +2779,120 @@ export default {
         // Prepare watch history based on user configuration
         let watchHistory = [];
         
-        // Plex history processing - only include if plexUseHistory is true
-        const plexHistory = this.isMovieMode ? this.recentlyWatchedMovies || [] : this.recentlyWatchedShows || [];
-        const plexHistoryFiltered = this.plexUseHistory ? this.filterWatchHistory(plexHistory, 'plex') : [];
+        // First try to load from localStorage cache
+        let plexHistoryFiltered = [];
+        let jellyfinHistoryFiltered = [];
+        let tautulliHistoryFiltered = [];
+        let traktHistoryFiltered = [];
         
-        // Jellyfin history processing - only include if jellyfinUseHistory is true
-        const jellyfinHistory = this.isMovieMode ? this.jellyfinRecentlyWatchedMovies || [] : this.jellyfinRecentlyWatchedShows || [];
-        const jellyfinHistoryFiltered = this.jellyfinUseHistory ? this.filterWatchHistory(jellyfinHistory, 'jellyfin') : [];
-        
-        // Tautulli history processing - only include if tautulliUseHistory is true
-        const tautulliHistory = this.isMovieMode ? this.tautulliRecentlyWatchedMovies || [] : this.tautulliRecentlyWatchedShows || [];
-        const tautulliHistoryFiltered = this.tautulliUseHistory ? this.filterWatchHistory(tautulliHistory, 'tautulli') : [];
-        
-        // Trakt history processing - only include if traktUseHistory is true
-        console.log(`Processing Trakt history with props:`, {
-          isMovieMode: this.isMovieMode,
-          traktConfigured: this.traktConfigured,
-          traktUseHistory: this.traktUseHistory,
-          traktHistoryMode: this.traktHistoryMode,
-          moviesLength: this.traktRecentlyWatchedMovies ? this.traktRecentlyWatchedMovies.length : 0,
-          showsLength: this.traktRecentlyWatchedShows ? this.traktRecentlyWatchedShows.length : 0
-        });
-        
-        // Check if the prop is defined and has data
-        if (this.isMovieMode) {
-          console.log(`Trakt recently watched movies prop:`, this.traktRecentlyWatchedMovies);
-        } else {
-          console.log(`Trakt recently watched shows prop:`, this.traktRecentlyWatchedShows);
+        // Get local Plex history
+        if (this.plexUseHistory) {
+          let plexHistory;
+          if (this.isMovieMode) {
+            plexHistory = localStorage.getItem('watchHistoryMovies');
+            if (plexHistory) {
+              plexHistory = JSON.parse(plexHistory);
+            } else {
+              plexHistory = this.recentlyWatchedMovies || [];
+            }
+          } else {
+            plexHistory = localStorage.getItem('watchHistoryShows');
+            if (plexHistory) {
+              plexHistory = JSON.parse(plexHistory);
+            } else {
+              plexHistory = this.recentlyWatchedShows || [];
+            }
+          }
+          plexHistoryFiltered = this.filterWatchHistory(plexHistory, 'plex');
         }
         
-        const traktHistory = this.isMovieMode ? this.traktRecentlyWatchedMovies || [] : this.traktRecentlyWatchedShows || [];
-        // Log the Trakt history to debug
-        console.log(`Trakt history for ${this.isMovieMode ? 'movies' : 'TV shows'}:`, traktHistory ? traktHistory.length : 0, 'items');
-        console.log('Trakt history use status:', this.traktUseHistory);
-        if (traktHistory && traktHistory.length > 0) {
-          console.log('First Trakt history item sample:', traktHistory[0]);
+        // Get local Jellyfin history
+        if (this.jellyfinUseHistory) {
+          let jellyfinHistory;
+          if (this.isMovieMode) {
+            jellyfinHistory = localStorage.getItem('jellyfinWatchHistoryMovies');
+            if (jellyfinHistory) {
+              jellyfinHistory = JSON.parse(jellyfinHistory);
+            } else {
+              jellyfinHistory = this.jellyfinRecentlyWatchedMovies || [];
+            }
+          } else {
+            jellyfinHistory = localStorage.getItem('jellyfinWatchHistoryShows');
+            if (jellyfinHistory) {
+              jellyfinHistory = JSON.parse(jellyfinHistory);
+            } else {
+              jellyfinHistory = this.jellyfinRecentlyWatchedShows || [];
+            }
+          }
+          jellyfinHistoryFiltered = this.filterWatchHistory(jellyfinHistory, 'jellyfin');
         }
-        const traktHistoryFiltered = this.traktUseHistory ? this.filterWatchHistory(traktHistory, 'trakt') : [];
+        
+        // Get local Tautulli history
+        if (this.tautulliUseHistory) {
+          let tautulliHistory;
+          if (this.isMovieMode) {
+            tautulliHistory = localStorage.getItem('tautulliWatchHistoryMovies');
+            if (tautulliHistory) {
+              tautulliHistory = JSON.parse(tautulliHistory);
+            } else {
+              tautulliHistory = this.tautulliRecentlyWatchedMovies || [];
+            }
+          } else {
+            tautulliHistory = localStorage.getItem('tautulliWatchHistoryShows');
+            if (tautulliHistory) {
+              tautulliHistory = JSON.parse(tautulliHistory);
+            } else {
+              tautulliHistory = this.tautulliRecentlyWatchedShows || [];
+            }
+          }
+          tautulliHistoryFiltered = this.filterWatchHistory(tautulliHistory, 'tautulli');
+        }
+        
+        // Get local Trakt history
+        if (this.traktUseHistory) {
+          let traktHistory;
+          if (this.isMovieMode) {
+            traktHistory = localStorage.getItem('traktWatchHistoryMovies');
+            if (traktHistory) {
+              traktHistory = JSON.parse(traktHistory);
+            } else {
+              traktHistory = this.traktRecentlyWatchedMovies || [];
+            }
+          } else {
+            traktHistory = localStorage.getItem('traktWatchHistoryShows');
+            if (traktHistory) {
+              traktHistory = JSON.parse(traktHistory);
+            } else {
+              traktHistory = this.traktRecentlyWatchedShows || [];
+            }
+          }
+          traktHistoryFiltered = this.filterWatchHistory(traktHistory, 'trakt');
+        }
+        
+        // If no local cache, fall back to props
+        if (plexHistoryFiltered.length === 0 && this.plexUseHistory) {
+          console.log('No cached Plex history found, using prop data');
+          const plexHistory = this.isMovieMode ? this.recentlyWatchedMovies || [] : this.recentlyWatchedShows || [];
+          plexHistoryFiltered = this.filterWatchHistory(plexHistory, 'plex');
+        }
+        
+        if (jellyfinHistoryFiltered.length === 0 && this.jellyfinUseHistory) {
+          console.log('No cached Jellyfin history found, using prop data');
+          const jellyfinHistory = this.isMovieMode ? this.jellyfinRecentlyWatchedMovies || [] : this.jellyfinRecentlyWatchedShows || [];
+          jellyfinHistoryFiltered = this.filterWatchHistory(jellyfinHistory, 'jellyfin');
+        }
+        
+        if (tautulliHistoryFiltered.length === 0 && this.tautulliUseHistory) {
+          console.log('No cached Tautulli history found, using prop data');
+          const tautulliHistory = this.isMovieMode ? this.tautulliRecentlyWatchedMovies || [] : this.tautulliRecentlyWatchedShows || [];
+          tautulliHistoryFiltered = this.filterWatchHistory(tautulliHistory, 'tautulli');
+        }
+        
+        if (traktHistoryFiltered.length === 0 && this.traktUseHistory) {
+          console.log('No cached Trakt history found, using prop data');
+          const traktHistory = this.isMovieMode ? this.traktRecentlyWatchedMovies || [] : this.traktRecentlyWatchedShows || [];
+          traktHistoryFiltered = this.filterWatchHistory(traktHistory, 'trakt');
+        }
         
         // Combine histories based on "only mode" settings
         if (this.plexOnlyMode && this.plexUseHistory) {
@@ -2841,6 +2918,55 @@ export default {
         // If no watch history is available or all are disabled, use empty array
         if (watchHistory.length === 0) {
           console.log('No watch history is being used for recommendations');
+          
+          // If still no history found, refresh from server as last resort
+          if (this.plexUseHistory || this.jellyfinUseHistory || this.tautulliUseHistory || this.traktUseHistory) {
+            try {
+              console.log('No watch history found locally, trying to fetch from server...');
+              const historyType = this.isMovieMode ? 'movies' : 'shows';
+              const serverHistory = await apiService.getWatchHistory(historyType);
+              
+              if (serverHistory && serverHistory.length > 0) {
+                console.log(`Loaded ${serverHistory.length} items from server watch history`);
+                
+                // Filter by source based on user preferences
+                if (this.plexOnlyMode && this.plexUseHistory) {
+                  watchHistory = serverHistory.filter(item => item.source === 'plex');
+                } else if (this.jellyfinOnlyMode && this.jellyfinUseHistory) {
+                  watchHistory = serverHistory.filter(item => item.source === 'jellyfin');
+                } else if (this.tautulliOnlyMode && this.tautulliUseHistory) {
+                  watchHistory = serverHistory.filter(item => item.source === 'tautulli');
+                } else if (this.traktOnlyMode && this.traktUseHistory) {
+                  watchHistory = serverHistory.filter(item => item.source === 'trakt');
+                } else {
+                  // Apply filters for each service if they're enabled
+                  let filteredHistory = [];
+                  
+                  if (this.plexUseHistory) {
+                    filteredHistory = [...filteredHistory, ...serverHistory.filter(item => item.source === 'plex')];
+                  }
+                  
+                  if (this.jellyfinUseHistory) {
+                    filteredHistory = [...filteredHistory, ...serverHistory.filter(item => item.source === 'jellyfin')];
+                  }
+                  
+                  if (this.tautulliUseHistory) {
+                    filteredHistory = [...filteredHistory, ...serverHistory.filter(item => item.source === 'tautulli')];
+                  }
+                  
+                  if (this.traktUseHistory) {
+                    filteredHistory = [...filteredHistory, ...serverHistory.filter(item => item.source === 'trakt')];
+                  }
+                  
+                  watchHistory = filteredHistory;
+                }
+                
+                console.log(`Using ${watchHistory.length} items from server history after filtering`);
+              }
+            } catch (error) {
+              console.error('Error fetching watch history from server:', error);
+            }
+          }
         }
         
         // Get initial recommendations using the appropriate service method based on mode

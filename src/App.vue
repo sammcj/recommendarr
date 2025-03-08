@@ -248,7 +248,7 @@ import jellyfinService from './services/JellyfinService'
 import tautulliService from './services/TautulliService'
 import traktService from './services/TraktService'
 import credentialsService from './services/CredentialsService'
-// apiService no longer needed since we use credentialsService.resetUserData()
+import apiService from './services/ApiService'
 
 export default {
   name: 'App',
@@ -325,9 +325,243 @@ export default {
     
     // Load settings from localStorage
     this.loadLocalSettings();
+
+    // Load cached watch history from localStorage first
+    this.loadCachedWatchHistory();
+
+    // After connections are established, fetch and store watch history
+    if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
+      await this.fetchAndStoreWatchHistory();
+    }
   },
 
   methods: {
+    // Load cached watch history from localStorage
+    loadCachedWatchHistory() {
+      try {
+        // Try to load movies watch history from localStorage
+        const cachedMoviesHistory = localStorage.getItem('watchHistoryMovies');
+        if (cachedMoviesHistory) {
+          this.recentlyWatchedMovies = JSON.parse(cachedMoviesHistory);
+          console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from localStorage cache`);
+        }
+        
+        // Try to load shows watch history from localStorage
+        const cachedShowsHistory = localStorage.getItem('watchHistoryShows');
+        if (cachedShowsHistory) {
+          this.recentlyWatchedShows = JSON.parse(cachedShowsHistory);
+          console.log(`Loaded ${this.recentlyWatchedShows.length} shows from localStorage cache`);
+        }
+
+        // Try to load jellyfin history
+        const cachedJellyfinMoviesHistory = localStorage.getItem('jellyfinWatchHistoryMovies');
+        if (cachedJellyfinMoviesHistory) {
+          this.jellyfinRecentlyWatchedMovies = JSON.parse(cachedJellyfinMoviesHistory);
+          console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from localStorage cache`);
+        }
+
+        const cachedJellyfinShowsHistory = localStorage.getItem('jellyfinWatchHistoryShows');
+        if (cachedJellyfinShowsHistory) {
+          this.jellyfinRecentlyWatchedShows = JSON.parse(cachedJellyfinShowsHistory);
+          console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from localStorage cache`);
+        }
+
+        // Try to load tautulli history
+        const cachedTautulliMoviesHistory = localStorage.getItem('tautulliWatchHistoryMovies');
+        if (cachedTautulliMoviesHistory) {
+          this.tautulliRecentlyWatchedMovies = JSON.parse(cachedTautulliMoviesHistory);
+          console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from localStorage cache`);
+        }
+
+        const cachedTautulliShowsHistory = localStorage.getItem('tautulliWatchHistoryShows');
+        if (cachedTautulliShowsHistory) {
+          this.tautulliRecentlyWatchedShows = JSON.parse(cachedTautulliShowsHistory);
+          console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from localStorage cache`);
+        }
+
+        // Try to load trakt history
+        const cachedTraktMoviesHistory = localStorage.getItem('traktWatchHistoryMovies');
+        if (cachedTraktMoviesHistory) {
+          this.traktRecentlyWatchedMovies = JSON.parse(cachedTraktMoviesHistory);
+          console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from localStorage cache`);
+        }
+
+        const cachedTraktShowsHistory = localStorage.getItem('traktWatchHistoryShows');
+        if (cachedTraktShowsHistory) {
+          this.traktRecentlyWatchedShows = JSON.parse(cachedTraktShowsHistory);
+          console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from localStorage cache`);
+        }
+
+        // Also try to load from server if available
+        this.loadWatchHistoryFromServer();
+      } catch (error) {
+        console.error('Error loading cached watch history from localStorage:', error);
+      }
+    },
+
+    // Load watch history from server
+    async loadWatchHistoryFromServer() {
+      try {
+        // Load watch history from server
+        const moviesHistory = await apiService.getWatchHistory('movies');
+        const showsHistory = await apiService.getWatchHistory('shows');
+        
+        if (moviesHistory && moviesHistory.length > 0) {
+          // Parse the service-specific watch history
+          const plexMovies = moviesHistory.filter(item => item.source === 'plex');
+          const jellyfinMovies = moviesHistory.filter(item => item.source === 'jellyfin');
+          const tautulliMovies = moviesHistory.filter(item => item.source === 'tautulli');
+          const traktMovies = moviesHistory.filter(item => item.source === 'trakt');
+          
+          if (plexMovies.length > 0) {
+            this.recentlyWatchedMovies = plexMovies;
+            console.log(`Loaded ${plexMovies.length} Plex movies from server`);
+          }
+          
+          if (jellyfinMovies.length > 0) {
+            this.jellyfinRecentlyWatchedMovies = jellyfinMovies;
+            console.log(`Loaded ${jellyfinMovies.length} Jellyfin movies from server`);
+          }
+          
+          if (tautulliMovies.length > 0) {
+            this.tautulliRecentlyWatchedMovies = tautulliMovies;
+            console.log(`Loaded ${tautulliMovies.length} Tautulli movies from server`);
+          }
+          
+          if (traktMovies.length > 0) {
+            this.traktRecentlyWatchedMovies = traktMovies;
+            console.log(`Loaded ${traktMovies.length} Trakt movies from server`);
+          }
+        }
+        
+        if (showsHistory && showsHistory.length > 0) {
+          // Parse the service-specific watch history
+          const plexShows = showsHistory.filter(item => item.source === 'plex');
+          const jellyfinShows = showsHistory.filter(item => item.source === 'jellyfin');
+          const tautulliShows = showsHistory.filter(item => item.source === 'tautulli');
+          const traktShows = showsHistory.filter(item => item.source === 'trakt');
+          
+          if (plexShows.length > 0) {
+            this.recentlyWatchedShows = plexShows;
+            console.log(`Loaded ${plexShows.length} Plex shows from server`);
+          }
+          
+          if (jellyfinShows.length > 0) {
+            this.jellyfinRecentlyWatchedShows = jellyfinShows;
+            console.log(`Loaded ${jellyfinShows.length} Jellyfin shows from server`);
+          }
+          
+          if (tautulliShows.length > 0) {
+            this.tautulliRecentlyWatchedShows = tautulliShows;
+            console.log(`Loaded ${tautulliShows.length} Tautulli shows from server`);
+          }
+          
+          if (traktShows.length > 0) {
+            this.traktRecentlyWatchedShows = traktShows;
+            console.log(`Loaded ${traktShows.length} Trakt shows from server`);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading watch history from server:', error);
+      }
+    },
+
+    // Fetch watch history from all connected services and store it
+    async fetchAndStoreWatchHistory() {
+      console.log('Fetching watch history from all connected services...');
+      const fetchPromises = [];
+
+      // Plex
+      if (this.plexConnected) {
+        fetchPromises.push(this.fetchPlexData().then(() => {
+          if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
+            this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
+            localStorage.setItem('watchHistoryMovies', JSON.stringify(this.recentlyWatchedMovies));
+          }
+          if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
+            this.recentlyWatchedShows.forEach(item => item.source = 'plex');
+            localStorage.setItem('watchHistoryShows', JSON.stringify(this.recentlyWatchedShows));
+          }
+        }));
+      }
+
+      // Jellyfin
+      if (this.jellyfinConnected) {
+        fetchPromises.push(this.fetchJellyfinData().then(() => {
+          if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
+            this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
+            localStorage.setItem('jellyfinWatchHistoryMovies', JSON.stringify(this.jellyfinRecentlyWatchedMovies));
+          }
+          if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
+            this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
+            localStorage.setItem('jellyfinWatchHistoryShows', JSON.stringify(this.jellyfinRecentlyWatchedShows));
+          }
+        }));
+      }
+
+      // Tautulli
+      if (this.tautulliConnected) {
+        fetchPromises.push(this.fetchTautulliData().then(() => {
+          if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
+            this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
+            localStorage.setItem('tautulliWatchHistoryMovies', JSON.stringify(this.tautulliRecentlyWatchedMovies));
+          }
+          if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
+            this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
+            localStorage.setItem('tautulliWatchHistoryShows', JSON.stringify(this.tautulliRecentlyWatchedShows));
+          }
+        }));
+      }
+
+      // Trakt
+      if (this.traktConnected) {
+        fetchPromises.push(this.fetchTraktData().then(() => {
+          if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+            this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
+            localStorage.setItem('traktWatchHistoryMovies', JSON.stringify(this.traktRecentlyWatchedMovies));
+          }
+          if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+            this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
+            localStorage.setItem('traktWatchHistoryShows', JSON.stringify(this.traktRecentlyWatchedShows));
+          }
+        }));
+      }
+
+      try {
+        // Wait for all fetches to complete
+        await Promise.all(fetchPromises);
+        console.log('All watch history fetched and stored locally');
+
+        // Combine all watch history for server storage
+        const allMovies = [
+          ...(this.recentlyWatchedMovies || []),
+          ...(this.jellyfinRecentlyWatchedMovies || []),
+          ...(this.tautulliRecentlyWatchedMovies || []),
+          ...(this.traktRecentlyWatchedMovies || [])
+        ];
+
+        const allShows = [
+          ...(this.recentlyWatchedShows || []),
+          ...(this.jellyfinRecentlyWatchedShows || []),
+          ...(this.tautulliRecentlyWatchedShows || []),
+          ...(this.traktRecentlyWatchedShows || [])
+        ];
+
+        // Save combined history to server
+        if (allMovies.length > 0) {
+          await apiService.saveWatchHistory('movies', allMovies);
+        }
+        
+        if (allShows.length > 0) {
+          await apiService.saveWatchHistory('shows', allShows);
+        }
+
+        console.log('Watch history stored to server');
+      } catch (error) {
+        console.error('Error fetching and storing watch history:', error);
+      }
+    },
+
     // Load settings from localStorage
     loadLocalSettings() {
       // Load Plex recent limit from localStorage if available
@@ -1280,6 +1514,16 @@ export default {
       
       // Additional localStorage history that might exist
       localStorage.removeItem('historyColumnsCount');
+      
+      // Clear cached watch history
+      localStorage.removeItem('watchHistoryMovies');
+      localStorage.removeItem('watchHistoryShows');
+      localStorage.removeItem('jellyfinWatchHistoryMovies');
+      localStorage.removeItem('jellyfinWatchHistoryShows');
+      localStorage.removeItem('tautulliWatchHistoryMovies');
+      localStorage.removeItem('tautulliWatchHistoryShows');
+      localStorage.removeItem('traktWatchHistoryMovies');
+      localStorage.removeItem('traktWatchHistoryShows');
       
       // Delete all data from the server - both user_data.json and credentials.json
       try {

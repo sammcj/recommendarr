@@ -3,7 +3,10 @@
     <!-- Check if this is a Trakt callback and show the callback handler if it is -->
     <TraktCallback v-if="isTraktCallback" />
     
-    <!-- Regular app content if it's not a callback URL -->
+    <!-- Show login screen if user is not authenticated -->
+    <Login v-else-if="!isAuthenticated" @authenticated="handleAuthenticated" />
+    
+    <!-- Regular app content if user is authenticated and it's not a callback URL -->
     <template v-else>
       <header class="app-header">
         <img alt="App logo" src="./assets/logo.png" class="logo">
@@ -241,6 +244,7 @@ import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/RequestRecommendations.vue'
 import History from './components/History.vue'
 import AISettings from './components/AISettings.vue'
+import LoginForm from './components/Login.vue'
 import sonarrService from './services/SonarrService'
 import radarrService from './services/RadarrService'
 import plexService from './services/PlexService'
@@ -249,6 +253,7 @@ import tautulliService from './services/TautulliService'
 import traktService from './services/TraktService'
 import credentialsService from './services/CredentialsService'
 import apiService from './services/ApiService'
+import authService from './services/AuthService'
 
 export default {
   name: 'App',
@@ -263,11 +268,13 @@ export default {
     AppNavigation,
     TVRecommendations,
     History,
-    AISettings
+    AISettings,
+    Login: LoginForm
   },
   data() {
     return {
       isTraktCallback: window.location.pathname === '/trakt-callback',
+      isAuthenticated: authService.isAuthenticated(),
       sonarrConnected: false,
       radarrConnected: false,
       plexConnected: false,
@@ -319,23 +326,40 @@ export default {
       return; // No need to do the other initializations yet
     }
     
-    // Check if services have credentials stored server-side
-    // This will also set up connections and fetch data if credentials are found
-    await this.checkStoredCredentials();
-    
-    // Load settings from localStorage
-    this.loadLocalSettings();
+    // Setup API with auth token if available
+    if (this.isAuthenticated) {
+      authService.setAuthHeader();
+      
+      // Check if services have credentials stored server-side
+      // This will also set up connections and fetch data if credentials are found
+      await this.checkStoredCredentials();
+      
+      // Load settings from localStorage
+      this.loadLocalSettings();
 
-    // Load cached watch history from localStorage first
-    this.loadCachedWatchHistory();
+      // Load cached watch history from localStorage first
+      this.loadCachedWatchHistory();
 
-    // After connections are established, fetch and store watch history
-    if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
-      await this.fetchAndStoreWatchHistory();
+      // After connections are established, fetch and store watch history
+      if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
+        await this.fetchAndStoreWatchHistory();
+      }
     }
   },
 
   methods: {
+    // Handle successful authentication
+    handleAuthenticated() {
+      console.log('User authenticated');
+      this.isAuthenticated = true;
+      
+      // Set auth header for API requests
+      authService.setAuthHeader();
+      
+      // Load data after authentication
+      this.checkStoredCredentials();
+    },
+    
     // Load cached watch history from localStorage
     loadCachedWatchHistory() {
       try {
@@ -1491,6 +1515,16 @@ export default {
     
     async handleLogout() {
       console.log("User clicked Clear Data...");
+      
+      // Ask for confirmation if it's a logout from the navigation
+      if (!confirm('Are you sure you want to log out and clear all data? This will remove all your settings and recommendations.')) {
+        return;
+      }
+      
+      // Logout from the authentication system
+      await authService.logout();
+      this.isAuthenticated = false;
+      
       // Clear all stored credentials from localStorage (for backwards compatibility)
       localStorage.removeItem('sonarrBaseUrl');
       localStorage.removeItem('sonarrApiKey');
@@ -1576,6 +1610,7 @@ export default {
       this.plexConnected = false;
       this.jellyfinConnected = false;
       this.tautulliConnected = false;
+      this.traktConnected = false;
       this.series = [];
       this.movies = [];
       this.recentlyWatchedMovies = [];
@@ -1584,20 +1619,26 @@ export default {
       this.jellyfinRecentlyWatchedShows = [];
       this.tautulliRecentlyWatchedMovies = [];
       this.tautulliRecentlyWatchedShows = [];
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
       this.plexRecentLimit = 100;
       this.jellyfinRecentLimit = 100;
       this.tautulliRecentLimit = 50;
+      this.traktRecentLimit = 50;
       this.plexHistoryMode = 'all';
       this.jellyfinHistoryMode = 'all';
       this.tautulliHistoryMode = 'all';
+      this.traktHistoryMode = 'all';
       this.plexOnlyMode = false;
       this.jellyfinOnlyMode = false;
       this.tautulliOnlyMode = false;
+      this.traktOnlyMode = false;
       this.showSonarrConnect = false;
       this.showRadarrConnect = false;
       this.showPlexConnect = false;
       this.showJellyfinConnect = false;
       this.showTautulliConnect = false;
+      this.showTraktConnect = false;
       this.activeTab = 'tv-recommendations';
     }
   }

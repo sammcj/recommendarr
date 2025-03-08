@@ -5,6 +5,8 @@ const dns = require('dns').promises;
 const fs = require('fs').promises;
 const path = require('path');
 const encryptionService = require('./utils/encryption');
+const authService = require('./utils/auth');
+const sessionManager = require('./utils/sessionManager');
 const proxyService = require('./services/ProxyService');
 
 const app = express();
@@ -301,6 +303,14 @@ async function migrateRecommendationsFromCredentials() {
 initStorage().then(async () => {
   // After initializing storage, migrate any recommendation data
   await migrateRecommendationsFromCredentials();
+  
+  // Initialize auth service
+  await authService.init();
+  
+  // Schedule periodic session cleanup (every hour)
+  setInterval(() => {
+    sessionManager.cleanupSessions();
+  }, 60 * 60 * 1000);
 });
 
 // Enable CORS
@@ -308,6 +318,49 @@ app.use(cors());
 
 // Parse JSON request body
 app.use(express.json());
+
+// Authentication middleware
+const authenticateUser = (req, res, next) => {
+  // Skip authentication for public endpoints
+  const publicEndpoints = [
+    '/api/health',
+    '/api/auth/login',
+    '/api/auth/register'
+  ];
+  
+  // Also check if the path ends with these endpoints (for when the /api prefix is already in the path)
+  if (publicEndpoints.some(endpoint => req.path === endpoint) || 
+      req.path.endsWith('/auth/login') || 
+      req.path.endsWith('/auth/register') ||
+      req.path.endsWith('/health')) {
+    return next();
+  }
+  
+  // Check for auth token in headers
+  const authToken = req.headers.authorization?.split('Bearer ')[1];
+  
+  if (!authToken) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  // Validate the session
+  const session = sessionManager.validateSession(authToken);
+  
+  if (!session) {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+  
+  // Set user info in request object
+  req.user = {
+    username: session.username,
+    isAdmin: session.isAdmin
+  };
+  
+  next();
+};
+
+// Apply authentication middleware to all API routes
+app.use('/api', authenticateUser);
 
 // Simple health check endpoint
 app.get('/api/health', (req, res) => {
@@ -319,6 +372,173 @@ app.get('/api/health', (req, res) => {
       publicUrl: appConfig.publicUrl || '',
     }
   });
+});
+
+// Authentication routes
+// Login endpoint
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  
+  try {
+    // Authenticate user
+    const authResult = await authService.authenticate(username, password);
+    
+    if (authResult.success) {
+      // Create session
+      const token = sessionManager.createSession(authResult.user);
+      
+      res.json({
+        success: true,
+        token,
+        user: {
+          username: authResult.user.username,
+          isAdmin: authResult.user.isAdmin
+        }
+      });
+    } else {
+      res.status(401).json({ error: authResult.message });
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'An error occurred during login' });
+  }
+});
+
+// Register endpoint
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  
+  try {
+    // Create new user
+    const result = await authService.createUser(username, password);
+    
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'An error occurred during registration' });
+  }
+});
+
+// Logout endpoint
+app.post('/api/auth/logout', (req, res) => {
+  const authToken = req.headers.authorization?.split('Bearer ')[1];
+  
+  if (authToken) {
+    sessionManager.deleteSession(authToken);
+  }
+  
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Get current user info
+app.get('/api/auth/user', async (req, res) => {
+  res.json({
+    user: req.user
+  });
+});
+
+// Change password endpoint
+app.post('/api/auth/change-password', async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+  
+  try {
+    // Update password
+    const result = await authService.updatePassword(req.user.username, currentPassword, newPassword);
+    
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ error: 'An error occurred while changing password' });
+  }
+});
+
+// Admin endpoints
+// Get all users (admin only)
+app.get('/api/auth/users', async (req, res) => {
+  // Check if user is admin
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
+  try {
+    const users = await authService.getAllUsers();
+    res.json({ users });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'An error occurred while retrieving users' });
+  }
+});
+
+// Create user (admin only)
+app.post('/api/auth/users', async (req, res) => {
+  // Check if user is admin
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
+  const { username, password, isAdmin } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  
+  try {
+    // Create new user
+    const result = await authService.createUser(username, password, isAdmin);
+    
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(500).json({ error: 'An error occurred while creating user' });
+  }
+});
+
+// Delete user (admin only)
+app.delete('/api/auth/users/:username', async (req, res) => {
+  // Check if user is admin
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
+  const { username } = req.params;
+  
+  try {
+    // Delete user
+    const result = await authService.deleteUser(username);
+    
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'An error occurred while deleting user' });
+  }
 });
 
 // API endpoints for credentials management

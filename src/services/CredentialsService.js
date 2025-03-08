@@ -11,7 +11,7 @@ class CredentialsService {
   }
   
   /**
-   * Reset all user data on the server
+   * Reset all user data on the server except auth data
    * 
    * @returns {Promise<boolean>} - Success status
    */

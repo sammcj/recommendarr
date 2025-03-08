@@ -15,38 +15,51 @@
       </header>
       
       <main>
-      <div v-if="loadingServices" class="loading-services">
-        <p>Loading your saved services...</p>
-      </div>
-      <div v-else-if="!hasAnyServiceCredentials && !sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected && !traktConnected">
-        <p class="choose-service">Choose a service to connect to:</p>
-        <div class="service-buttons">
-          <button class="service-button" @click="showSonarrConnect = true">
-            Connect to Sonarr
-            <small>For TV recommendations</small>
-          </button>
-          <button class="service-button" @click="showRadarrConnect = true">
-            Connect to Radarr
-            <small>For movie recommendations</small>
-          </button>
-          <button class="service-button plex-button" @click="showPlexConnect = true">
-            Connect to Plex
-            <small>For watch history integration</small>
-          </button>
-          <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
-            Connect to Jellyfin
-            <small>For watch history integration</small>
-          </button>
-          <button class="service-button tautulli-button" @click="showTautulliConnect = true">
-            Connect to Tautulli
-            <small>For Plex watch history statistics</small>
-          </button>
-          <button class="service-button trakt-button" @click="showTraktConnect = true">
-            Connect to Trakt
-            <small>For Trakt watch history integration</small>
-          </button>
+      <!-- Always show app navigation -->
+      <AppNavigation 
+        :activeTab="activeTab" 
+        @navigate="handleNavigate"
+        @logout="handleLogout"
+        @clearData="handleClearData" 
+      />
+      
+      <!-- Content area -->
+      <div class="content">
+        <!-- Loading indicator -->
+        <div v-if="loadingServices" class="loading-services">
+          <p>Loading your saved services...</p>
         </div>
-      </div>
+        
+        <!-- Service selection -->
+        <div v-else-if="!hasAnyServiceCredentials && !hasAnyServiceConnected() && activeTab !== 'settings'">
+          <p class="choose-service">Choose a service to connect to:</p>
+          <div class="service-buttons">
+            <button class="service-button" @click="showSonarrConnect = true">
+              Connect to Sonarr
+              <small>For TV recommendations</small>
+            </button>
+            <button class="service-button" @click="showRadarrConnect = true">
+              Connect to Radarr
+              <small>For movie recommendations</small>
+            </button>
+            <button class="service-button plex-button" @click="showPlexConnect = true">
+              Connect to Plex
+              <small>For watch history integration</small>
+            </button>
+            <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
+              Connect to Jellyfin
+              <small>For watch history integration</small>
+            </button>
+            <button class="service-button tautulli-button" @click="showTautulliConnect = true">
+              Connect to Tautulli
+              <small>For Plex watch history statistics</small>
+            </button>
+            <button class="service-button trakt-button" @click="showTraktConnect = true">
+              Connect to Trakt
+              <small>For Trakt watch history integration</small>
+            </button>
+          </div>
+        </div>
       
       <!-- User Selection Modal for Jellyfin -->
       <div v-if="showJellyfinUserSelect && jellyfinConnected" class="modal-overlay">
@@ -141,15 +154,8 @@
       <TautulliConnection v-if="showTautulliConnect && !tautulliConnected" @connected="handleTautulliConnected" @disconnected="handleTautulliDisconnected" @limitChanged="handleTautulliLimitChanged" />
       <TraktConnection v-if="showTraktConnect && !traktConnected" @connected="handleTraktConnected" @disconnected="handleTraktDisconnected" @limitChanged="handleTraktLimitChanged" />
       
-      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected">
-        <AppNavigation 
-          :activeTab="activeTab" 
-          @navigate="handleNavigate"
-          @logout="handleLogout" 
-        />
-        
-        <div class="content">
-          <TVRecommendations 
+        <!-- Main components rendered based on activeTab -->
+        <TVRecommendations 
             v-if="activeTab === 'tv-recommendations'" 
             :series="series"
             :sonarrConfigured="sonarrConnected"
@@ -229,8 +235,7 @@
             @jellyfin-settings-updated="handleJellyfinSettingsUpdated"
             @tautulli-settings-updated="handleTautulliSettingsUpdated"
           />
-        </div>
-      </div>
+      </div> <!-- End content div -->
     </main>
     </template>
   </div>
@@ -376,6 +381,136 @@ export default {
   },
 
   methods: {
+    // Helper method to check if any service is connected
+    hasAnyServiceConnected() {
+      return this.sonarrConnected || 
+             this.radarrConnected || 
+             this.plexConnected || 
+             this.jellyfinConnected || 
+             this.tautulliConnected || 
+             this.traktConnected;
+    },
+    
+    // Handle clearing all data except user auth
+    async handleClearData() {
+      console.log("User clicked clear data...");
+      
+      // Ask for another confirmation
+      if (!confirm('This will remove all your service connections and data, but keep your username and password. Continue?')) {
+        return;
+      }
+      
+      try {
+        // Reset server-side data
+        const success = await credentialsService.resetUserData();
+        if (success) {
+          console.log("Server-side data cleared successfully");
+        } else {
+          console.error("Failed to clear server-side data");
+        }
+      } catch (error) {
+        console.error("Error clearing server-side data:", error);
+      }
+      
+      // Clear all stored credentials from localStorage 
+      localStorage.removeItem('sonarrBaseUrl');
+      localStorage.removeItem('sonarrApiKey');
+      localStorage.removeItem('radarrBaseUrl');
+      localStorage.removeItem('radarrApiKey');
+      localStorage.removeItem('plexBaseUrl');
+      localStorage.removeItem('plexToken');
+      localStorage.removeItem('plexRecentLimit');
+      localStorage.removeItem('jellyfinBaseUrl');
+      localStorage.removeItem('jellyfinApiKey');
+      localStorage.removeItem('jellyfinUserId');
+      localStorage.removeItem('jellyfinRecentLimit');
+      localStorage.removeItem('tautulliBaseUrl');
+      localStorage.removeItem('tautulliApiKey');
+      localStorage.removeItem('tautulliRecentLimit');
+      localStorage.removeItem('traktClientId');
+      localStorage.removeItem('traktAccessToken');
+      localStorage.removeItem('traktRecentLimit');
+      localStorage.removeItem('openaiApiKey');
+      localStorage.removeItem('openaiModel');
+      localStorage.removeItem('plexHistoryMode');
+      localStorage.removeItem('jellyfinHistoryMode');
+      localStorage.removeItem('tautulliHistoryMode');
+      localStorage.removeItem('traktHistoryMode');
+      localStorage.removeItem('plexOnlyMode');
+      localStorage.removeItem('jellyfinOnlyMode');
+      localStorage.removeItem('tautulliOnlyMode');
+      localStorage.removeItem('traktOnlyMode');
+      
+      // Also clear recommendation history and preferences
+      localStorage.removeItem('previousTVRecommendations');
+      localStorage.removeItem('previousMovieRecommendations');
+      localStorage.removeItem('currentTVRecommendations');
+      localStorage.removeItem('currentMovieRecommendations');
+      localStorage.removeItem('likedTVRecommendations');
+      localStorage.removeItem('dislikedTVRecommendations');
+      localStorage.removeItem('likedMovieRecommendations');
+      localStorage.removeItem('dislikedMovieRecommendations');
+      
+      // Additional localStorage history that might exist
+      localStorage.removeItem('historyColumnsCount');
+      
+      // Clear cached watch history
+      localStorage.removeItem('watchHistoryMovies');
+      localStorage.removeItem('watchHistoryShows');
+      localStorage.removeItem('jellyfinWatchHistoryMovies');
+      localStorage.removeItem('jellyfinWatchHistoryShows');
+      localStorage.removeItem('tautulliWatchHistoryMovies');
+      localStorage.removeItem('tautulliWatchHistoryShows');
+      localStorage.removeItem('traktWatchHistoryMovies');
+      localStorage.removeItem('traktWatchHistoryShows');
+      
+      // Reset service configurations
+      sonarrService.configure('', '');
+      radarrService.configure('', '');
+      plexService.configure('', '');
+      jellyfinService.configure('', '', '');
+      tautulliService.configure('', '');
+      
+      // Reset UI state
+      this.sonarrConnected = false;
+      this.radarrConnected = false;
+      this.plexConnected = false;
+      this.jellyfinConnected = false;
+      this.tautulliConnected = false;
+      this.traktConnected = false;
+      this.series = [];
+      this.movies = [];
+      this.recentlyWatchedMovies = [];
+      this.recentlyWatchedShows = [];
+      this.jellyfinRecentlyWatchedMovies = [];
+      this.jellyfinRecentlyWatchedShows = [];
+      this.tautulliRecentlyWatchedMovies = [];
+      this.tautulliRecentlyWatchedShows = [];
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
+      this.plexRecentLimit = 100;
+      this.jellyfinRecentLimit = 100;
+      this.tautulliRecentLimit = 50;
+      this.traktRecentLimit = 50;
+      this.plexHistoryMode = 'all';
+      this.jellyfinHistoryMode = 'all';
+      this.tautulliHistoryMode = 'all';
+      this.traktHistoryMode = 'all';
+      this.plexOnlyMode = false;
+      this.jellyfinOnlyMode = false;
+      this.tautulliOnlyMode = false;
+      this.traktOnlyMode = false;
+      this.showSonarrConnect = false;
+      this.showRadarrConnect = false;
+      this.showPlexConnect = false;
+      this.showJellyfinConnect = false;
+      this.showTautulliConnect = false;
+      this.showTraktConnect = false;
+      this.activeTab = 'tv-recommendations';
+      
+      alert('All service data has been cleared. Your login credentials are preserved.');
+    },
+    
     // Fetch AI models to prepare for recommendations
     async fetchAIModels() {
       try {
@@ -714,8 +849,12 @@ export default {
     // Check if we have credentials stored server-side
     async checkStoredCredentials() {
       console.log('Checking for stored credentials...');
-      this.loadingServices = true;
       try {
+        // Only show loading state if no services are already connected
+        if (!this.hasAnyServiceConnected()) {
+          this.loadingServices = true;
+        }
+        
         // Get all services status from the server
         const serviceResults = await Promise.all([
           credentialsService.hasCredentials('sonarr'),
@@ -753,14 +892,7 @@ export default {
             this.configureServiceFromCredentials('trakt')
           ]);
           
-          console.log('Services configured, any connected?', 
-            this.sonarrConnected || 
-            this.radarrConnected || 
-            this.plexConnected || 
-            this.jellyfinConnected || 
-            this.tautulliConnected || 
-            this.traktConnected
-          );
+          console.log('Services configured, any connected?', this.hasAnyServiceConnected());
         }
       } catch (error) {
         console.error('Error checking for stored credentials:', error);

@@ -14,7 +14,10 @@
       </header>
       
       <main>
-      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected && !traktConnected">
+      <div v-if="loadingServices" class="loading-services">
+        <p>Loading your saved services...</p>
+      </div>
+      <div v-else-if="!hasAnyServiceCredentials && !sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected && !traktConnected">
         <p class="choose-service">Choose a service to connect to:</p>
         <div class="service-buttons">
           <button class="service-button" @click="showSonarrConnect = true">
@@ -281,6 +284,8 @@ export default {
       jellyfinConnected: false,
       tautulliConnected: false,
       traktConnected: false,
+      loadingServices: true,
+      hasAnyServiceCredentials: false,
       traktRecentlyWatchedMovies: [],
       traktRecentlyWatchedShows: [],
       traktRecentLimit: 50,
@@ -326,38 +331,73 @@ export default {
       return; // No need to do the other initializations yet
     }
     
+    console.log('App created, isAuthenticated:', this.isAuthenticated);
+    
     // Setup API with auth token if available
     if (this.isAuthenticated) {
+      console.log('User is authenticated, setting auth header and loading data...');
+      
+      // Set auth header for all API requests
       authService.setAuthHeader();
       
-      // Check if services have credentials stored server-side
-      // This will also set up connections and fetch data if credentials are found
-      await this.checkStoredCredentials();
+      // Verify that auth header is set correctly
+      console.log('Initialized API with authentication');
       
-      // Load settings from localStorage
-      this.loadLocalSettings();
+      try {
+        // Check if services have credentials stored server-side
+        // This will also set up connections and fetch data if credentials are found
+        await this.checkStoredCredentials();
+        
+        // Load settings from localStorage
+        this.loadLocalSettings();
 
-      // Load cached watch history from localStorage first
-      this.loadCachedWatchHistory();
+        // Load cached watch history from localStorage first
+        this.loadCachedWatchHistory();
 
-      // After connections are established, fetch and store watch history
-      if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
-        await this.fetchAndStoreWatchHistory();
+        // After connections are established, fetch and store watch history
+        if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
+          await this.fetchAndStoreWatchHistory();
+        }
+      } catch (error) {
+        console.error('Error loading data after authentication:', error);
+        
+        // If we get unauthorized error, the token might be invalid
+        if (error.response && error.response.status === 401) {
+          console.log('Authentication token is invalid, logging out...');
+          this.isAuthenticated = false;
+          await authService.logout();
+        }
       }
+    } else {
+      console.log('User is not authenticated, showing login form');
     }
   },
 
   methods: {
     // Handle successful authentication
-    handleAuthenticated() {
-      console.log('User authenticated');
+    async handleAuthenticated() {
+      console.log('User authenticated successfully');
       this.isAuthenticated = true;
       
       // Set auth header for API requests
       authService.setAuthHeader();
+      console.log('Auth header set after login');
       
-      // Load data after authentication
-      this.checkStoredCredentials();
+      try {
+        // Load data after authentication
+        console.log('Loading data after authentication...');
+        await this.checkStoredCredentials();
+        
+        // Load settings from localStorage
+        this.loadLocalSettings();
+
+        // Load cached watch history
+        this.loadCachedWatchHistory();
+        
+        console.log('Data loaded successfully after authentication');
+      } catch (error) {
+        console.error('Error loading data after authentication:', error);
+      }
     },
     
     // Load cached watch history from localStorage
@@ -639,9 +679,11 @@ export default {
     
     // Check if we have credentials stored server-side
     async checkStoredCredentials() {
+      console.log('Checking for stored credentials...');
+      this.loadingServices = true;
       try {
         // Get all services status from the server
-        const hasAnyService = await Promise.all([
+        const serviceResults = await Promise.all([
           credentialsService.hasCredentials('sonarr'),
           credentialsService.hasCredentials('radarr'),
           credentialsService.hasCredentials('plex'),
@@ -650,8 +692,23 @@ export default {
           credentialsService.hasCredentials('trakt')
         ]);
         
+        // Log service check results
+        console.log('Service credential check results:', {
+          sonarr: serviceResults[0],
+          radarr: serviceResults[1],
+          plex: serviceResults[2],
+          jellyfin: serviceResults[3],
+          tautulli: serviceResults[4],
+          trakt: serviceResults[5]
+        });
+        
+        // Check if we have any stored credentials
+        this.hasAnyServiceCredentials = serviceResults.some(result => result === true);
+        console.log('Has any service credentials:', this.hasAnyServiceCredentials);
+        
         // If any service has credentials, set up the appropriate services
-        if (hasAnyService.some(result => result === true)) {
+        if (this.hasAnyServiceCredentials) {
+          console.log('Found stored credentials, configuring services...');
           // Try to configure services with stored credentials
           await Promise.all([
             this.configureServiceFromCredentials('sonarr'),
@@ -661,9 +718,20 @@ export default {
             this.configureServiceFromCredentials('tautulli'),
             this.configureServiceFromCredentials('trakt')
           ]);
+          
+          console.log('Services configured, any connected?', 
+            this.sonarrConnected || 
+            this.radarrConnected || 
+            this.plexConnected || 
+            this.jellyfinConnected || 
+            this.tautulliConnected || 
+            this.traktConnected
+          );
         }
       } catch (error) {
         console.error('Error checking for stored credentials:', error);
+      } finally {
+        this.loadingServices = false;
       }
     },
     
@@ -1779,6 +1847,14 @@ main {
 
 .content {
   min-height: 400px;
+}
+
+.loading-services {
+  text-align: center;
+  padding: 20px;
+  margin: 20px 0;
+  background-color: #f8f9fa;
+  border-radius: 5px;
 }
 
 .choose-service {

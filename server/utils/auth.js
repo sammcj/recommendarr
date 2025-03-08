@@ -3,8 +3,9 @@ const fs = require('fs').promises;
 const path = require('path');
 const encryptionService = require('./encryption');
 
-// User data storage location
-const USERS_FILE = path.join(__dirname, '..', 'data', 'users.json');
+// User data storage location - use the same data directory as server.js uses
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 class AuthService {
   constructor() {
@@ -194,20 +195,30 @@ class AuthService {
   
   // Authenticate a user
   async authenticate(username, password) {
+    console.log(`Authenticating user: ${username}`);
+    
     // Ensure the service is initialized
     if (!this.initialized) {
+      console.log('Auth service not initialized, initializing now...');
       await this.init();
     }
     
     // Check if user exists
     const user = this.users[username];
     if (!user) {
+      console.log(`User '${username}' not found`);
       return { success: false, message: 'Invalid username or password' };
     }
     
+    console.log(`User '${username}' found, verifying password...`);
+    
     // Verify password
-    if (this.verifyPassword(password, user.salt, user.hash)) {
+    const passwordValid = this.verifyPassword(password, user.salt, user.hash);
+    console.log(`Password verification result: ${passwordValid ? 'success' : 'failed'}`);
+    
+    if (passwordValid) {
       // Return user info (excluding sensitive data)
+      console.log(`Authentication successful for user: ${username}`);
       return {
         success: true,
         user: {
@@ -217,6 +228,7 @@ class AuthService {
         }
       };
     } else {
+      console.log(`Invalid password for user: ${username}`);
       return { success: false, message: 'Invalid username or password' };
     }
   }

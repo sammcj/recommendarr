@@ -1,4 +1,3 @@
-import axios from 'axios';
 import apiService from './ApiService';
 
 /**
@@ -18,17 +17,10 @@ class CredentialsService {
    */
   async resetUserData() {
     try {
-      // The correct endpoint is /api/reset - we were using the wrong path
-      console.log(`Calling reset endpoint at: ${this.baseUrl}/reset`);
+      console.log('Calling reset endpoint to reset user data');
       
-      // Use manual URL to ensure correct path to reset user_data.json
-      // baseUrl is already something like http://localhost:3050/api/
-      const resetUrl = this.baseUrl.endsWith('/') 
-        ? `${this.baseUrl}reset` 
-        : `${this.baseUrl}/reset`;
-      
-      console.log(`Final reset URL: ${resetUrl}`);
-      const response = await axios.post(resetUrl);
+      // Use ApiService for proper auth header
+      const response = await apiService.post('/reset');
       console.log('Reset response:', response.data);
       
       // Verify the reset was successful
@@ -59,8 +51,10 @@ class CredentialsService {
    */
   async storeCredentials(serviceName, credentials) {
     try {
-      // Send credentials to server
-      const response = await axios.post(`${this.baseUrl}/credentials/${serviceName}`, credentials);
+      console.log(`Storing credentials for ${serviceName}`);
+      // Send credentials to server using ApiService with auth header
+      const response = await apiService.post(`/credentials/${serviceName}`, credentials);
+      console.log(`Credentials for ${serviceName} stored successfully`);
       return response.data.success;
     } catch (error) {
       console.error(`Error storing credentials for ${serviceName}:`, error);
@@ -76,10 +70,14 @@ class CredentialsService {
    */
   async getCredentials(serviceName) {
     try {
-      const response = await axios.get(`${this.baseUrl}/credentials/${serviceName}`);
+      console.log(`Getting credentials for ${serviceName}`);
+      // Use ApiService's axios instance which has the auth header properly setup
+      const response = await apiService.get(`/credentials/${serviceName}`);
+      console.log(`Retrieved credentials for ${serviceName} successfully`);
       return response.data;
     } catch (error) {
       if (error.response?.status === 404) {
+        console.log(`${serviceName} credentials not found, trying localStorage migration`);
         // Service not found - try migrating from localStorage
         return this.migrateFromLocalStorage(serviceName);
       }
@@ -96,7 +94,8 @@ class CredentialsService {
    */
   async deleteCredentials(serviceName) {
     try {
-      const response = await axios.delete(`${this.baseUrl}/credentials/${serviceName}`);
+      // Use ApiService's axios instance which has the auth header properly setup
+      const response = await apiService.delete(`/credentials/${serviceName}`);
       return response.data.success;
     } catch (error) {
       console.error(`Error deleting credentials for ${serviceName}:`, error);
@@ -112,10 +111,17 @@ class CredentialsService {
    */
   async hasCredentials(serviceName) {
     try {
-      const response = await axios.get(`${this.baseUrl}/credentials`);
-      return !!response.data.services[serviceName];
+      console.log(`Checking if credentials exist for ${serviceName}`);
+      
+      // Use ApiService's axios instance which has the auth header properly setup
+      const response = await apiService.get('/credentials');
+      
+      const hasService = !!response.data.services[serviceName];
+      console.log(`Credentials for ${serviceName}: ${hasService ? 'FOUND' : 'NOT FOUND'}`);
+      
+      return hasService;
     } catch (error) {
-      console.error('Error checking credentials:', error);
+      console.error(`Error checking credentials for ${serviceName}:`, error);
       return false;
     }
   }

@@ -321,6 +321,9 @@ app.use(express.json());
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
+  console.log(`Authentication check for path: ${req.path}`);
+  console.log('Request headers:', req.headers);
+  
   // Skip authentication for public endpoints
   const publicEndpoints = [
     '/api/health',
@@ -333,22 +336,30 @@ const authenticateUser = (req, res, next) => {
       req.path.endsWith('/auth/login') || 
       req.path.endsWith('/auth/register') ||
       req.path.endsWith('/health')) {
+    console.log('Skipping auth for public endpoint');
     return next();
   }
   
   // Check for auth token in headers
+  console.log('Authorization header:', req.headers.authorization);
   const authToken = req.headers.authorization?.split('Bearer ')[1];
   
   if (!authToken) {
+    console.log('No auth token found in request');
     return res.status(401).json({ error: 'Authentication required' });
   }
+  
+  console.log('Auth token found:', authToken.substring(0, 10) + '...');
   
   // Validate the session
   const session = sessionManager.validateSession(authToken);
   
   if (!session) {
+    console.log('Session validation failed');
     return res.status(401).json({ error: 'Invalid or expired session' });
   }
+  
+  console.log('Session validated for user:', session.username);
   
   // Set user info in request object
   req.user = {
@@ -356,6 +367,7 @@ const authenticateUser = (req, res, next) => {
     isAdmin: session.isAdmin
   };
   
+  console.log('Authentication successful, proceeding with request');
   next();
 };
 
@@ -377,29 +389,43 @@ app.get('/api/health', (req, res) => {
 // Authentication routes
 // Login endpoint
 app.post('/api/auth/login', async (req, res) => {
+  console.log('Login request received');
   const { username, password } = req.body;
   
   if (!username || !password) {
+    console.log('Login failed: Missing username or password');
     return res.status(400).json({ error: 'Username and password are required' });
   }
   
+  console.log(`Login attempt for user: ${username}`);
+  
   try {
     // Authenticate user
+    console.log('Authenticating user...');
     const authResult = await authService.authenticate(username, password);
     
     if (authResult.success) {
-      // Create session
-      const token = sessionManager.createSession(authResult.user);
+      console.log(`User ${username} authenticated successfully`);
       
-      res.json({
+      // Create session
+      console.log('Creating session...');
+      const token = sessionManager.createSession(authResult.user);
+      console.log('Session created with token:', token.substring(0, 10) + '...');
+      
+      // Prepare response
+      const response = {
         success: true,
         token,
         user: {
           username: authResult.user.username,
           isAdmin: authResult.user.isAdmin
         }
-      });
+      };
+      
+      console.log('Sending successful login response with token and user info');
+      res.json(response);
     } else {
+      console.log(`Authentication failed for user ${username}: ${authResult.message}`);
       res.status(401).json({ error: authResult.message });
     }
   } catch (error) {

@@ -22,6 +22,35 @@ class ApiService {
       baseURL: this.baseUrl
     });
     
+    // Add response interceptor to handle 401 errors globally
+    this.axiosInstance.interceptors.response.use(
+      response => response,
+      error => {
+        // If we receive a 401 Unauthorized error, it means our session has expired
+        // or the token is invalid - we should force logout
+        if (error.response && error.response.status === 401) {
+          console.log('Session expired or invalid token, logging out...');
+          
+          // Check if the request was for the logout endpoint - if so, don't trigger another logout
+          const isLogoutRequest = error.config && 
+                                  error.config.url && 
+                                  error.config.url.includes('/auth/logout');
+          
+          if (!isLogoutRequest) {
+            // Import needs to be here to avoid circular dependency
+            import('./AuthService').then(module => {
+              const authService = module.default;
+              // Clear local auth data without making another server request
+              authService.clearLocalAuth();
+              // Reload page to show login screen
+              window.location.reload();
+            });
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+    
     // Try to load saved settings after initialization
     this.loadSavedSettings();
     
@@ -29,7 +58,10 @@ class ApiService {
     try {
       const token = localStorage.getItem('auth_token');
       if (token) {
+        console.log('Setting stored auth token in ApiService');
         this.setHeader('Authorization', `Bearer ${token}`);
+      } else {
+        console.log('No stored auth token found');
       }
     } catch (error) {
       console.error('Error accessing localStorage in ApiService:', error);

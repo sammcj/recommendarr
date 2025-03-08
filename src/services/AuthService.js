@@ -40,8 +40,10 @@ class AuthService {
   // Set authentication headers for API requests
   setAuthHeader() {
     if (this.token) {
+      console.log('Setting auth header with token:', this.token.substring(0, 10) + '...');
       ApiService.setHeader('Authorization', `Bearer ${this.token}`);
     } else {
+      console.log('Removing auth header due to no token');
       ApiService.removeHeader('Authorization');
     }
   }
@@ -63,12 +65,23 @@ class AuthService {
   // Login a user
   async login(username, password) {
     try {
+      console.log('Attempting login for user:', username);
+      
       const response = await ApiService.post('/auth/login', {
         username,
         password
       });
       
+      console.log('Login response received');
+      
+      // Check response format
+      if (!response.data || !response.data.token) {
+        console.error('Invalid login response format:', response.data);
+        throw new Error('Invalid response from server');
+      }
+      
       const { token, user } = response.data;
+      console.log('User authenticated successfully:', user.username);
       
       // Store token and user data
       this.token = token;
@@ -78,16 +91,23 @@ class AuthService {
       try {
         localStorage.setItem('auth_token', token);
         localStorage.setItem('auth_user', JSON.stringify(user));
+        console.log('Auth data saved to localStorage');
       } catch (error) {
         console.error('Error saving to localStorage:', error);
         // Continue even if localStorage fails
       }
       
       // Set auth header for future API requests
+      console.log('Setting auth header after login');
       this.setAuthHeader();
+      
+      // Verify the header was set correctly
+      const currentHeaders = ApiService.axiosInstance.defaults.headers.common;
+      console.log('Current auth header:', currentHeaders['Authorization'] ? 'Set' : 'Not set');
       
       return user;
     } catch (error) {
+      console.error('Login error:', error);
       throw error.response?.data?.error || error.message;
     }
   }
@@ -100,22 +120,28 @@ class AuthService {
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
-      // Clear local data
-      this.token = null;
-      this.user = null;
-      
-      // Remove from localStorage
-      try {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
-      } catch (error) {
-        console.error('Error removing from localStorage:', error);
-        // Continue even if localStorage fails
-      }
-      
-      // Remove auth header
-      ApiService.removeHeader('Authorization');
+      this.clearLocalAuth();
     }
+  }
+  
+  // Clear local authentication data without making server request
+  clearLocalAuth() {
+    console.log('Clearing local authentication data');
+    // Clear local data
+    this.token = null;
+    this.user = null;
+    
+    // Remove from localStorage
+    try {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+    } catch (error) {
+      console.error('Error removing from localStorage:', error);
+      // Continue even if localStorage fails
+    }
+    
+    // Remove auth header
+    ApiService.removeHeader('Authorization');
   }
   
   // Change password

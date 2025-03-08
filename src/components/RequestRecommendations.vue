@@ -588,14 +588,6 @@
                   <div class="service-header">
                     <label>Trakt Watch History:</label>
                     <div class="service-controls">
-                      <button 
-                        v-if="isMovieMode"
-                        @click="$emit('refreshTraktHistory')" 
-                        class="refresh-button"
-                        title="Refresh Trakt History"
-                      >
-                        ⟳ Refresh
-                      </button>
                       <label class="toggle-switch">
                         <input 
                           type="checkbox" 
@@ -677,6 +669,14 @@
                         Use only Trakt history for recommendations (ignore library)
                       </label>
                     </div>
+                    
+                    <button 
+                      class="action-button trakt-refresh-button"
+                      @click="$emit('refreshTraktHistory')"
+                      style="padding: 6px 12px; font-size: 13px; background-color: #ED2224; color: white; margin-top: 15px;"
+                    >
+                      Refresh Trakt History
+                    </button>
                   </div>
                 </div>
               </div>
@@ -5735,7 +5735,7 @@ select:focus {
   transition: color var(--transition-speed);
 }
 
-.plex-options, .jellyfin-options, .tautulli-options {
+.plex-options, .jellyfin-options, .tautulli-options, .trakt-options {
   margin-top: 20px;
   padding: 15px;
   background-color: rgba(52, 168, 83, 0.05); /* Light green background for all services */
@@ -5871,7 +5871,7 @@ select:focus {
   transform: translateY(-1px);
 }
 
-.jellyfin-user-select-button, .tautulli-user-select-button {
+.jellyfin-user-select-button, .tautulli-user-select-button, .trakt-refresh-button {
   margin-top: 15px;
   width: auto;
   max-width: 200px;

@@ -35,6 +35,11 @@ class TraktService {
         this.expiresAt = credentials.expiresAt || null;
         this.configured = !!(this.clientId && this.accessToken);
         
+        // Load recentLimit if available
+        if (credentials.recentLimit) {
+          localStorage.setItem('traktRecentLimit', credentials.recentLimit.toString());
+        }
+        
         // Check if token is expired and needs refresh
         if (this.isTokenExpired() && this.refreshToken) {
           this.refreshAccessToken();
@@ -140,14 +145,24 @@ class TraktService {
       this.expiresAt = expiresAt;
       this.configured = true;
       
+      // Get existing recentLimit from localStorage if available
+      const recentLimit = localStorage.getItem('traktRecentLimit');
+      
       // Store credentials on the server
-      await credentialsService.storeCredentials('trakt', {
+      const credentials = {
         clientId: this.clientId,
         clientSecret: this.clientSecret,
         accessToken: this.accessToken,
         refreshToken: this.refreshToken,
         expiresAt: this.expiresAt
-      });
+      };
+      
+      // Include recentLimit if available
+      if (recentLimit) {
+        credentials.recentLimit = parseInt(recentLimit, 10);
+      }
+      
+      await credentialsService.storeCredentials('trakt', credentials);
       
       return true;
     } catch (error) {
@@ -206,14 +221,24 @@ class TraktService {
       this.refreshToken = data.refresh_token;
       this.expiresAt = expiresAt;
       
+      // Get existing recentLimit from localStorage if available
+      const recentLimit = localStorage.getItem('traktRecentLimit');
+      
       // Store updated credentials
-      await credentialsService.storeCredentials('trakt', {
+      const credentials = {
         clientId: this.clientId,
         clientSecret: this.clientSecret,
         accessToken: this.accessToken,
         refreshToken: this.refreshToken,
         expiresAt: this.expiresAt
-      });
+      };
+      
+      // Include recentLimit if available
+      if (recentLimit) {
+        credentials.recentLimit = parseInt(recentLimit, 10);
+      }
+      
+      await credentialsService.storeCredentials('trakt', credentials);
       
       return true;
     } catch (error) {
@@ -222,17 +247,26 @@ class TraktService {
     }
   }
 
-  async configure(clientId, clientSecret = '') {
+  async configure(clientId, clientSecret = '', recentLimit = null) {
     if (clientId) {
       this.clientId = clientId;
       this.clientSecret = clientSecret;
       
-      // We don't immediately set this as configured since we need to complete OAuth
-      // Store partial credentials on the server
-      await credentialsService.storeCredentials('trakt', {
+      const credentials = {
         clientId: this.clientId,
         clientSecret: this.clientSecret
-      });
+      };
+      
+      // If recentLimit is provided, store it with the credentials
+      if (recentLimit !== null) {
+        credentials.recentLimit = recentLimit;
+        // Also store in localStorage for client-side access
+        localStorage.setItem('traktRecentLimit', recentLimit.toString());
+      }
+      
+      // We don't immediately set this as configured since we need to complete OAuth
+      // Store partial credentials on the server
+      await credentialsService.storeCredentials('trakt', credentials);
       
       return true;
     }
@@ -534,14 +568,24 @@ class TraktService {
       this.expiresAt = null;
       this.configured = false;
       
+      // Get existing recentLimit from localStorage
+      const recentLimit = localStorage.getItem('traktRecentLimit');
+      
       // Clear credentials on server
-      await credentialsService.storeCredentials('trakt', {
+      const credentials = {
         clientId: this.clientId,
         clientSecret: this.clientSecret,
         accessToken: '',
         refreshToken: '',
         expiresAt: null
-      });
+      };
+      
+      // Preserve recentLimit if available
+      if (recentLimit) {
+        credentials.recentLimit = parseInt(recentLimit, 10);
+      }
+      
+      await credentialsService.storeCredentials('trakt', credentials);
       
       return true;
     } catch (error) {

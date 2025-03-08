@@ -24,6 +24,12 @@ class TautulliService {
         this.baseUrl = credentials.baseUrl || '';
         this.apiKey = credentials.apiKey || '';
         this.configured = !!(this.baseUrl && this.apiKey);
+        
+        // Load recentLimit if available
+        if (credentials.recentLimit) {
+          localStorage.setItem('tautulliRecentLimit', credentials.recentLimit.toString());
+        }
+        
         return true;
       }
     } catch (error) {
@@ -32,7 +38,7 @@ class TautulliService {
     return false;
   }
 
-  async configure(baseUrl, apiKey) {
+  async configure(baseUrl, apiKey, recentLimit = null) {
     // Validate and normalize the base URL
     if (baseUrl) {
       // Make sure the URL starts with http:// or https://
@@ -47,11 +53,20 @@ class TautulliService {
       this.apiKey = apiKey;
       this.configured = true;
       
-      // Store credentials on the server
-      await credentialsService.storeCredentials('tautulli', {
+      const credentials = {
         baseUrl: this.baseUrl,
         apiKey: this.apiKey
-      });
+      };
+      
+      // If recentLimit is provided, store it with the credentials
+      if (recentLimit !== null) {
+        credentials.recentLimit = recentLimit;
+        // Also store in localStorage for client-side access
+        localStorage.setItem('tautulliRecentLimit', recentLimit.toString());
+      }
+      
+      // Store credentials on the server
+      await credentialsService.storeCredentials('tautulli', credentials);
       
       return true;
     }

@@ -1703,11 +1703,28 @@ export default {
           return;
         }
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('plexRecentLimit', this.plexSettings.recentLimit.toString());
+        // Configure the service with the recent limit
+        await plexService.configure(
+          this.plexSettings.baseUrl, 
+          this.plexSettings.token,
+          this.plexSettings.recentLimit
+        );
         
-        // Configure the service (which will store credentials server-side)
-        await plexService.configure(this.plexSettings.baseUrl, this.plexSettings.token);
+        // Fetch and cache watch history after successful connection
+        try {
+          console.log('Fetching Plex watch history for caching...');
+          const movieHistory = await plexService.getRecentlyWatchedMovies(this.plexSettings.recentLimit);
+          const showHistory = await plexService.getRecentlyWatchedShows(this.plexSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Plex`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Plex watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
         
         this.saveSuccess = true;
         this.saveMessage = 'Plex settings saved successfully!';
@@ -1722,6 +1739,43 @@ export default {
         this.saveMessage = 'Failed to save Plex settings';
         this.clearSaveMessage();
       }
+    },
+    
+    async savePlexLimit() {
+      try {
+        // Update the server with the new limit
+        await plexService.configure(
+          plexService.baseUrl,
+          plexService.token,
+          this.plexSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history with new limit
+        try {
+          console.log('Fetching Plex watch history with updated limit for caching...');
+          const movieHistory = await plexService.getRecentlyWatchedMovies(this.plexSettings.recentLimit);
+          const showHistory = await plexService.getRecentlyWatchedShows(this.plexSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Plex with new limit`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Plex watch history with new limit:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Plex history limit updated successfully!';
+        this.$emit('plex-limit-changed', this.plexSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Plex limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Plex history limit';
+      }
+      
+      this.clearSaveMessage();
     },
     
     // Jellyfin Service Methods
@@ -1776,15 +1830,29 @@ export default {
           return;
         }
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('jellyfinRecentLimit', this.jellyfinSettings.recentLimit.toString());
-        
-        // Configure the service (which will store credentials server-side)
+        // Configure the service with the recent limit
         await jellyfinService.configure(
           this.jellyfinSettings.baseUrl, 
           this.jellyfinSettings.apiKey,
-          this.jellyfinSettings.userId
+          this.jellyfinSettings.userId,
+          this.jellyfinSettings.recentLimit
         );
+        
+        // Fetch and cache watch history after successful connection
+        try {
+          console.log('Fetching Jellyfin watch history for caching...');
+          const movieHistory = await jellyfinService.getRecentlyWatchedMovies(this.jellyfinSettings.recentLimit);
+          const showHistory = await jellyfinService.getRecentlyWatchedShows(this.jellyfinSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Jellyfin`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Jellyfin watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
         
         this.saveSuccess = true;
         this.saveMessage = 'Jellyfin settings saved successfully!';
@@ -1799,6 +1867,44 @@ export default {
         this.saveMessage = 'Failed to save Jellyfin settings';
         this.clearSaveMessage();
       }
+    },
+    
+    async saveJellyfinLimit() {
+      try {
+        // Update the server with the new limit
+        await jellyfinService.configure(
+          jellyfinService.baseUrl,
+          jellyfinService.apiKey,
+          jellyfinService.userId,
+          this.jellyfinSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history with new limit
+        try {
+          console.log('Fetching Jellyfin watch history with updated limit for caching...');
+          const movieHistory = await jellyfinService.getRecentlyWatchedMovies(this.jellyfinSettings.recentLimit);
+          const showHistory = await jellyfinService.getRecentlyWatchedShows(this.jellyfinSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Jellyfin with new limit`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Jellyfin watch history with new limit:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Jellyfin history limit updated successfully!';
+        this.$emit('jellyfin-limit-changed', this.jellyfinSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Jellyfin limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Jellyfin history limit';
+      }
+      
+      this.clearSaveMessage();
     },
     
     // Tautulli Service Methods
@@ -1851,11 +1957,28 @@ export default {
           return;
         }
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('tautulliRecentLimit', this.tautulliSettings.recentLimit.toString());
+        // Configure the service with the recent limit
+        await tautulliService.configure(
+          this.tautulliSettings.baseUrl, 
+          this.tautulliSettings.apiKey,
+          this.tautulliSettings.recentLimit
+        );
         
-        // Configure the service (which will store credentials server-side)
-        await tautulliService.configure(this.tautulliSettings.baseUrl, this.tautulliSettings.apiKey);
+        // Fetch and cache watch history after successful connection
+        try {
+          console.log('Fetching Tautulli watch history for caching...');
+          const movieHistory = await tautulliService.getRecentlyWatchedMovies(this.tautulliSettings.recentLimit);
+          const showHistory = await tautulliService.getRecentlyWatchedShows(this.tautulliSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Tautulli`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Tautulli watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
         
         this.saveSuccess = true;
         this.saveMessage = 'Tautulli settings saved successfully!';
@@ -1870,6 +1993,43 @@ export default {
         this.saveMessage = 'Failed to save Tautulli settings';
         this.clearSaveMessage();
       }
+    },
+    
+    async saveTautulliLimit() {
+      try {
+        // Update the server with the new limit
+        await tautulliService.configure(
+          tautulliService.baseUrl,
+          tautulliService.apiKey,
+          this.tautulliSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history with new limit
+        try {
+          console.log('Fetching Tautulli watch history with updated limit for caching...');
+          const movieHistory = await tautulliService.getRecentlyWatchedMovies(this.tautulliSettings.recentLimit);
+          const showHistory = await tautulliService.getRecentlyWatchedShows(this.tautulliSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Tautulli with new limit`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Tautulli watch history with new limit:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Tautulli history limit updated successfully!';
+        this.$emit('tautulli-limit-changed', this.tautulliSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Tautulli limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Tautulli history limit';
+      }
+      
+      this.clearSaveMessage();
     },
     
     // Trakt Service Methods
@@ -1899,9 +2059,39 @@ export default {
       // Save the recent limit to localStorage
       localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
       
-      this.saveSuccess = true;
-      this.saveMessage = 'Trakt history limit updated successfully!';
-      this.$emit('trakt-limit-changed', this.traktSettings.recentLimit);
+      try {
+        // Update the server with the new limit
+        await traktService.configure(
+          traktService.clientId,
+          traktService.clientSecret,
+          this.traktSettings.recentLimit
+        );
+        
+        // Fetch and cache watch history after successful update
+        try {
+          console.log('Fetching Trakt watch history for caching...');
+          const movieHistory = await traktService.getRecentlyWatchedMovies(this.traktSettings.recentLimit);
+          const showHistory = await traktService.getRecentlyWatchedShows(this.traktSettings.recentLimit);
+          
+          // Save watch history to server cache
+          const apiService = await import('../services/ApiService').then(m => m.default);
+          await apiService.saveWatchHistory('movies', movieHistory);
+          await apiService.saveWatchHistory('shows', showHistory);
+          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Trakt`);
+        } catch (historyError) {
+          console.error('Error fetching and caching Trakt watch history:', historyError);
+          // Continue with settings save even if history fetch fails
+        }
+        
+        this.saveSuccess = true;
+        this.saveMessage = 'Trakt history limit updated successfully!';
+        this.$emit('trakt-limit-changed', this.traktSettings.recentLimit);
+      } catch (error) {
+        console.error('Error saving Trakt limit:', error);
+        this.saveSuccess = false;
+        this.saveMessage = 'Failed to save Trakt history limit';
+      }
+      
       this.clearSaveMessage();
     },
     

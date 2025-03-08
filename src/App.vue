@@ -11,6 +11,7 @@
       <header class="app-header">
         <img alt="App logo" src="./assets/logo.png" class="logo">
         <h1>Recommendarr</h1>
+        <button class="logout-button" @click="handleLogout">Logout</button>
       </header>
       
       <main>
@@ -1582,16 +1583,23 @@ export default {
     },
     
     async handleLogout() {
-      console.log("User clicked Clear Data...");
+      console.log("User clicked logout...");
       
-      // Ask for confirmation if it's a logout from the navigation
-      if (!confirm('Are you sure you want to log out and clear all data? This will remove all your settings and recommendations.')) {
+      // Ask for confirmation
+      if (!confirm('Are you sure you want to log out? Your saved connections will remain available when you log back in.')) {
         return;
       }
       
-      // Logout from the authentication system
-      await authService.logout();
+      // Don't use await here - we'll just clear local auth data first
+      // to prevent the potential circular logout request
+      authService.clearLocalAuth();
       this.isAuthenticated = false;
+      
+      // Now call logout endpoint separately without awaiting it
+      // This prevents potential 401 errors from causing a refresh loop
+      authService.logoutOnServer().catch(err => {
+        console.log('Logout from server failed, but local logout was successful:', err);
+      });
       
       // Clear all stored credentials from localStorage (for backwards compatibility)
       localStorage.removeItem('sonarrBaseUrl');
@@ -1798,6 +1806,7 @@ body {
   margin-bottom: 20px;
   flex-wrap: wrap;
   padding: 20px 0 0 0;
+  position: relative;
 }
 
 @media (min-width: 480px) {
@@ -1855,6 +1864,26 @@ main {
   margin: 20px 0;
   background-color: #f8f9fa;
   border-radius: 5px;
+}
+
+.logout-button {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--button-secondary-bg, #f5f5f5);
+  color: var(--button-secondary-text, #333);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  padding: 8px 15px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.logout-button:hover {
+  background-color: #d32f2f;
+  color: white;
 }
 
 .choose-service {

@@ -112,15 +112,35 @@ class AuthService {
     }
   }
   
-  // Logout the current user
+  // Logout the current user - handles both server-side and local logout
   async logout() {
     try {
-      // Call logout endpoint
-      await ApiService.post('/auth/logout');
+      // First clear local authentication
+      this.clearLocalAuth();
+      
+      // Then call logout endpoint
+      await this.logoutOnServer();
     } catch (error) {
       console.error('Error during logout:', error);
-    } finally {
-      this.clearLocalAuth();
+    }
+  }
+  
+  // Only call server-side logout endpoint
+  async logoutOnServer() {
+    try {
+      console.log('Calling server logout endpoint');
+      // Call logout endpoint without auth header (it's already been cleared)
+      await fetch(`${ApiService.baseUrl}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+      console.log('Server logout completed');
+    } catch (error) {
+      console.error('Error during server logout:', error);
+      throw error;
     }
   }
   

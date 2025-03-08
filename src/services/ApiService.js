@@ -29,20 +29,25 @@ class ApiService {
         // If we receive a 401 Unauthorized error, it means our session has expired
         // or the token is invalid - we should force logout
         if (error.response && error.response.status === 401) {
-          console.log('Session expired or invalid token, logging out...');
+          console.log('Session expired or invalid token checking...', error.config?.url);
           
-          // Check if the request was for the logout endpoint - if so, don't trigger another logout
-          const isLogoutRequest = error.config && 
-                                  error.config.url && 
-                                  error.config.url.includes('/auth/logout');
+          // Skip auth-related paths to prevent loops
+          const skipPaths = ['/auth/login', '/auth/logout', '/auth/register'];
+          const isAuthRequest = error.config && 
+                               error.config.url && 
+                               skipPaths.some(path => error.config.url.includes(path));
           
-          if (!isLogoutRequest) {
+          // Only trigger logout for non-auth-related requests when we have a token stored
+          const hasStoredToken = localStorage.getItem('auth_token');
+          
+          if (!isAuthRequest && hasStoredToken) {
+            console.log('Valid session timeout detected, logging out...');
             // Import needs to be here to avoid circular dependency
             import('./AuthService').then(module => {
               const authService = module.default;
               // Clear local auth data without making another server request
               authService.clearLocalAuth();
-              // Reload page to show login screen
+              // Reload page once to show login screen
               window.location.reload();
             });
           }

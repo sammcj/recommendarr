@@ -258,6 +258,7 @@ import traktService from './services/TraktService'
 import credentialsService from './services/CredentialsService'
 import apiService from './services/ApiService'
 import authService from './services/AuthService'
+import openAIService from './services/OpenAIService'
 
 export default {
   name: 'App',
@@ -375,6 +376,35 @@ export default {
   },
 
   methods: {
+    // Fetch AI models to prepare for recommendations
+    async fetchAIModels() {
+      try {
+        console.log('Attempting to fetch AI models...');
+        // Check if OpenAI service is configured first
+        if (openAIService.isConfigured()) {
+          console.log('OpenAI service is configured, fetching models...');
+          const models = await openAIService.fetchModels();
+          console.log(`Successfully fetched ${models.length} AI models`);
+        } else {
+          console.log('OpenAI service is not configured yet');
+          // First try to load credentials
+          await openAIService.loadCredentials();
+          
+          // Check again after loading credentials
+          if (openAIService.isConfigured()) {
+            console.log('OpenAI service is now configured after loading credentials, fetching models...');
+            const models = await openAIService.fetchModels();
+            console.log(`Successfully fetched ${models.length} AI models`);
+          } else {
+            console.log('OpenAI service still not configured after loading credentials');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching AI models:', error);
+        // Don't show error to user as this is a background task
+      }
+    },
+    
     // Handle successful authentication
     async handleAuthenticated() {
       console.log('User authenticated successfully');
@@ -385,6 +415,9 @@ export default {
       console.log('Auth header set after login');
       
       try {
+        // Try to fetch AI models after login to check if OpenAI is configured
+        this.fetchAIModels();
+        
         // Load data after authentication
         console.log('Loading data after authentication...');
         await this.checkStoredCredentials();
@@ -1654,24 +1687,9 @@ export default {
       localStorage.removeItem('traktWatchHistoryMovies');
       localStorage.removeItem('traktWatchHistoryShows');
       
-      // Delete all data from the server - both user_data.json and credentials.json
-      try {
-        console.log("⚠️ Starting complete data reset process...");
-        
-        // Call the /api/reset endpoint which now resets BOTH user_data.json AND credentials.json
-        const resetSuccess = await credentialsService.resetUserData();
-        
-        if (resetSuccess) {
-          console.log('✅ Server data reset successful! Both user_data.json and credentials.json have been cleared.');
-        } else {
-          console.error('❌ Server data reset failed!');
-          alert('Error clearing data. Some data may not have been completely cleared.');
-        }
-        
-      } catch (error) {
-        console.error('Error resetting server-side data:', error);
-        alert('Error clearing data. Please try again or restart the application.');
-      }
+      // We're no longer resetting user data on logout
+      // This preserves the user's settings between sessions
+      console.log("User data and credentials preserved for next login");
       
       // Reset service configurations
       sonarrService.configure('', '');

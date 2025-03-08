@@ -4,6 +4,8 @@
 
 Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr, Radarr, Plex, and Jellyfin libraries using AI.
 
+## [🎮 Join our Discord Community!](https://discord.gg/uHy3KFbgPR)
+
 > **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open port 3030 on your router/firewall.
 
 > **⚠️ PORT REQUIREMENT**: The application currently requires mapping exactly to ports 3030 (frontend) and 3050 (API). These port mappings cannot be changed without breaking functionality. You must map 3030:3030 and 3050:3050 in your Docker configuration.

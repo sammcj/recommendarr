@@ -313,8 +313,15 @@ initStorage().then(async () => {
   }, 60 * 60 * 1000);
 });
 
-// Enable CORS
-app.use(cors());
+// Enable CORS with credentials
+app.use(cors({
+  origin: true, // Allow request origin
+  credentials: true // Allow cookies to be sent with requests
+}));
+
+// Add cookie parser middleware
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
 
 // Parse JSON request body
 app.use(express.json());
@@ -340,12 +347,17 @@ const authenticateUser = (req, res, next) => {
     return next();
   }
   
-  // Check for auth token in headers
+  // Check for auth token in cookies first (preferred), then fall back to headers
   console.log('Authorization header:', req.headers.authorization);
-  const authToken = req.headers.authorization?.split('Bearer ')[1];
+  console.log('Cookies:', req.cookies);
+  
+  // Get token from cookie or header
+  const cookieToken = req.cookies.auth_token;
+  const headerToken = req.headers.authorization?.split('Bearer ')[1];
+  const authToken = cookieToken || headerToken;
   
   if (!authToken) {
-    console.log('No auth token found in request');
+    console.log('No auth token found in request (checked both cookies and headers)');
     return res.status(401).json({ error: 'Authentication required' });
   }
   
@@ -412,17 +424,25 @@ app.post('/api/auth/login', async (req, res) => {
       const token = sessionManager.createSession(authResult.user);
       console.log('Session created with token:', token.substring(0, 10) + '...');
       
-      // Prepare response
+      // Set token in an HttpOnly cookie
+      res.cookie('auth_token', token, {
+        httpOnly: true,          // Prevents JavaScript access
+        secure: process.env.NODE_ENV === 'production', // Requires HTTPS in production
+        sameSite: 'lax',         // Provides some CSRF protection
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/'                // Available across the site
+      });
+      
+      // Prepare response (token now sent via cookie, not in response body)
       const response = {
         success: true,
-        token,
         user: {
           username: authResult.user.username,
           isAdmin: authResult.user.isAdmin
         }
       };
       
-      console.log('Sending successful login response with token and user info');
+      console.log('Sending successful login response with user info (token set in HttpOnly cookie)');
       res.json(response);
     } else {
       console.log(`Authentication failed for user ${username}: ${authResult.message}`);
@@ -459,11 +479,22 @@ app.post('/api/auth/register', async (req, res) => {
 
 // Logout endpoint
 app.post('/api/auth/logout', (req, res) => {
-  const authToken = req.headers.authorization?.split('Bearer ')[1];
+  // Get auth token from cookie or headers
+  const cookieToken = req.cookies.auth_token;
+  const headerToken = req.headers.authorization?.split('Bearer ')[1];
+  const authToken = cookieToken || headerToken;
   
   if (authToken) {
     sessionManager.deleteSession(authToken);
   }
+  
+  // Clear the auth cookie
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/'
+  });
   
   res.json({ success: true, message: 'Logged out successfully' });
 });

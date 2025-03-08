@@ -19,7 +19,9 @@ class AuthService {
   
   // Check if user is authenticated
   isAuthenticated() {
-    return !!this.token;
+    // With HttpOnly cookies, we can't check the cookie directly
+    // We rely on the presence of user data as an indicator
+    return !!this.user;
   }
   
   // Get current user
@@ -37,11 +39,21 @@ class AuthService {
     return this.user && this.user.isAdmin;
   }
   
-  // Set authentication headers for API requests
+  // Set authentication headers for API requests (for compatibility)
   setAuthHeader() {
+    // With HttpOnly cookies, the browser automatically sends the cookie
+    // We don't need to set Authorization header anymore
+    // However, we keep this method for backward compatibility
     if (this.token) {
-      console.log('Setting auth header with token:', this.token.substring(0, 10) + '...');
-      ApiService.setHeader('Authorization', `Bearer ${this.token}`);
+      console.log('Using cookie-based authentication, no need to set auth header');
+      // If we have a token in memory (from old version), continue to use it
+      if (this.token !== "cookie-auth") {
+        console.log('Setting backup auth header with token:', this.token.substring(0, 10) + '...');
+        ApiService.setHeader('Authorization', `Bearer ${this.token}`);
+      } else {
+        // With cookie auth, we don't need to set a header
+        ApiService.removeHeader('Authorization');
+      }
     } else {
       console.log('Removing auth header due to no token');
       ApiService.removeHeader('Authorization');
@@ -74,24 +86,27 @@ class AuthService {
       
       console.log('Login response received');
       
-      // Check response format
-      if (!response.data || !response.data.token) {
+      // Check response format - With HttpOnly cookies, we don't receive a token
+      if (!response.data || !response.data.user) {
         console.error('Invalid login response format:', response.data);
         throw new Error('Invalid response from server');
       }
       
-      const { token, user } = response.data;
+      const { user } = response.data;
       console.log('User authenticated successfully:', user.username);
       
-      // Store token and user data
-      this.token = token;
+      // Token is now stored in an HttpOnly cookie managed by the browser
+      // We only store user data in memory and localStorage
       this.user = user;
       
-      // Save to localStorage
+      // The token is implicitly sent with every request via cookies
+      // We store null for token, as we don't have direct access to the HttpOnly cookie
+      this.token = "cookie-auth"; // Marker to indicate we're using cookie auth
+      
+      // Save user data to localStorage
       try {
-        localStorage.setItem('auth_token', token);
         localStorage.setItem('auth_user', JSON.stringify(user));
-        console.log('Auth data saved to localStorage');
+        console.log('User data saved to localStorage');
       } catch (error) {
         console.error('Error saving to localStorage:', error);
         // Continue even if localStorage fails
@@ -129,13 +144,14 @@ class AuthService {
   async logoutOnServer() {
     try {
       console.log('Calling server logout endpoint');
-      // Call logout endpoint without auth header (it's already been cleared)
+      // Call logout endpoint - must include credentials to send the cookie
       await fetch(`${ApiService.baseUrl}/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
+        credentials: 'include' // Important: This ensures cookies are sent with the request
       });
       console.log('Server logout completed');
     } catch (error) {
@@ -151,16 +167,16 @@ class AuthService {
     this.token = null;
     this.user = null;
     
-    // Remove from localStorage
+    // Remove from localStorage - note: cookie is cleared on server side
     try {
-      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_token'); // For backward compatibility
       localStorage.removeItem('auth_user');
     } catch (error) {
       console.error('Error removing from localStorage:', error);
       // Continue even if localStorage fails
     }
     
-    // Remove auth header
+    // Remove auth header (for backward compatibility)
     ApiService.removeHeader('Authorization');
   }
   

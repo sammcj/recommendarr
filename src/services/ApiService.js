@@ -37,10 +37,13 @@ class ApiService {
                                error.config.url && 
                                skipPaths.some(path => error.config.url.includes(path));
           
-          // Only trigger logout for non-auth-related requests when we have a token stored
-          const hasStoredToken = localStorage.getItem('auth_token');
+          // Only trigger logout for non-auth pages when user is actually logged in 
+          // We need to check if we're on login page to avoid infinite refreshes
+          const isLoginPage = window.location.pathname === '/login' || 
+                             document.querySelector('.login-container') !== null;
           
-          if (!isAuthRequest && hasStoredToken) {
+          // Don't trigger logout flow if we're already on the login page
+          if (!isAuthRequest && !isLoginPage) {
             console.log('Valid session timeout detected, logging out...');
             // Import needs to be here to avoid circular dependency
             import('./AuthService').then(module => {
@@ -59,14 +62,17 @@ class ApiService {
     // Try to load saved settings after initialization
     this.loadSavedSettings();
     
-    // Initialize with any stored auth token
+    // Configure to send credentials (cookies) with requests
+    this.axiosInstance.defaults.withCredentials = true;
+    
+    // Initialize with any stored auth token (for backward compatibility)
     try {
       const token = localStorage.getItem('auth_token');
       if (token) {
-        console.log('Setting stored auth token in ApiService');
+        console.log('Found token in localStorage (legacy support)');
         this.setHeader('Authorization', `Bearer ${token}`);
       } else {
-        console.log('No stored auth token found');
+        console.log('No stored auth token found - using HttpOnly cookies');
       }
     } catch (error) {
       console.error('Error accessing localStorage in ApiService:', error);

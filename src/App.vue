@@ -836,14 +836,14 @@ export default {
       await credentialsService.deleteCredentials('tautulli');
     },
     
-    async handleTraktConnected() {
+    async traktConnectionHandler() {
       this.traktConnected = true;
       this.showTraktConnect = false; // Don't show connect modal
       await this.fetchTraktData();
       console.log('Trakt connected successfully, data fetched');
     },
     
-    async handleTraktDisconnected() {
+    async traktDisconnectionHandler() {
       this.traktConnected = false;
       this.showTraktConnect = false; // Don't show connect modal
       this.traktRecentlyWatchedMovies = [];
@@ -858,7 +858,7 @@ export default {
       await credentialsService.deleteCredentials('trakt');
     },
     
-    async handleTraktLimitChanged(limit) {
+    async traktLimitChangeHandler(limit) {
       this.traktRecentLimit = limit;
       await this.fetchTraktData();
     },
@@ -1127,6 +1127,20 @@ export default {
       this.fetchTautulliData();
     },
     
+    onTraktConnected() {
+      this.traktConnected = true;
+      this.showTraktConnect = false;
+      this.fetchTraktData();
+    },
+    
+    onTraktDisconnected() {
+      this.traktConnected = false;
+      this.showTraktConnect = false;
+      // Clear trakt data
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
+    },
+    
     handlePlexLimitChanged(limit) {
       this.plexRecentLimit = limit;
       this.fetchPlexData();
@@ -1140,6 +1154,11 @@ export default {
     handleTautulliLimitChanged(limit) {
       this.tautulliRecentLimit = limit;
       this.fetchTautulliData();
+    },
+    
+    onTraktLimitChange(limit) {
+      this.traktRecentLimit = limit;
+      this.fetchTraktData();
     },
     
     handlePlexHistoryModeChanged(mode) {

@@ -200,22 +200,22 @@
       </div>
       
       <!-- Trakt Connection Management Modal -->
-      <div v-if="showTraktConnect" class="connection-modal-overlay" @click.self="closeTraktModal">
+      <div v-if="showTraktConnect" class="connection-modal-overlay" @click.self="closeTraktConnectModal">
         <div class="connection-modal">
           <div class="modal-header">
             <h3>Manage Trakt Connection</h3>
-            <button class="modal-close-x" @click="closeTraktModal">&times;</button>
+            <button class="modal-close-x" @click="closeTraktConnectModal">&times;</button>
           </div>
           <div class="modal-body">
             <TraktConnection 
               :connected="traktConnected" 
-              @connected="handleTraktConnected" 
-              @disconnected="handleTraktDisconnected" 
-              @limitChanged="handleTraktLimitChanged"
+              @connected="onTraktConnectionSuccessful" 
+              @disconnected="disconnectTrakt" 
+              @limitChanged="onTraktLimitChange"
             />
           </div>
           <div class="modal-footer">
-            <button class="modal-close-button" @click="closeTraktModal">Close</button>
+            <button class="modal-close-button" @click="closeTraktConnectModal">Close</button>
           </div>
         </div>
       </div>
@@ -746,62 +746,69 @@
     <!-- Trakt Settings Tab -->
     <div v-if="activeTab === 'trakt'" class="settings-section">
       <div class="settings-intro">
-        <p>Connect to your Trakt.tv account to access your watch history. Your credentials will be stored locally in your browser.</p>
+        <p>Connect to your Trakt.tv account to access your watch history. Authentication is managed securely through OAuth.</p>
       </div>
       
-      <div class="settings-form">
-        <div class="form-group">
-          <label for="traktClientId">Client ID:</label>
-          <input 
-            id="traktClientId" 
-            v-model="traktSettings.clientId" 
-            type="text" 
-            placeholder="Your Trakt Client ID"
-            required
-          />
-          <div class="field-hint">Obtain by creating an app in your Trakt account settings</div>
-        </div>
-        
-        <div class="form-group">
-          <label for="traktAccessToken">Access Token:</label>
-          <div class="api-key-input">
-            <input 
-              id="traktAccessToken" 
-              v-model="traktSettings.accessToken" 
-              :type="showTraktToken ? 'text' : 'password'" 
-              placeholder="Your Trakt Access Token"
-              required
-            />
-            <button type="button" class="toggle-button" @click="showTraktToken = !showTraktToken">
-              {{ showTraktToken ? 'Hide' : 'Show' }}
+      <div v-if="!traktConnected">
+        <TraktConnection 
+          :connected="traktConnected" 
+          @connected="handleTraktConnected" 
+          @limitChanged="handleTraktLimitChanged"
+        />
+      </div>
+      
+      <div v-else class="settings-form">
+        <div class="connected-service">
+          <div class="service-header">
+            <div class="service-name">
+              <span class="connection-icon trakt">T</span>
+              <h3>Trakt.tv</h3>
+            </div>
+            <div class="connection-badge connected">
+              <span class="badge-icon">✓</span>
+              Connected
+            </div>
+          </div>
+          
+          <div class="service-details">
+            <div class="detail-row">
+              <span class="detail-label">Authentication:</span>
+              <span class="detail-value">OAuth (secure token)</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">Recent History Limit:</span>
+              <span class="detail-value">{{ traktSettings.recentLimit }} items</span>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="traktRecentLimit">Number of recently watched items:</label>
+            <div class="slider-container">
+              <input 
+                id="traktRecentLimit" 
+                v-model.number="traktSettings.recentLimit" 
+                type="range" 
+                min="1" 
+                max="100" 
+                step="1" 
+              />
+              <span class="slider-value">{{ traktSettings.recentLimit }}</span>
+            </div>
+            <div class="field-hint">How many recently watched items to include in recommendations</div>
+          </div>
+          
+          <div class="actions">
+            <button type="button" @click="saveTraktLimit" class="save-button">
+              Update Limit
+            </button>
+            <button type="button" @click="reconnectTrakt" class="reconnect-button">
+              Reconnect with OAuth
+            </button>
+            <button type="button" @click="disconnectTrakt" class="disconnect-button">
+              Disconnect from Trakt
             </button>
           </div>
-          <div class="field-hint">Generate an access token with permission to read your watch history</div>
-        </div>
-        
-        <div class="form-group">
-          <label for="traktRecentLimit">Number of recently watched items:</label>
-          <div class="slider-container">
-            <input 
-              id="traktRecentLimit" 
-              v-model.number="traktSettings.recentLimit" 
-              type="range" 
-              min="1" 
-              max="100" 
-              step="1" 
-            />
-            <span class="slider-value">{{ traktSettings.recentLimit }}</span>
-          </div>
-          <div class="field-hint">How many recently watched items to include in recommendations</div>
-        </div>
-        
-        <div class="actions">
-          <button type="button" @click="testTraktConnection" class="test-button" :disabled="testingTrakt">
-            {{ testingTrakt ? 'Testing...' : 'Test Connection' }}
-          </button>
-          <button type="button" @click="saveTraktSettings" class="save-button" :disabled="testingTrakt">
-            Save Trakt Settings
-          </button>
         </div>
         
         <div v-if="traktConnectionMessage" class="connection-message" :class="{ 'success': traktConnectionStatus, 'error': !traktConnectionStatus }">
@@ -1362,7 +1369,6 @@ export default {
         // First try to get from service directly
         if (traktService.isConfigured()) {
           this.traktSettings.clientId = traktService.clientId;
-          this.traktSettings.accessToken = traktService.accessToken;
           this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
           return;
         }
@@ -1371,7 +1377,6 @@ export default {
         const credentials = await credentialsService.getCredentials('trakt');
         if (credentials) {
           this.traktSettings.clientId = credentials.clientId || '';
-          this.traktSettings.accessToken = credentials.accessToken || '';
           this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
         }
       } catch (error) {
@@ -1868,73 +1873,67 @@ export default {
     },
     
     // Trakt Service Methods
-    async testTraktConnection() {
-      if (!this.traktSettings.clientId || !this.traktSettings.accessToken) {
-        this.traktConnectionStatus = false;
-        this.traktConnectionMessage = 'Client ID and Access Token are required';
-        return;
-      }
-      
-      this.testingTrakt = true;
-      this.traktConnectionMessage = '';
-      
-      try {
-        // Configure the service with provided details
-        await traktService.configure(this.traktSettings.clientId, this.traktSettings.accessToken);
-        
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
-        
-        // Test the connection
-        const success = await traktService.testConnection();
-        
-        // Update status based on response
-        this.traktConnectionStatus = success;
-        this.traktConnectionMessage = success 
-          ? 'Connected successfully!'
-          : 'Connection failed. Please check your Client ID and Access Token.';
-        
-        // If successful, emit event to notify parent component
-        if (success) {
-          this.$emit('trakt-settings-updated');
-        }
-          
-      } catch (error) {
-        console.error('Error connecting to Trakt:', error);
-        this.traktConnectionStatus = false;
-        this.traktConnectionMessage = 'Connection error. Please check your Client ID and Access Token.';
-      } finally {
-        this.testingTrakt = false;
-      }
+    openTraktConnectModal() {
+      this.showTraktConnect = true;
+      document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
     },
     
-    async saveTraktSettings() {
-      try {
-        if (!this.traktSettings.clientId || !this.traktSettings.accessToken) {
-          this.saveSuccess = false;
-          this.saveMessage = 'Trakt Client ID and Access Token are required';
+    closeTraktConnectModal() {
+      this.showTraktConnect = false;
+      document.body.style.overflow = ''; // Re-enable scrolling
+    },
+    
+    onTraktConnectionSuccessful() {
+      this.closeTraktConnectModal();
+      this.loadTraktSettings();
+      this.$emit('trakt-settings-updated');
+    },
+    
+    onTraktLimitChange(limit) {
+      this.traktSettings.recentLimit = limit;
+      localStorage.setItem('traktRecentLimit', limit.toString());
+      this.$emit('trakt-limit-changed', limit);
+    },
+    
+    async saveTraktLimit() {
+      // Save the recent limit to localStorage
+      localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
+      
+      this.saveSuccess = true;
+      this.saveMessage = 'Trakt history limit updated successfully!';
+      this.$emit('trakt-limit-changed', this.traktSettings.recentLimit);
+      this.clearSaveMessage();
+    },
+    
+    async reconnectTrakt() {
+      this.openTraktConnectModal();
+    },
+    
+    async disconnectTrakt() {
+      if (confirm('Are you sure you want to disconnect from Trakt? This will revoke your authorization.')) {
+        try {
+          // Revoke the access token
+          await traktService.revokeAccess();
+          
+          // Reset Trakt settings
+          this.traktSettings = {
+            clientId: '',
+            accessToken: '',
+            recentLimit: 50
+          };
+          
+          // Notify parent component
+          this.$emit('trakt-disconnected');
+          
+          this.saveSuccess = true;
+          this.saveMessage = 'Disconnected from Trakt successfully';
           this.clearSaveMessage();
-          return;
+        } catch (error) {
+          console.error('Error disconnecting from Trakt:', error);
+          this.saveSuccess = false;
+          this.saveMessage = 'Failed to disconnect from Trakt';
+          this.clearSaveMessage();
         }
-        
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
-        
-        // Configure the service (which will store credentials server-side)
-        await traktService.configure(this.traktSettings.clientId, this.traktSettings.accessToken);
-        
-        this.saveSuccess = true;
-        this.saveMessage = 'Trakt settings saved successfully!';
-        
-        // Emit event to notify parent component
-        this.$emit('trakt-settings-updated');
-        
-        this.clearSaveMessage();
-      } catch (error) {
-        console.error('Error saving Trakt settings:', error);
-        this.saveSuccess = false;
-        this.saveMessage = 'Failed to save Trakt settings';
-        this.clearSaveMessage();
       }
     },
     
@@ -2339,6 +2338,104 @@ input[type="password"] {
   margin-top: 0;
   padding: 20px;
   background-color: rgba(248, 249, 250, 0.7);
+}
+
+/* Connected service styling */
+.connected-service {
+  background-color: var(--card-bg-color);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  margin-bottom: 20px;
+  padding: 20px;
+  transition: background-color var(--transition-speed), 
+              border-color var(--transition-speed);
+}
+
+.service-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.service-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.connection-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.connection-icon.trakt {
+  background-color: #ED1C24;
+  color: white;
+}
+
+.connection-badge {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  gap: 5px;
+}
+
+.connection-badge.connected {
+  background-color: rgba(76, 175, 80, 0.15);
+  color: #4CAF50;
+}
+
+.badge-icon {
+  font-size: 12px;
+}
+
+.service-details {
+  background-color: var(--bg-color);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
+  width: 140px;
+  font-weight: 500;
+}
+
+.reconnect-button {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.disconnect-button {
+  background-color: rgba(255, 59, 48, 0.1);
+  color: #FF3B30;
+  border: 1px solid #FF3B30;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .error-message {

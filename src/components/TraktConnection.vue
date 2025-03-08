@@ -283,7 +283,14 @@ export default {
     
     async disconnectTrakt() {
       if (confirm('Are you sure you want to disconnect from Trakt? This will revoke your authorization.')) {
-        // If we wanted to, we could revoke the token on Trakt.tv here
+        // Attempt to revoke the token on Trakt.tv
+        try {
+          // Reset the client info but keep the form values
+          await traktService.revokeAccess();
+          console.log('Successfully revoked Trakt access');
+        } catch (error) {
+          console.error('Error revoking Trakt access:', error);
+        }
         
         // Emit disconnected event
         this.$emit('disconnected');

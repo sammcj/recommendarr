@@ -506,6 +506,63 @@ class TraktService {
       return [];
     }
   }
+  
+  /**
+   * Revoke the current access token
+   */
+  async revokeAccess() {
+    if (!this.clientId || !this.accessToken) {
+      console.log('No token to revoke');
+      return true;
+    }
+    
+    try {
+      if (this.clientId && this.accessToken) {
+        // Attempt to revoke the token via API
+        console.log('Revoking Trakt access token');
+        
+        await this._apiRequest('/oauth/revoke', {}, 'POST', {
+          token: this.accessToken,
+          client_id: this.clientId,
+          client_secret: this.clientSecret || ''
+        });
+      }
+      
+      // Reset credentials regardless of success
+      this.accessToken = '';
+      this.refreshToken = '';
+      this.expiresAt = null;
+      this.configured = false;
+      
+      // Clear credentials on server
+      await credentialsService.storeCredentials('trakt', {
+        clientId: this.clientId,
+        clientSecret: this.clientSecret,
+        accessToken: '',
+        refreshToken: '',
+        expiresAt: null
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error revoking Trakt access:', error);
+      // Still reset local tokens even if API call fails
+      this.accessToken = '';
+      this.refreshToken = '';
+      this.expiresAt = null;
+      this.configured = false;
+      
+      await credentialsService.storeCredentials('trakt', {
+        clientId: this.clientId,
+        clientSecret: this.clientSecret,
+        accessToken: '',
+        refreshToken: '',
+        expiresAt: null
+      });
+      
+      return false;
+    }
+  }
 }
 
 export default new TraktService();

@@ -4,6 +4,6 @@ module.exports = defineConfig({
   transpileDependencies: true,
   publicPath: process.env.BASE_URL || '/',
   devServer: {
-    port: 3030
+    port: process.env.FRONTEND_PORT || 3030
   }
 })

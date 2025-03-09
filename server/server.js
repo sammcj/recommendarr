@@ -10,7 +10,7 @@ const sessionManager = require('./utils/sessionManager');
 const proxyService = require('./services/ProxyService');
 
 const app = express();
-const PORT = process.env.PORT || 3050;
+const PORT = process.env.BACKEND_PORT || process.env.PORT || 3050;
 
 // Global app configuration
 let appConfig = {

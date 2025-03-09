@@ -6,9 +6,9 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ## [🎮 Join our Discord Community!](https://discord.gg/uHy3KFbgPR)
 
-> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open port 3030 on your router/firewall.
+> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open the frontend port on your router/firewall (default: 3030).
 
-> **⚠️ PORT REQUIREMENT**: The application currently requires mapping exactly to ports 3030 (frontend) and 3050 (API). These port mappings cannot be changed without breaking functionality. You must map 3030:3030 and 3050:3050 in your Docker configuration.
+> **⚠️ PORT CONFIGURATION**: The application uses ports 3030 (frontend) and 3050 (API) by default, but these can be configured using environment variables `FRONTEND_PORT` and `BACKEND_PORT` in Docker or when running directly.
 
 ## 🌟 Features
 
@@ -48,7 +48,7 @@ This will:
 2. Configure proper networking and persistence
 3. Start the unified service
 
-Then visit `http://localhost:3030` in your browser to access the application.
+Then visit `http://localhost:${FRONTEND_PORT:-3030}` in your browser to access the application.
 
 **Default Login:** 
 - Username: `admin`
@@ -56,9 +56,9 @@ Then visit `http://localhost:3030` in your browser to access the application.
 
 > **⚠️ IMPORTANT**: Please change your password immediately after your first login for security reasons.
 
-The unified container runs both the frontend (on port 3030) and the API server (on port 3050 internally). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
+The unified container runs both the frontend (on default port 3030) and the API server (on default port 3050 internally). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
 
-**Note:** If accessing from outside your network, remember to forward port 3030 on your router/firewall.
+**Note:** If accessing from outside your network, remember to forward your frontend port on your router/firewall.
 
 ### Option 2: Docker (Manual Run)
 
@@ -68,17 +68,26 @@ You can also run the unified container manually:
 # Pull the image
 docker pull tannermiddleton/recommendarr:latest
 
-# Run the container
-# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
+# Run the container with default ports
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
   -p 3050:3050 \
   -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
+
+# Or run with custom ports
+docker run -d \
+  --name recommendarr \
+  -e FRONTEND_PORT=8080 \
+  -e BACKEND_PORT=8081 \
+  -p 8080:8080 \
+  -p 8081:8081 \
+  -v $(pwd)/server/data:/app/server/data \
+  tannermiddleton/recommendarr:latest
 ```
 
-Then visit `http://localhost:3030` in your browser. The container includes both the frontend and API server for secure credential storage.
+Then visit `http://localhost:3030` (or your custom port) in your browser. The container includes both the frontend and API server for secure credential storage.
 
 For more Docker options, see the [Docker Support](#-docker-support) section below.
 
@@ -100,7 +109,7 @@ npm install
 npm run serve
 ```
 
-4. Visit `http://localhost:3030` in your browser.
+4. Visit `http://localhost:3030` (or your custom port if configured) in your browser.
 
 ## 🔧 Configuration
 
@@ -164,12 +173,21 @@ The easiest way to run Recommendarr:
 # Pull the image
 docker pull tannermiddleton/recommendarr:latest
 
-# Run the container (basic)
-# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
+# Run the container with default ports
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
   -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
+  tannermiddleton/recommendarr:latest
+
+# Or run with custom ports
+docker run -d \
+  --name recommendarr \
+  -e FRONTEND_PORT=8080 \
+  -e BACKEND_PORT=8081 \
+  -p 8080:8080 \
+  -p 8081:8081 \
   -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
 ```
@@ -188,12 +206,21 @@ cd recommendarr
 # Build the Docker image
 docker build -t recommendarr:local .
 
-# Run the container
-# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
+# Run the container with default ports
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
   -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
+  recommendarr:local
+
+# Or run with custom ports
+docker run -d \
+  --name recommendarr \
+  -e FRONTEND_PORT=8080 \
+  -e BACKEND_PORT=8081 \
+  -p 8080:8080 \
+  -p 8081:8081 \
   -v $(pwd)/server/data:/app/server/data \
   recommendarr:local
 ```
@@ -206,7 +233,7 @@ docker run -d \
 - CORS issues are automatically handled through the proxy service
 - Custom URL configuration for reverse proxy setups (via environment variables)
 
-**Note:** You cannot change the port mappings without breaking functionality. The app must use ports 3030 and 3050 internally.
+**Note:** You can customize the internal and external ports using the `FRONTEND_PORT` and `BACKEND_PORT` environment variables.
 
 ## 🌐 Setting Up with a Reverse Proxy
 
@@ -214,8 +241,8 @@ If you want to run Recommendarr behind a reverse proxy (like Nginx, Traefik, or 
 
 Your reverse proxy should be configured to (example):
 
-1. Forward requests from `https://recommendarr.yourdomain.com` to `http://your-docker-host:3030`
-2. Forward requests from `https://api.yourdomain.com` to `http://your-docker-host:3050`
+1. Forward requests from `https://recommendarr.yourdomain.com` to `http://your-docker-host:3030` (or your custom frontend port)
+2. Forward requests from `https://api.yourdomain.com` to `http://your-docker-host:3050` (or your custom backend port)
 
 For now the proper reverse proxy setup is to either:
 
@@ -223,7 +250,7 @@ For now the proper reverse proxy setup is to either:
   - `docker build --build-arg VUE_APP_API_URL=https://api.myapp.recommendarr.com --build-arg PUBLIC_URL=https://myapp.recommendarr.com -t recommendarr:latest .`
 
   
-  - `docker run -p 3030:3030 -p 3050:3050 -e VUE_APP_API_URL="https://api.myapp.recommendarr.com" -e PUBLIC_URL="https://myapp.recommendarr.com" -v recommendarr-data:/app/server/data . --build`
+  - `docker run -p ${FRONTEND_PORT:-3030}:${FRONTEND_PORT:-3030} -p ${BACKEND_PORT:-3050}:${BACKEND_PORT:-3050} -e FRONTEND_PORT="${FRONTEND_PORT:-3030}" -e BACKEND_PORT="${BACKEND_PORT:-3050}" -e VUE_APP_API_URL="https://api.myapp.recommendarr.com" -e PUBLIC_URL="https://myapp.recommendarr.com" -v recommendarr-data:/app/server/data . --build`
 
 - use the updated docker-compose and run `docker-compose up -d --build`, obviously replace the URLs with the ones correct for your setup.
 
@@ -244,8 +271,8 @@ services:
         - BASE_URL=/
     container_name: recommendarr
     ports:
-      - "3030:3030"  # Frontend port
-      - "3050:3050"  # Backend API port
+      - "${FRONTEND_PORT:-3030}:${FRONTEND_PORT:-3030}"  # Frontend port
+      - "${BACKEND_PORT:-3050}:${BACKEND_PORT:-3050}"  # Backend API port
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -266,7 +293,7 @@ volumes:
   recommendarr-data:
 ```
 
-**IMPORTANT:** The internal port mappings in the Docker container must remain 3030:3030 and 3050:3050.
+**IMPORTANT:** When customizing ports, make sure to update both the port mappings and the environment variables `FRONTEND_PORT` and `BACKEND_PORT` to match.
 
 ### Method 2: Manual Docker Build and Run
 
@@ -281,11 +308,21 @@ docker build -t recommendarr:custom \
   --build-arg VUE_APP_API_URL=https://api.yourdomain.com \
   .
 
-# Run the container
+# Run the container with default ports
 docker run -d \
   --name recommendarr \
   -p 3030:3030 \
   -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
+  recommendarr:custom
+
+# Or with custom ports
+docker run -d \
+  --name recommendarr \
+  -e FRONTEND_PORT=8080 \
+  -e BACKEND_PORT=8081 \
+  -p 8080:8080 \
+  -p 8081:8081 \
   -v $(pwd)/server/data:/app/server/data \
   recommendarr:custom
 ```

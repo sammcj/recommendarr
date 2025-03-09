@@ -51,15 +51,28 @@
         <!-- Empty nav-actions container -->
       </div>
       
-      <!-- Separate container for clear data button -->
-      <div class="clear-data-container">
+      <!-- Separate container for clear data and logout buttons - desktop only -->
+      <div class="clear-data-container desktop-only-buttons">
         <button 
           @click="confirmClearData" 
-          class="action-button logout-button"
+          class="action-button clear-button"
           title="Clear all saved data"
         >
-          <span class="nav-icon">🗑️</span>
-          <span class="action-text">Clear Data</span>
+          <div class="action-content">
+            <span class="nav-icon">🗑️</span>
+            <span class="action-text">Clear Data</span>
+          </div>
+        </button>
+        
+        <button 
+          @click="$emit('logout')" 
+          class="action-button logout-button"
+          title="Logout from your account"
+        >
+          <div class="action-content">
+            <span class="nav-icon">🚪</span>
+            <span class="action-text">Logout</span>
+          </div>
         </button>
       </div>
       
@@ -103,7 +116,10 @@
       
       <div class="mobile-actions">
         <div class="mobile-action theme-action">
-          <span>{{ isDarkTheme ? 'Light Mode' : 'Dark Mode' }}</span>
+          <div class="mobile-action-text">
+            <span class="nav-icon">{{ isDarkTheme ? '🌙' : '☀️' }}</span>
+            <span>{{ isDarkTheme ? 'Light Mode' : 'Dark Mode' }}</span>
+          </div>
           <label class="theme-toggle mobile">
             <input type="checkbox" @change="toggleTheme" :checked="isDarkTheme">
             <span class="toggle-track">
@@ -114,13 +130,27 @@
           </label>
         </div>
         
-        <button 
-          @click="confirmClearData" 
-          class="mobile-action logout-button"
-        >
-          <span class="nav-icon">🗑️</span>
-          <span>Clear Data</span>
-        </button>
+        <div class="mobile-buttons-row">
+          <button 
+            @click="confirmClearData" 
+            class="mobile-action clear-button"
+          >
+            <div class="mobile-action-text">
+              <span class="nav-icon">🗑️</span>
+              <span>Clear Data</span>
+            </div>
+          </button>
+          
+          <button 
+            @click="$emit('logout')" 
+            class="mobile-action logout-button"
+          >
+            <div class="mobile-action-text">
+              <span class="nav-icon">🚪</span>
+              <span>Logout</span>
+            </div>
+          </button>
+        </div>
       </div>
     </div>
   </nav>
@@ -298,6 +328,7 @@ input:checked + .toggle-track .toggle-thumb {
   font-size: 16px;
   border-radius: 4px;
   transition: all 0.2s ease;
+  width: 100%;
 }
 
 .theme-action:hover {
@@ -380,12 +411,18 @@ input:checked + .toggle-track .toggle-thumb {
     display: flex;
     align-items: center;
     margin-right: 10px;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
   
-  /* Hide clear-data-container on small screens */
-  @media (max-width: 767px) {
-    .clear-data-container {
-      display: none;
+  /* Desktop-only buttons */
+  .desktop-only-buttons {
+    display: none !important;
+  }
+  
+  @media (min-width: 768px) {
+    .desktop-only-buttons {
+      display: flex !important;
     }
   }
 }
@@ -401,6 +438,7 @@ input:checked + .toggle-track .toggle-thumb {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex: 1;
 }
 
 .theme-button:hover {
@@ -408,9 +446,22 @@ input:checked + .toggle-track .toggle-thumb {
   color: var(--nav-active-text);
 }
 
+.clear-button {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: var(--nav-active-text);
+}
+
 .logout-button {
   background-color: rgba(255, 59, 48, 0.2);
   color: var(--nav-active-text);
+}
+
+.action-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
 }
 
 .action-text {
@@ -425,7 +476,8 @@ input:checked + .toggle-track .toggle-thumb {
   
   .action-button {
     padding: 8px 12px;
-    min-width: 120px;
+    width: 110px;
+    flex: 0 0 auto;
     justify-content: center;
   }
   
@@ -434,9 +486,17 @@ input:checked + .toggle-track .toggle-thumb {
     padding: 8px;
   }
   
+  .clear-button {
+    background-color: rgba(255, 152, 0, 0.2);
+  }
+  
   .logout-button {
     background-color: rgba(255, 59, 48, 0.2);
   }
+}
+
+.clear-button:hover {
+  background-color: rgba(255, 152, 0, 0.4);
 }
 
 .logout-button:hover {
@@ -546,7 +606,8 @@ input:checked + .toggle-track .toggle-thumb {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  width: 100%;
 }
 
 .mobile-action {
@@ -561,10 +622,26 @@ input:checked + .toggle-track .toggle-thumb {
   font-size: 16px;
   border-radius: 4px;
   transition: all 0.2s ease;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.mobile-buttons-row .mobile-action {
+  justify-content: center;
+  padding: 12px 8px;
 }
 
 .mobile-action.theme-button:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+.mobile-action.clear-button {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: var(--nav-active-text);
+}
+
+.mobile-action.clear-button:hover {
+  background-color: rgba(255, 152, 0, 0.4);
 }
 
 .mobile-action.logout-button {
@@ -572,7 +649,37 @@ input:checked + .toggle-track .toggle-thumb {
   color: var(--nav-active-text);
 }
 
+.mobile-buttons-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.mobile-buttons-row .mobile-action {
+  flex: 1;
+}
+
+.mobile-action-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
 .mobile-action.logout-button:hover {
   background-color: rgba(255, 59, 48, 0.4);
+}
+
+/* Global desktop/mobile visibility classes */
+@media (max-width: 767px) {
+  .desktop-only-buttons {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .desktop-only-buttons {
+    display: flex !important;
+  }
 }
 </style>

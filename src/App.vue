@@ -14,10 +14,6 @@
             <img alt="App logo" src="./assets/logo.png" class="logo">
             <h1>Recommendarr</h1>
           </div>
-          <button class="logout-button" @click="handleLogout">
-            <span class="logout-icon">🚪</span>
-            <span class="logout-text">Logout</span>
-          </button>
         </div>
       </header>
       
@@ -1798,11 +1794,6 @@ export default {
     
     async handleLogout() {
       console.log("User clicked logout...");
-      
-      // Ask for confirmation
-      if (!confirm('Are you sure you want to log out? Your saved connections will remain available when you log back in.')) {
-        return;
-      }
       
       // Don't use await here - we'll just clear local auth data first
       // to prevent the potential circular logout request

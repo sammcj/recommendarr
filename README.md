@@ -30,9 +30,39 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ## 🚀 Quick Start
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: Docker Hub Image (Recommended)
 
 The easiest way to run Recommendarr with all features is to use Docker Compose:
+
+```bash
+# Pull the image
+docker pull tannermiddleton/recommendarr:latest
+
+# Run the container (basic)
+# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
+docker run -d \
+  --name recommendarr \
+  -p 3030:3030 \
+  -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
+  tannermiddleton/recommendarr:latest
+```
+
+Then visit `http://localhost:3030` in your browser to access the application.
+
+**Default Login:** 
+- Username: `admin`
+- Password: `1234`
+
+> **⚠️ IMPORTANT**: Please change your password immediately after your first login for security reasons.
+
+The unified container runs both the frontend (on port 3030) and the API server (on port 3050 internally). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
+
+**Note:** If accessing from outside your network, remember to forward port 3030 on your router/firewall.
+
+### Option 2: Docker Compose
+
+You can also run the unified container manually:
 
 ```bash
 # Clone the repository (which includes the docker-compose.yml file)
@@ -47,36 +77,6 @@ This will:
 1. Build the combined container with both frontend and API server
 2. Configure proper networking and persistence
 3. Start the unified service
-
-Then visit `http://localhost:3030` in your browser to access the application.
-
-**Default Login:** 
-- Username: `admin`
-- Password: `1234`
-
-> **⚠️ IMPORTANT**: Please change your password immediately after your first login for security reasons.
-
-The unified container runs both the frontend (on port 3030) and the API server (on port 3050 internally). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
-
-**Note:** If accessing from outside your network, remember to forward port 3030 on your router/firewall.
-
-### Option 2: Docker (Manual Run)
-
-You can also run the unified container manually:
-
-```bash
-# Pull the image
-docker pull tannermiddleton/recommendarr:latest
-
-# Run the container
-# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
-docker run -d \
-  --name recommendarr \
-  -p 3030:3030 \
-  -p 3050:3050 \
-  -v $(pwd)/server/data:/app/server/data \
-  tannermiddleton/recommendarr:latest
-```
 
 Then visit `http://localhost:3030` in your browser. The container includes both the frontend and API server for secure credential storage.
 
@@ -97,7 +97,7 @@ npm install
 
 3. Run the development server:
 ```bash
-npm run serve
+npm run dev
 ```
 
 4. Visit `http://localhost:3030` in your browser.

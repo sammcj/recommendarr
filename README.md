@@ -12,7 +12,7 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 - **AI-Powered Recommendations**: Get personalized TV show and movie suggestions based on your existing library
 - **Sonarr & Radarr Integration**: Connects directly to your media servers to analyze your TV and movie collections
-- **Plex, Jellyfin & Tautulli Integration**: Analyzes your watch history to provide better recommendations based on what you've actually watched
+- **Plex, Jellyfin, Tautulli & Trakt Integration**: Analyzes your watch history to provide better recommendations based on what you've actually watched
 - **Flexible AI Support**: Works with OpenAI, local models (Ollama/LM Studio), or any OpenAI-compatible API
 - **Customization Options**: Adjust recommendation count, model parameters, and more
 - **Dark/Light Mode**: Toggle between themes based on your preference
@@ -22,7 +22,7 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 - [Sonarr](https://sonarr.tv/) instance with API access (for TV recommendations)
 - [Radarr](https://radarr.video/) instance with API access (for movie recommendations)
-- [Plex](https://www.plex.tv/), [Jellyfin](https://jellyfin.org/), or [Tautulli](https://tautulli.com/) instance with API access (for watch history analysis) - optional
+- [Plex](https://www.plex.tv/), [Jellyfin](https://jellyfin.org/), [Tautulli](https://tautulli.com/), or [Trakt](https://trakt.tv/) instance with API access (for watch history analysis) - optional
 - An OpenAI API key or any OpenAI-compatible API (like local LLM servers)
 - Node.js (v14+) and npm for development
 
@@ -47,6 +47,12 @@ This will:
 3. Start the unified service
 
 Then visit `http://localhost:3030` in your browser to access the application.
+
+**Default Login:** 
+- Username: `admin`
+- Password: `1234`
+
+> **⚠️ IMPORTANT**: Please change your password immediately after your first login for security reasons.
 
 The unified container runs both the frontend (on port 3030) and the API server (on port 3050 internally). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
 
@@ -96,7 +102,7 @@ npm run serve
 
 ## 🔧 Configuration
 
-### 1. Connect to Sonarr, Radarr, and/or Plex/Jellyfin
+### 1. Connect to Sonarr, Radarr, and/or Plex/Jellyfin/Trakt
 
 1. When you first open Recommendarr, you'll be prompted to connect to your services
 2. For Sonarr (TV shows):
@@ -120,6 +126,10 @@ npm run serve
    - Enter your Tautulli URL (e.g., `http://localhost:8181` or `https://tautulli.yourdomain.com`)
    - Enter your Tautulli API key (found in Tautulli under Settings → Web Interface → API)
    - Click "Connect"
+7. For Trakt (Optional - Watch History):
+   - Click "Connect" on the Trakt connection page
+   - Authorize Recommendarr with your Trakt.tv account
+   - Complete the authentication process to connect your Trakt watch history
 
 You can connect to any combination of these services based on your needs.
 
@@ -313,34 +323,15 @@ For best results, try setting max tokens to 4000 and temperature between 0.6-0.8
 ### TV Recommendations
 - Connect to your Sonarr instance to get personalized TV show recommendations
 - The AI analyzes your TV library to understand your preferences
-- Optional Plex, Jellyfin, or Tautulli integration enhances recommendations based on what you've actually watched
+- Optional Plex, Jellyfin, Trakt or Tautulli integration enhances recommendations based on what you've actually watched
 - Receives detailed recommendations with show descriptions and reasoning
 
 ### Movie Recommendations
 - Connect to your Radarr instance to get personalized movie recommendations
 - The AI analyzes your movie collection to understand genres and preferences you enjoy
-- Optional Plex, Jellyfin, or Tautulli integration provides watch history data for better personalization
+- Optional Plex, Jellyfin, Trakt or Tautulli integration provides watch history data for better personalization
 - Get suggested movies with descriptions, reasoning, and poster images
 - Easily discover new films based on your existing collection
-
-## 📊 Tautulli
-
-### Setting Up Tautulli Integration
-
-Tautulli provides advanced insights into your Plex Media Server, tracking user activity and media statistics. Integrating Tautulli with Recommendarr enhances recommendations by analyzing your actual watch history.
-
-1. In the Recommendarr interface, go to **Settings** and connect to your Tautulli instance
-2. Enter your Tautulli URL (e.g., `http://localhost:8181` or `http://your-server-ip:8181`)
-3. Enter your Tautulli API key (found in Tautulli under Settings → Web Interface → API)
-4. Test the connection and save
-
-### Benefits
-
-- **Enhanced Recommendations**: Your watch history is analyzed to provide more personalized recommendations
-- **Viewing Insights**: See what content is most popular in your household
-- **Better Context**: The AI uses your actual viewing patterns to understand your preferences
-
-Watch history from Tautulli complements your media library data, giving the AI a more complete picture of your preferences beyond just what content you've collected.
 
 ## 🔒 Privacy & Security
 
@@ -396,4 +387,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Plex](https://www.plex.tv/) - For the API that provides watch history data
 - [Jellyfin](https://jellyfin.org/) - For the API that provides additional watch history data
 - [Tautulli](https://tautulli.com/) - For the API that provides detailed Plex watch statistics
+- [Trakt](https://trakt.tv/) - For the API that provides watch history and ratings data
 - [OpenRouter](https://openrouter.ai/docs/quickstart) - For the API that powers AI-based suggestions

@@ -33,25 +33,46 @@
           <span class="nav-icon">⚙️</span>
           <span class="nav-text">Settings</span>
         </button>
+        
+        <!-- Theme toggle moved right after nav items -->
+        <div class="theme-toggle-wrapper" :title="isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'">
+          <label class="theme-toggle">
+            <input type="checkbox" @change="toggleTheme" :checked="isDarkTheme">
+            <span class="toggle-track">
+              <span class="toggle-icon sun">☀️</span>
+              <span class="toggle-icon moon">🌙</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
       </div>
       
       <div class="nav-actions">
+        <!-- Empty nav-actions container -->
+      </div>
+      
+      <!-- Separate container for clear data and logout buttons - desktop only -->
+      <div class="clear-data-container desktop-only-buttons">
         <button 
-          @click="toggleTheme" 
-          class="action-button theme-button"
-          :title="isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'"
+          @click="confirmClearData" 
+          class="action-button clear-button"
+          title="Clear all saved data"
         >
-          <span v-if="isDarkTheme" class="nav-icon">☀️</span>
-          <span v-else class="nav-icon">🌙</span>
+          <div class="action-content">
+            <span class="nav-icon">🗑️</span>
+            <span class="action-text">Clear Data</span>
+          </div>
         </button>
         
         <button 
-          @click="confirmClearData" 
+          @click="$emit('logout')" 
           class="action-button logout-button"
-          title="Clear all saved data"
+          title="Logout from your account"
         >
-          <span class="nav-icon">🗑️</span>
-          <span class="action-text">Clear Data</span>
+          <div class="action-content">
+            <span class="nav-icon">🚪</span>
+            <span class="action-text">Logout</span>
+          </div>
         </button>
       </div>
       
@@ -94,22 +115,42 @@
       </button>
       
       <div class="mobile-actions">
-        <button 
-          @click="toggleTheme" 
-          class="mobile-action theme-button"
-        >
-          <span v-if="isDarkTheme" class="nav-icon">☀️</span>
-          <span v-else class="nav-icon">🌙</span>
-          <span>{{ isDarkTheme ? 'Light Mode' : 'Dark Mode' }}</span>
-        </button>
+        <div class="mobile-action theme-action">
+          <div class="mobile-action-text">
+            <span class="nav-icon">{{ isDarkTheme ? '🌙' : '☀️' }}</span>
+            <span>{{ isDarkTheme ? 'Light Mode' : 'Dark Mode' }}</span>
+          </div>
+          <label class="theme-toggle mobile">
+            <input type="checkbox" @change="toggleTheme" :checked="isDarkTheme">
+            <span class="toggle-track">
+              <span class="toggle-icon sun">☀️</span>
+              <span class="toggle-icon moon">🌙</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
         
-        <button 
-          @click="confirmClearData" 
-          class="mobile-action logout-button"
-        >
-          <span class="nav-icon">🗑️</span>
-          <span>Clear Data</span>
-        </button>
+        <div class="mobile-buttons-row">
+          <button 
+            @click="confirmClearData" 
+            class="mobile-action clear-button"
+          >
+            <div class="mobile-action-text">
+              <span class="nav-icon">🗑️</span>
+              <span>Clear Data</span>
+            </div>
+          </button>
+          
+          <button 
+            @click="$emit('logout')" 
+            class="mobile-action logout-button"
+          >
+            <div class="mobile-action-text">
+              <span class="nav-icon">🚪</span>
+              <span>Logout</span>
+            </div>
+          </button>
+        </div>
       </div>
     </div>
   </nav>
@@ -156,8 +197,8 @@ export default {
       this.mobileMenuOpen = false; // Close mobile menu after navigation
     },
     confirmClearData() {
-      if (confirm('Are you sure you want to clear all saved data? This will remove all your API keys, settings, recommendation history, and preferences from both local storage and the server.')) {
-        this.$emit('logout');
+      if (confirm('Are you sure you want to clear all saved data? This will remove all your service connections, settings, recommendation history, and preferences from both local storage and the server. Your account login will be preserved.')) {
+        this.$emit('clearData');
       }
     }
   }
@@ -187,10 +228,115 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: 24px;
+  min-width: auto; /* Allow natural width */
   font-weight: bold;
   font-size: 18px;
   color: var(--nav-active-text);
+}
+
+/* Modern theme toggle styling */
+.theme-toggle-wrapper {
+  margin-left: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.theme-toggle {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.theme-toggle:hover .toggle-track {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.theme-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: 0.4s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px;
+  overflow: hidden; /* Ensures content stays within rounded corners */
+}
+
+body.dark-theme .toggle-track {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.toggle-icon {
+  font-size: 12px;
+  z-index: 1;
+}
+
+.toggle-icon.sun {
+  margin-left: 2px;
+}
+
+.toggle-icon.moon {
+  margin-right: 2px;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.4s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input:checked + .toggle-track {
+  background-color: rgba(76, 175, 80, 0.7);
+}
+
+input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(26px);
+}
+
+/* Mobile theme toggle */
+.theme-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px;
+  background: transparent;
+  border: none;
+  color: var(--nav-text-color);
+  text-align: left;
+  font-size: 16px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.theme-action:hover {
+  background-color: var(--nav-hover-bg);
+}
+
+.theme-toggle.mobile {
+  margin-left: 10px;
 }
 
 .brand-icon {
@@ -214,6 +360,7 @@ export default {
     display: flex;
     align-items: center;
     gap: 4px;
+    margin-left: 15px; /* Aligns menu to the left, next to brand */
   }
 }
 
@@ -256,7 +403,27 @@ export default {
   .nav-actions {
     display: flex;
     align-items: center;
+    margin-right: 20px;
+    margin-left: auto; /* Push to right side */
+  }
+  
+  .clear-data-container {
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
     gap: 8px;
+    flex-wrap: nowrap;
+  }
+  
+  /* Desktop-only buttons */
+  .desktop-only-buttons {
+    display: none !important;
+  }
+  
+  @media (min-width: 768px) {
+    .desktop-only-buttons {
+      display: flex !important;
+    }
   }
 }
 
@@ -271,6 +438,7 @@ export default {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex: 1;
 }
 
 .theme-button:hover {
@@ -278,9 +446,22 @@ export default {
   color: var(--nav-active-text);
 }
 
+.clear-button {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: var(--nav-active-text);
+}
+
 .logout-button {
   background-color: rgba(255, 59, 48, 0.2);
   color: var(--nav-active-text);
+}
+
+.action-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
 }
 
 .action-text {
@@ -290,15 +471,32 @@ export default {
 @media (min-width: 992px) {
   .action-text {
     display: inline;
+    white-space: nowrap;
   }
   
   .action-button {
     padding: 8px 12px;
+    width: 110px;
+    flex: 0 0 auto;
+    justify-content: center;
+  }
+  
+  .theme-button {
+    min-width: auto;
+    padding: 8px;
+  }
+  
+  .clear-button {
+    background-color: rgba(255, 152, 0, 0.2);
   }
   
   .logout-button {
     background-color: rgba(255, 59, 48, 0.2);
   }
+}
+
+.clear-button:hover {
+  background-color: rgba(255, 152, 0, 0.4);
 }
 
 .logout-button:hover {
@@ -408,7 +606,8 @@ export default {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  width: 100%;
 }
 
 .mobile-action {
@@ -423,10 +622,26 @@ export default {
   font-size: 16px;
   border-radius: 4px;
   transition: all 0.2s ease;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.mobile-buttons-row .mobile-action {
+  justify-content: center;
+  padding: 12px 8px;
 }
 
 .mobile-action.theme-button:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+.mobile-action.clear-button {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: var(--nav-active-text);
+}
+
+.mobile-action.clear-button:hover {
+  background-color: rgba(255, 152, 0, 0.4);
 }
 
 .mobile-action.logout-button {
@@ -434,7 +649,37 @@ export default {
   color: var(--nav-active-text);
 }
 
+.mobile-buttons-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.mobile-buttons-row .mobile-action {
+  flex: 1;
+}
+
+.mobile-action-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
 .mobile-action.logout-button:hover {
   background-color: rgba(255, 59, 48, 0.4);
+}
+
+/* Global desktop/mobile visibility classes */
+@media (max-width: 767px) {
+  .desktop-only-buttons {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .desktop-only-buttons {
+    display: flex !important;
+  }
 }
 </style>

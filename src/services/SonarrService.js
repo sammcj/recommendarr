@@ -270,7 +270,9 @@ class SonarrService {
   /**
    * Add a series to Sonarr
    * @param {string} title - The series title to search for
-   * @param {Array} [selectedSeasons] - Array of season numbers to monitor (optional)
+   * @param {Array|null} [selectedSeasons] - Array of season numbers to monitor (optional)
+   *                                          If null, all seasons will be monitored
+   *                                          If empty array, no seasons will be monitored
    * @param {number} [qualityProfileId] - Quality profile ID to use (optional)
    * @param {string} [rootFolderPath] - Root folder path to use (optional)
    * @returns {Promise<Object>} - The added series object
@@ -303,11 +305,36 @@ class SonarrService {
       const selectedRootFolderPath = rootFolderPath || rootFolders[0].path;
       
       // 3. Prepare seasons configuration
-      // If specific seasons were selected, only monitor those
-      const seasons = seriesData.seasons.map(season => ({
-        seasonNumber: season.seasonNumber,
-        monitored: selectedSeasons ? selectedSeasons.includes(season.seasonNumber) : true
-      }));
+      let seasons = [];
+      
+      // Handle case where no seasons are returned from the API
+      if (!seriesData.seasons || seriesData.seasons.length === 0) {
+        console.log('No season information available for series:', title);
+        // When no seasons information is available, don't set any seasons
+        // This will make Sonarr monitor all seasons by default
+        // We won't include seasons in the payload below
+      } else {
+        // Normal case - use seasons from lookup data
+        if (selectedSeasons === null || selectedSeasons === undefined) {
+          // If selectedSeasons is null/undefined, monitor all seasons
+          seasons = seriesData.seasons.map(season => ({
+            seasonNumber: season.seasonNumber,
+            monitored: true
+          }));
+        } else if (selectedSeasons.length === 0) {
+          // If selectedSeasons is an empty array, monitor no seasons
+          seasons = seriesData.seasons.map(season => ({
+            seasonNumber: season.seasonNumber,
+            monitored: false
+          }));
+        } else {
+          // Otherwise, only monitor selected seasons
+          seasons = seriesData.seasons.map(season => ({
+            seasonNumber: season.seasonNumber,
+            monitored: selectedSeasons.includes(season.seasonNumber)
+          }));
+        }
+      }
       
       // 4. Prepare payload for adding the series
       const payload = {
@@ -318,11 +345,18 @@ class SonarrService {
         monitored: true,
         seasonFolder: true,
         seriesType: 'standard',
-        seasons: seasons,
         addOptions: {
           searchForMissingEpisodes: true
         }
       };
+      
+      // Only add seasons to payload if we have season information
+      // This allows Sonarr to use its default behavior when seasons aren't specified
+      if (seasons.length > 0) {
+        payload.seasons = seasons;
+      } else {
+        console.log(`Adding series "${title}" without season information - Sonarr will monitor all seasons by default`);
+      }
       
       // 5. Add the series
       return await this._apiRequest('/api/v3/series', 'POST', payload);

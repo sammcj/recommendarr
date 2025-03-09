@@ -1,16 +1,17 @@
 {
   "name": "recommendarr",
-  "version": "1.2.50",
+  "version": "1.2.6",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
-    "api": "node server/server.js",
+    "api": "node --max-old-space-size=4096 server/server.js",
     "dev": "concurrently \"npm run serve\" \"npm run api\""
   },
   "dependencies": {
     "axios": "^1.8.1",
+    "cookie-parser": "^1.4.7",
     "core-js": "^3.41.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",

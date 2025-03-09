@@ -3,43 +3,66 @@
     <!-- Check if this is a Trakt callback and show the callback handler if it is -->
     <TraktCallback v-if="isTraktCallback" />
     
-    <!-- Regular app content if it's not a callback URL -->
+    <!-- Show login screen if user is not authenticated -->
+    <Login v-else-if="!isAuthenticated" @authenticated="handleAuthenticated" />
+    
+    <!-- Regular app content if user is authenticated and it's not a callback URL -->
     <template v-else>
       <header class="app-header">
-        <img alt="App logo" src="./assets/logo.png" class="logo">
-        <h1>Recommendarr</h1>
+        <div class="header-content">
+          <div class="header-brand">
+            <img alt="App logo" src="./assets/logo.png" class="logo">
+            <h1>Recommendarr</h1>
+          </div>
+        </div>
       </header>
       
       <main>
-      <div v-if="!sonarrConnected && !radarrConnected && !plexConnected && !jellyfinConnected && !tautulliConnected && !traktConnected">
-        <p class="choose-service">Choose a service to connect to:</p>
-        <div class="service-buttons">
-          <button class="service-button" @click="showSonarrConnect = true">
-            Connect to Sonarr
-            <small>For TV recommendations</small>
-          </button>
-          <button class="service-button" @click="showRadarrConnect = true">
-            Connect to Radarr
-            <small>For movie recommendations</small>
-          </button>
-          <button class="service-button plex-button" @click="showPlexConnect = true">
-            Connect to Plex
-            <small>For watch history integration</small>
-          </button>
-          <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
-            Connect to Jellyfin
-            <small>For watch history integration</small>
-          </button>
-          <button class="service-button tautulli-button" @click="showTautulliConnect = true">
-            Connect to Tautulli
-            <small>For Plex watch history statistics</small>
-          </button>
-          <button class="service-button trakt-button" @click="showTraktConnect = true">
-            Connect to Trakt
-            <small>For Trakt watch history integration</small>
-          </button>
+      <!-- Always show app navigation -->
+      <AppNavigation 
+        :activeTab="activeTab" 
+        @navigate="handleNavigate"
+        @logout="handleLogout"
+        @clearData="handleClearData" 
+      />
+      
+      <!-- Content area -->
+      <div class="content">
+        <!-- Loading indicator -->
+        <div v-if="loadingServices" class="loading-services">
+          <p>Loading your saved services...</p>
         </div>
-      </div>
+        
+        <!-- Service selection -->
+        <div v-else-if="!hasAnyServiceCredentials && !hasAnyServiceConnected() && activeTab !== 'settings'">
+          <p class="choose-service">Choose a service to connect to:</p>
+          <div class="service-buttons">
+            <button class="service-button" @click="showSonarrConnect = true">
+              Connect to Sonarr
+              <small>For TV recommendations</small>
+            </button>
+            <button class="service-button" @click="showRadarrConnect = true">
+              Connect to Radarr
+              <small>For movie recommendations</small>
+            </button>
+            <button class="service-button plex-button" @click="showPlexConnect = true">
+              Connect to Plex
+              <small>For watch history integration</small>
+            </button>
+            <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
+              Connect to Jellyfin
+              <small>For watch history integration</small>
+            </button>
+            <button class="service-button tautulli-button" @click="showTautulliConnect = true">
+              Connect to Tautulli
+              <small>For Plex watch history statistics</small>
+            </button>
+            <button class="service-button trakt-button" @click="showTraktConnect = true">
+              Connect to Trakt
+              <small>For Trakt watch history integration</small>
+            </button>
+          </div>
+        </div>
       
       <!-- User Selection Modal for Jellyfin -->
       <div v-if="showJellyfinUserSelect && jellyfinConnected" class="modal-overlay">
@@ -134,15 +157,8 @@
       <TautulliConnection v-if="showTautulliConnect && !tautulliConnected" @connected="handleTautulliConnected" @disconnected="handleTautulliDisconnected" @limitChanged="handleTautulliLimitChanged" />
       <TraktConnection v-if="showTraktConnect && !traktConnected" @connected="handleTraktConnected" @disconnected="handleTraktDisconnected" @limitChanged="handleTraktLimitChanged" />
       
-      <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected">
-        <AppNavigation 
-          :activeTab="activeTab" 
-          @navigate="handleNavigate"
-          @logout="handleLogout" 
-        />
-        
-        <div class="content">
-          <TVRecommendations 
+        <!-- Main components rendered based on activeTab -->
+        <TVRecommendations 
             v-if="activeTab === 'tv-recommendations'" 
             :series="series"
             :sonarrConfigured="sonarrConnected"
@@ -215,6 +231,7 @@
             :jellyfinConnected="jellyfinConnected"
             :tautulliConnected="tautulliConnected"
             :traktConnected="traktConnected"
+            :defaultActiveTab="aiSettingsSubtab"
             @settings-updated="handleSettingsUpdated"
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
@@ -222,8 +239,7 @@
             @jellyfin-settings-updated="handleJellyfinSettingsUpdated"
             @tautulli-settings-updated="handleTautulliSettingsUpdated"
           />
-        </div>
-      </div>
+      </div> <!-- End content div -->
     </main>
     </template>
   </div>
@@ -241,6 +257,7 @@ import AppNavigation from './components/Navigation.vue'
 import TVRecommendations from './components/RequestRecommendations.vue'
 import History from './components/History.vue'
 import AISettings from './components/AISettings.vue'
+import LoginForm from './components/Login.vue'
 import sonarrService from './services/SonarrService'
 import radarrService from './services/RadarrService'
 import plexService from './services/PlexService'
@@ -249,6 +266,8 @@ import tautulliService from './services/TautulliService'
 import traktService from './services/TraktService'
 import credentialsService from './services/CredentialsService'
 import apiService from './services/ApiService'
+import authService from './services/AuthService'
+import openAIService from './services/OpenAIService'
 
 export default {
   name: 'App',
@@ -263,17 +282,22 @@ export default {
     AppNavigation,
     TVRecommendations,
     History,
-    AISettings
+    AISettings,
+    Login: LoginForm
   },
   data() {
     return {
       isTraktCallback: window.location.pathname === '/trakt-callback',
+      isAuthenticated: authService.isAuthenticated(),
       sonarrConnected: false,
       radarrConnected: false,
       plexConnected: false,
       jellyfinConnected: false,
       tautulliConnected: false,
       traktConnected: false,
+      loadingServices: true,
+      hasAnyServiceCredentials: false,
+      aiSettingsSubtab: 'account',
       traktRecentlyWatchedMovies: [],
       traktRecentlyWatchedShows: [],
       traktRecentLimit: 50,
@@ -319,23 +343,272 @@ export default {
       return; // No need to do the other initializations yet
     }
     
-    // Check if services have credentials stored server-side
-    // This will also set up connections and fetch data if credentials are found
-    await this.checkStoredCredentials();
+    console.log('App created, isAuthenticated:', this.isAuthenticated);
     
-    // Load settings from localStorage
-    this.loadLocalSettings();
+    // Setup API with auth token if available
+    if (this.isAuthenticated) {
+      console.log('User is authenticated, setting auth header and loading data...');
+      
+      // Set auth header for all API requests
+      authService.setAuthHeader();
+      
+      // Verify that auth header is set correctly
+      console.log('Initialized API with authentication');
+      
+      try {
+        // Check if services have credentials stored server-side
+        // This will also set up connections and fetch data if credentials are found
+        await this.checkStoredCredentials();
+        
+        // Load settings from localStorage
+        this.loadLocalSettings();
 
-    // Load cached watch history from localStorage first
-    this.loadCachedWatchHistory();
+        // Load cached watch history from localStorage first
+        this.loadCachedWatchHistory();
 
-    // After connections are established, fetch and store watch history
-    if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
-      await this.fetchAndStoreWatchHistory();
+        // After connections are established, fetch and store watch history
+        if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
+          await this.fetchAndStoreWatchHistory();
+        }
+      } catch (error) {
+        console.error('Error loading data after authentication:', error);
+        
+        // If we get unauthorized error, the token might be invalid
+        if (error.response && error.response.status === 401) {
+          console.log('Authentication token is invalid, logging out...');
+          this.isAuthenticated = false;
+          await authService.logout();
+        }
+      }
+    } else {
+      console.log('User is not authenticated, showing login form');
     }
   },
 
   methods: {
+    // Helper method to check if any service is connected
+    hasAnyServiceConnected() {
+      return this.sonarrConnected || 
+             this.radarrConnected || 
+             this.plexConnected || 
+             this.jellyfinConnected || 
+             this.tautulliConnected || 
+             this.traktConnected;
+    },
+    
+    // Handle clearing all data except user auth
+    async handleClearData() {
+      console.log("User clicked clear data...");
+      
+      // Ask for another confirmation
+      if (!confirm('This will remove all your service connections and data, but keep your username and password. Continue?')) {
+        return;
+      }
+      
+      try {
+        // Reset server-side data
+        const success = await credentialsService.resetUserData();
+        if (success) {
+          console.log("Server-side data cleared successfully");
+        } else {
+          console.error("Failed to clear server-side data");
+        }
+      } catch (error) {
+        console.error("Error clearing server-side data:", error);
+      }
+      
+      // Clear all stored credentials from localStorage 
+      localStorage.removeItem('sonarrBaseUrl');
+      localStorage.removeItem('sonarrApiKey');
+      localStorage.removeItem('radarrBaseUrl');
+      localStorage.removeItem('radarrApiKey');
+      localStorage.removeItem('plexBaseUrl');
+      localStorage.removeItem('plexToken');
+      localStorage.removeItem('plexRecentLimit');
+      localStorage.removeItem('jellyfinBaseUrl');
+      localStorage.removeItem('jellyfinApiKey');
+      localStorage.removeItem('jellyfinUserId');
+      localStorage.removeItem('jellyfinRecentLimit');
+      localStorage.removeItem('tautulliBaseUrl');
+      localStorage.removeItem('tautulliApiKey');
+      localStorage.removeItem('tautulliRecentLimit');
+      localStorage.removeItem('traktClientId');
+      localStorage.removeItem('traktAccessToken');
+      localStorage.removeItem('traktRecentLimit');
+      localStorage.removeItem('openaiApiKey');
+      localStorage.removeItem('openaiModel');
+      localStorage.removeItem('plexHistoryMode');
+      localStorage.removeItem('jellyfinHistoryMode');
+      localStorage.removeItem('tautulliHistoryMode');
+      localStorage.removeItem('traktHistoryMode');
+      localStorage.removeItem('plexOnlyMode');
+      localStorage.removeItem('jellyfinOnlyMode');
+      localStorage.removeItem('tautulliOnlyMode');
+      localStorage.removeItem('traktOnlyMode');
+      
+      // Also clear recommendation history and preferences
+      localStorage.removeItem('previousTVRecommendations');
+      localStorage.removeItem('previousMovieRecommendations');
+      localStorage.removeItem('currentTVRecommendations');
+      localStorage.removeItem('currentMovieRecommendations');
+      localStorage.removeItem('likedTVRecommendations');
+      localStorage.removeItem('dislikedTVRecommendations');
+      localStorage.removeItem('likedMovieRecommendations');
+      localStorage.removeItem('dislikedMovieRecommendations');
+      
+      // Additional localStorage history that might exist
+      localStorage.removeItem('historyColumnsCount');
+      
+      // Clear cached watch history
+      localStorage.removeItem('watchHistoryMovies');
+      localStorage.removeItem('watchHistoryShows');
+      localStorage.removeItem('jellyfinWatchHistoryMovies');
+      localStorage.removeItem('jellyfinWatchHistoryShows');
+      localStorage.removeItem('tautulliWatchHistoryMovies');
+      localStorage.removeItem('tautulliWatchHistoryShows');
+      localStorage.removeItem('traktWatchHistoryMovies');
+      localStorage.removeItem('traktWatchHistoryShows');
+      
+      // Reset service configurations
+      sonarrService.configure('', '');
+      radarrService.configure('', '');
+      plexService.configure('', '');
+      jellyfinService.configure('', '', '');
+      tautulliService.configure('', '');
+      
+      // Reset UI state
+      this.sonarrConnected = false;
+      this.radarrConnected = false;
+      this.plexConnected = false;
+      this.jellyfinConnected = false;
+      this.tautulliConnected = false;
+      this.traktConnected = false;
+      this.series = [];
+      this.movies = [];
+      this.recentlyWatchedMovies = [];
+      this.recentlyWatchedShows = [];
+      this.jellyfinRecentlyWatchedMovies = [];
+      this.jellyfinRecentlyWatchedShows = [];
+      this.tautulliRecentlyWatchedMovies = [];
+      this.tautulliRecentlyWatchedShows = [];
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
+      this.plexRecentLimit = 100;
+      this.jellyfinRecentLimit = 100;
+      this.tautulliRecentLimit = 50;
+      this.traktRecentLimit = 50;
+      this.plexHistoryMode = 'all';
+      this.jellyfinHistoryMode = 'all';
+      this.tautulliHistoryMode = 'all';
+      this.traktHistoryMode = 'all';
+      this.plexOnlyMode = false;
+      this.jellyfinOnlyMode = false;
+      this.tautulliOnlyMode = false;
+      this.traktOnlyMode = false;
+      this.showSonarrConnect = false;
+      this.showRadarrConnect = false;
+      this.showPlexConnect = false;
+      this.showJellyfinConnect = false;
+      this.showTautulliConnect = false;
+      this.showTraktConnect = false;
+      this.activeTab = 'tv-recommendations';
+      
+      alert('All service data has been cleared. Your login credentials are preserved.');
+    },
+    
+    // Fetch AI models to prepare for recommendations
+    async fetchAIModels(retry = true) {
+      try {
+        console.log('Attempting to fetch AI models...');
+        // Check if OpenAI service is configured first
+        if (openAIService.isConfigured()) {
+          console.log('OpenAI service is configured, fetching models...');
+          try {
+            const models = await openAIService.fetchModels();
+            console.log(`Successfully fetched ${models.length} AI models`);
+            return true; // Success
+          } catch (fetchError) {
+            console.error('Error during initial fetch of AI models:', fetchError);
+            if (retry) {
+              console.log('Will retry fetching models after a short delay...');
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              return this.fetchAIModels(false); // Retry once
+            }
+            throw fetchError; // Re-throw if already retried
+          }
+        } else {
+          console.log('OpenAI service is not configured yet');
+          // First try to load credentials with 2 retries
+          const credentialsLoaded = await openAIService.loadCredentials(2, 1500);
+          console.log('Credentials load result:', credentialsLoaded);
+          
+          // Check again after loading credentials
+          if (openAIService.isConfigured()) {
+            console.log('OpenAI service is now configured after loading credentials, fetching models...');
+            try {
+              const models = await openAIService.fetchModels();
+              console.log(`Successfully fetched ${models.length} AI models`);
+              return true; // Success
+            } catch (fetchError) {
+              console.error('Error during fetch after loading credentials:', fetchError);
+              if (retry) {
+                console.log('Will retry fetching models after a short delay...');
+                // Wait a bit before retrying
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                return this.fetchAIModels(false); // Retry once
+              }
+              throw fetchError; // Re-throw if already retried
+            }
+          } else {
+            console.log('OpenAI service still not configured after loading credentials');
+          }
+        }
+        return false; // Not configured
+      } catch (error) {
+        console.error('Error in fetchAIModels:', error);
+        // Don't show error to user as this is a background task
+        return false;
+      }
+    },
+    
+    // Handle successful authentication
+    async handleAuthenticated() {
+      console.log('User authenticated successfully');
+      this.isAuthenticated = true;
+      
+      // Set auth header for API requests
+      authService.setAuthHeader();
+      console.log('Auth header set after login');
+      
+      try {
+        // Start parallel tasks for efficiency
+        const tasks = [];
+        
+        // Try to fetch AI models after login to check if OpenAI is configured
+        // This is important enough to await separately
+        console.log('Starting AI model fetch process...');
+        tasks.push(this.fetchAIModels());
+        
+        // Load stored credentials and other data
+        console.log('Loading data after authentication...');
+        tasks.push(this.checkStoredCredentials());
+        
+        // Wait for both tasks to complete
+        await Promise.all(tasks);
+        
+        // Load settings from localStorage
+        this.loadLocalSettings();
+
+        // Load cached watch history
+        this.loadCachedWatchHistory();
+        
+        console.log('Data loaded successfully after authentication');
+      } catch (error) {
+        console.error('Error loading data after authentication:', error);
+      }
+    },
+    
     // Load cached watch history from localStorage
     loadCachedWatchHistory() {
       try {
@@ -615,9 +888,15 @@ export default {
     
     // Check if we have credentials stored server-side
     async checkStoredCredentials() {
+      console.log('Checking for stored credentials...');
       try {
+        // Only show loading state if no services are already connected
+        if (!this.hasAnyServiceConnected()) {
+          this.loadingServices = true;
+        }
+        
         // Get all services status from the server
-        const hasAnyService = await Promise.all([
+        const serviceResults = await Promise.all([
           credentialsService.hasCredentials('sonarr'),
           credentialsService.hasCredentials('radarr'),
           credentialsService.hasCredentials('plex'),
@@ -626,8 +905,23 @@ export default {
           credentialsService.hasCredentials('trakt')
         ]);
         
+        // Log service check results
+        console.log('Service credential check results:', {
+          sonarr: serviceResults[0],
+          radarr: serviceResults[1],
+          plex: serviceResults[2],
+          jellyfin: serviceResults[3],
+          tautulli: serviceResults[4],
+          trakt: serviceResults[5]
+        });
+        
+        // Check if we have any stored credentials
+        this.hasAnyServiceCredentials = serviceResults.some(result => result === true);
+        console.log('Has any service credentials:', this.hasAnyServiceCredentials);
+        
         // If any service has credentials, set up the appropriate services
-        if (hasAnyService.some(result => result === true)) {
+        if (this.hasAnyServiceCredentials) {
+          console.log('Found stored credentials, configuring services...');
           // Try to configure services with stored credentials
           await Promise.all([
             this.configureServiceFromCredentials('sonarr'),
@@ -637,9 +931,13 @@ export default {
             this.configureServiceFromCredentials('tautulli'),
             this.configureServiceFromCredentials('trakt')
           ]);
+          
+          console.log('Services configured, any connected?', this.hasAnyServiceConnected());
         }
       } catch (error) {
         console.error('Error checking for stored credentials:', error);
+      } finally {
+        this.loadingServices = false;
       }
     },
     
@@ -1198,8 +1496,13 @@ export default {
       console.log('Trakt only mode changed to:', enabled);
       this.traktOnlyMode = enabled;
     },
-    handleNavigate(tab) {
+    handleNavigate(tab, subtab) {
       this.activeTab = tab;
+      
+      // Set the AI Settings subtab if specified
+      if (tab === 'settings' && subtab) {
+        this.aiSettingsSubtab = subtab;
+      }
       
       // If we're switching to TV recommendations, ensure we have series data
       if (tab === 'tv-recommendations' && this.series.length === 0 && this.sonarrConnected) {
@@ -1490,7 +1793,19 @@ export default {
     },
     
     async handleLogout() {
-      console.log("User clicked Clear Data...");
+      console.log("User clicked logout...");
+      
+      // Don't use await here - we'll just clear local auth data first
+      // to prevent the potential circular logout request
+      authService.clearLocalAuth();
+      this.isAuthenticated = false;
+      
+      // Now call logout endpoint separately without awaiting it
+      // This prevents potential 401 errors from causing a refresh loop
+      authService.logoutOnServer().catch(err => {
+        console.log('Logout from server failed, but local logout was successful:', err);
+      });
+      
       // Clear all stored credentials from localStorage (for backwards compatibility)
       localStorage.removeItem('sonarrBaseUrl');
       localStorage.removeItem('sonarrApiKey');
@@ -1544,24 +1859,9 @@ export default {
       localStorage.removeItem('traktWatchHistoryMovies');
       localStorage.removeItem('traktWatchHistoryShows');
       
-      // Delete all data from the server - both user_data.json and credentials.json
-      try {
-        console.log("⚠️ Starting complete data reset process...");
-        
-        // Call the /api/reset endpoint which now resets BOTH user_data.json AND credentials.json
-        const resetSuccess = await credentialsService.resetUserData();
-        
-        if (resetSuccess) {
-          console.log('✅ Server data reset successful! Both user_data.json and credentials.json have been cleared.');
-        } else {
-          console.error('❌ Server data reset failed!');
-          alert('Error clearing data. Some data may not have been completely cleared.');
-        }
-        
-      } catch (error) {
-        console.error('Error resetting server-side data:', error);
-        alert('Error clearing data. Please try again or restart the application.');
-      }
+      // We're no longer resetting user data on logout
+      // This preserves the user's settings between sessions
+      console.log("User data and credentials preserved for next login");
       
       // Reset service configurations
       sonarrService.configure('', '');
@@ -1576,6 +1876,7 @@ export default {
       this.plexConnected = false;
       this.jellyfinConnected = false;
       this.tautulliConnected = false;
+      this.traktConnected = false;
       this.series = [];
       this.movies = [];
       this.recentlyWatchedMovies = [];
@@ -1584,20 +1885,26 @@ export default {
       this.jellyfinRecentlyWatchedShows = [];
       this.tautulliRecentlyWatchedMovies = [];
       this.tautulliRecentlyWatchedShows = [];
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
       this.plexRecentLimit = 100;
       this.jellyfinRecentLimit = 100;
       this.tautulliRecentLimit = 50;
+      this.traktRecentLimit = 50;
       this.plexHistoryMode = 'all';
       this.jellyfinHistoryMode = 'all';
       this.tautulliHistoryMode = 'all';
+      this.traktHistoryMode = 'all';
       this.plexOnlyMode = false;
       this.jellyfinOnlyMode = false;
       this.tautulliOnlyMode = false;
+      this.traktOnlyMode = false;
       this.showSonarrConnect = false;
       this.showRadarrConnect = false;
       this.showPlexConnect = false;
       this.showJellyfinConnect = false;
       this.showTautulliConnect = false;
+      this.showTraktConnect = false;
       this.activeTab = 'tv-recommendations';
     }
   }
@@ -1683,29 +1990,51 @@ body {
 }
 
 .app-header {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  position: relative;
+  background-color: var(--main-bg-color);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.header-content {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  padding: 20px 0 0 0;
+  justify-content: space-between;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
 }
 
 @media (min-width: 480px) {
   .app-header {
-    margin-bottom: 30px;
+    margin-bottom: 0;
+    padding: 15px 20px;
   }
 }
 
 .logo {
-  height: 40px;
+  height: 32px;
   margin-right: 10px;
   transition: filter var(--transition-speed);
 }
 
 @media (min-width: 480px) {
   .logo {
-    height: 60px;
+    height: 40px;
+    margin-right: 12px;
+  }
+}
+
+@media (min-width: 768px) {
+  .logo {
+    height: 48px;
     margin-right: 15px;
   }
 }
@@ -1716,7 +2045,7 @@ body.dark-theme .logo {
 
 h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   color: var(--header-color);
   transition: color var(--transition-speed);
   font-weight: 600;
@@ -1724,7 +2053,13 @@ h1 {
 
 @media (min-width: 480px) {
   h1 {
-    font-size: 28px;
+    font-size: 22px;
+  }
+}
+
+@media (min-width: 768px) {
+  h1 {
+    font-size: 26px;
   }
 }
 
@@ -1738,6 +2073,53 @@ main {
 
 .content {
   min-height: 400px;
+}
+
+.loading-services {
+  text-align: center;
+  padding: 20px;
+  margin: 20px 0;
+  background-color: #f8f9fa;
+  border-radius: 5px;
+}
+
+.logout-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--button-secondary-bg, #f5f5f5);
+  color: var(--button-secondary-text, #333);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-icon {
+  font-size: 16px;
+}
+
+.logout-text {
+  display: none;
+}
+
+@media (min-width: 480px) {
+  .logout-button {
+    padding: 8px 12px;
+  }
+  
+  .logout-text {
+    display: inline;
+  }
+}
+
+.logout-button:hover {
+  background-color: #d32f2f;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .choose-service {

@@ -17,8 +17,94 @@ class ApiService {
     
     console.log(`Initial API URL: ${this.baseUrl}`);
     
+    // Create axios instance with default config
+    this.axiosInstance = axios.create({
+      baseURL: this.baseUrl
+    });
+    
+    // Add response interceptor to handle 401 errors globally
+    this.axiosInstance.interceptors.response.use(
+      response => response,
+      error => {
+        // If we receive a 401 Unauthorized error, it means our session has expired
+        // or the token is invalid - we should force logout
+        if (error.response && error.response.status === 401) {
+          console.log('Session expired or invalid token checking...', error.config?.url);
+          
+          // Skip auth-related paths to prevent loops
+          const skipPaths = ['/auth/login', '/auth/logout', '/auth/register'];
+          const isAuthRequest = error.config && 
+                               error.config.url && 
+                               skipPaths.some(path => error.config.url.includes(path));
+          
+          // Only trigger logout for non-auth pages when user is actually logged in 
+          // We need to check if we're on login page to avoid infinite refreshes
+          const isLoginPage = window.location.pathname === '/login' || 
+                             document.querySelector('.login-container') !== null;
+          
+          // Don't trigger logout flow if we're already on the login page
+          if (!isAuthRequest && !isLoginPage) {
+            console.log('Valid session timeout detected, logging out...');
+            // Import needs to be here to avoid circular dependency
+            import('./AuthService').then(module => {
+              const authService = module.default;
+              // Clear local auth data without making another server request
+              authService.clearLocalAuth();
+              // Reload page once to show login screen
+              window.location.reload();
+            });
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+    
     // Try to load saved settings after initialization
     this.loadSavedSettings();
+    
+    // Configure to send credentials (cookies) with requests
+    this.axiosInstance.defaults.withCredentials = true;
+    
+    // Initialize with any stored auth token (for backward compatibility)
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        console.log('Found token in localStorage (legacy support)');
+        this.setHeader('Authorization', `Bearer ${token}`);
+      } else {
+        console.log('No stored auth token found - using HttpOnly cookies');
+      }
+    } catch (error) {
+      console.error('Error accessing localStorage in ApiService:', error);
+      // Continue without stored auth token
+    }
+  }
+  
+  // Set a header for all future requests
+  setHeader(key, value) {
+    this.axiosInstance.defaults.headers.common[key] = value;
+  }
+  
+  // Remove a header from all future requests
+  removeHeader(key) {
+    delete this.axiosInstance.defaults.headers.common[key];
+  }
+  
+  // Basic HTTP methods
+  async get(url, config = {}) {
+    return this.axiosInstance.get(url, config);
+  }
+  
+  async post(url, data = {}, config = {}) {
+    return this.axiosInstance.post(url, data, config);
+  }
+  
+  async put(url, data = {}, config = {}) {
+    return this.axiosInstance.put(url, data, config);
+  }
+  
+  async delete(url, config = {}) {
+    return this.axiosInstance.delete(url, config);
   }
   
   /**
@@ -75,7 +161,7 @@ class ApiService {
    */
   async proxyRequest(options) {
     try {
-      const response = await axios.post(`${this.baseUrl}/proxy`, options);
+      const response = await this.post('/proxy', options);
       
       // If the proxy returns a status that's not 2xx but within 400-599, we still get a success response
       // from axios, but we need to check the status in the response data and throw appropriate errors
@@ -125,7 +211,7 @@ class ApiService {
    */
   async checkHealth() {
     try {
-      const response = await axios.get(`${this.baseUrl}/health`);
+      const response = await this.get('/health');
       return response.data.status === 'ok';
     } catch (error) {
       console.error('API server health check failed:', error);
@@ -141,7 +227,7 @@ class ApiService {
    */
   async getRecommendations(type) {
     try {
-      const response = await axios.get(`${this.baseUrl}/recommendations/${type}`);
+      const response = await this.get(`/recommendations/${type}`);
       return response.data;
     } catch (error) {
       console.error(`Failed to get ${type} recommendations:`, error);
@@ -158,7 +244,7 @@ class ApiService {
    */
   async saveRecommendations(type, recommendations) {
     try {
-      await axios.post(`${this.baseUrl}/recommendations/${type}`, recommendations);
+      await this.post(`/recommendations/${type}`, recommendations);
       return true;
     } catch (error) {
       console.error(`Failed to save ${type} recommendations:`, error);
@@ -175,7 +261,7 @@ class ApiService {
    */
   async getPreferences(type, preference) {
     try {
-      const response = await axios.get(`${this.baseUrl}/preferences/${type}/${preference}`);
+      const response = await this.get(`/preferences/${type}/${preference}`);
       return response.data;
     } catch (error) {
       console.error(`Failed to get ${type} ${preference} preferences:`, error);
@@ -193,7 +279,7 @@ class ApiService {
    */
   async savePreferences(type, preference, items) {
     try {
-      await axios.post(`${this.baseUrl}/preferences/${type}/${preference}`, items);
+      await this.post(`/preferences/${type}/${preference}`, items);
       return true;
     } catch (error) {
       console.error(`Failed to save ${type} ${preference} preferences:`, error);
@@ -208,7 +294,7 @@ class ApiService {
    */
   async getSettings() {
     try {
-      const response = await axios.get(`${this.baseUrl}/settings`);
+      const response = await this.get('/settings');
       return response.data;
     } catch (error) {
       console.error('Failed to get settings:', error);
@@ -224,7 +310,7 @@ class ApiService {
    */
   async saveSettings(settings) {
     try {
-      await axios.post(`${this.baseUrl}/settings`, settings);
+      await this.post('/settings', settings);
       return true;
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -240,7 +326,7 @@ class ApiService {
    */
   async getWatchHistory(type) {
     try {
-      const response = await axios.get(`${this.baseUrl}/watch-history/${type}`);
+      const response = await this.get(`/watch-history/${type}`);
       return response.data || [];
     } catch (error) {
       console.error(`Failed to get ${type} watch history:`, error);
@@ -257,7 +343,7 @@ class ApiService {
    */
   async saveWatchHistory(type, items) {
     try {
-      await axios.post(`${this.baseUrl}/watch-history/${type}`, items);
+      await this.post(`/watch-history/${type}`, items);
       console.log(`Saved ${items.length} ${type} watch history items to server`);
       return true;
     } catch (error) {

@@ -1599,22 +1599,30 @@ export default {
     // Save recommendation count to server
     async saveRecommendationCount() {
       try {
+        console.log('Saving numRecommendations to server:', this.numRecommendations);
         await apiService.saveSettings({ numRecommendations: this.numRecommendations });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('numRecommendations', this.numRecommendations.toString());
       } catch (error) {
         console.error('Error saving recommendation count to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('numRecommendations', this.numRecommendations);
+        // Fallback to localStorage only
+        localStorage.setItem('numRecommendations', this.numRecommendations.toString());
       }
     },
     
     // Save columns count to server
     async saveColumnsCount() {
       try {
+        console.log('Saving columnsCount to server:', this.columnsCount);
         await apiService.saveSettings({ columnsCount: this.columnsCount });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('columnsCount', this.columnsCount.toString());
       } catch (error) {
         console.error('Error saving columns count to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('columnsCount', this.columnsCount);
+        // Fallback to localStorage only
+        localStorage.setItem('columnsCount', this.columnsCount.toString());
       }
     },
     
@@ -2320,13 +2328,17 @@ export default {
     // Update temperature and save to server
     async updateTemperature() {
       try {
+        console.log('Saving temperature to server:', this.temperature);
         await apiService.saveSettings({ aiTemperature: this.temperature.toString() });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('aiTemperature', this.temperature.toString());
         
         // Update in OpenAI service
         openAIService.temperature = this.temperature;
       } catch (error) {
         console.error('Error saving temperature to server:', error);
-        // Fallback to localStorage
+        // Fallback to localStorage only
         localStorage.setItem('aiTemperature', this.temperature.toString());
         openAIService.temperature = this.temperature;
       }
@@ -3079,8 +3091,9 @@ export default {
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
-        // Filter out content that is already in the library
-        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && !this.traktOnlyMode) {
+        // Filter out content that is already in the library, already recommended, or liked/disliked
+        // Always do this filtering regardless of mode to ensure clean recommendations
+        if (this.recommendations.length > 0) {
           this.recommendations = await this.filterExistingShows(this.recommendations);
         }
         
@@ -3172,9 +3185,9 @@ export default {
           );
         }
         
-        // Filter the additional recommendations
+        // Always filter the additional recommendations, including checking for partial matches
         let filteredAdditional = additionalRecommendations;
-        if (filteredAdditional.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode) {
+        if (filteredAdditional.length > 0) {
           filteredAdditional = await this.filterExistingShows(filteredAdditional);
         }
         
@@ -3209,7 +3222,8 @@ export default {
     },
     
     /**
-     * Filter out shows that already exist in the Sonarr library
+     * Filter out shows that already exist in the Sonarr/Radarr library or have been previously
+     * recommended, liked, or disliked
      * @param {Array} recommendations - The recommended shows
      * @returns {Promise<Array>} - Filtered recommendations
      */
@@ -3252,10 +3266,55 @@ export default {
         // Filter out recommendations that already exist in the library, liked list, disliked list, or previous recommendations
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
-          return !existingTitles.has(normalizedTitle) && 
-                 !likedRecommendationTitles.has(normalizedTitle) && 
-                 !dislikedRecommendationTitles.has(normalizedTitle) && 
-                 !previousRecommendationTitles.has(normalizedTitle);
+          
+          // Check for exact matches
+          if (existingTitles.has(normalizedTitle) || 
+              likedRecommendationTitles.has(normalizedTitle) || 
+              dislikedRecommendationTitles.has(normalizedTitle) || 
+              previousRecommendationTitles.has(normalizedTitle)) {
+            return false;
+          }
+          
+          // Check for close partial matches as well
+          // For library items
+          for (const libraryTitle of existingTitles) {
+            // Only check substantial titles (avoid false matches with very short titles)
+            if (normalizedTitle.length > 4 && libraryTitle.length > 4) {
+              // Check if one is a substring of the other (handles cases like "The Matrix" vs "Matrix")
+              if (normalizedTitle.includes(libraryTitle) || libraryTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          // For liked items
+          for (const likedTitle of likedRecommendationTitles) {
+            if (normalizedTitle.length > 4 && likedTitle.length > 4) {
+              if (normalizedTitle.includes(likedTitle) || likedTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          // For disliked items
+          for (const dislikedTitle of dislikedRecommendationTitles) {
+            if (normalizedTitle.length > 4 && dislikedTitle.length > 4) {
+              if (normalizedTitle.includes(dislikedTitle) || dislikedTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          // For previous recommendations
+          for (const prevTitle of previousRecommendationTitles) {
+            if (normalizedTitle.length > 4 && prevTitle.length > 4) {
+              if (normalizedTitle.includes(prevTitle) || prevTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          return true;
         });
         
         const contentType = this.isMovieMode ? 'movies' : 'shows';
@@ -3726,6 +3785,44 @@ export default {
         
         console.log('Loaded settings from server:', settings);
         
+        // Load number of recommendations setting
+        if (settings.numRecommendations !== undefined) {
+          const numRecs = parseInt(settings.numRecommendations, 10);
+          if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
+            this.numRecommendations = numRecs;
+            console.log('Setting numRecommendations from server:', this.numRecommendations);
+          }
+        }
+        
+        // Load columns count setting
+        if (settings.columnsCount !== undefined) {
+          const columns = parseInt(settings.columnsCount, 10);
+          if (!isNaN(columns) && columns >= 1 && columns <= 4) {
+            this.columnsCount = columns;
+            console.log('Setting columnsCount from server:', this.columnsCount);
+          }
+        }
+        
+        // Temperature setting
+        if (settings.aiTemperature !== undefined) {
+          const temp = parseFloat(settings.aiTemperature);
+          if (!isNaN(temp) && temp >= 0 && temp <= 1) {
+            this.temperature = temp;
+          }
+        }
+        
+        // Library sampling settings
+        if (settings.useSampledLibrary !== undefined) {
+          this.useSampledLibrary = settings.useSampledLibrary === true || settings.useSampledLibrary === 'true';
+        }
+        
+        if (settings.librarySampleSize !== undefined) {
+          const sampleSize = parseInt(settings.librarySampleSize, 10);
+          if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 50) {
+            this.sampleSize = sampleSize;
+          }
+        }
+        
         // Plex settings
         if (settings.plexHistoryMode) {
           this.plexHistoryMode = settings.plexHistoryMode;
@@ -3851,18 +3948,25 @@ export default {
     // Add window resize listener to update grid style when screen size changes
     window.addEventListener('resize', this.handleResize);
     
-    // Initialize temperature from localStorage or OpenAIService
-    const savedTemp = localStorage.getItem('aiTemperature');
-    if (savedTemp) {
-      this.temperature = parseFloat(savedTemp);
-      // Validate the value is within range
-      if (isNaN(this.temperature) || this.temperature < 0) {
-        this.temperature = 0;
-      } else if (this.temperature > 1) {
-        this.temperature = 1;
+    // We've already loaded temperature from server in loadSavedSettings
+    // Only check localStorage or service if the temperature is still at default (0.8)
+    if (this.temperature === 0.8) {
+      // Try to get from localStorage first
+      const savedTemp = localStorage.getItem('aiTemperature');
+      if (savedTemp) {
+        const temp = parseFloat(savedTemp);
+        // Validate the value is within range
+        if (!isNaN(temp) && temp >= 0 && temp <= 1) {
+          this.temperature = temp;
+          console.log('Setting temperature from localStorage:', this.temperature);
+        }
+      } else if (openAIService.temperature !== 0.8) {
+        // If still at default, try the service value
+        this.temperature = openAIService.temperature;
+        console.log('Setting temperature from OpenAIService:', this.temperature);
       }
-    } else if (openAIService.temperature) {
-      this.temperature = openAIService.temperature;
+    } else {
+      console.log('Using temperature from server settings:', this.temperature);
     }
     
     // Initialize library mode preferences from service
@@ -3890,27 +3994,31 @@ export default {
       });
     }
     
-    // Restore saved recommendation count from localStorage (if exists)
-    const savedCount = localStorage.getItem('numRecommendations');
-    if (savedCount) {
-      this.numRecommendations = parseInt(savedCount, 10);
-      // Validate the value is within range
-      if (isNaN(this.numRecommendations) || this.numRecommendations < 1) {
-        this.numRecommendations = 1;
-      } else if (this.numRecommendations > 50) {
-        this.numRecommendations = 50;
+    // We've already loaded the server settings in loadSavedSettings
+    // But check localStorage as a fallback if server settings didn't include these
+    if (this.numRecommendations === 5) { // 5 is the default - if it's still default, check localStorage
+      // Restore saved recommendation count from localStorage (if exists)
+      const savedCount = localStorage.getItem('numRecommendations');
+      if (savedCount) {
+        const numRecs = parseInt(savedCount, 10);
+        // Validate the value is within range
+        if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
+          this.numRecommendations = numRecs;
+          console.log('Setting numRecommendations from localStorage:', this.numRecommendations);
+        }
       }
     }
     
-    // Restore saved columns count from localStorage (if exists)
-    const savedColumnsCount = localStorage.getItem('columnsCount');
-    if (savedColumnsCount) {
-      this.columnsCount = parseInt(savedColumnsCount, 10);
-      // Validate the value is within range
-      if (isNaN(this.columnsCount) || this.columnsCount < 1) {
-        this.columnsCount = 2; // Default to 2 if invalid
-      } else if (this.columnsCount > 4) {
-        this.columnsCount = 4;
+    if (this.columnsCount === 2) { // 2 is the default - if it's still default, check localStorage
+      // Restore saved columns count from localStorage (if exists)
+      const savedColumnsCount = localStorage.getItem('columnsCount');
+      if (savedColumnsCount) {
+        const columns = parseInt(savedColumnsCount, 10);
+        // Validate the value is within range
+        if (!isNaN(columns) && columns >= 1 && columns <= 4) {
+          this.columnsCount = columns;
+          console.log('Setting columnsCount from localStorage:', this.columnsCount);
+        }
       }
     }
     

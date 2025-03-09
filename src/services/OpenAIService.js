@@ -465,7 +465,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       this.tvConversation = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists\n2. Recommend shows matching the emotional and stylistic feel of the user's library\n3. NO Markdown formatting\n4. NO extra text, introductions or conclusions\n5. Format recommendations EXACTLY as instructed\n6. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n7. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
+          content: "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",
@@ -484,6 +484,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       const recommendations = await this.getFormattedRecommendationsWithConversation(this.tvConversation);
       
       // Perform final verification to ensure no existing/liked content is returned
+      // This is a critical second check even though we instructed the AI to not include these
+      console.log("Verifying TV recommendations don't include library, liked, disliked, or previous items");
       return this.verifyRecommendations(
         recommendations,
         series,                   // Library items
@@ -706,7 +708,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       this.movieConversation = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists\n2. Recommend movies matching the mood, style, and emotional resonance of the user's library\n3. NO Markdown formatting\n4. NO extra text, introductions or conclusions\n5. Format recommendations EXACTLY as instructed\n6. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n7. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
+          content: "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
         },
         {
           role: "user",
@@ -729,6 +731,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       console.log("Raw recommendations from API:", recommendations);
       
       // Perform final verification to ensure no existing/liked content is returned
+      // This is a critical second check even though we instructed the AI to not include these
+      console.log("Verifying movie recommendations don't include library, liked, disliked, or previous items");
       const verifiedRecommendations = this.verifyRecommendations(
         recommendations,
         movies,                   // Library items
@@ -825,8 +829,19 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         content: userPrompt
       });
       
-      // Use the conversation-based method
-      return await this.getFormattedRecommendationsWithConversation(this.tvConversation);
+      // Get recommendations using the conversation-based method
+      const additionalRecs = await this.getFormattedRecommendationsWithConversation(this.tvConversation);
+      
+      // No series data is available for the verify method in this context, so we have to trust 
+      // that the initial filter via the user prompt is sufficient
+      // But we can still filter against the provided previousRecommendations
+      return this.verifyRecommendations(
+        additionalRecs,
+        [],                     // No library items in this context
+        [],                     // No liked items in this context
+        [],                     // No disliked items in this context
+        previousRecommendations // Previous recommendations to avoid
+      );
     } catch (error) {
       console.error('Error getting additional TV show recommendations:', error);
       throw error;
@@ -892,8 +907,19 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         content: userPrompt
       });
       
-      // Use the conversation-based method
-      return await this.getFormattedRecommendationsWithConversation(this.movieConversation);
+      // Get recommendations using the conversation-based method
+      const additionalRecs = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
+      
+      // No movies data is available for the verify method in this context, so we have to trust 
+      // that the initial filter via the user prompt is sufficient
+      // But we can still filter against the provided previousRecommendations
+      return this.verifyRecommendations(
+        additionalRecs,
+        [],                     // No library items in this context
+        [],                     // No liked items in this context
+        [],                     // No disliked items in this context
+        previousRecommendations // Previous recommendations to avoid
+      );
     } catch (error) {
       console.error('Error getting additional movie recommendations:', error);
       throw error;
@@ -1264,9 +1290,8 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       // Check for title contained within library items (handles substring matches)
       // This helps with variations like "The Matrix" vs "Matrix" or "Star Wars: A New Hope" vs "Star Wars"
       for (const libraryTitle of librarySet) {
-        if (normalizedTitle.includes(libraryTitle) || libraryTitle.includes(normalizedTitle)) {
-          // If the titles are very similar or one contains the other completely, filter it out
-          if (normalizedTitle.length > 4 && libraryTitle.length > 4) {
+        if (normalizedTitle.length > 4 && libraryTitle.length > 4) {
+          if (normalizedTitle.includes(libraryTitle) || libraryTitle.includes(normalizedTitle)) {
             return false;
           }
         }
@@ -1274,9 +1299,26 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       
       // Also check against liked items using the same approach
       for (const likedTitle of likedSet) {
-        if (normalizedTitle.includes(likedTitle) || likedTitle.includes(normalizedTitle)) {
-          // If the titles are very similar or one contains the other completely, filter it out
-          if (normalizedTitle.length > 4 && likedTitle.length > 4) {
+        if (normalizedTitle.length > 4 && likedTitle.length > 4) {
+          if (normalizedTitle.includes(likedTitle) || likedTitle.includes(normalizedTitle)) {
+            return false;
+          }
+        }
+      }
+      
+      // Also check against disliked items using the same approach
+      for (const dislikedTitle of dislikedSet) {
+        if (normalizedTitle.length > 4 && dislikedTitle.length > 4) {
+          if (normalizedTitle.includes(dislikedTitle) || dislikedTitle.includes(normalizedTitle)) {
+            return false;
+          }
+        }
+      }
+      
+      // Also check against previous recommendations using the same approach
+      for (const prevRecTitle of previousRecsSet) {
+        if (normalizedTitle.length > 4 && prevRecTitle.length > 4) {
+          if (normalizedTitle.includes(prevRecTitle) || prevRecTitle.includes(normalizedTitle)) {
             return false;
           }
         }

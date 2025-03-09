@@ -2328,13 +2328,17 @@ export default {
     // Update temperature and save to server
     async updateTemperature() {
       try {
+        console.log('Saving temperature to server:', this.temperature);
         await apiService.saveSettings({ aiTemperature: this.temperature.toString() });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('aiTemperature', this.temperature.toString());
         
         // Update in OpenAI service
         openAIService.temperature = this.temperature;
       } catch (error) {
         console.error('Error saving temperature to server:', error);
-        // Fallback to localStorage
+        // Fallback to localStorage only
         localStorage.setItem('aiTemperature', this.temperature.toString());
         openAIService.temperature = this.temperature;
       }
@@ -3944,18 +3948,25 @@ export default {
     // Add window resize listener to update grid style when screen size changes
     window.addEventListener('resize', this.handleResize);
     
-    // Initialize temperature from localStorage or OpenAIService
-    const savedTemp = localStorage.getItem('aiTemperature');
-    if (savedTemp) {
-      this.temperature = parseFloat(savedTemp);
-      // Validate the value is within range
-      if (isNaN(this.temperature) || this.temperature < 0) {
-        this.temperature = 0;
-      } else if (this.temperature > 1) {
-        this.temperature = 1;
+    // We've already loaded temperature from server in loadSavedSettings
+    // Only check localStorage or service if the temperature is still at default (0.8)
+    if (this.temperature === 0.8) {
+      // Try to get from localStorage first
+      const savedTemp = localStorage.getItem('aiTemperature');
+      if (savedTemp) {
+        const temp = parseFloat(savedTemp);
+        // Validate the value is within range
+        if (!isNaN(temp) && temp >= 0 && temp <= 1) {
+          this.temperature = temp;
+          console.log('Setting temperature from localStorage:', this.temperature);
+        }
+      } else if (openAIService.temperature !== 0.8) {
+        // If still at default, try the service value
+        this.temperature = openAIService.temperature;
+        console.log('Setting temperature from OpenAIService:', this.temperature);
       }
-    } else if (openAIService.temperature) {
-      this.temperature = openAIService.temperature;
+    } else {
+      console.log('Using temperature from server settings:', this.temperature);
     }
     
     // Initialize library mode preferences from service

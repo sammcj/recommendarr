@@ -1333,8 +1333,8 @@ export default {
     validateApiKey() {
       this.apiKeyError = null;
       
-      // Only validate if using OpenAI API
-      if (this.aiSettings.apiUrl && (this.aiSettings.apiUrl.includes('openai.com') || this.aiSettings.apiUrl.includes('openai'))) {
+      // Only validate if using the official OpenAI API
+      if (this.aiSettings.apiUrl && this.aiSettings.apiUrl.startsWith('https://api.openai')) {
         // Check if API key is empty or just whitespace
         if (!this.aiSettings.apiKey || this.aiSettings.apiKey.trim() === '') {
           this.apiKeyError = 'OpenAI API requires a valid API key';
@@ -1508,6 +1508,18 @@ export default {
       this.models = [];
       
       try {
+        // Check if it's an OpenAI official API (requires API key)
+        const isOpenAIApi = this.aiSettings.apiUrl.startsWith('https://api.openai');
+        
+        // Skip API key validation for non-OpenAI endpoints (local servers might not need keys)
+        if (isOpenAIApi && (!this.aiSettings.apiKey || this.aiSettings.apiKey.trim() === '')) {
+          this.fetchError = 'OpenAI API requires an API key';
+          this.isLoading = false;
+          return;
+        }
+        
+        // For non-OpenAI endpoints, we proceed even without an API key
+        
         // Configure OpenAI service temporarily with the current settings
         await openAIService.configure(
           this.aiSettings.apiKey,
@@ -1517,7 +1529,7 @@ export default {
           this.aiSettings.temperature
         );
         
-        // Use the service to fetch models (which uses the proxy)
+        // Use the service to fetch models (which uses direct or proxy request based on API URL)
         const modelsList = await openAIService.fetchModels();
         
         if (modelsList && modelsList.length > 0) {
@@ -1550,7 +1562,7 @@ export default {
         } else if (typeof error === 'string') {
           this.fetchError = error;
         } else {
-          this.fetchError = 'Failed to fetch models. Check your API key and URL.';
+          this.fetchError = 'Failed to fetch models. Check your API URL and credentials.';
         }
       } finally {
         this.isLoading = false;
@@ -1580,8 +1592,11 @@ export default {
           }
         }
         
-        // Validate API key for OpenAI
-        if (!this.validateApiKey()) {
+        // Check if it's the official OpenAI API, which requires an API key
+        const isOpenAIApi = this.aiSettings.apiUrl.startsWith('https://api.openai');
+        
+        // Validate API key only for OpenAI API
+        if (isOpenAIApi && !this.validateApiKey()) {
           this.saveSuccess = false;
           this.saveMessage = this.apiKeyError || 'Invalid API key';
           this.clearSaveMessage();

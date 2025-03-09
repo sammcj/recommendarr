@@ -89,13 +89,14 @@ class OpenAIService {
    * @returns {Promise<Array>} - List of available models
    */
   async fetchModels() {
-    if (!this.isConfigured()) {
-      throw new Error('OpenAI service is not configured. Please set apiKey.');
+    // Only validate basic configuration, not API key
+    if (!this.baseUrl) {
+      throw new Error('OpenAI service is not configured. Please set API URL.');
     }
     
-    // Validate API key - check if it's empty or whitespace
-    if (!this.apiKey || this.apiKey.trim() === '') {
-      throw new Error('API key cannot be empty. Please provide a valid API key.');
+    // Only validate API key when using official OpenAI API
+    if (this.baseUrl.startsWith('https://api.openai') && (!this.apiKey || this.apiKey.trim() === '')) {
+      throw new Error('API key cannot be empty when using OpenAI API. Please provide a valid API key.');
     }
     
     // Prepare headers based on the API endpoint
@@ -103,17 +104,26 @@ class OpenAIService {
     
     // Set appropriate authentication headers based on the API
     if (this.baseUrl === 'https://api.anthropic.com/v1') {
-      headers['x-api-key'] = this.apiKey;
-      headers['anthropic-dangerous-direct-browser-access'] = 'true';
-      headers['anthropic-version'] = '2023-06-01';
-      console.log('Using Anthropic headers for models request');
+      if (this.apiKey && this.apiKey.trim() !== '') {
+        headers['x-api-key'] = this.apiKey;
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+        headers['anthropic-version'] = '2023-06-01';
+        console.log('Using Anthropic headers for models request');
+      } else {
+        console.log('No API key provided for Anthropic API request');
+      }
     } else {
-      // Ensure the authorization header is properly formatted for OpenAI API
-      // Always include Bearer prefix and ensure no extra whitespace
-      // Try adjusting header case - some proxies might be case-sensitive
-      headers['authorization'] = `Bearer ${this.apiKey.trim()}`; // lowercase header key
-      console.log('Using OpenAI headers for models request');
-      console.log('Authorization header format:', headers['authorization'].substring(0, 15) + '...');
+      // Only add Authorization header if apiKey is present and not empty
+      if (this.apiKey && this.apiKey.trim() !== '') {
+        // Ensure the authorization header is properly formatted for OpenAI API
+        // Always include Bearer prefix and ensure no extra whitespace
+        // Try adjusting header case - some proxies might be case-sensitive
+        headers['authorization'] = `Bearer ${this.apiKey.trim()}`; // lowercase header key
+        console.log('Using OpenAI headers for models request');
+        console.log('Authorization header format:', headers['authorization'].substring(0, 15) + '...');
+      } else {
+        console.log('No API key provided, skipping Authorization header');
+      }
     }
     
     // Add content type header - lowercase for consistency
@@ -123,17 +133,33 @@ class OpenAIService {
     console.log(`Fetching models from: ${modelsUrl}`);
     
     try {
-      // Use direct axios call to fetch models
+      // Always try to use the proxy first, then fall back to direct request if proxy fails
       const axios = (await import('axios')).default;
-      const response = await axios({
-        url: modelsUrl,
-        method: 'GET',
-        headers: headers
-      });
+      const apiService = (await import('./ApiService')).default;
+      
+      let response;
+      
+      try {
+        // Try using the proxy service first for all requests
+        console.log('Attempting to use proxy service for models request');
+        response = await apiService.proxyRequest({
+          url: modelsUrl,
+          method: 'GET',
+          headers: headers
+        });
+      } catch (proxyError) {
+        // If proxy fails, fallback to direct request
+        console.log('Proxy request failed, falling back to direct request:', proxyError.message);
+        response = await axios({
+          url: modelsUrl,
+          method: 'GET',
+          headers: headers
+        });
+      }
       
       console.log(`Models response status: ${response.status}`);
       
-      // Check if the direct request was successful
+      // Check if the request was successful
       if (response && response.status >= 200 && response.status < 300 && response.data) {
         if (response.data.data) {
           console.log(`Successfully retrieved ${response.data.data.length} models`);
@@ -219,16 +245,16 @@ class OpenAIService {
     // For a properly configured service, we need:
     // 1. A base URL for the API endpoint
     // 2. A selected model
-    // 3. For OpenAI API, we need an API key that's not empty
+    // 3. For official OpenAI API, we need an API key that's not empty
     
     const hasBasicConfig = this.baseUrl !== '' && this.model !== '';
     
-    // If it's OpenAI's API URL, we must have an API key
-    if (this.baseUrl === 'https://api.openai.com/v1' || this.baseUrl.includes('openai')) {
+    // If it's specifically the official OpenAI API URL, we must have an API key
+    if (this.baseUrl.startsWith('https://api.openai')) {
       return hasBasicConfig && this.apiKey && this.apiKey.trim() !== '';
     }
     
-    // For other services, the API key might be optional
+    // For other services (including self-hosted/local models), the API key might be optional
     return hasBasicConfig;
   }
 
@@ -887,17 +913,21 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       
       // Add authentication header based on the API endpoint
       if (this.baseUrl === 'https://api.anthropic.com/v1') {
-        headers['x-api-key'] = this.apiKey;
-        headers['anthropic-dangerous-direct-browser-access'] = 'true';
-        headers['anthropic-version'] = '2023-06-01';
-        console.log('Using Anthropic headers configuration');
-      } else if (this.apiKey) { // Only add Authorization header if apiKey is present
+        if (this.apiKey && this.apiKey.trim() !== '') {
+          headers['x-api-key'] = this.apiKey;
+          headers['anthropic-dangerous-direct-browser-access'] = 'true';
+          headers['anthropic-version'] = '2023-06-01';
+          console.log('Using Anthropic headers configuration');
+        } else {
+          console.warn('No API key provided for Anthropic API request');
+        }
+      } else if (this.apiKey && this.apiKey.trim() !== '') { // Only add Authorization header if apiKey is present and not empty
         headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
         console.log('Using OpenAI Authorization header (Bearer token)');
         console.log('Authorization header format:', headers['Authorization'].substring(0, 15) + '...');
         console.log('API URL:', this.apiUrl);
       } else {
-        console.warn('No API key provided for authentication');
+        console.warn('No API key provided, skipping Authorization header');
       }
       
       console.log("Is API configured:", this.isConfigured());
@@ -906,23 +936,40 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       console.log("Last message role:", conversation[conversation.length-1]?.role);
       
       headers['Content-Type'] = 'application/json';
-      console.log(`Making direct API request to: ${this.apiUrl} with model: ${this.model}`);
-
-      // Make the API request directly without proxy
+      
+      // Prepare the request data
+      const requestData = {
+        model: this.model,
+        messages: conversation,
+        temperature: this.temperature,
+        max_tokens: this.maxTokens,
+        presence_penalty: 0.1,  // Slightly discourage repetition
+        frequency_penalty: 0.1  // Slightly encourage diversity
+      };
+      
+      let response;
       const axios = (await import('axios')).default;
-      const response = await axios({
-        url: this.apiUrl,
-        method: 'POST',
-        data: {
-          model: this.model,
-          messages: conversation,
-          temperature: this.temperature,
-          max_tokens: this.maxTokens,
-          presence_penalty: 0.1,  // Slightly discourage repetition
-          frequency_penalty: 0.1  // Slightly encourage diversity
-        },
-        headers
-      });
+      
+      // Try using the proxy first, then fall back to direct request if it fails
+      try {
+        console.log(`Attempting to proxy request to: ${this.apiUrl} with model: ${this.model}`);
+        // Try the proxy service first
+        response = await apiService.proxyRequest({
+          url: this.apiUrl,
+          method: 'POST',
+          data: requestData,
+          headers
+        });
+      } catch (proxyError) {
+        console.log(`Proxy request failed, falling back to direct request: ${proxyError.message}`);
+        // If the proxy fails, make a direct API request
+        response = await axios({
+          url: this.apiUrl,
+          method: 'POST',
+          data: requestData,
+          headers
+        });
+      }
 
       // Check if response contains expected data structure
       // Direct axios response has data directly, not in data.data
@@ -959,19 +1006,26 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    */
   async getFormattedRecommendations(messages) {
     try {
-      // Import axios dynamically
+      // Import dependencies dynamically
       const axios = (await import('axios')).default;
+      const apiService = (await import('./ApiService')).default;
       
       // Define headers based on the API endpoint
       const headers = {};
       
       // Add authentication header based on the API endpoint
       if (this.baseUrl === 'https://api.anthropic.com/v1') {
-        headers['x-api-key'] = this.apiKey;
-        headers['anthropic-dangerous-direct-browser-access'] = 'true';
-        headers['anthropic-version'] = '2023-06-01';
-      } else if (this.apiKey) { // Only add Authorization header if apiKey is present
+        if (this.apiKey && this.apiKey.trim() !== '') {
+          headers['x-api-key'] = this.apiKey;
+          headers['anthropic-dangerous-direct-browser-access'] = 'true';
+          headers['anthropic-version'] = '2023-06-01';
+        } else {
+          console.warn('No API key provided for Anthropic API request');
+        }
+      } else if (this.apiKey && this.apiKey.trim() !== '') { // Only add Authorization header if apiKey is present and not empty
         headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+      } else {
+        console.warn('No API key provided, skipping Authorization header');
       }
       
       headers['Content-Type'] = 'application/json';
@@ -991,20 +1045,34 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         // We need to split into chunks
         response = await this.sendChunkedMessages(systemMessage, userMessage, headers);
       } else {
-        // We can send in a single request directly without proxy
-        response = await axios({
-          url: this.apiUrl,
-          method: 'POST',
-          data: {
-            model: this.model,
-            messages: messages,
-            temperature: this.temperature,
-            max_tokens: this.maxTokens,
-            presence_penalty: 0.1,  // Slightly discourage repetition
-            frequency_penalty: 0.1  // Slightly encourage diversity
-          },
-          headers
-        });
+        // We can send in a single request
+        const requestData = {
+          model: this.model,
+          messages: messages,
+          temperature: this.temperature,
+          max_tokens: this.maxTokens,
+          presence_penalty: 0.1,  // Slightly discourage repetition
+          frequency_penalty: 0.1  // Slightly encourage diversity
+        };
+        
+        // Try proxy first, then fall back to direct request
+        try {
+          console.log(`Attempting to proxy request to: ${this.apiUrl}`);
+          response = await apiService.proxyRequest({
+            url: this.apiUrl,
+            method: 'POST',
+            data: requestData,
+            headers
+          });
+        } catch (proxyError) {
+          console.log(`Proxy request failed, falling back to direct request: ${proxyError.message}`);
+          response = await axios({
+            url: this.apiUrl,
+            method: 'POST',
+            data: requestData,
+            headers
+          });
+        }
       }
 
       // Check if response contains expected data structure
@@ -1015,7 +1083,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       
       if (!response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
         console.error('Unexpected API response format:', response.data);
-        throw new Error('The AI API returned an unexpected response format. Please check your API key and endpoint configuration.');
+        throw new Error('The API returned an unexpected response format. Please check your API key and endpoint configuration.');
       }
       
       // Parse the recommendations from the response
@@ -1037,8 +1105,9 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @returns {Promise<Object>} - The API response
    */
   async sendChunkedMessages(systemMessage, userMessage, headers) {
-    // Import axios dynamically
+    // Import dependencies dynamically
     const axios = (await import('axios')).default;
+    const apiService = (await import('./ApiService')).default;
     
     // Chunk size in characters (roughly 3000 tokens)
     const CHUNK_SIZE = 12000;
@@ -1062,18 +1131,31 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         content: `Part ${i+1}/${chunks.length} of my request: ${chunks[i]}\n\nThis is part of a multi-part message. Please wait for all parts before responding.`
       });
       
-      // Send intermediate chunks without expecting a full response directly
-      await axios({
-        url: this.apiUrl,
-        method: 'POST',
-        data: {
-          model: this.model,
-          messages: conversationMessages,
-          temperature: this.temperature,
-          max_tokens: 50,  // Small token limit since we just need acknowledgment
-        },
-        headers
-      });
+      const requestData = {
+        model: this.model,
+        messages: conversationMessages,
+        temperature: this.temperature,
+        max_tokens: 50,  // Small token limit since we just need acknowledgment
+      };
+      
+      // Try to send via proxy first, then fall back to direct request
+      try {
+        console.log(`Attempting to proxy chunk ${i+1}/${chunks.length} to: ${this.apiUrl}`);
+        await apiService.proxyRequest({
+          url: this.apiUrl,
+          method: 'POST',
+          data: requestData,
+          headers
+        });
+      } catch (proxyError) {
+        console.log(`Proxy request for chunk ${i+1}/${chunks.length} failed, using direct request: ${proxyError.message}`);
+        await axios({
+          url: this.apiUrl,
+          method: 'POST',
+          data: requestData,
+          headers
+        });
+      }
       
       // Add expected assistant acknowledgment to maintain conversation context
       conversationMessages.push({
@@ -1088,20 +1170,33 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       content: `Final part ${chunks.length}/${chunks.length}: ${chunks[chunks.length - 1]}\n\nThat's the complete request. Please provide recommendations based on all parts of my message.`
     });
     
-    // Get full response from the final message directly without proxy
-    return await axios({
-      url: this.apiUrl,
-      method: 'POST',
-      data: {
-        model: this.model,
-        messages: conversationMessages,
-        temperature: this.temperature,
-        max_tokens: this.maxTokens,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1
-      },
-      headers
-    });
+    const finalRequestData = {
+      model: this.model,
+      messages: conversationMessages,
+      temperature: this.temperature,
+      max_tokens: this.maxTokens,
+      presence_penalty: 0.1,
+      frequency_penalty: 0.1
+    };
+    
+    // Send final chunk using proxy first, then fall back to direct request
+    try {
+      console.log(`Attempting to proxy final chunk to: ${this.apiUrl}`);
+      return await apiService.proxyRequest({
+        url: this.apiUrl,
+        method: 'POST',
+        data: finalRequestData,
+        headers
+      });
+    } catch (proxyError) {
+      console.log(`Proxy request for final chunk failed, using direct request: ${proxyError.message}`);
+      return await axios({
+        url: this.apiUrl,
+        method: 'POST',
+        data: finalRequestData,
+        headers
+      });
+    }
   }
 
   /**

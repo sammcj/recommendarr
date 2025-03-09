@@ -881,7 +881,15 @@
         </div>
         
         <div class="modal-body">
-          <div class="modal-section">
+          <div v-if="currentSeries.showSeasonWarning" class="modal-warning">
+            <div class="warning-icon">⚠️</div>
+            <div class="warning-text">
+              No season information was found for this series. This may be due to a temporary Sonarr API issue.
+              If you proceed, all seasons of this show will be added and monitored. You can proceed or cancel and try again later.
+            </div>
+          </div>
+          
+          <div class="modal-section" v-if="!currentSeries.showSeasonWarning && currentSeries.seasons.length > 0">
             <h4>Select seasons to monitor:</h4>
             
             <div class="select-all">
@@ -960,9 +968,9 @@
           <button 
             class="confirm-button" 
             @click="confirmAddSeries"
-            :disabled="!selectedSeasons.length || loadingFolders"
+            :disabled="(!selectedSeasons.length && !currentSeries.showSeasonWarning) || loadingFolders"
           >
-            Add to Sonarr
+            {{ currentSeries.showSeasonWarning ? 'Add All Seasons to Sonarr' : 'Add to Sonarr' }}
           </button>
         </div>
       </div>
@@ -3377,15 +3385,34 @@ export default {
         const seriesInfo = await sonarrService.lookupSeries(title);
         
         // Set current series and seasons for modal
+        let seasons = [];
+        let showSeasonWarning = false;
+        if (seriesInfo.seasons && seriesInfo.seasons.length > 0) {
+          seasons = seriesInfo.seasons
+            .filter(season => season.seasonNumber > 0) // Filter out specials (season 0)
+            .sort((a, b) => a.seasonNumber - b.seasonNumber); // Sort by season number
+        } else {
+          // If no seasons are returned, show a warning but don't create fake seasons
+          showSeasonWarning = true;
+          // Use any seasons information from tvdbId if present
+          if (seriesInfo.tvdbId) {
+            console.log('No season information available for series:', title);
+          }
+        }
+        
         this.currentSeries = {
           title: title,
-          seasons: seriesInfo.seasons
-            .filter(season => season.seasonNumber > 0) // Filter out specials (season 0)
-            .sort((a, b) => a.seasonNumber - b.seasonNumber) // Sort by season number
+          seasons: seasons,
+          showSeasonWarning: showSeasonWarning
         };
         
-        // Set all seasons selected by default
-        this.selectedSeasons = this.currentSeries.seasons.map(s => s.seasonNumber);
+        // If seasons are available, set only season 1 selected by default
+        if (this.currentSeries.seasons.length > 0) {
+          const season1 = this.currentSeries.seasons.find(s => s.seasonNumber === 1);
+          this.selectedSeasons = season1 ? [1] : [this.currentSeries.seasons[0].seasonNumber];
+        } else {
+          this.selectedSeasons = [];
+        }
         
         // Fetch root folders and quality profiles
         await this.fetchFolderAndQualityOptions();
@@ -3453,7 +3480,7 @@ export default {
      * Request a series to be added to Sonarr with selected seasons and options
      */
     async confirmAddSeries() {
-      if (!this.currentSeries || !this.selectedSeasons.length) {
+      if (!this.currentSeries || (!this.selectedSeasons.length && !this.currentSeries.showSeasonWarning)) {
         return;
       }
       
@@ -3464,20 +3491,40 @@ export default {
         // Close modal
         this.showSeasonModal = false;
         
-        // Add series to Sonarr with selected seasons and options
-        const response = await sonarrService.addSeries(
-          this.currentSeries.title, 
-          this.selectedSeasons,
-          this.selectedQualityProfile,
-          this.selectedRootFolder
-        );
-        
-        // Store success response
-        this.requestStatus[this.currentSeries.title] = {
-          success: true,
-          message: 'Successfully added to Sonarr',
-          details: response
-        };
+        // If no season info is available (showSeasonWarning is true), 
+        // request the series with null selectedSeasons to indicate all seasons
+        if (this.currentSeries.showSeasonWarning) {
+          // When there was no season info available, pass null for selectedSeasons
+          // to let Sonarr handle all seasons
+          const response = await sonarrService.addSeries(
+            this.currentSeries.title,
+            null, // Null indicates all seasons should be monitored
+            this.selectedQualityProfile,
+            this.selectedRootFolder
+          );
+          
+          // Store success response
+          this.requestStatus[this.currentSeries.title] = {
+            success: true,
+            message: 'Successfully added to Sonarr with all seasons monitored',
+            details: response
+          };
+        } else {
+          // Normal flow - add series with explicitly selected seasons
+          const response = await sonarrService.addSeries(
+            this.currentSeries.title, 
+            this.selectedSeasons,
+            this.selectedQualityProfile,
+            this.selectedRootFolder
+          );
+          
+          // Store success response
+          this.requestStatus[this.currentSeries.title] = {
+            success: true,
+            message: 'Successfully added to Sonarr',
+            details: response
+          };
+        }
         
       } catch (error) {
         console.error(`Error adding series "${this.currentSeries.title}" to Sonarr:`, error);
@@ -5658,6 +5705,29 @@ select:focus {
   margin-bottom: 0;
   padding-bottom: 0;
   border-bottom: none;
+}
+
+.modal-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 15px;
+  margin-bottom: 15px;
+  background-color: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-left: 4px solid #FFC107;
+  border-radius: 6px;
+}
+
+.warning-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.warning-text {
+  font-size: 14px;
+  color: var(--text-color);
+  line-height: 1.4;
 }
 
 .select-all {

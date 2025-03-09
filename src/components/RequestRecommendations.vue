@@ -3079,8 +3079,9 @@ export default {
           loadingMessage.textContent = `Analyzing your ${source} and generating ${genreString} recommendations...`;
         }
         
-        // Filter out content that is already in the library
-        if (this.recommendations.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && !this.traktOnlyMode) {
+        // Filter out content that is already in the library, already recommended, or liked/disliked
+        // Always do this filtering regardless of mode to ensure clean recommendations
+        if (this.recommendations.length > 0) {
           this.recommendations = await this.filterExistingShows(this.recommendations);
         }
         
@@ -3172,9 +3173,9 @@ export default {
           );
         }
         
-        // Filter the additional recommendations
+        // Always filter the additional recommendations, including checking for partial matches
         let filteredAdditional = additionalRecommendations;
-        if (filteredAdditional.length > 0 && !this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode) {
+        if (filteredAdditional.length > 0) {
           filteredAdditional = await this.filterExistingShows(filteredAdditional);
         }
         
@@ -3209,7 +3210,8 @@ export default {
     },
     
     /**
-     * Filter out shows that already exist in the Sonarr library
+     * Filter out shows that already exist in the Sonarr/Radarr library or have been previously
+     * recommended, liked, or disliked
      * @param {Array} recommendations - The recommended shows
      * @returns {Promise<Array>} - Filtered recommendations
      */
@@ -3252,10 +3254,55 @@ export default {
         // Filter out recommendations that already exist in the library, liked list, disliked list, or previous recommendations
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
-          return !existingTitles.has(normalizedTitle) && 
-                 !likedRecommendationTitles.has(normalizedTitle) && 
-                 !dislikedRecommendationTitles.has(normalizedTitle) && 
-                 !previousRecommendationTitles.has(normalizedTitle);
+          
+          // Check for exact matches
+          if (existingTitles.has(normalizedTitle) || 
+              likedRecommendationTitles.has(normalizedTitle) || 
+              dislikedRecommendationTitles.has(normalizedTitle) || 
+              previousRecommendationTitles.has(normalizedTitle)) {
+            return false;
+          }
+          
+          // Check for close partial matches as well
+          // For library items
+          for (const libraryTitle of existingTitles) {
+            // Only check substantial titles (avoid false matches with very short titles)
+            if (normalizedTitle.length > 4 && libraryTitle.length > 4) {
+              // Check if one is a substring of the other (handles cases like "The Matrix" vs "Matrix")
+              if (normalizedTitle.includes(libraryTitle) || libraryTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          // For liked items
+          for (const likedTitle of likedRecommendationTitles) {
+            if (normalizedTitle.length > 4 && likedTitle.length > 4) {
+              if (normalizedTitle.includes(likedTitle) || likedTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          // For disliked items
+          for (const dislikedTitle of dislikedRecommendationTitles) {
+            if (normalizedTitle.length > 4 && dislikedTitle.length > 4) {
+              if (normalizedTitle.includes(dislikedTitle) || dislikedTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          // For previous recommendations
+          for (const prevTitle of previousRecommendationTitles) {
+            if (normalizedTitle.length > 4 && prevTitle.length > 4) {
+              if (normalizedTitle.includes(prevTitle) || prevTitle.includes(normalizedTitle)) {
+                return false;
+              }
+            }
+          }
+          
+          return true;
         });
         
         const contentType = this.isMovieMode ? 'movies' : 'shows';

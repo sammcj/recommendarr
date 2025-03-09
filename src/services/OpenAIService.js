@@ -36,20 +36,43 @@ class OpenAIService {
   
   /**
    * Load credentials and settings from server-side storage
+   * @param {number} retries - Number of retries if loading fails (default: 1)
+   * @param {number} delay - Delay between retries in ms (default: 1000)
+   * @returns {Promise<boolean>} - Whether credentials were successfully loaded
    */
-  async loadCredentials() {
-    const credentials = await credentialsService.getCredentials('openai');
-    if (credentials) {
-      this.apiKey = credentials.apiKey || '';
-      if (credentials.apiUrl) this.baseUrl = credentials.apiUrl;
-      if (credentials.model) this.model = credentials.model;
-      if (credentials.maxTokens) this.maxTokens = parseInt(credentials.maxTokens);
-      if (credentials.temperature) this.temperature = parseFloat(credentials.temperature);
-      if (credentials.useSampledLibrary !== undefined) this.useSampledLibrary = credentials.useSampledLibrary === true;
-      if (credentials.sampleSize) this.sampleSize = parseInt(credentials.sampleSize);
+  async loadCredentials(retries = 1, delay = 1000) {
+    try {
+      console.log('Loading OpenAI credentials from server...');
+      const credentials = await credentialsService.getCredentials('openai');
       
-      // Update API URL if baseUrl changed
-      this.apiUrl = this.getCompletionsUrl();
+      if (credentials) {
+        console.log('Received OpenAI credentials from server');
+        this.apiKey = credentials.apiKey || '';
+        if (credentials.apiUrl) this.baseUrl = credentials.apiUrl;
+        if (credentials.model) this.model = credentials.model;
+        if (credentials.maxTokens) this.maxTokens = parseInt(credentials.maxTokens);
+        if (credentials.temperature) this.temperature = parseFloat(credentials.temperature);
+        if (credentials.useSampledLibrary !== undefined) this.useSampledLibrary = credentials.useSampledLibrary === true;
+        if (credentials.sampleSize) this.sampleSize = parseInt(credentials.sampleSize);
+        
+        // Update API URL if baseUrl changed
+        this.apiUrl = this.getCompletionsUrl();
+        return true;
+      } else {
+        console.log('No OpenAI credentials found on server');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error loading OpenAI credentials:', error);
+      
+      // Retry with delay if we have retries left
+      if (retries > 0) {
+        console.log(`Retrying OpenAI credentials load in ${delay}ms (${retries} ${retries === 1 ? 'retry' : 'retries'} left)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.loadCredentials(retries - 1, delay);
+      }
+      
+      return false;
     }
   }
   

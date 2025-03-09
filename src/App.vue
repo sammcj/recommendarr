@@ -519,31 +519,58 @@ export default {
     },
     
     // Fetch AI models to prepare for recommendations
-    async fetchAIModels() {
+    async fetchAIModels(retry = true) {
       try {
         console.log('Attempting to fetch AI models...');
         // Check if OpenAI service is configured first
         if (openAIService.isConfigured()) {
           console.log('OpenAI service is configured, fetching models...');
-          const models = await openAIService.fetchModels();
-          console.log(`Successfully fetched ${models.length} AI models`);
+          try {
+            const models = await openAIService.fetchModels();
+            console.log(`Successfully fetched ${models.length} AI models`);
+            return true; // Success
+          } catch (fetchError) {
+            console.error('Error during initial fetch of AI models:', fetchError);
+            if (retry) {
+              console.log('Will retry fetching models after a short delay...');
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              return this.fetchAIModels(false); // Retry once
+            }
+            throw fetchError; // Re-throw if already retried
+          }
         } else {
           console.log('OpenAI service is not configured yet');
-          // First try to load credentials
-          await openAIService.loadCredentials();
+          // First try to load credentials with 2 retries
+          const credentialsLoaded = await openAIService.loadCredentials(2, 1500);
+          console.log('Credentials load result:', credentialsLoaded);
           
           // Check again after loading credentials
           if (openAIService.isConfigured()) {
             console.log('OpenAI service is now configured after loading credentials, fetching models...');
-            const models = await openAIService.fetchModels();
-            console.log(`Successfully fetched ${models.length} AI models`);
+            try {
+              const models = await openAIService.fetchModels();
+              console.log(`Successfully fetched ${models.length} AI models`);
+              return true; // Success
+            } catch (fetchError) {
+              console.error('Error during fetch after loading credentials:', fetchError);
+              if (retry) {
+                console.log('Will retry fetching models after a short delay...');
+                // Wait a bit before retrying
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                return this.fetchAIModels(false); // Retry once
+              }
+              throw fetchError; // Re-throw if already retried
+            }
           } else {
             console.log('OpenAI service still not configured after loading credentials');
           }
         }
+        return false; // Not configured
       } catch (error) {
-        console.error('Error fetching AI models:', error);
+        console.error('Error in fetchAIModels:', error);
         // Don't show error to user as this is a background task
+        return false;
       }
     },
     
@@ -557,12 +584,20 @@ export default {
       console.log('Auth header set after login');
       
       try {
-        // Try to fetch AI models after login to check if OpenAI is configured
-        this.fetchAIModels();
+        // Start parallel tasks for efficiency
+        const tasks = [];
         
-        // Load data after authentication
+        // Try to fetch AI models after login to check if OpenAI is configured
+        // This is important enough to await separately
+        console.log('Starting AI model fetch process...');
+        tasks.push(this.fetchAIModels());
+        
+        // Load stored credentials and other data
         console.log('Loading data after authentication...');
-        await this.checkStoredCredentials();
+        tasks.push(this.checkStoredCredentials());
+        
+        // Wait for both tasks to complete
+        await Promise.all(tasks);
         
         // Load settings from localStorage
         this.loadLocalSettings();

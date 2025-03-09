@@ -9,9 +9,16 @@
     <!-- Regular app content if user is authenticated and it's not a callback URL -->
     <template v-else>
       <header class="app-header">
-        <img alt="App logo" src="./assets/logo.png" class="logo">
-        <h1>Recommendarr</h1>
-        <button class="logout-button" @click="handleLogout">Logout</button>
+        <div class="header-content">
+          <div class="header-brand">
+            <img alt="App logo" src="./assets/logo.png" class="logo">
+            <h1>Recommendarr</h1>
+          </div>
+          <button class="logout-button" @click="handleLogout">
+            <span class="logout-icon">🚪</span>
+            <span class="logout-text">Logout</span>
+          </button>
+        </div>
       </header>
       
       <main>
@@ -1950,30 +1957,51 @@ body {
 }
 
 .app-header {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  position: relative;
+  background-color: var(--main-bg-color);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.header-content {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  padding: 20px 0 0 0;
-  position: relative;
+  justify-content: space-between;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
 }
 
 @media (min-width: 480px) {
   .app-header {
-    margin-bottom: 30px;
+    margin-bottom: 0;
+    padding: 15px 20px;
   }
 }
 
 .logo {
-  height: 40px;
+  height: 32px;
   margin-right: 10px;
   transition: filter var(--transition-speed);
 }
 
 @media (min-width: 480px) {
   .logo {
-    height: 60px;
+    height: 40px;
+    margin-right: 12px;
+  }
+}
+
+@media (min-width: 768px) {
+  .logo {
+    height: 48px;
     margin-right: 15px;
   }
 }
@@ -1984,7 +2012,7 @@ body.dark-theme .logo {
 
 h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   color: var(--header-color);
   transition: color var(--transition-speed);
   font-weight: 600;
@@ -1992,7 +2020,13 @@ h1 {
 
 @media (min-width: 480px) {
   h1 {
-    font-size: 28px;
+    font-size: 22px;
+  }
+}
+
+@media (min-width: 768px) {
+  h1 {
+    font-size: 26px;
   }
 }
 
@@ -2017,23 +2051,42 @@ main {
 }
 
 .logout-button {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background-color: var(--button-secondary-bg, #f5f5f5);
   color: var(--button-secondary-text, #333);
   border: 1px solid var(--border-color, #ddd);
   border-radius: 4px;
-  padding: 8px 15px;
+  padding: 8px 10px;
   font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
+}
+
+.logout-icon {
+  font-size: 16px;
+}
+
+.logout-text {
+  display: none;
+}
+
+@media (min-width: 480px) {
+  .logout-button {
+    padding: 8px 12px;
+  }
+  
+  .logout-text {
+    display: inline;
+  }
 }
 
 .logout-button:hover {
   background-color: #d32f2f;
   color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .choose-service {

@@ -664,11 +664,13 @@ input[type="number"] {
 }
 
 .redirect-info {
-  background-color: #f8f9fa;
+  background-color: var(--card-bg-color);
   border-left: 3px solid #2563eb;
   padding: 10px 15px;
   margin-bottom: 20px;
   border-radius: 4px;
+  color: var(--text-color);
+  transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
 .redirect-url {

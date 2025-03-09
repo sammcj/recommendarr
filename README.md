@@ -30,23 +30,23 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ## 🚀 Quick Start
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: Docker Hub Image (Recommended)
 
 The easiest way to run Recommendarr with all features is to use Docker Compose:
 
 ```bash
-# Clone the repository (which includes the docker-compose.yml file)
-git clone https://github.com/fingerthief/recommendarr.git
-cd recommendarr
+# Pull the image
+docker pull tannermiddleton/recommendarr:latest
 
-# Start the application
-docker-compose up -d --build
+# Run the container (basic)
+# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
+docker run -d \
+  --name recommendarr \
+  -p 3030:3030 \
+  -p 3050:3050 \
+  -v $(pwd)/server/data:/app/server/data \
+  tannermiddleton/recommendarr:latest
 ```
-
-This will:
-1. Build the combined container with both frontend and API server
-2. Configure proper networking and persistence
-3. Start the unified service
 
 Then visit `http://localhost:${PORT:-3000}` in your browser to access the application.
 
@@ -60,7 +60,7 @@ The unified container runs both the frontend and API server on a single port (de
 
 **Note:** If accessing from outside your network, remember to forward your application port on your router/firewall.
 
-### Option 2: Docker (Manual Run)
+### Option 2: Docker Compose
 
 You can also run the unified container manually:
 
@@ -103,7 +103,7 @@ npm install
 
 3. Run the development server:
 ```bash
-npm run serve
+npm run dev
 ```
 
 4. Visit `http://localhost:3000` (or your custom port if configured) in your browser.

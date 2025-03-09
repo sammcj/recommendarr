@@ -1599,22 +1599,30 @@ export default {
     // Save recommendation count to server
     async saveRecommendationCount() {
       try {
+        console.log('Saving numRecommendations to server:', this.numRecommendations);
         await apiService.saveSettings({ numRecommendations: this.numRecommendations });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('numRecommendations', this.numRecommendations.toString());
       } catch (error) {
         console.error('Error saving recommendation count to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('numRecommendations', this.numRecommendations);
+        // Fallback to localStorage only
+        localStorage.setItem('numRecommendations', this.numRecommendations.toString());
       }
     },
     
     // Save columns count to server
     async saveColumnsCount() {
       try {
+        console.log('Saving columnsCount to server:', this.columnsCount);
         await apiService.saveSettings({ columnsCount: this.columnsCount });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('columnsCount', this.columnsCount.toString());
       } catch (error) {
         console.error('Error saving columns count to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('columnsCount', this.columnsCount);
+        // Fallback to localStorage only
+        localStorage.setItem('columnsCount', this.columnsCount.toString());
       }
     },
     
@@ -3773,6 +3781,44 @@ export default {
         
         console.log('Loaded settings from server:', settings);
         
+        // Load number of recommendations setting
+        if (settings.numRecommendations !== undefined) {
+          const numRecs = parseInt(settings.numRecommendations, 10);
+          if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
+            this.numRecommendations = numRecs;
+            console.log('Setting numRecommendations from server:', this.numRecommendations);
+          }
+        }
+        
+        // Load columns count setting
+        if (settings.columnsCount !== undefined) {
+          const columns = parseInt(settings.columnsCount, 10);
+          if (!isNaN(columns) && columns >= 1 && columns <= 4) {
+            this.columnsCount = columns;
+            console.log('Setting columnsCount from server:', this.columnsCount);
+          }
+        }
+        
+        // Temperature setting
+        if (settings.aiTemperature !== undefined) {
+          const temp = parseFloat(settings.aiTemperature);
+          if (!isNaN(temp) && temp >= 0 && temp <= 1) {
+            this.temperature = temp;
+          }
+        }
+        
+        // Library sampling settings
+        if (settings.useSampledLibrary !== undefined) {
+          this.useSampledLibrary = settings.useSampledLibrary === true || settings.useSampledLibrary === 'true';
+        }
+        
+        if (settings.librarySampleSize !== undefined) {
+          const sampleSize = parseInt(settings.librarySampleSize, 10);
+          if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 50) {
+            this.sampleSize = sampleSize;
+          }
+        }
+        
         // Plex settings
         if (settings.plexHistoryMode) {
           this.plexHistoryMode = settings.plexHistoryMode;
@@ -3937,27 +3983,31 @@ export default {
       });
     }
     
-    // Restore saved recommendation count from localStorage (if exists)
-    const savedCount = localStorage.getItem('numRecommendations');
-    if (savedCount) {
-      this.numRecommendations = parseInt(savedCount, 10);
-      // Validate the value is within range
-      if (isNaN(this.numRecommendations) || this.numRecommendations < 1) {
-        this.numRecommendations = 1;
-      } else if (this.numRecommendations > 50) {
-        this.numRecommendations = 50;
+    // We've already loaded the server settings in loadSavedSettings
+    // But check localStorage as a fallback if server settings didn't include these
+    if (this.numRecommendations === 5) { // 5 is the default - if it's still default, check localStorage
+      // Restore saved recommendation count from localStorage (if exists)
+      const savedCount = localStorage.getItem('numRecommendations');
+      if (savedCount) {
+        const numRecs = parseInt(savedCount, 10);
+        // Validate the value is within range
+        if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
+          this.numRecommendations = numRecs;
+          console.log('Setting numRecommendations from localStorage:', this.numRecommendations);
+        }
       }
     }
     
-    // Restore saved columns count from localStorage (if exists)
-    const savedColumnsCount = localStorage.getItem('columnsCount');
-    if (savedColumnsCount) {
-      this.columnsCount = parseInt(savedColumnsCount, 10);
-      // Validate the value is within range
-      if (isNaN(this.columnsCount) || this.columnsCount < 1) {
-        this.columnsCount = 2; // Default to 2 if invalid
-      } else if (this.columnsCount > 4) {
-        this.columnsCount = 4;
+    if (this.columnsCount === 2) { // 2 is the default - if it's still default, check localStorage
+      // Restore saved columns count from localStorage (if exists)
+      const savedColumnsCount = localStorage.getItem('columnsCount');
+      if (savedColumnsCount) {
+        const columns = parseInt(savedColumnsCount, 10);
+        // Validate the value is within range
+        if (!isNaN(columns) && columns >= 1 && columns <= 4) {
+          this.columnsCount = columns;
+          console.log('Setting columnsCount from localStorage:', this.columnsCount);
+        }
       }
     }
     

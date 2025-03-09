@@ -1,6 +1,6 @@
 {
   "name": "recommendarr",
-  "version": "1.2.6",
+  "version": "1.2.61",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",

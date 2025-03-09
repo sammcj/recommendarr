@@ -30,3 +30,4 @@ server/data/credentials.json
 user_data.json
 server/data/user_data.json
 /server/data
+env

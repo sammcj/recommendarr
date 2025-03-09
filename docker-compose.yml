@@ -14,21 +14,20 @@ services:
     #     - BASE_URL=${BASE_URL:-/}
     container_name: recommendarr
     ports:
-      - "${FRONTEND_PORT:-3030}:${FRONTEND_PORT:-3030}"  # Frontend port
-      - "${BACKEND_PORT:-3050}:${BACKEND_PORT:-3050}"  # Backend API port
+      - "${PORT:-3000}:${PORT:-3000}"  # Unified port for both frontend and API
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
-      - FRONTEND_PORT=${FRONTEND_PORT:-3030}
-      - BACKEND_PORT=${BACKEND_PORT:-3050}
+      - PORT=${PORT:-3000}
       # Runtime environment variables
       # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
       #- PUBLIC_URL=https://myapp.recommendarr.com
       #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
-      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:${FRONTEND_PORT:-3030}}
-      - VUE_APP_API_URL=${RUNTIME_API_URL:-http://localhost:${BACKEND_PORT:-3050}}
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:${PORT:-3000}}
+      # No longer need separate API URL as it's always relative path /api
+      # - VUE_APP_API_URL=${RUNTIME_API_URL:-/api}
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped

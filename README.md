@@ -6,9 +6,9 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ## [🎮 Join our Discord Community!](https://discord.gg/uHy3KFbgPR)
 
-> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open the frontend port on your router/firewall (default: 3030).
+> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open the application port on your router/firewall (default: 3000).
 
-> **⚠️ PORT CONFIGURATION**: The application uses ports 3030 (frontend) and 3050 (API) by default, but these can be configured using environment variables `FRONTEND_PORT` and `BACKEND_PORT` in Docker or when running directly.
+> **⚠️ PORT CONFIGURATION**: The application now uses a single port (default: 3000) for both the frontend and API, configurable via the `PORT` environment variable.
 
 ## 🌟 Features
 
@@ -48,7 +48,7 @@ This will:
 2. Configure proper networking and persistence
 3. Start the unified service
 
-Then visit `http://localhost:${FRONTEND_PORT:-3030}` in your browser to access the application.
+Then visit `http://localhost:${PORT:-3000}` in your browser to access the application.
 
 **Default Login:** 
 - Username: `admin`
@@ -56,9 +56,9 @@ Then visit `http://localhost:${FRONTEND_PORT:-3030}` in your browser to access t
 
 > **⚠️ IMPORTANT**: Please change your password immediately after your first login for security reasons.
 
-The unified container runs both the frontend (on default port 3030) and the API server (on default port 3050 internally). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
+The unified container runs both the frontend and API server on a single port (default: 3000). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
 
-**Note:** If accessing from outside your network, remember to forward your frontend port on your router/firewall.
+**Note:** If accessing from outside your network, remember to forward your application port on your router/firewall.
 
 ### Option 2: Docker (Manual Run)
 
@@ -68,26 +68,23 @@ You can also run the unified container manually:
 # Pull the image
 docker pull tannermiddleton/recommendarr:latest
 
-# Run the container with default ports
+# Run the container with default port
 docker run -d \
   --name recommendarr \
-  -p 3030:3030 \
-  -p 3050:3050 \
+  -p 3000:3000 \
   -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
 
-# Or run with custom ports
+# Or run with custom port
 docker run -d \
   --name recommendarr \
-  -e FRONTEND_PORT=8080 \
-  -e BACKEND_PORT=8081 \
+  -e PORT=8080 \
   -p 8080:8080 \
-  -p 8081:8081 \
   -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
 ```
 
-Then visit `http://localhost:3030` (or your custom port) in your browser. The container includes both the frontend and API server for secure credential storage.
+Then visit `http://localhost:3000` (or your custom port) in your browser. The container includes both the frontend and API server for secure credential storage.
 
 For more Docker options, see the [Docker Support](#-docker-support) section below.
 
@@ -109,7 +106,7 @@ npm install
 npm run serve
 ```
 
-4. Visit `http://localhost:3030` (or your custom port if configured) in your browser.
+4. Visit `http://localhost:3000` (or your custom port if configured) in your browser.
 
 ## 🔧 Configuration
 
@@ -173,21 +170,18 @@ The easiest way to run Recommendarr:
 # Pull the image
 docker pull tannermiddleton/recommendarr:latest
 
-# Run the container with default ports
+# Run the container with default port
 docker run -d \
   --name recommendarr \
-  -p 3030:3030 \
-  -p 3050:3050 \
+  -p 3000:3000 \
   -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
 
-# Or run with custom ports
+# Or run with custom port
 docker run -d \
   --name recommendarr \
-  -e FRONTEND_PORT=8080 \
-  -e BACKEND_PORT=8081 \
+  -e PORT=8080 \
   -p 8080:8080 \
-  -p 8081:8081 \
   -v $(pwd)/server/data:/app/server/data \
   tannermiddleton/recommendarr:latest
 ```
@@ -206,21 +200,18 @@ cd recommendarr
 # Build the Docker image
 docker build -t recommendarr:local .
 
-# Run the container with default ports
+# Run the container with default port
 docker run -d \
   --name recommendarr \
-  -p 3030:3030 \
-  -p 3050:3050 \
+  -p 3000:3000 \
   -v $(pwd)/server/data:/app/server/data \
   recommendarr:local
 
-# Or run with custom ports
+# Or run with custom port
 docker run -d \
   --name recommendarr \
-  -e FRONTEND_PORT=8080 \
-  -e BACKEND_PORT=8081 \
+  -e PORT=8080 \
   -p 8080:8080 \
-  -p 8081:8081 \
   -v $(pwd)/server/data:/app/server/data \
   recommendarr:local
 ```
@@ -233,7 +224,7 @@ docker run -d \
 - CORS issues are automatically handled through the proxy service
 - Custom URL configuration for reverse proxy setups (via environment variables)
 
-**Note:** You can customize the internal and external ports using the `FRONTEND_PORT` and `BACKEND_PORT` environment variables.
+**Note:** You can customize the port using the `PORT` environment variable.
 
 ## 🌐 Setting Up with a Reverse Proxy
 
@@ -241,16 +232,15 @@ If you want to run Recommendarr behind a reverse proxy (like Nginx, Traefik, or 
 
 Your reverse proxy should be configured to (example):
 
-1. Forward requests from `https://recommendarr.yourdomain.com` to `http://your-docker-host:3030` (or your custom frontend port)
-2. Forward requests from `https://api.yourdomain.com` to `http://your-docker-host:3050` (or your custom backend port)
+1. Forward requests from `https://recommendarr.yourdomain.com` to `http://your-docker-host:3000` (or your custom port)
 
 For now the proper reverse proxy setup is to either:
 
 - run a build command and pass in the args  (replace with your URLs)
-  - `docker build --build-arg VUE_APP_API_URL=https://api.myapp.recommendarr.com --build-arg PUBLIC_URL=https://myapp.recommendarr.com -t recommendarr:latest .`
+  - `docker build --build-arg PUBLIC_URL=https://myapp.recommendarr.com -t recommendarr:latest .`
 
   
-  - `docker run -p ${FRONTEND_PORT:-3030}:${FRONTEND_PORT:-3030} -p ${BACKEND_PORT:-3050}:${BACKEND_PORT:-3050} -e FRONTEND_PORT="${FRONTEND_PORT:-3030}" -e BACKEND_PORT="${BACKEND_PORT:-3050}" -e VUE_APP_API_URL="https://api.myapp.recommendarr.com" -e PUBLIC_URL="https://myapp.recommendarr.com" -v recommendarr-data:/app/server/data . --build`
+  - `docker run -p 3000:3000 -e PORT=3000 -e PUBLIC_URL="https://myapp.recommendarr.com" -v recommendarr-data:/app/server/data . --build`
 
 - use the updated docker-compose and run `docker-compose up -d --build`, obviously replace the URLs with the ones correct for your setup.
 
@@ -265,26 +255,23 @@ services:
       args:
         # Build time arguments - set these for the Vue.js build process
         #Reverse proxy example
-        - VUE_APP_API_URL=https://api.myapp.recommendarr.com
+        - PUBLIC_URL=https://myapp.recommendarr.com
         #Local example
-        #- VUE_APP_API_URL=http://localhost:3050
+        #- PUBLIC_URL=http://localhost:3000
         - BASE_URL=/
     container_name: recommendarr
     ports:
-      - "${FRONTEND_PORT:-3030}:${FRONTEND_PORT:-3030}"  # Frontend port
-      - "${BACKEND_PORT:-3050}:${BACKEND_PORT:-3050}"  # Backend API port
+      - "${PORT:-3000}:${PORT:-3000}"  # Unified port for both frontend and API
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
-      # Runtime environment variables - customize these as needed
+      # Runtime environment variables
       # For local use, the defaults should work without changes
-      #- PUBLIC_URL=http://localhost:3030
-      #- VUE_APP_API_URL=http://localhost:3050
+      #- PUBLIC_URL=http://localhost:3000
       # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
       - PUBLIC_URL=https://myapp.recommendarr.com
-      - VUE_APP_API_URL=https://api.myapp.recommendarr.com
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped
@@ -293,7 +280,7 @@ volumes:
   recommendarr-data:
 ```
 
-**IMPORTANT:** When customizing ports, make sure to update both the port mappings and the environment variables `FRONTEND_PORT` and `BACKEND_PORT` to match.
+**IMPORTANT:** When customizing ports, make sure to update both the port mappings and the environment variables `PORT` to match.
 
 ### Method 2: Manual Docker Build and Run
 
@@ -305,24 +292,20 @@ cd recommendarr
 # Build the image with your URLs
 docker build -t recommendarr:custom \
   --build-arg BASE_URL=https://recommendarr.yourdomain.com \
-  --build-arg VUE_APP_API_URL=https://api.yourdomain.com \
   .
 
-# Run the container with default ports
+# Run the container with default port
 docker run -d \
   --name recommendarr \
-  -p 3030:3030 \
-  -p 3050:3050 \
+  -p 3000:3000 \
   -v $(pwd)/server/data:/app/server/data \
   recommendarr:custom
 
-# Or with custom ports
+# Or with custom port
 docker run -d \
   --name recommendarr \
-  -e FRONTEND_PORT=8080 \
-  -e BACKEND_PORT=8081 \
+  -e PORT=8080 \
   -p 8080:8080 \
-  -p 8081:8081 \
   -v $(pwd)/server/data:/app/server/data \
   recommendarr:custom
 ```
@@ -412,7 +395,7 @@ npm run build
 npm run lint
 ```
 
-The development server will start at http://localhost:8080 (frontend) and http://localhost:3050 (API server).
+The development server will start at http://localhost:8080 for the frontend with hot reloading. In production, both frontend and API run on a single port.
 
 ## 📄 License
 

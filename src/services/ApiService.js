@@ -5,17 +5,11 @@ import axios from 'axios';
  */
 class ApiService {
   constructor() {
-    // Initialize with default or environment value 
-    this.baseUrl = process.env.VUE_APP_API_URL || this.detectApiUrl();
+    // Use the same server for both frontend and API by using a relative path
+    // This enables both to run on the same port
+    this.baseUrl = '/api';
     
-    // If URL doesn't include /api path suffix, add it
-    if (this.baseUrl && !this.baseUrl.endsWith('/api')) {
-      this.baseUrl = this.baseUrl.endsWith('/') 
-        ? `${this.baseUrl}api` 
-        : `${this.baseUrl}/api`;
-    }
-    
-    console.log(`Initial API URL: ${this.baseUrl}`);
+    console.log(`Using relative API path: ${this.baseUrl}`);
     
     // Create axios instance with default config
     this.axiosInstance = axios.create({
@@ -118,34 +112,13 @@ class ApiService {
   }
   
   /**
-   * Try to detect the best API URL based on the current environment
+   * No longer need to detect API URL as we're using relative paths
+   * This is kept as a stub for compatibility with any code that might call it
    * @private
    * @returns {string} API URL
    */
   detectApiUrl() {
-    // Default fallback when running locally for development
-    let apiBaseUrl = 'http://localhost:3050/api';
-    
-    // Get the current URL details
-    const protocol = window.location.protocol;
-    const host = window.location.hostname;
-    const port = window.location.port;
-    
-    // In the unified container, the API is running on port 3050
-    // and the frontend on port 3030
-    if (port === '3030') {
-      // When accessed via the frontend port in container
-      apiBaseUrl = `${protocol}//${host}:3050/api`;
-    } else if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      // For other non-local environments, access API on same host with /api path
-      apiBaseUrl = `${protocol}//${host}:3050/api`;
-    } else {
-      // For local development
-      apiBaseUrl = `${protocol}//${host}:3050/api`;
-    }
-    
-    console.log('Using API URL:', apiBaseUrl);
-    return apiBaseUrl;
+    return '/api';
   }
 
   /**

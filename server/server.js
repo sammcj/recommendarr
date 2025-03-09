@@ -10,7 +10,10 @@ const sessionManager = require('./utils/sessionManager');
 const proxyService = require('./services/ProxyService');
 
 const app = express();
-const PORT = process.env.BACKEND_PORT || process.env.PORT || 3050;
+const PORT = process.env.PORT || process.env.BACKEND_PORT || 3050;
+
+// Path to the frontend dist directory
+const DIST_DIR = path.join(__dirname, '..', 'dist');
 
 // Global app configuration
 let appConfig = {
@@ -1422,6 +1425,29 @@ app.get('/api/image-proxy', async (req, res) => {
   }
 });
 
+// Serve static files from the dist directory
+// This needs to come after all API routes
+const serveStatic = express.static(DIST_DIR, {
+  maxAge: '1d',  // Cache static assets for 1 day
+  etag: true     // Enable ETag header
+});
+
+// Serve static files
+app.use(serveStatic);
+
+// For any other requests, serve index.html (for SPA routing)
+app.get('*', (req, res) => {
+  // Skip API routes - they've already been handled above
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  
+  // Serve the main index.html for all other routes (for SPA client-side routing)
+  res.sendFile(path.join(DIST_DIR, 'index.html'));
+});
+
 app.listen(PORT, () => {
-  console.log(`API server running on port ${PORT}`);
+  console.log(`Unified server running on port ${PORT}`);
+  console.log(`- API available at http://localhost:${PORT}/api`);
+  console.log(`- Frontend available at http://localhost:${PORT}`);
 });

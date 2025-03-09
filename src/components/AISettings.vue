@@ -983,11 +983,15 @@ export default {
     traktConnected: {
       type: Boolean,
       default: false
+    },
+    defaultActiveTab: {
+      type: String,
+      default: 'account'
     }
   },
   data() {
     return {
-      activeTab: 'account',
+      activeTab: this.defaultActiveTab,
       showConnectionsPanel: false,
       showSonarrConnect: false,
       showRadarrConnect: false,
@@ -1109,6 +1113,16 @@ export default {
     this.loadAllSettings();
   },
   
+  mounted() {
+    // Check if we should activate a specific tab (set by App.vue's handleNavigate)
+    const activeTabFromNav = localStorage.getItem('aiSettingsActiveTab');
+    if (activeTabFromNav) {
+      this.activeTab = activeTabFromNav;
+      // Clear the value after using it
+      localStorage.removeItem('aiSettingsActiveTab');
+    }
+  },
+  
   watch: {
     // Watch for tab changes to reload credentials when a tab is visited
     activeTab: {
@@ -1136,6 +1150,14 @@ export default {
         }
       },
       immediate: true
+    },
+    // Watch for changes to the defaultActiveTab prop
+    defaultActiveTab: {
+      handler(newTab) {
+        if (newTab) {
+          this.activeTab = newTab;
+        }
+      }
     }
   },
   methods: {

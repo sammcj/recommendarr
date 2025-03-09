@@ -235,6 +235,7 @@
             :jellyfinConnected="jellyfinConnected"
             :tautulliConnected="tautulliConnected"
             :traktConnected="traktConnected"
+            :defaultActiveTab="aiSettingsSubtab"
             @settings-updated="handleSettingsUpdated"
             @sonarr-settings-updated="handleSonarrSettingsUpdated"
             @radarr-settings-updated="handleRadarrSettingsUpdated"
@@ -300,6 +301,7 @@ export default {
       traktConnected: false,
       loadingServices: true,
       hasAnyServiceCredentials: false,
+      aiSettingsSubtab: 'account',
       traktRecentlyWatchedMovies: [],
       traktRecentlyWatchedShows: [],
       traktRecentLimit: 50,
@@ -1498,8 +1500,13 @@ export default {
       console.log('Trakt only mode changed to:', enabled);
       this.traktOnlyMode = enabled;
     },
-    handleNavigate(tab) {
+    handleNavigate(tab, subtab) {
       this.activeTab = tab;
+      
+      // Set the AI Settings subtab if specified
+      if (tab === 'settings' && subtab) {
+        this.aiSettingsSubtab = subtab;
+      }
       
       // If we're switching to TV recommendations, ensure we have series data
       if (tab === 'tv-recommendations' && this.series.length === 0 && this.sonarrConnected) {

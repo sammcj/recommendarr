@@ -1334,7 +1334,7 @@ export default {
   },
   methods: {
     goToSettings() {
-      this.$emit('navigate', 'settings');
+      this.$emit('navigate', 'settings', 'ai');
     },
     
     // Set content type and save preference

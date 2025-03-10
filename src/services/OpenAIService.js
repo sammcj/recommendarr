@@ -9,6 +9,7 @@ class OpenAIService {
     this.temperature = 0.8;
     this.useSampledLibrary = false;
     this.sampleSize = 20;
+    this.useStructuredOutput = true; // Default to using structured output
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -54,6 +55,7 @@ class OpenAIService {
         if (credentials.temperature) this.temperature = parseFloat(credentials.temperature);
         if (credentials.useSampledLibrary !== undefined) this.useSampledLibrary = credentials.useSampledLibrary === true;
         if (credentials.sampleSize) this.sampleSize = parseInt(credentials.sampleSize);
+        if (credentials.useStructuredOutput !== undefined) this.useStructuredOutput = credentials.useStructuredOutput === true;
         
         // Update API URL if baseUrl changed
         this.apiUrl = this.getCompletionsUrl();
@@ -215,8 +217,9 @@ class OpenAIService {
    * @param {number} temperature - Temperature for randomness
    * @param {boolean} useSampledLibrary - Whether to use sampled library for recommendations
    * @param {number} sampleSize - Sample size to use when sampling the library
+   * @param {boolean} useStructuredOutput - Whether to use structured output in API requests
    */
-  async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null) {
+  async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null, useStructuredOutput = null) {
     // Trim the API key to remove any accidental whitespace
     this.apiKey = apiKey ? apiKey.trim() : '';
     
@@ -248,6 +251,10 @@ class OpenAIService {
       this.sampleSize = sampleSize;
     }
     
+    if (useStructuredOutput !== null) {
+      this.useStructuredOutput = useStructuredOutput;
+    }
+    
     // Store credentials server-side (including model selection as backup)
     await credentialsService.storeCredentials('openai', {
       apiKey: this.apiKey,
@@ -256,7 +263,8 @@ class OpenAIService {
       maxTokens: this.maxTokens,
       temperature: this.temperature,
       useSampledLibrary: this.useSampledLibrary,
-      sampleSize: this.sampleSize
+      sampleSize: this.sampleSize,
+      useStructuredOutput: this.useStructuredOutput
     });
   }
 
@@ -425,7 +433,36 @@ Prioritize shows that:
         userPrompt += `\n\nI've recently watched these shows, so please consider them for better recommendations: ${recentTitles}`;
       }
       
-      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.`;
+      
+      // Include detailed formatting instructions if structured output is disabled
+      if (!this.useStructuredOutput) {
+        userPrompt += `
+
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+
+The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
+
+1. [Show Title]: 
+Description: [brief description] 
+Why you might like it: [short reason based on my current shows] 
+Recommendarr Rating: [score]% - [brief qualitative assessment]
+Available on: [streaming service]
+
+2. [Next Show Title]:
+...and so on.
+
+⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
+- Follow this output format with ABSOLUTE PRECISION 
+- Do NOT add ANY extra text, headings, introductions, or conclusions
+- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per show
+- Do NOT use Markdown formatting like bold or italics
+- Do NOT deviate from the format structure in ANY way
+- NEVER recommend any show in my library, liked shows list, or any exclusion list
+- Begin IMMEDIATELY with "1. [Show Title]:" with NO preamble`;
+      }
+      
+      userPrompt += `
 
 For the Recommendarr Rating in your recommendations, conduct a thorough analysis using multiple methodologies:
 - Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, TVDB, Metacritic
@@ -444,11 +481,15 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any show in my library, liked shows list, or any exclusion list
 - For each show, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-      // Initialize conversation with system message
+      // Initialize conversation with system message with appropriate formatting based on structured output setting
+      const systemContent = this.useStructuredOutput
+        ? "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO extra text, introductions or conclusions\n5. For each show, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
+        : "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
+      
       this.tvConversation = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO extra text, introductions or conclusions\n5. For each show, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
+          content: systemContent
         },
         {
           role: "user",
@@ -651,7 +692,36 @@ Prioritize movies that:
         userPrompt += `\n\nI've recently watched these movies, so please consider them for better recommendations: ${recentTitles}`;
       }
       
-      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.`;
+      
+      // Include detailed formatting instructions if structured output is disabled
+      if (!this.useStructuredOutput) {
+        userPrompt += `
+
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+
+The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
+
+1. [Movie Title]: 
+Description: [brief description] 
+Why you might like it: [short reason based on my current movies] 
+Recommendarr Rating: [score]% - [brief qualitative assessment]
+Available on: [streaming service]
+
+2. [Next Movie Title]:
+...and so on.
+
+⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
+- Follow this output format with ABSOLUTE PRECISION 
+- Do NOT add ANY extra text, headings, introductions, or conclusions
+- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per movie
+- Do NOT use Markdown formatting like bold or italics
+- Do NOT deviate from the format structure in ANY way
+- NEVER recommend any movie in my library, liked movies list, or any exclusion list
+- Begin IMMEDIATELY with "1. [Movie Title]:" with NO preamble`;
+      }
+      
+      userPrompt += `
 
 For the Recommendarr Rating in your recommendations, conduct a thorough analysis using multiple methodologies:
 - Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, Metacritic
@@ -670,11 +740,15 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list
 - For each movie, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-      // Initialize conversation with system message
+      // Initialize conversation with system message with appropriate formatting based on structured output setting
+      const systemContent = this.useStructuredOutput
+        ? "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO extra text, introductions or conclusions\n5. For each movie, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
+        : "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
+      
       this.movieConversation = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO extra text, introductions or conclusions\n5. For each movie, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
+          content: systemContent
         },
         {
           role: "user",
@@ -952,13 +1026,18 @@ CRITICAL REQUIREMENTS:
       
       headers['Content-Type'] = 'application/json';
       
-      // Prepare the request data with structured output
+      // Prepare the base request data
       const requestData = {
         model: this.model,
         messages: conversation,
         temperature: this.temperature,
-        max_tokens: this.maxTokens,
-        response_format: {
+        max_tokens: this.maxTokens
+      };
+      
+      // Add structured output format if enabled
+      if (this.useStructuredOutput) {
+        console.log('Using structured output format for API request');
+        requestData.response_format = {
           type: "json_schema",
           json_schema: {
             name: "media_recommendations",
@@ -986,8 +1065,10 @@ CRITICAL REQUIREMENTS:
             },
             strict: true
           }
-        }
-      };
+        };
+      } else {
+        console.log('Using legacy format for API request (structured output disabled)');
+      }
       
       let response;
       const axios = (await import('axios')).default;
@@ -1159,12 +1240,18 @@ CRITICAL REQUIREMENTS:
         response = await this.sendChunkedMessages(systemMessage, userMessage, headers);
       } else {
         // We can send in a single request
+        // Prepare the base request data
         const requestData = {
           model: this.model,
           messages: messages,
           temperature: this.temperature,
-          max_tokens: this.maxTokens,
-          response_format: {
+          max_tokens: this.maxTokens
+        };
+        
+        // Add structured output format if enabled
+        if (this.useStructuredOutput) {
+          console.log('Using structured output format for API request');
+          requestData.response_format = {
             type: "json_schema",
             json_schema: {
               name: "media_recommendations",
@@ -1192,8 +1279,10 @@ CRITICAL REQUIREMENTS:
               },
               strict: true
             }
-          }
-        };
+          };
+        } else {
+          console.log('Using legacy format for API request (structured output disabled)');
+        }
         
         // Try proxy first, then fall back to direct request
         try {
@@ -1381,12 +1470,18 @@ CRITICAL REQUIREMENTS:
       content: `Final part ${chunks.length}/${chunks.length}: ${chunks[chunks.length - 1]}\n\nThat's the complete request. Please provide recommendations based on all parts of my message.`
     });
     
+    // Prepare the base request data for final chunk
     const finalRequestData = {
       model: this.model,
       messages: conversationMessages,
       temperature: this.temperature,
-      max_tokens: this.maxTokens,
-      response_format: {
+      max_tokens: this.maxTokens
+    };
+    
+    // Add structured output format if enabled
+    if (this.useStructuredOutput) {
+      console.log('Using structured output format for final chunked request');
+      finalRequestData.response_format = {
         type: "json_schema",
         json_schema: {
           name: "media_recommendations",
@@ -1414,8 +1509,10 @@ CRITICAL REQUIREMENTS:
           },
           strict: true
         }
-      }
-    };
+      };
+    } else {
+      console.log('Using legacy format for final chunked request (structured output disabled)');
+    }
     
     // Send final chunk using proxy first, then fall back to direct request
     try {

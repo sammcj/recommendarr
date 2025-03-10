@@ -2397,11 +2397,25 @@ export default {
         
         // Set the useStructuredOutput property on the OpenAIService
         openAIService.useStructuredOutput = this.useStructuredOutput;
+        
+        // Reset the conversation history in OpenAI service to ensure proper formatting
+        openAIService.resetConversation();
+        console.log('Conversation history reset due to structured output setting change');
+        
+        // Reset current recommendations if any to encourage getting fresh ones with the new format
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+          console.log('Cleared current recommendations due to structured output setting change');
+        }
       } catch (error) {
         console.error('Error saving structured output preference to server:', error);
         // Fallback to localStorage only
         localStorage.setItem('useStructuredOutput', this.useStructuredOutput.toString());
         openAIService.useStructuredOutput = this.useStructuredOutput;
+        
+        // Still reset the conversation even if there was an error saving
+        openAIService.resetConversation();
       }
     },
     

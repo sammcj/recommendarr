@@ -31,19 +31,16 @@ COPY --from=build-stage /app/dist ./dist
 
 # Set environment variables
 ENV DOCKER_ENV=true
-ENV PORT=3050
-# Note: API_URL must be set at build time using --build-arg VUE_APP_API_URL
-
-# Install a simple web server for serving static files
-RUN npm install -g serve
+ENV PORT=3000
+# We no longer need a separate API URL - it's always /api
 
 # Copy startup script and ensure it uses the correct line endings
 COPY start-unified.sh /start-unified.sh
 # Install dos2unix to fix line endings
 RUN apk add --no-cache dos2unix && dos2unix /start-unified.sh && chmod +x /start-unified.sh
 
-# Expose ports
-EXPOSE 3030 3050
+# Expose port
+EXPOSE 3000
 
-# Start both services
+# Start unified server
 CMD ["sh", "/start-unified.sh"]

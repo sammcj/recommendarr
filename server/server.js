@@ -10,7 +10,10 @@ const sessionManager = require('./utils/sessionManager');
 const proxyService = require('./services/ProxyService');
 
 const app = express();
-const PORT = process.env.PORT || 3050;
+const PORT = process.env.PORT || process.env.BACKEND_PORT || 3050;
+
+// Path to the frontend dist directory
+const DIST_DIR = path.join(__dirname, '..', 'dist');
 
 // Global app configuration
 let appConfig = {
@@ -424,10 +427,17 @@ app.post('/api/auth/login', async (req, res) => {
       const token = sessionManager.createSession(authResult.user);
       console.log('Session created with token:', token.substring(0, 10) + '...');
       
+      // Determine if we should use secure cookies based on the request's protocol or a config flag
+      const isSecureConnection = req.secure || 
+                               req.headers['x-forwarded-proto'] === 'https' || 
+                               process.env.FORCE_SECURE_COOKIES === 'true';
+      
+      console.log(`Setting cookie with secure=${isSecureConnection} based on connection protocol`);
+      
       // Set token in an HttpOnly cookie
       res.cookie('auth_token', token, {
         httpOnly: true,          // Prevents JavaScript access
-        secure: process.env.NODE_ENV === 'production', // Requires HTTPS in production
+        secure: isSecureConnection, // Only set secure flag on HTTPS connections
         sameSite: 'lax',         // Provides some CSRF protection
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/'                // Available across the site
@@ -488,10 +498,15 @@ app.post('/api/auth/logout', (req, res) => {
     sessionManager.deleteSession(authToken);
   }
   
+  // Determine if we should use secure cookies based on the request's protocol or a config flag
+  const isSecureConnection = req.secure || 
+                           req.headers['x-forwarded-proto'] === 'https' || 
+                           process.env.FORCE_SECURE_COOKIES === 'true';
+  
   // Clear the auth cookie
   res.clearCookie('auth_token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureConnection, // Only set secure flag on HTTPS connections
     sameSite: 'lax',
     path: '/'
   });
@@ -1422,6 +1437,29 @@ app.get('/api/image-proxy', async (req, res) => {
   }
 });
 
+// Serve static files from the dist directory
+// This needs to come after all API routes
+const serveStatic = express.static(DIST_DIR, {
+  maxAge: '1d',  // Cache static assets for 1 day
+  etag: true     // Enable ETag header
+});
+
+// Serve static files
+app.use(serveStatic);
+
+// For any other requests, serve index.html (for SPA routing)
+app.get('*', (req, res) => {
+  // Skip API routes - they've already been handled above
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  
+  // Serve the main index.html for all other routes (for SPA client-side routing)
+  res.sendFile(path.join(DIST_DIR, 'index.html'));
+});
+
 app.listen(PORT, () => {
-  console.log(`API server running on port ${PORT}`);
+  console.log(`Unified server running on port ${PORT}`);
+  console.log(`- API available at http://localhost:${PORT}/api`);
+  console.log(`- Frontend available at http://localhost:${PORT}`);
 });

@@ -7,26 +7,25 @@ services:
     #   context: .
     #   args:
     #    # Build time arguments - set these for the Vue.js build process
-    #    #Reverse proxy example
-    #    #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
-    #    #No Reverse proxy
-    #     - VUE_APP_API_URL=${BUILD_API_URL:-http://localhost:3050}
-    #     - BASE_URL=${BASE_URL:-/}
+    #    # Only needed for reverse proxy setup:
+    #    # - BASE_URL=${BASE_URL:-/}
     container_name: recommendarr
     ports:
-      - "3030:3030"  # Frontend port - must be 3030:3030
-      - "3050:3050"  # Backend API port - must be 3050:3050
+      - "${PORT:-3000}:${PORT:-3000}"  # Unified port for both frontend and API
+    # This is needed to allow the container to access services on the host machine
+    # For example, when connecting to Sonarr, Radarr, Plex etc. running on the host (I think?)
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
+      - PORT=${PORT:-3000}
       # Runtime environment variables
       # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
-      #- PUBLIC_URL=https://myapp.recommendarr.com
-      #- VUE_APP_API_URL=https://api.myapp.recommendarr.com
-      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3030}
-      - VUE_APP_API_URL=${RUNTIME_API_URL:-http://localhost:3050}
+      #- PUBLIC_URL=https://recommendarr.yourdomain.com
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:${PORT:-3000}}
+      # Uncomment to force secure cookies even over HTTP (only use if behind HTTPS reverse proxy)
+      #- FORCE_SECURE_COOKIES=true
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped

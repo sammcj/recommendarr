@@ -4,6 +4,12 @@ module.exports = defineConfig({
   transpileDependencies: true,
   publicPath: process.env.BASE_URL || '/',
   devServer: {
-    port: 3030
+    port: process.env.PORT || 8080,
+    proxy: {
+      '/api': {
+        target: process.env.DEV_API_URL || 'http://localhost:3050',
+        changeOrigin: true
+      }
+    }
   }
 })

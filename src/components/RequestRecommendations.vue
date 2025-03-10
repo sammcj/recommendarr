@@ -858,9 +858,6 @@
                       {{ extractScore(rec.rating) }}%
                     </div>
                   </div>
-                  <div class="rating-details">
-                    {{ extractRatingDetails(rec.rating) }}
-                  </div>
                 </div>
                 
                 
@@ -1542,48 +1539,8 @@ export default {
       return '??';
     },
     
-    // Extract the details portion of the rating
-    extractRatingDetails(ratingText) {
-      if (!ratingText || ratingText === 'N/A') {
-        return 'No rating information available';
-      }
-      
-      // Try various patterns to extract details after the rating
-      
-      // Pattern 1: "85% - Details here"
-      let detailsMatch = ratingText.match(/\d+%\s*-\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // Pattern 2: "85/100 - Details here"
-      detailsMatch = ratingText.match(/\d+\s*\/\s*100\s*-\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // Pattern 3: "8.5/10 - Details here"
-      detailsMatch = ratingText.match(/\d+(?:\.\d+)?\s*\/\s*10\s*-\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // Pattern 4: Look for a colon followed by details
-      detailsMatch = ratingText.match(/:\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // If no specific pattern matches, remove any numbers and rating symbols
-      const cleanedText = ratingText.replace(/(\d+%|\d+\/\d+|\d+\.\d+\/\d+|\d+)/, '').trim();
-      if (cleanedText && cleanedText !== ratingText) {
-        // If we removed something and have text left, return that
-        return cleanedText.replace(/^[-:\s]+/, '').trim();
-      }
-      
-      // Fall back to the original text if no patterns match
-      return ratingText;
-    },
+    // This method has been removed as we no longer display rating details
+    // The extractScore method is still used to get the percentage value
     
     // Determine CSS class for Recommendarr Rating
     getScoreClass(scoreText) {
@@ -5706,31 +5663,17 @@ select:focus {
 
 .rating-score {
   font-weight: bold;
-  font-size: 15px;
+  font-size: 16px;
   display: inline-flex;
   align-items: center;
   color: #2196F3;
-  padding: 4px 10px 4px 8px;
+  padding: 4px 12px;
   border-radius: 4px;
   width: fit-content;
   line-height: 1;
   margin-top: 4px;
   vertical-align: middle;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.rating-details {
-  font-size: 13px;
-  margin-top: 6px;
-  color: var(--text-color);
-  line-height: 1.4;
-  opacity: 0.85;
-  padding-left: 2px;
-}
-
-.rating-score {
-  padding: 4px 12px;
-  font-size: 16px;
 }
 
 .score-fresh {

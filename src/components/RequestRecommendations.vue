@@ -161,7 +161,8 @@
                           Use Structured Output (Experimental)
                         </label>
                         <div class="setting-description">
-                          Uses OpenAI's JSON schema feature for more reliable and consistent recommendations.
+                          Uses OpenAI's JSON schema feature for more reliable and consistent LLM results formatting.
+                          Check if your model supports Structured Outputs. Disable if you get inconsistent recommendation counts.
                           <span class="experimental-badge">BETA</span>
                         </div>
                       </div>

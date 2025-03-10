@@ -1225,7 +1225,7 @@ CRITICAL REQUIREMENTS:
       headers['Content-Type'] = 'application/json';
 
       // Check if we need to chunk the user prompt to stay under token limits
-      const MAX_TOKEN_LIMIT = 4000;
+      const MAX_TOKEN_LIMIT = 3800;
       let response;
       
       // We're only concerned with chunking the user prompt (last message)

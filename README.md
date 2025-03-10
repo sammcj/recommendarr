@@ -26,29 +26,32 @@ Recommendarr is a web application that generates personalized TV show and movie 
 - [Radarr](https://radarr.video/) instance with API access (for movie recommendations)
 - [Plex](https://www.plex.tv/), [Jellyfin](https://jellyfin.org/), [Tautulli](https://tautulli.com/), or [Trakt](https://trakt.tv/) instance with API access (for watch history analysis) - optional
 - An OpenAI API key or any OpenAI-compatible API (like local LLM servers)
-- Node.js (v14+) and npm for development
+- Docker (recommended) or Node.js (v14+) for manual installation
 
 ## 🚀 Quick Start
 
-### Option 1: Docker Hub Image (Recommended)
+### Option 1: Docker Hub Image (Easiest)
 
-The easiest way to run Recommendarr with all features is to use Docker Compose:
+The simplest way to get started with Recommendarr:
 
 ```bash
-# Pull the image
-docker pull tannermiddleton/recommendarr:latest
-
-# Run the container (basic)
-# IMPORTANT: Port mappings must be exactly 3030:3030 and 3050:3050
+# Pull and run with default port 3000
 docker run -d \
   --name recommendarr \
-  -p 3030:3030 \
-  -p 3050:3050 \
-  -v $(pwd)/server/data:/app/server/data \
+  -p 3000:3000 \
+  -v recommendarr-data:/app/server/data \
+  tannermiddleton/recommendarr:latest
+
+# Or run with a custom port (e.g., 8080)
+docker run -d \
+  --name recommendarr \
+  -e PORT=8080 \
+  -p 8080:8080 \
+  -v recommendarr-data:/app/server/data \
   tannermiddleton/recommendarr:latest
 ```
 
-Then visit `http://localhost:${PORT:-3000}` in your browser to access the application.
+Then visit `http://localhost:3000` (or your custom port) in your browser.
 
 **Default Login:** 
 - Username: `admin`
@@ -56,39 +59,63 @@ Then visit `http://localhost:${PORT:-3000}` in your browser to access the applic
 
 > **⚠️ IMPORTANT**: Please change your password immediately after your first login for security reasons.
 
-The unified container runs both the frontend and API server on a single port (default: 3000). This provides secure credential storage and proxy functionality for accessing services that may be blocked by CORS restrictions.
-
-**Note:** If accessing from outside your network, remember to forward your application port on your router/firewall.
-
 ### Option 2: Docker Compose
 
-You can also run the unified container manually:
+If you prefer using Docker Compose:
 
 ```bash
-# Pull the image
-docker pull tannermiddleton/recommendarr:latest
+# Clone the repository (which includes the docker-compose.yml file)
+git clone https://github.com/fingerthief/recommendarr.git
+cd recommendarr
+
+# Start the application
+docker-compose up -d
+```
+
+This will:
+1. Pull the pre-built image from Docker Hub
+2. Configure proper networking and persistence
+3. Start the unified service
+
+Then visit `http://localhost:3000` (or your custom port if configured) in your browser.
+
+You can customize the port by setting the PORT environment variable before running docker-compose:
+
+```bash
+PORT=8080 docker-compose up -d
+```
+
+### Option 3: Build Your Own Docker Image
+
+If you want to build the Docker image yourself:
+
+```bash
+# Clone the repository
+git clone https://github.com/fingerthief/recommendarr.git
+cd recommendarr
+
+# Build the Docker image
+docker build -t recommendarr:local .
 
 # Run the container with default port
 docker run -d \
   --name recommendarr \
   -p 3000:3000 \
-  -v $(pwd)/server/data:/app/server/data \
-  tannermiddleton/recommendarr:latest
+  -v recommendarr-data:/app/server/data \
+  recommendarr:local
 
 # Or run with custom port
 docker run -d \
   --name recommendarr \
   -e PORT=8080 \
   -p 8080:8080 \
-  -v $(pwd)/server/data:/app/server/data \
-  tannermiddleton/recommendarr:latest
+  -v recommendarr-data:/app/server/data \
+  recommendarr:local
 ```
 
-Then visit `http://localhost:3000` (or your custom port) in your browser. The container includes both the frontend and API server for secure credential storage.
+### Option 4: Manual Installation
 
-For more Docker options, see the [Docker Support](#-docker-support) section below.
-
-### Option 3: Manual Installation
+For development or if you prefer not to use Docker:
 
 1. Clone the repository:
 ```bash
@@ -101,12 +128,17 @@ cd recommendarr
 npm install
 ```
 
-3. Run the development server:
+3. Build the frontend:
 ```bash
-npm run dev
+npm run build
 ```
 
-4. Visit `http://localhost:3000` (or your custom port if configured) in your browser.
+4. Start the unified server:
+```bash
+npm run unified
+```
+
+5. Visit `http://localhost:3000` (or your custom port if configured) in your browser.
 
 ## 🔧 Configuration
 
@@ -160,120 +192,73 @@ You can connect to any combination of these services based on your needs.
 4. Click "Get Recommendations"
 5. View your personalized media suggestions with posters and descriptions
 
-## 🐋 Docker Support
-
-### Option 1: Pull and Run Pre-built Image
-
-The easiest way to run Recommendarr:
-
-```bash
-# Pull the image
-docker pull tannermiddleton/recommendarr:latest
-
-# Run the container with default port
-docker run -d \
-  --name recommendarr \
-  -p 3000:3000 \
-  -v $(pwd)/server/data:/app/server/data \
-  tannermiddleton/recommendarr:latest
-
-# Or run with custom port
-docker run -d \
-  --name recommendarr \
-  -e PORT=8080 \
-  -p 8080:8080 \
-  -v $(pwd)/server/data:/app/server/data \
-  tannermiddleton/recommendarr:latest
-```
-
-### Option 2: Build and Run Locally
-
-If you want to build the Docker image yourself:
-
-```bash
-# Clone the repository
-git clone https://github.com/fingerthief/recommendarr.git
-
-# Navigate to the project directory
-cd recommendarr
-
-# Build the Docker image
-docker build -t recommendarr:local .
-
-# Run the container with default port
-docker run -d \
-  --name recommendarr \
-  -p 3000:3000 \
-  -v $(pwd)/server/data:/app/server/data \
-  recommendarr:local
-
-# Or run with custom port
-docker run -d \
-  --name recommendarr \
-  -e PORT=8080 \
-  -p 8080:8080 \
-  -v $(pwd)/server/data:/app/server/data \
-  recommendarr:local
-```
-
-
-**Key benefits of using the Docker Compose method:**
-- The data directory is mounted as a volume, ensuring your credentials persist across container restarts
-- The frontend and API server are bundled together in a single container
-- All your service credentials are stored securely using encryption
-- CORS issues are automatically handled through the proxy service
-- Custom URL configuration for reverse proxy setups (via environment variables)
-
-**Note:** You can customize the port using the `PORT` environment variable.
-
 ## 🌐 Setting Up with a Reverse Proxy
 
-If you want to run Recommendarr behind a reverse proxy (like Nginx, Traefik, or Caddy), you **must** build the image yourself with specific build arguments. The pre-built image will not work correctly with a reverse proxy.
+If you want to run Recommendarr behind a reverse proxy (like Nginx, Traefik, or Caddy), follow these steps:
 
-Your reverse proxy should be configured to (example):
-
-1. Forward requests from `https://recommendarr.yourdomain.com` to `http://your-docker-host:3000` (or your custom port)
-
-For now the proper reverse proxy setup is to either:
-
-- run a build command and pass in the args  (replace with your URLs)
-  - `docker build --build-arg PUBLIC_URL=https://myapp.recommendarr.com -t recommendarr:latest .`
-
-  
-  - `docker run -p 3000:3000 -e PORT=3000 -e PUBLIC_URL="https://myapp.recommendarr.com" -v recommendarr-data:/app/server/data . --build`
-
-- use the updated docker-compose and run `docker-compose up -d --build`, obviously replace the URLs with the ones correct for your setup.
+1. Build a custom image with your public URL:
 
 ```bash
+# Build with your public URL
+docker build -t recommendarr:custom \
+  --build-arg PUBLIC_URL=https://recommendarr.yourdomain.com \
+  --build-arg BASE_URL=/ \
+  .
+
+# Run with reverse proxy configuration
+docker run -d \
+  --name recommendarr \
+  -p 3000:3000 \
+  -e PUBLIC_URL=https://recommendarr.yourdomain.com \
+  -e FORCE_SECURE_COOKIES=true \
+  -v recommendarr-data:/app/server/data \
+  recommendarr:custom
+```
+
+2. Configure your reverse proxy to forward requests to Recommendarr:
+
+**For Nginx:**
+```nginx
+server {
+    listen 443 ssl;
+    server_name recommendarr.yourdomain.com;
+
+    # SSL configuration
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**For Docker Compose:**
+
+```yaml
 services:
   recommendarr:
-    #IF NOT using a reverse proxy uncomment the image tag to use prebuilt
-    #image: tannermiddleton/recommendarr:latest
-    # Uncomment and build locally if you need a Reverse Proxy
     build:
       context: .
       args:
-        # Build time arguments - set these for the Vue.js build process
-        #Reverse proxy example
-        - PUBLIC_URL=https://myapp.recommendarr.com
-        #Local example
-        #- PUBLIC_URL=http://localhost:3000
+        - PUBLIC_URL=https://recommendarr.yourdomain.com
         - BASE_URL=/
-    container_name: recommendarr
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"  # Unified port for both frontend and API
+      - "3000:3000"
+    # This allows accessing services on the host machine
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
       - DOCKER_ENV=true
-      # Runtime environment variables
-      # For local use, the defaults should work without changes
-      #- PUBLIC_URL=http://localhost:3000
-      # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
-      - PUBLIC_URL=https://myapp.recommendarr.com
-      # Uncomment if you're using HTTPS behind a reverse proxy but the container sees HTTP connections
-      #- FORCE_SECURE_COOKIES=true
+      - PORT=3000
+      - PUBLIC_URL=https://recommendarr.yourdomain.com
+      # Enable secure cookies when behind HTTPS reverse proxy
+      - FORCE_SECURE_COOKIES=true
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped
@@ -282,35 +267,16 @@ volumes:
   recommendarr-data:
 ```
 
-**IMPORTANT:** When customizing ports, make sure to update both the port mappings and the environment variables `PORT` to match.
+## 🔧 Environment Variables
 
-### Method 2: Manual Docker Build and Run
-
-```bash
-# Clone the repository
-git clone https://github.com/fingerthief/recommendarr.git
-cd recommendarr
-
-# Build the image with your URLs
-docker build -t recommendarr:custom \
-  --build-arg BASE_URL=https://recommendarr.yourdomain.com \
-  .
-
-# Run the container with default port
-docker run -d \
-  --name recommendarr \
-  -p 3000:3000 \
-  -v $(pwd)/server/data:/app/server/data \
-  recommendarr:custom
-
-# Or with custom port
-docker run -d \
-  --name recommendarr \
-  -e PORT=8080 \
-  -p 8080:8080 \
-  -v $(pwd)/server/data:/app/server/data \
-  recommendarr:custom
-```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | The port to run both frontend and API | 3000 |
+| `PUBLIC_URL` | The public URL where the app is accessible | http://localhost:${PORT} |
+| `BASE_URL` | Base path for the application (for sub-path deployment) | / |
+| `FORCE_SECURE_COOKIES` | Force secure cookies even on HTTP (for HTTPS reverse proxies) | false |
+| `NODE_ENV` | Node.js environment | production |
+| `DOCKER_ENV` | Flag to enable Docker-specific features | true |
 
 ## 🖥️ Compatible AI Services
 
@@ -342,63 +308,6 @@ Here are some recommendations for models that work well with Recommendarr:
 
 For best results, try setting max tokens to 4000 and temperature between 0.6-0.8 depending on the model.
 
-## 🎬 TV and Movie Recommendations
-
-### TV Recommendations
-- Connect to your Sonarr instance to get personalized TV show recommendations
-- The AI analyzes your TV library to understand your preferences
-- Optional Plex, Jellyfin, Trakt or Tautulli integration enhances recommendations based on what you've actually watched
-- Receives detailed recommendations with show descriptions and reasoning
-
-### Movie Recommendations
-- Connect to your Radarr instance to get personalized movie recommendations
-- The AI analyzes your movie collection to understand genres and preferences you enjoy
-- Optional Plex, Jellyfin, Trakt or Tautulli integration provides watch history data for better personalization
-- Get suggested movies with descriptions, reasoning, and poster images
-- Easily discover new films based on your existing collection
-
-## 🔒 Privacy & Security
-
-Your data never leaves your control:
-- When using the API server (via Docker Compose):
-  - Sonarr, Radarr, Plex, Jellyfin, and Tautulli API credentials are stored securely using encryption
-  - AI API keys are stored encrypted and used only for your requests
-  - The API server acts as a proxy, preventing CORS issues when accessing your services
-  - All sensitive data is encrypted at rest on the server
-- Media library and watch history data is sent only to the AI service you configure
-- No analytics or tracking are included in the application
-
-## 💻 Development
-
-### Setting Up a Development Environment
-
-```bash
-# Clone the repository
-git clone https://github.com/fingerthief/recommendarr.git
-cd recommendarr
-
-# Install dependencies
-npm install
-
-# Start both the frontend and API server concurrently (recommended)
-npm run dev
-
-# Or start components individually:
-# Run frontend development server with hot-reload
-npm run serve
-
-# Run API server separately
-npm run api
-
-# Compile and minify for production
-npm run build
-
-# Lint and fix files
-npm run lint
-```
-
-The development server will start at http://localhost:8080 for the frontend with hot reloading. In production, both frontend and API run on a single port.
-
 ## 🔧 Troubleshooting
 
 ### Cookie Errors with Reverse Proxy
@@ -425,6 +334,24 @@ proxy_set_header X-Forwarded-Proto $scheme;
 
 - Always make sure the internal and external ports match (e.g., 3000:3000)
 - When changing ports, update both the port mapping and PORT environment variable
+
+### Development Setup
+
+For development purposes, you can run the frontend and backend separately:
+
+```bash
+# Run both frontend and backend in development mode
+npm run dev
+
+# Or run them separately:
+# Frontend dev server with hot reloading
+npm run serve
+
+# Backend API server
+npm run api
+```
+
+The development server will use port 8080 for the frontend with hot reloading, and port 3050 for the API. In production, both run on a single port.
 
 ## 📄 License
 

@@ -138,15 +138,15 @@
                               id="sampleSizeSlider"
                               v-model.number="sampleSize"
                               min="5" 
-                              max="50"
+                              max="1000"
                               class="modern-slider"
                               @change="saveSampleSize"
                             >
-                            <div class="slider-track" :style="{ width: `${(sampleSize - 5) / 45 * 100}%` }"></div>
+                            <div class="slider-track"></div>
                           </div>
                           <div class="slider-range-labels">
                             <span>5</span>
-                            <span>50</span>
+                            <span>1000</span>
                           </div>
                         </div>
                       </div>

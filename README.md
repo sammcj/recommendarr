@@ -272,6 +272,8 @@ services:
       #- PUBLIC_URL=http://localhost:3000
       # For reverse proxy setups, uncomment and modify these do NOT forget the build section above
       - PUBLIC_URL=https://myapp.recommendarr.com
+      # Uncomment if you're using HTTPS behind a reverse proxy but the container sees HTTP connections
+      #- FORCE_SECURE_COOKIES=true
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped
@@ -396,6 +398,33 @@ npm run lint
 ```
 
 The development server will start at http://localhost:8080 for the frontend with hot reloading. In production, both frontend and API run on a single port.
+
+## 🔧 Troubleshooting
+
+### Cookie Errors with Reverse Proxy
+
+If you're using a reverse proxy with HTTPS and get errors like:
+```
+cookie "auth_token" has been rejected because a non-https cookie can't be set "secure"
+```
+
+This happens when your reverse proxy terminates HTTPS but forwards the request to the container as HTTP. To fix this:
+
+1. Add the `FORCE_SECURE_COOKIES=true` environment variable to your docker-compose.yml or docker run command:
+```yaml
+environment:
+  - FORCE_SECURE_COOKIES=true
+```
+
+2. Make sure your reverse proxy forwards the correct headers. For Nginx, add:
+```
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+### Port Mapping
+
+- Always make sure the internal and external ports match (e.g., 3000:3000)
+- When changing ports, update both the port mapping and PORT environment variable
 
 ## 📄 License
 

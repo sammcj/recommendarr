@@ -427,10 +427,17 @@ app.post('/api/auth/login', async (req, res) => {
       const token = sessionManager.createSession(authResult.user);
       console.log('Session created with token:', token.substring(0, 10) + '...');
       
+      // Determine if we should use secure cookies based on the request's protocol or a config flag
+      const isSecureConnection = req.secure || 
+                               req.headers['x-forwarded-proto'] === 'https' || 
+                               process.env.FORCE_SECURE_COOKIES === 'true';
+      
+      console.log(`Setting cookie with secure=${isSecureConnection} based on connection protocol`);
+      
       // Set token in an HttpOnly cookie
       res.cookie('auth_token', token, {
         httpOnly: true,          // Prevents JavaScript access
-        secure: process.env.NODE_ENV === 'production', // Requires HTTPS in production
+        secure: isSecureConnection, // Only set secure flag on HTTPS connections
         sameSite: 'lax',         // Provides some CSRF protection
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/'                // Available across the site
@@ -491,10 +498,15 @@ app.post('/api/auth/logout', (req, res) => {
     sessionManager.deleteSession(authToken);
   }
   
+  // Determine if we should use secure cookies based on the request's protocol or a config flag
+  const isSecureConnection = req.secure || 
+                           req.headers['x-forwarded-proto'] === 'https' || 
+                           process.env.FORCE_SECURE_COOKIES === 'true';
+  
   // Clear the auth cookie
   res.clearCookie('auth_token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureConnection, // Only set secure flag on HTTPS connections
     sameSite: 'lax',
     path: '/'
   });

@@ -244,7 +244,7 @@ export default {
   margin: 0 auto;
   padding: 20px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   background-color: var(--card-bg-color);
   box-shadow: var(--card-shadow);
   transition: background-color var(--transition-speed), 
@@ -272,28 +272,31 @@ label {
 
 input {
   width: 100%;
-  padding: 8px;
+  padding: 8px 10px;
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   box-sizing: border-box;
   background-color: var(--input-bg);
   color: var(--input-text);
   transition: background-color var(--transition-speed), 
               border-color var(--transition-speed),
               color var(--transition-speed);
+  font-size: 14px;
 }
 
 button {
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
-  padding: 10px 15px;
+  padding: 8px 15px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 500;
   transition: background-color var(--transition-speed), 
               color var(--transition-speed),
               filter 0.2s;
+  font-size: 14px;
+  letter-spacing: 0.2px;
 }
 
 button:hover:not(:disabled) {
@@ -332,12 +335,14 @@ button:disabled {
   width: 100%;
   color: white;
   margin-top: 10px;
-  font-weight: bold;
-  padding: 12px;
+  font-weight: 500;
+  padding: 8px 15px;
+  border-radius: var(--border-radius-sm);
+  font-size: 14px;
+  letter-spacing: 0.2px;
 }
 
 .disconnect-btn:hover {
-  background-color: #d32f2f;
   filter: brightness(1.1);
 }
 </style>

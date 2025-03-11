@@ -1914,51 +1914,68 @@ export default {
 <style>
 :root {
   /* Light theme (default) */
-  --bg-color: #f5f5f5;
+  --bg-color: #f8f9fa;
   --main-bg-color: #ffffff;
-  --text-color: #2c3e50;
-  --header-color: #2c3e50;
-  --border-color: #ddd;
+  --text-color: #343a40;
+  --header-color: #212529;
+  --border-color: #e9ecef;
   --card-bg-color: #ffffff;
-  --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  --nav-bg-color: #2c3e50;
-  --nav-text-color: #ccc;
-  --nav-active-bg: rgba(255, 255, 255, 0.2);
-  --nav-hover-bg: rgba(255, 255, 255, 0.1);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --nav-bg-color: #212529;
+  --nav-text-color: #adb5bd;
+  --nav-active-bg: rgba(255, 255, 255, 0.1);
+  --nav-hover-bg: rgba(255, 255, 255, 0.05);
   --nav-active-text: #ffffff;
   --input-bg: #ffffff;
-  --input-border: #ddd;
-  --input-text: #333;
-  --button-primary-bg: #4CAF50;
+  --input-border: #ced4da;
+  --input-text: #343a40;
+  --button-primary-bg: #4361ee;
   --button-primary-text: white;
-  --button-secondary-bg: #f0f0f0;
-  --button-secondary-text: #333;
+  --button-secondary-bg: #e9ecef;
+  --button-secondary-text: #495057;
+  
+  /* Theme-specific colors */
+  --primary-color-light: rgba(67, 97, 238, 0.1);
+  --primary-color-lighter: rgba(67, 97, 238, 0.05);
+  --primary-color-border: rgba(67, 97, 238, 0.2);
+  --primary-color-shadow: rgba(67, 97, 238, 0.15);
+  
+  /* Border radius variables for consistency */
+  --border-radius-sm: 2px;
+  --border-radius-md: 3px;
+  --border-radius-lg: 4px;
   
   /* Transition for theme changes */
-  --transition-speed: 0.3s;
+  --transition-speed: 0.2s;
 }
 
 body.dark-theme {
   /* Dark theme */
-  --bg-color: #1a1a1a;
-  --main-bg-color: #2a2a2a;
-  --text-color: #e0e0e0;
-  --header-color: #e0e0e0;
-  --border-color: #444;
-  --card-bg-color: #333;
-  --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  --nav-bg-color: #222;
-  --nav-text-color: #aaa;
-  --nav-active-bg: rgba(255, 255, 255, 0.15);
-  --nav-hover-bg: rgba(255, 255, 255, 0.05);
+  --bg-color: #121212;
+  --main-bg-color: #1e1e1e;
+  --text-color: #e9ecef;
+  --header-color: #f8f9fa;
+  --border-color: #343a40;
+  --card-bg-color: #2d2d2d;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --nav-bg-color: #171717;
+  --nav-text-color: #adb5bd;
+  --nav-active-bg: rgba(255, 255, 255, 0.1);
+  --nav-hover-bg: rgba(255, 255, 255, 0.03);
   --nav-active-text: #ffffff;
-  --input-bg: #3a3a3a;
-  --input-border: #555;
-  --input-text: #e0e0e0;
-  --button-primary-bg: #388E3C;
+  --input-bg: #2d2d2d;
+  --input-border: #495057;
+  --input-text: #e9ecef;
+  --button-primary-bg: #0097a7;
   --button-primary-text: white;
-  --button-secondary-bg: #444;
-  --button-secondary-text: #e0e0e0;
+  --button-secondary-bg: #343a40;
+  --button-secondary-text: #e9ecef;
+  
+  /* Theme-specific colors - softer teal shades for dark mode */
+  --primary-color-light: rgba(0, 151, 167, 0.18);
+  --primary-color-lighter: rgba(0, 151, 167, 0.08);
+  --primary-color-border: rgba(0, 151, 167, 0.25);
+  --primary-color-shadow: rgba(0, 151, 167, 0.2);
 }
 
 body {
@@ -1993,8 +2010,9 @@ body {
   position: relative;
   background-color: var(--main-bg-color);
   border-bottom: 1px solid var(--border-color);
-  border-radius: 8px 8px 0 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  padding: 12px 0;
 }
 
 .header-content {
@@ -2016,22 +2034,22 @@ body {
 }
 
 .logo {
-  height: 60px;
-  margin-right: 6px;
+  height: 48px;
+  margin-right: 12px;
   transition: filter var(--transition-speed);
 }
 
 @media (min-width: 480px) {
   .logo {
-    height: 60px;
-    margin-right: 6px;
+    height: 42px;
+    margin-right: 10px;
   }
 }
 
 @media (min-width: 768px) {
   .logo {
-    height: 60px;
-    margin-right: 6px;
+    height: 48px;
+    margin-right: 12px;
   }
 }
 
@@ -2044,24 +2062,25 @@ h1 {
   font-size: 18px;
   color: var(--header-color);
   transition: color var(--transition-speed);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 @media (min-width: 480px) {
   h1 {
-    font-size: 22px;
+    font-size: 20px;
   }
 }
 
 @media (min-width: 768px) {
   h1 {
-    font-size: 26px;
+    font-size: 22px;
   }
 }
 
 main {
   background-color: var(--main-bg-color);
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
   overflow: hidden;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
@@ -2135,14 +2154,14 @@ main {
 
 .service-button {
   background-color: var(--card-bg-color);
-  border: 2px solid var(--button-primary-bg);
-  border-radius: 8px;
+  border: 1px solid var(--button-primary-bg);
+  border-radius: var(--border-radius-md);
   padding: 15px;
   color: var(--text-color);
   font-size: 15px;
-  font-weight: bold;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2153,7 +2172,7 @@ main {
 
 @media (min-width: 480px) {
   .service-button {
-    padding: 20px 30px;
+    padding: 18px 25px;
     font-size: 16px;
   }
 }
@@ -2161,8 +2180,8 @@ main {
 .service-button:hover {
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
-  transform: translateY(-3px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .service-button.plex-button {
@@ -2210,16 +2229,17 @@ main {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  backdrop-filter: blur(2px);
 }
 
 .jellyfin-user-modal, .tautulli-user-modal {
   background-color: var(--card-bg-color);
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
   width: 90%;
   max-width: 500px;
@@ -2286,13 +2306,14 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-radius: 6px;
+  padding: 10px 14px;
+  border-radius: var(--border-radius-sm);
   border: 1px solid var(--border-color);
   background-color: var(--input-bg);
   cursor: pointer;
   transition: all 0.2s ease;
   color: var(--text-color);
+  font-size: 14px;
 }
 
 .user-item:hover {
@@ -2302,7 +2323,7 @@ main {
 
 .user-item.selected {
   border-color: var(--button-primary-bg);
-  background-color: rgba(76, 175, 80, 0.1);
+  background-color: rgba(67, 97, 238, 0.08);
 }
 
 .user-name {
@@ -2313,7 +2334,7 @@ main {
 .user-badge {
   font-size: 12px;
   padding: 3px 8px;
-  border-radius: 10px;
+  border-radius: var(--border-radius-sm);
   font-weight: bold;
 }
 
@@ -2340,7 +2361,7 @@ main {
   background-color: var(--button-secondary-bg);
   color: var(--text-color);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   padding: 8px 16px;
   cursor: pointer;
   font-size: 14px;
@@ -2357,10 +2378,17 @@ main {
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
   border: none;
-  border-radius: 4px;
-  padding: 8px 16px;
+  border-radius: var(--border-radius-sm);
+  padding: 8px 14px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+  transition: all 0.2s ease;
+}
+
+.apply-button:hover:not(:disabled) {
+  filter: brightness(1.1);
 }
 
 .apply-button:disabled {
@@ -2372,8 +2400,14 @@ main {
   background-color: var(--button-secondary-bg);
   border: 1px solid var(--border-color);
   color: var(--button-secondary-text);
-  border-radius: 4px;
-  padding: 8px 16px;
+  border-radius: var(--border-radius-sm);
+  padding: 8px 14px;
   cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.cancel-button:hover {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 </style>

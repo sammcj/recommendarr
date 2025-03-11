@@ -205,7 +205,7 @@ export default {
   background-color: var(--nav-bg-color);
   color: var(--nav-active-text);
   position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   z-index: 100;
 }
 
@@ -261,25 +261,26 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: 0.4s;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: 0.3s;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 5px;
-  overflow: hidden; /* Ensures content stays within rounded corners */
+  overflow: hidden;
 }
 
 body.dark-theme .toggle-track {
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .toggle-icon {
-  font-size: 12px;
+  font-size: 11px;
   z-index: 1;
+  opacity: 0.9;
 }
 
 .toggle-icon.sun {
@@ -294,12 +295,12 @@ body.dark-theme .toggle-track {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   background-color: white;
-  border-radius: 50%;
-  transition: 0.4s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border-radius: 9px;
+  transition: 0.3s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 input:checked + .toggle-track {
@@ -367,7 +368,7 @@ input:checked + .toggle-track .toggle-thumb {
   border: none;
   color: var(--nav-text-color);
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
   font-size: 15px;
   transition: all 0.2s ease;
@@ -575,15 +576,16 @@ input:checked + .toggle-track .toggle-thumb {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 12px;
+  padding: 12px 12px;
   background: transparent;
   border: none;
   color: var(--nav-text-color);
   text-align: left;
-  font-size: 16px;
-  border-radius: 4px;
+  font-size: 15px;
+  border-radius: var(--border-radius-sm);
   transition: all 0.2s ease;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
 }
 
 .mobile-nav-item:hover {

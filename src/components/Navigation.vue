@@ -1,11 +1,6 @@
 <template>
   <nav class="navigation">
     <div class="nav-container">
-      <div class="nav-brand">
-        <span class="brand-icon">🎬</span>
-        <span class="brand-name">Recommendarr</span>
-      </div>
-      
       <div class="nav-menu">
         <button 
           @click="$emit('navigate', 'tv-recommendations')" 

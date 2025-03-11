@@ -28,41 +28,43 @@
       
       <!-- Content area -->
       <div class="content">
-        <!-- Loading indicator -->
-        <div v-if="loadingServices" class="loading-services">
-          <p>Loading your saved services...</p>
-        </div>
-        
-        <!-- Service selection -->
-        <div v-else-if="!hasAnyServiceCredentials && !hasAnyServiceConnected() && activeTab !== 'settings'">
-          <p class="choose-service">Choose a service to connect to:</p>
-          <div class="service-buttons">
-            <button class="service-button" @click="showSonarrConnect = true">
-              Connect to Sonarr
-              <small>For TV recommendations</small>
-            </button>
-            <button class="service-button" @click="showRadarrConnect = true">
-              Connect to Radarr
-              <small>For movie recommendations</small>
-            </button>
-            <button class="service-button plex-button" @click="showPlexConnect = true">
-              Connect to Plex
-              <small>For watch history integration</small>
-            </button>
-            <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
-              Connect to Jellyfin
-              <small>For watch history integration</small>
-            </button>
-            <button class="service-button tautulli-button" @click="showTautulliConnect = true">
-              Connect to Tautulli
-              <small>For Plex watch history statistics</small>
-            </button>
-            <button class="service-button trakt-button" @click="showTraktConnect = true">
-              Connect to Trakt
-              <small>For Trakt watch history integration</small>
-            </button>
+        <transition name="fade" mode="out-in">
+          <!-- Loading indicator -->
+          <div v-if="loadingServices" class="loading-services" key="loading">
+            <p>Loading your saved services...</p>
           </div>
-        </div>
+          
+          <!-- Service selection -->
+          <div v-else-if="!hasAnyServiceCredentials && !hasAnyServiceConnected() && activeTab !== 'settings'" key="service-selection">
+            <p class="choose-service">Choose a service to connect to:</p>
+            <div class="service-buttons">
+              <button class="service-button" @click="showSonarrConnect = true">
+                Connect to Sonarr
+                <small>For TV recommendations</small>
+              </button>
+              <button class="service-button" @click="showRadarrConnect = true">
+                Connect to Radarr
+                <small>For movie recommendations</small>
+              </button>
+              <button class="service-button plex-button" @click="showPlexConnect = true">
+                Connect to Plex
+                <small>For watch history integration</small>
+              </button>
+              <button class="service-button jellyfin-button" @click="showJellyfinConnect = true">
+                Connect to Jellyfin
+                <small>For watch history integration</small>
+              </button>
+              <button class="service-button tautulli-button" @click="showTautulliConnect = true">
+                Connect to Tautulli
+                <small>For Plex watch history statistics</small>
+              </button>
+              <button class="service-button trakt-button" @click="showTraktConnect = true">
+                Connect to Trakt
+                <small>For Trakt watch history integration</small>
+              </button>
+            </div>
+          </div>
+        </transition>
       
       <!-- User Selection Modal for Jellyfin -->
       <div v-if="showJellyfinUserSelect && jellyfinConnected" class="modal-overlay">
@@ -159,86 +161,86 @@
       
         <!-- Main components rendered based on activeTab -->
         <TVRecommendations 
-            v-if="activeTab === 'tv-recommendations'" 
-            :series="series"
-            :sonarrConfigured="sonarrConnected"
-            :recentlyWatchedShows="recentlyWatchedShows"
-            :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
-            :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
-            :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
-            :plexConfigured="plexConnected"
-            :jellyfinConfigured="jellyfinConnected"
-            :tautulliConfigured="tautulliConnected"
-            :traktConfigured="traktConnected"
-            @navigate="handleNavigate" 
-            @plexHistoryModeChanged="handlePlexHistoryModeChanged"
-            @plexOnlyModeChanged="handlePlexOnlyModeChanged"
-            @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
-            @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
-            @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
-            @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
-            @traktHistoryModeChanged="handleTraktHistoryModeChanged"
-            @traktOnlyModeChanged="handleTraktOnlyModeChanged"
-            @refreshTraktHistory="fetchTraktData"
-            @openJellyfinUserSelect="openJellyfinUserSelect"
-            @openTautulliUserSelect="openTautulliUserSelect"
-          />
-          
-          <TVRecommendations 
-            v-if="activeTab === 'movie-recommendations'" 
-            :initialMovieMode="true"
-            :series="series"
-            :movies="movies"
-            :sonarrConfigured="sonarrConnected"
-            :radarrConfigured="radarrConnected"
-            :recentlyWatchedShows="recentlyWatchedShows"
-            :recentlyWatchedMovies="recentlyWatchedMovies"
-            :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
-            :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
-            :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
-            :tautulliRecentlyWatchedMovies="tautulliRecentlyWatchedMovies"
-            :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
-            :traktRecentlyWatchedMovies="traktRecentlyWatchedMovies"
-            :plexConfigured="plexConnected"
-            :jellyfinConfigured="jellyfinConnected"
-            :tautulliConfigured="tautulliConnected"
-            :traktConfigured="traktConnected"
-            @navigate="handleNavigate" 
-            @plexHistoryModeChanged="handlePlexHistoryModeChanged"
-            @plexOnlyModeChanged="handlePlexOnlyModeChanged"
-            @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
-            @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
-            @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
-            @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
-            @traktHistoryModeChanged="handleTraktHistoryModeChanged"
-            @traktOnlyModeChanged="handleTraktOnlyModeChanged"
-            @refreshTraktHistory="fetchTraktData"
-            @openJellyfinUserSelect="openJellyfinUserSelect"
-            @openTautulliUserSelect="openTautulliUserSelect"
-          />
-          
-          <History
-            v-if="activeTab === 'history'"
-            :sonarrConfigured="sonarrConnected"
-            :radarrConfigured="radarrConnected"
-          />
-          
-          <AISettings
-            v-if="activeTab === 'settings'"
-            :sonarrConnected="sonarrConnected"
-            :radarrConnected="radarrConnected"
-            :plexConnected="plexConnected"
-            :jellyfinConnected="jellyfinConnected"
-            :tautulliConnected="tautulliConnected"
-            :traktConnected="traktConnected"
-            :defaultActiveTab="aiSettingsSubtab"
-            @settings-updated="handleSettingsUpdated"
-            @sonarr-settings-updated="handleSonarrSettingsUpdated"
-            @radarr-settings-updated="handleRadarrSettingsUpdated"
-            @plex-settings-updated="handlePlexSettingsUpdated"
-            @jellyfin-settings-updated="handleJellyfinSettingsUpdated"
-            @tautulli-settings-updated="handleTautulliSettingsUpdated"
-          />
+          v-if="activeTab === 'tv-recommendations'" 
+          :series="series"
+          :sonarrConfigured="sonarrConnected"
+          :recentlyWatchedShows="recentlyWatchedShows"
+          :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
+          :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
+          :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
+          :plexConfigured="plexConnected"
+          :jellyfinConfigured="jellyfinConnected"
+          :tautulliConfigured="tautulliConnected"
+          :traktConfigured="traktConnected"
+          @navigate="handleNavigate" 
+          @plexHistoryModeChanged="handlePlexHistoryModeChanged"
+          @plexOnlyModeChanged="handlePlexOnlyModeChanged"
+          @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
+          @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
+          @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
+          @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
+          @traktHistoryModeChanged="handleTraktHistoryModeChanged"
+          @traktOnlyModeChanged="handleTraktOnlyModeChanged"
+          @refreshTraktHistory="fetchTraktData"
+          @openJellyfinUserSelect="openJellyfinUserSelect"
+          @openTautulliUserSelect="openTautulliUserSelect"
+        />
+        
+        <TVRecommendations 
+          v-if="activeTab === 'movie-recommendations'" 
+          :initialMovieMode="true"
+          :series="series"
+          :movies="movies"
+          :sonarrConfigured="sonarrConnected"
+          :radarrConfigured="radarrConnected"
+          :recentlyWatchedShows="recentlyWatchedShows"
+          :recentlyWatchedMovies="recentlyWatchedMovies"
+          :jellyfinRecentlyWatchedShows="jellyfinRecentlyWatchedShows"
+          :jellyfinRecentlyWatchedMovies="jellyfinRecentlyWatchedMovies"
+          :tautulliRecentlyWatchedShows="tautulliRecentlyWatchedShows"
+          :tautulliRecentlyWatchedMovies="tautulliRecentlyWatchedMovies"
+          :traktRecentlyWatchedShows="traktRecentlyWatchedShows"
+          :traktRecentlyWatchedMovies="traktRecentlyWatchedMovies"
+          :plexConfigured="plexConnected"
+          :jellyfinConfigured="jellyfinConnected"
+          :tautulliConfigured="tautulliConnected"
+          :traktConfigured="traktConnected"
+          @navigate="handleNavigate" 
+          @plexHistoryModeChanged="handlePlexHistoryModeChanged"
+          @plexOnlyModeChanged="handlePlexOnlyModeChanged"
+          @jellyfinHistoryModeChanged="handleJellyfinHistoryModeChanged"
+          @jellyfinOnlyModeChanged="handleJellyfinOnlyModeChanged"
+          @tautulliHistoryModeChanged="handleTautulliHistoryModeChanged"
+          @tautulliOnlyModeChanged="handleTautulliOnlyModeChanged"
+          @traktHistoryModeChanged="handleTraktHistoryModeChanged"
+          @traktOnlyModeChanged="handleTraktOnlyModeChanged"
+          @refreshTraktHistory="fetchTraktData"
+          @openJellyfinUserSelect="openJellyfinUserSelect"
+          @openTautulliUserSelect="openTautulliUserSelect"
+        />
+        
+        <History
+          v-if="activeTab === 'history'"
+          :sonarrConfigured="sonarrConnected"
+          :radarrConfigured="radarrConnected"
+        />
+        
+        <AISettings
+          v-if="activeTab === 'settings'"
+          :sonarrConnected="sonarrConnected"
+          :radarrConnected="radarrConnected"
+          :plexConnected="plexConnected"
+          :jellyfinConnected="jellyfinConnected"
+          :tautulliConnected="tautulliConnected"
+          :traktConnected="traktConnected"
+          :defaultActiveTab="aiSettingsSubtab"
+          @settings-updated="handleSettingsUpdated"
+          @sonarr-settings-updated="handleSonarrSettingsUpdated"
+          @radarr-settings-updated="handleRadarrSettingsUpdated"
+          @plex-settings-updated="handlePlexSettingsUpdated"
+          @jellyfin-settings-updated="handleJellyfinSettingsUpdated"
+          @tautulli-settings-updated="handleTautulliSettingsUpdated"
+        />
       </div> <!-- End content div -->
     </main>
     </template>
@@ -1913,20 +1915,20 @@ export default {
 
 <style>
 :root {
-  /* Light theme (default) */
-  --bg-color: #f8f9fa;
-  --main-bg-color: #ffffff;
+  /* Light theme (default) - softened for less eye strain */
+  --bg-color: #f0f2f5;
+  --main-bg-color: #f8f9fa;
   --text-color: #343a40;
   --header-color: #212529;
   --border-color: #e9ecef;
-  --card-bg-color: #ffffff;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --card-bg-color: #f8f9fa;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   --nav-bg-color: #212529;
   --nav-text-color: #adb5bd;
   --nav-active-bg: rgba(255, 255, 255, 0.1);
   --nav-hover-bg: rgba(255, 255, 255, 0.05);
   --nav-active-text: #ffffff;
-  --input-bg: #ffffff;
+  --input-bg: #f5f7fa;
   --input-border: #ced4da;
   --input-text: #343a40;
   --button-primary-bg: #4361ee;
@@ -2088,6 +2090,13 @@ main {
 
 .content {
   min-height: 400px;
+  will-change: opacity;
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0.6; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .loading-services {

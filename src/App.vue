@@ -1990,8 +1990,6 @@ body {
 }
 
 .app-header {
-  margin-bottom: 20px;
-  padding: 12px 16px;
   position: relative;
   background-color: var(--main-bg-color);
   border-bottom: 1px solid var(--border-color);
@@ -2002,9 +2000,7 @@ body {
 .header-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  max-width: 1400px;
-  margin: 0 auto;
+  justify-content: space-around;
 }
 
 .header-brand {
@@ -2020,27 +2016,27 @@ body {
 }
 
 .logo {
-  height: 32px;
-  margin-right: 10px;
+  height: 60px;
+  margin-right: 6px;
   transition: filter var(--transition-speed);
 }
 
 @media (min-width: 480px) {
   .logo {
-    height: 40px;
-    margin-right: 12px;
+    height: 60px;
+    margin-right: 6px;
   }
 }
 
 @media (min-width: 768px) {
   .logo {
-    height: 48px;
-    margin-right: 15px;
+    height: 60px;
+    margin-right: 6px;
   }
 }
 
 body.dark-theme .logo {
-  filter: brightness(0.9);
+  filter: brightness(1.5);
 }
 
 h1 {

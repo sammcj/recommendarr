@@ -228,7 +228,7 @@ export default {
 }
 
 .login-logo {
-  height: 60px;
+  height: 120px;
   margin-bottom: 16px;
 }
 

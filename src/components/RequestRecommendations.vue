@@ -1268,7 +1268,7 @@ export default {
       localMovies: [], // Local copy of movies prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
-      useStructuredOutput: true, // Whether to use OpenAI's structured output feature
+      useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
       rootFolders: [], // Available Sonarr root folders
       qualityProfiles: [], // Available Sonarr quality profiles
       selectedRootFolder: null, // Selected root folder for series
@@ -1649,12 +1649,30 @@ export default {
         this.selectedGenres.splice(index, 1);
       }
       this.saveGenrePreference();
+      
+      // Reset conversation when genre selection changes
+      openAIService.resetConversation();
+      
+      // Clear current recommendations if any
+      if (this.recommendations.length > 0) {
+        this.recommendations = [];
+        this.recommendationsRequested = false;
+      }
     },
     
     // Clear all selected genres
     clearGenres() {
       this.selectedGenres = [];
       this.saveGenrePreference();
+      
+      // Reset conversation when genres are cleared
+      openAIService.resetConversation();
+      
+      // Clear current recommendations if any
+      if (this.recommendations.length > 0) {
+        this.recommendations = [];
+        this.recommendationsRequested = false;
+      }
     },
     
     // Save custom vibe preference to server and reset conversation
@@ -1707,6 +1725,15 @@ export default {
           plexCustomHistoryDays: this.plexCustomHistoryDays
         });
         this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
+        
+        // Reset conversation when watch history settings change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Plex history mode to server:', error);
       }
@@ -1733,6 +1760,15 @@ export default {
       try {
         // Save to User_Data.json via API service
         await apiService.saveSettings({ plexCustomHistoryDays: this.plexCustomHistoryDays });
+        
+        // Reset conversation when watch history days change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Plex custom history days to server:', error);
       }
@@ -1747,6 +1783,15 @@ export default {
           jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays
         });
         this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+        
+        // Reset conversation when watch history settings change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Jellyfin history mode to server:', error);
       }
@@ -1773,6 +1818,15 @@ export default {
       try {
         // Save to User_Data.json via API service
         await apiService.saveSettings({ jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays });
+        
+        // Reset conversation when watch history days change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Jellyfin custom history days to server:', error);
       }

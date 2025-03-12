@@ -6092,32 +6092,40 @@ select:focus {
 
 .plex-options, .jellyfin-options, .tautulli-options, .trakt-options {
   margin-top: 20px;
+  margin-bottom: 20px;
+  background-color: var(--primary-color-lighter);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
   padding: 15px;
-  background-color: rgba(52, 168, 83, 0.05); /* Light green background for all services */
-  border-radius: 8px;
-  border: 1px solid rgba(52, 168, 83, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .service-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.service-header label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-color);
 }
 
 .service-settings {
-  margin-top: 10px;
+  margin-top: 12px;
   padding: 12px;
-  background-color: rgba(52, 168, 83, 0.02);
-  border-radius: 8px;
-  border: 1px solid rgba(52, 168, 83, 0.1);
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
 }
 
-.plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle {
-  margin-top: 5px;
+.plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle, .trakt-history-toggle {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .history-selection {
@@ -6133,26 +6141,33 @@ select:focus {
   cursor: pointer;
   margin: 0;
   font-size: 14px;
+  padding: 6px 8px;
+  border-radius: var(--border-radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.toggle-option:hover {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .toggle-option input[type="radio"] {
-  margin-right: 8px;
+  margin-right: 10px;
   cursor: pointer;
 }
 
-.plex-only-toggle, .jellyfin-only-toggle, .tautulli-only-toggle {
+.plex-only-toggle, .jellyfin-only-toggle, .tautulli-only-toggle, .trakt-only-toggle {
   margin-top: 15px;
   padding-top: 12px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--primary-color-border);
 }
 
 .days-slider-container {
-  margin-top: 5px;
+  margin-top: 8px;
   margin-bottom: 15px;
-  padding: 10px;
-  background-color: rgba(52, 168, 83, 0.05);
-  border-radius: 8px;
-  border: 1px dashed rgba(52, 168, 83, 0.2);
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
 }
 
 /* Toggle Switch Styles */

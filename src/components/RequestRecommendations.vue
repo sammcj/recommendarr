@@ -3199,7 +3199,7 @@ export default {
      * @param {number} [recursionDepth=0] - Current recursion depth to limit excessive API calls
      */
     async getAdditionalRecommendations(additionalCount, genreString, recursionDepth = 0) {
-      if (additionalCount <= 0 || recursionDepth >= 5) return;
+      if (additionalCount <= 0 || recursionDepth >= 10) return;
       
       console.log(`Getting ${additionalCount} additional ${this.isMovieMode ? 'movie' : 'TV show'} recommendations after filtering (recursion depth: ${recursionDepth})`);
       
@@ -3215,7 +3215,7 @@ export default {
         const updatedPrevious = [...new Set([...previousRecsList, ...currentTitles])];
         
         // Request more recommendations than we need to account for filtering
-        const requestCount = Math.min(additionalCount * 1.5, 20); // Request 50% more, up to 20 max
+        const requestCount = Math.min(additionalCount * 2, 25); // Request 100% more, up to 25 max
         
         // Use the appropriate method based on content type mode
         let additionalRecommendations;
@@ -3226,7 +3226,10 @@ export default {
             updatedPrevious,
             genreString,
             this.customVibe,
-            this.selectedLanguage
+            this.selectedLanguage,
+            this.userMovies,
+            this.likedRecommendations,
+            this.dislikedRecommendations
           );
         } else {
           // Use TV show recommendations method
@@ -3235,7 +3238,10 @@ export default {
             updatedPrevious,
             genreString,
             this.customVibe,
-            this.selectedLanguage
+            this.selectedLanguage,
+            this.userShows,
+            this.likedRecommendations,
+            this.dislikedRecommendations
           );
         }
         
@@ -3248,21 +3254,26 @@ export default {
         // Combine with existing recommendations
         this.recommendations = [...this.recommendations, ...filteredAdditional];
         
-        // If we still don't have enough and got some results, try again with incremented recursion depth
-        if (this.recommendations.length < this.numRecommendations && filteredAdditional.length > 0) {
+        // If we still don't have enough, try again with incremented recursion depth
+        // Even if no additional results were found, we should still try again
+        if (this.recommendations.length < this.numRecommendations) {
           // Calculate how many more we need
           const stillNeeded = this.numRecommendations - this.recommendations.length;
+          
+          console.log(`After filtering, have ${this.recommendations.length}/${this.numRecommendations} recommendations. Need ${stillNeeded} more. Recursion depth: ${recursionDepth}`);
           
           // Recursive call with updated exclusion list and incremented recursion depth
           if (stillNeeded > 0) {
             await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
           }
+        } else {
+          console.log(`Successfully gathered all ${this.numRecommendations} recommendations at recursion depth ${recursionDepth}`);
         }
       } catch (error) {
         console.error('Error getting additional recommendations:', error);
         
         // Count this as one attempt but continue if we're not at the limit
-        if (recursionDepth + 1 < 5) {
+        if (recursionDepth + 1 < 10) {
           console.log(`Retrying after error (recursion depth: ${recursionDepth + 1})`);
           // Calculate how many we still need
           const stillNeeded = this.numRecommendations - this.recommendations.length;

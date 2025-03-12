@@ -827,7 +827,7 @@ CRITICAL REQUIREMENTS:
    * @param {string} language - Optional language preference
    * @returns {Promise<Array>} - List of additional recommended TV shows
    */
-  async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
+  async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -880,14 +880,12 @@ CRITICAL REQUIREMENTS:
       // Get recommendations using the conversation-based method
       const additionalRecs = await this.getFormattedRecommendationsWithConversation(this.tvConversation);
       
-      // No series data is available for the verify method in this context, so we have to trust 
-      // that the initial filter via the user prompt is sufficient
-      // But we can still filter against the provided previousRecommendations
+      // Filter recommendations against library items, liked items, disliked items and previous recommendations
       return this.verifyRecommendations(
         additionalRecs,
-        [],                     // No library items in this context
-        [],                     // No liked items in this context
-        [],                     // No disliked items in this context
+        libraryItems,           // Library items to filter out
+        likedItems,             // Liked items to filter out
+        dislikedItems,          // Disliked items to filter out
         previousRecommendations // Previous recommendations to avoid
       );
     } catch (error) {
@@ -905,7 +903,7 @@ CRITICAL REQUIREMENTS:
    * @param {string} language - Optional language preference
    * @returns {Promise<Array>} - List of additional recommended movies
    */
-  async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
+  async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -958,14 +956,12 @@ CRITICAL REQUIREMENTS:
       // Get recommendations using the conversation-based method
       const additionalRecs = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
       
-      // No movies data is available for the verify method in this context, so we have to trust 
-      // that the initial filter via the user prompt is sufficient
-      // But we can still filter against the provided previousRecommendations
+      // Filter recommendations against library items, liked items, disliked items and previous recommendations
       return this.verifyRecommendations(
         additionalRecs,
-        [],                     // No library items in this context
-        [],                     // No liked items in this context
-        [],                     // No disliked items in this context
+        libraryItems,           // Library items to filter out
+        likedItems,             // Liked items to filter out
+        dislikedItems,          // Disliked items to filter out
         previousRecommendations // Previous recommendations to avoid
       );
     } catch (error) {

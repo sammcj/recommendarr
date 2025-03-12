@@ -762,7 +762,11 @@
       <div v-else-if="recommendations.length > 0" class="recommendation-list" :style="gridStyle">
         <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card">
           <!-- Clean title for poster lookup -->
-          <div class="card-content">
+          <div class="card-content" 
+            @click="openTMDBDetailModal(rec)" 
+            :class="{ 'clickable': isTMDBAvailable }"
+            :title="isTMDBAvailable ? 'Click for more details' : ''"
+          >
             <div class="poster-container">
               <div 
                 class="poster" 
@@ -776,7 +780,7 @@
                   v-if="isPosterFallback(rec.title)" 
                   class="retry-poster-button" 
                   :class="{ 'loading': loadingPosters.get(cleanTitle(rec.title)) }"
-                  @click.stop="retryPoster(rec.title)"
+                  @click.stop.prevent="retryPoster(rec.title)"
                   title="Retry loading poster"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
@@ -795,7 +799,7 @@
                 <div class="card-actions">
                   <div class="like-dislike-buttons">
                     <button 
-                      @click="likeRecommendation(rec.title)" 
+                      @click.stop="likeRecommendation(rec.title)" 
                       class="action-btn like-btn"
                       :class="{'active': isLiked(rec.title)}"
                       title="Like this recommendation">
@@ -804,7 +808,7 @@
                       </svg>
                     </button>
                     <button 
-                      @click="dislikeRecommendation(rec.title)" 
+                      @click.stop="dislikeRecommendation(rec.title)" 
                       class="action-btn dislike-btn"
                       :class="{'active': isDisliked(rec.title)}"
                       title="Dislike this recommendation">
@@ -814,7 +818,7 @@
                     </button>
                   </div>
                   <button 
-                    @click="requestSeries(rec.title)" 
+                    @click.stop="requestSeries(rec.title)" 
                     class="request-button compact"
                     :class="{'loading': requestingSeries === rec.title, 'requested': requestStatus[rec.title]?.success}"
                     :disabled="requestingSeries || requestStatus[rec.title]?.success"
@@ -871,7 +875,16 @@
         </div>
       </div>
       
-      <div v-else-if="recommendationsRequested" class="no-recommendations">
+      <!-- TMDB Detail Modal - moved outside of conditional rendering -->
+      <TMDBDetailModal 
+        :show="showTMDBModal"
+        :media-id="selectedMediaId"
+        :media-type="isMovieMode ? 'movie' : 'tv'"
+        :title="selectedMediaTitle"
+        @close="closeTMDBModal"
+      />
+      
+      <div v-if="recommendationsRequested && !recommendations.length && !loading" class="no-recommendations">
         <p>No recommendations could be generated. Try again or check your TV show library.</p>
         <div class="action-button-container">
           <button 
@@ -1060,11 +1073,14 @@ import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
+import tmdbService from '../services/TMDBService';
 import axios from 'axios';
+import TMDBDetailModal from './TMDBDetailModal.vue';
 
 export default {
   name: 'TVRecommendations',
   components: {
+    TMDBDetailModal
   },
   props: {
     initialMovieMode: {
@@ -1168,6 +1184,11 @@ export default {
         ...(this.jellyfinRecentlyWatchedShows || []),
         ...(this.tautulliRecentlyWatchedShows || [])
       ];
+    },
+    
+    // Computed property to check if TMDB integration is available
+    isTMDBAvailable() {
+      return imageService.isTMDBAvailable();
     }
   },
   watch: {
@@ -1277,6 +1298,12 @@ export default {
       ],
       currentLoadingMessage: "",  // Current displayed loading message
       loadingMessageInterval: null, // For rotating messages
+      
+      // TMDB Modal state
+      showTMDBModal: false,
+      selectedMediaId: null,
+      selectedMediaTitle: '',
+      
       availableGenres: [
         { value: 'action', label: 'Action' },
         { value: 'adventure', label: 'Adventure' },
@@ -3563,6 +3590,36 @@ export default {
     },
     
     /**
+     * Open the TMDB detail modal for a recommendation
+     * @param {Object} recommendation - The recommendation to show details for
+     */
+    openTMDBDetailModal(recommendation) {
+      console.log('Opening TMDB modal for:', recommendation.title);
+      console.log('TMDB available:', this.isTMDBAvailable);
+      console.log('TMDB configured:', tmdbService.isConfigured());
+      
+      // Only open if TMDB is available
+      if (!this.isTMDBAvailable || !tmdbService.isConfigured()) {
+        console.log('Cannot open modal: TMDB not available or configured');
+        return;
+      }
+      
+      this.selectedMediaTitle = recommendation.title;
+      this.selectedMediaId = null; // We'll search by title
+      this.showTMDBModal = true;
+      console.log('Modal state set to open:', this.showTMDBModal);
+    },
+    
+    /**
+     * Close the TMDB detail modal
+     */
+    closeTMDBModal() {
+      this.showTMDBModal = false;
+      this.selectedMediaId = null;
+      this.selectedMediaTitle = '';
+    },
+    
+    /**
      * Request a series to be added to Sonarr with selected seasons and options
      */
     async confirmAddSeries() {
@@ -5414,6 +5471,32 @@ select:focus {
   display: flex;
   flex-direction: row;
   min-height: 100%;
+}
+
+.card-content.clickable {
+  cursor: pointer;
+  position: relative;
+}
+
+.card-content.clickable::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 114, 229, 0.03);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.card-content.clickable:hover::after {
+  opacity: 1;
+}
+
+.card-content.clickable:active {
+  transform: scale(0.99);
 }
 
 @media (max-width: 600px) {

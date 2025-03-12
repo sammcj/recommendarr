@@ -206,7 +206,6 @@ export default {
   color: var(--nav-active-text);
   position: relative;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  z-index: 100;
 }
 
 /* Main Navigation Container */
@@ -279,7 +278,6 @@ body.dark-theme .toggle-track {
 
 .toggle-icon {
   font-size: 11px;
-  z-index: 1;
   opacity: 0.9;
 }
 

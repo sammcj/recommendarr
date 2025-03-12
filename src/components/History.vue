@@ -151,7 +151,9 @@
               <div 
                 class="poster" 
                 :style="getPosterStyle(show, 'tv')"
-                :class="{ 'poster-loading': isLoadingPoster(show, 'tv') }"
+                :class="{ 'poster-loading': isLoadingPoster(show, 'tv'), 'clickable': isTMDBAvailable }"
+                @click="openTMDBDetailModal(show, 'tv')"
+                :title="isTMDBAvailable ? 'Click for more details' : ''"
               >
                 <div v-if="isLoadingPoster(show, 'tv')" class="poster-loading-overlay">
                   <div class="poster-loading-spinner"></div>
@@ -210,7 +212,9 @@
               <div 
                 class="poster" 
                 :style="getPosterStyle(movie, 'movie')"
-                :class="{ 'poster-loading': isLoadingPoster(movie, 'movie') }"
+                :class="{ 'poster-loading': isLoadingPoster(movie, 'movie'), 'clickable': isTMDBAvailable }"
+                @click="openTMDBDetailModal(movie, 'movie')"
+                :title="isTMDBAvailable ? 'Click for more details' : ''"
               >
                 <div v-if="isLoadingPoster(movie, 'movie')" class="poster-loading-overlay">
                   <div class="poster-loading-spinner"></div>
@@ -406,6 +410,16 @@
         </div>
       </div>
     </div>
+    
+    <!-- TMDB Detail Modal -->
+    <TMDBDetailModal
+      v-if="isTMDBAvailable"
+      :show="showTMDBModal"
+      :mediaId="selectedMediaId"
+      :mediaType="selectedMediaType"
+      :title="selectedMediaTitle"
+      @close="closeTMDBModal"
+    />
   </div>
 </template>
 
@@ -413,6 +427,8 @@
 import imageService from '../services/ImageService.js';
 import sonarrService from '../services/SonarrService.js';
 import radarrService from '../services/RadarrService.js';
+import tmdbService from '../services/TMDBService.js';
+import TMDBDetailModal from './TMDBDetailModal.vue';
 import apiService from '../services/ApiService.js';
 import axios from 'axios';
 
@@ -425,6 +441,9 @@ console.log('apiService available:', !!apiService);
 
 export default {
   name: 'RecommendationHistory',
+  components: {
+    TMDBDetailModal
+  },
   props: {
     sonarrConfigured: {
       type: Boolean,
@@ -451,6 +470,10 @@ export default {
       loading: true,
       loadingMoreTV: false,
       loadingMoreMovies: false,
+      showTMDBModal: false,
+      selectedMediaTitle: '',
+      selectedMediaId: null, 
+      selectedMediaType: 'tv',
       columnsCount: 4,
       posters: new Map(),
       loadingPosters: new Map(),
@@ -528,6 +551,9 @@ export default {
     hasMoreMovies() {
       const source = this.hideExistingContent ? this.filteredMovieRecommendations : this.movieRecommendations;
       return this.displayedMovies.length < source.length && !this.loadingMoreMovies;
+    },
+    isTMDBAvailable() {
+      return tmdbService.isConfigured();
     }
   },
   created() {
@@ -540,18 +566,23 @@ export default {
     console.log('History component mounted');
     
     // Make sure services are loaded before proceeding
-    await sonarrService.loadCredentials();
-    await radarrService.loadCredentials();
+    await Promise.all([
+      sonarrService.loadCredentials(),
+      radarrService.loadCredentials(),
+      tmdbService.loadCredentials() // Make sure TMDB credentials are also loaded
+    ]);
     
     // Check if services are configured after loading credentials
     const sonarrReady = sonarrService.isConfigured();
     const radarrReady = radarrService.isConfigured();
+    const tmdbReady = tmdbService.isConfigured();
     
     console.log('Service configuration status:');
     console.log('- sonarrConfigured prop:', this.sonarrConfigured);
     console.log('- radarrConfigured prop:', this.radarrConfigured);
     console.log('- Sonarr ready after credential load:', sonarrReady);
     console.log('- Radarr ready after credential load:', radarrReady);
+    console.log('- TMDB ready after credential load:', tmdbReady);
     
     // Load library content first to check if items exist in library
     await this.loadLibraryContent();
@@ -1069,14 +1100,16 @@ export default {
     async loadLibraryContent() {
       console.log('Loading library content in History component');
       
-      if (this.sonarrConfigured) {
+      // Double-check with service directly in addition to props
+      if (this.sonarrConfigured && sonarrService.isConfigured()) {
         console.log('Loading Sonarr library content');
         await this.loadSonarrLibrary();
       } else {
         console.log('Skipping Sonarr library load - not configured');
       }
       
-      if (this.radarrConfigured) {
+      // Double-check with service directly in addition to props
+      if (this.radarrConfigured && radarrService.isConfigured()) {
         console.log('Loading Radarr library content');
         await this.loadRadarrLibrary();
       } else {
@@ -1092,17 +1125,39 @@ export default {
         // Check if Sonarr is actually configured
         if (!sonarrService.isConfigured()) {
           console.warn('Sonarr service is not properly configured with API key and URL');
+          this.existingTVShows = new Set(); // Initialize with empty set
           return;
         }
         
         console.log('Requesting series list from Sonarr');
-        const series = await sonarrService.getSeries();
-        console.log(`Received ${series.length} series from Sonarr`);
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5 second timeout
         
-        const titles = new Set(series.map(show => show.title.toLowerCase()));
-        this.existingTVShows = titles;
+        try {
+          const series = await this.fetchWithAbort(
+            () => sonarrService.getSeries(),
+            abortController.signal,
+            'Sonarr Series List'
+          );
+          
+          clearTimeout(timeoutId);
+          
+          if (series && series.length) {
+            console.log(`Received ${series.length} series from Sonarr`);
+            const titles = new Set(series.map(show => show.title.toLowerCase()));
+            this.existingTVShows = titles;
+          } else {
+            console.log('No series received from Sonarr or request was aborted');
+            this.existingTVShows = new Set(); // Initialize with empty set
+          }
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          console.error('Error or timeout fetching Sonarr library:', fetchError);
+          this.existingTVShows = new Set(); // Initialize with empty set
+        }
       } catch (error) {
-        console.error('Error loading Sonarr library:', error);
+        console.error('Error in loadSonarrLibrary:', error);
+        this.existingTVShows = new Set(); // Initialize with empty set
       }
     },
     
@@ -1111,17 +1166,39 @@ export default {
         // Check if Radarr is actually configured
         if (!radarrService.isConfigured()) {
           console.warn('Radarr service is not properly configured with API key and URL');
+          this.existingMovies = new Set(); // Initialize with empty set
           return;
         }
         
         console.log('Requesting movie list from Radarr');
-        const movies = await radarrService.getMovies();
-        console.log(`Received ${movies.length} movies from Radarr`);
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5 second timeout
         
-        const titles = new Set(movies.map(movie => movie.title.toLowerCase()));
-        this.existingMovies = titles;
+        try {
+          const movies = await this.fetchWithAbort(
+            () => radarrService.getMovies(),
+            abortController.signal,
+            'Radarr Movies List'
+          );
+          
+          clearTimeout(timeoutId);
+          
+          if (movies && movies.length) {
+            console.log(`Received ${movies.length} movies from Radarr`);
+            const titles = new Set(movies.map(movie => movie.title.toLowerCase()));
+            this.existingMovies = titles;
+          } else {
+            console.log('No movies received from Radarr or request was aborted');
+            this.existingMovies = new Set(); // Initialize with empty set
+          }
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          console.error('Error or timeout fetching Radarr library:', fetchError);
+          this.existingMovies = new Set(); // Initialize with empty set
+        }
       } catch (error) {
-        console.error('Error loading Radarr library:', error);
+        console.error('Error in loadRadarrLibrary:', error);
+        this.existingMovies = new Set(); // Initialize with empty set
       }
     },
     
@@ -1737,8 +1814,20 @@ export default {
       this.loadingDetails = { ...this.loadingDetails, [title]: true };
       
       try {
-        // Get series details from Sonarr
-        const seriesInfo = await sonarrService.findSeriesByTitle(title);
+        let seriesInfo = null;
+        
+        // If TMDB is configured, try using it first
+        if (tmdbService.isConfigured()) {
+          console.log(`Fetching TV details from TMDB for "${title}"`);
+          seriesInfo = await tmdbService.findSeriesByTitle(title);
+        }
+        
+        // If TMDB failed or isn't configured and Sonarr is available, fall back to Sonarr
+        if (!seriesInfo && sonarrService.isConfigured()) {
+          console.log(`Fetching TV details from Sonarr for "${title}"`);
+          seriesInfo = await sonarrService.findSeriesByTitle(title);
+        }
+        
         if (seriesInfo) {
           this.tvShowDetails = {
             ...this.tvShowDetails,
@@ -1776,8 +1865,20 @@ export default {
       this.loadingDetails = { ...this.loadingDetails, [title]: true };
       
       try {
-        // Get movie details from Radarr
-        const movieInfo = await radarrService.findMovieByTitle(title);
+        let movieInfo = null;
+        
+        // If TMDB is configured, try using it first
+        if (tmdbService.isConfigured()) {
+          console.log(`Fetching movie details from TMDB for "${title}"`);
+          movieInfo = await tmdbService.findMovieByTitle(title);
+        }
+        
+        // If TMDB failed or isn't configured and Radarr is available, fall back to Radarr
+        if (!movieInfo && radarrService.isConfigured()) {
+          console.log(`Fetching movie details from Radarr for "${title}"`);
+          movieInfo = await radarrService.findMovieByTitle(title);
+        }
+        
         if (movieInfo) {
           this.movieDetails = {
             ...this.movieDetails,
@@ -1818,47 +1919,92 @@ export default {
       // Mark as checking for existence
       this.checkingShowExistence = { ...this.checkingShowExistence, [title]: true };
       
+      // Create abort controller with timeout
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 8000); // 8 second timeout
+      
       try {
-        // First check if the series already exists
-        const existingSeries = await sonarrService.findExistingSeriesByTitle(title);
-        if (existingSeries) {
-          this.existingSeriesInfo = existingSeries;
-          console.log('Series already exists:', existingSeries);
+        // Check if Sonarr is configured before proceeding
+        if (!sonarrService.isConfigured()) {
+          this.seriesError = "Sonarr is not configured. Please configure Sonarr in the settings.";
+          return;
         }
         
-        // Get series information from Sonarr
-        const seriesLookup = await sonarrService.findSeriesByTitle(title);
-        if (seriesLookup) {
-          this.seriesInfo = seriesLookup;
+        // First check if the series already exists with timeout support
+        try {
+          const existingSeries = await this.fetchWithAbort(
+            () => sonarrService.findExistingSeriesByTitle(title),
+            abortController.signal,
+            'Check Series Existence'
+          );
           
-          // Initialize seasons with all selected
-          if (seriesLookup.seasons) {
-            const updatedSeasons = { ...this.selectedSeasons };
-            seriesLookup.seasons.forEach(season => {
-              updatedSeasons[season.seasonNumber] = true;
-            });
-            this.selectedSeasons = updatedSeasons;
+          if (existingSeries) {
+            this.existingSeriesInfo = existingSeries;
+            console.log('Series already exists:', existingSeries);
           }
-          
-          // Get quality profiles and root folders
-          this.qualityProfiles = await sonarrService.getQualityProfiles();
-          this.rootFolders = await sonarrService.getRootFolders();
-          
-          // Default selections
-          if (this.qualityProfiles.length > 0) {
-            this.selectedQualityProfile = this.qualityProfiles[0].id;
+        } catch (error) {
+          if (error.message === 'Request aborted') {
+            console.log('Finding existing series was aborted due to timeout');
+          } else {
+            throw error;
           }
+        }
+        
+        // Only proceed if the request wasn't aborted
+        if (!abortController.signal.aborted) {
+          // Get series information from Sonarr
+          const seriesLookup = await this.fetchWithAbort(
+            () => sonarrService.findSeriesByTitle(title),
+            abortController.signal,
+            'Series Lookup'
+          );
           
-          if (this.rootFolders.length > 0) {
-            this.selectedRootFolder = this.rootFolders[0].path;
+          if (seriesLookup) {
+            this.seriesInfo = seriesLookup;
+            
+            // Initialize seasons with all selected
+            if (seriesLookup.seasons) {
+              const updatedSeasons = { ...this.selectedSeasons };
+              seriesLookup.seasons.forEach(season => {
+                updatedSeasons[season.seasonNumber] = true;
+              });
+              this.selectedSeasons = updatedSeasons;
+            }
+            
+            // Only proceed if the request wasn't aborted
+            if (!abortController.signal.aborted) {
+              // Get quality profiles and root folders in parallel for performance
+              const [profiles, folders] = await Promise.all([
+                this.fetchWithAbort(() => sonarrService.getQualityProfiles(), abortController.signal, 'Sonarr Quality Profiles'),
+                this.fetchWithAbort(() => sonarrService.getRootFolders(), abortController.signal, 'Sonarr Root Folders')
+              ]);
+              
+              this.qualityProfiles = profiles || [];
+              this.rootFolders = folders || [];
+              
+              // Default selections
+              if (this.qualityProfiles.length > 0) {
+                this.selectedQualityProfile = this.qualityProfiles[0].id;
+              }
+              
+              if (this.rootFolders.length > 0) {
+                this.selectedRootFolder = this.rootFolders[0].path;
+              }
+            }
+          } else {
+            this.seriesError = `Could not find information for "${title}"`;
           }
-        } else {
-          this.seriesError = `Could not find information for "${title}"`;
         }
       } catch (error) {
-        console.error('Error getting series information:', error);
-        this.seriesError = `Error: ${error.message || 'Failed to get series information'}`;
+        if (error.message === 'Request aborted') {
+          console.error('Operation timed out');
+          this.seriesError = 'Operation timed out. Please try again later.';
+        } else {
+          console.error('Error getting series information:', error);
+          this.seriesError = `Error: ${error.message || 'Failed to get series information'}`;
+        }
       } finally {
+        clearTimeout(timeoutId);
         this.seriesLoading = false;
         this.checkingShowExistence = { ...this.checkingShowExistence, [title]: false };
       }
@@ -1945,38 +2091,83 @@ export default {
       // Mark as checking for existence
       this.checkingMovieExistence = { ...this.checkingMovieExistence, [title]: true };
       
+      // Create abort controller with timeout
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 8000); // 8 second timeout
+      
       try {
-        // First check if the movie already exists
-        const existingMovie = await radarrService.findExistingMovieByTitle(title);
-        if (existingMovie) {
-          this.existingMovieInfo = existingMovie;
-          console.log('Movie already exists:', existingMovie);
+        // Check if Radarr is configured before proceeding
+        if (!radarrService.isConfigured()) {
+          this.movieError = "Radarr is not configured. Please configure Radarr in the settings.";
+          return;
         }
         
-        // Get movie information from Radarr
-        const movieLookup = await radarrService.findMovieByTitle(title);
-        if (movieLookup) {
-          this.movieInfo = movieLookup;
+        // First check if the movie already exists with timeout support
+        try {
+          const existingMovie = await this.fetchWithAbort(
+            () => radarrService.findExistingMovieByTitle(title),
+            abortController.signal,
+            'Check Movie Existence'
+          );
           
-          // Get quality profiles and root folders
-          this.movieQualityProfiles = await radarrService.getQualityProfiles();
-          this.movieRootFolders = await radarrService.getRootFolders();
-          
-          // Default selections
-          if (this.movieQualityProfiles.length > 0) {
-            this.selectedMovieQualityProfile = this.movieQualityProfiles[0].id;
+          if (existingMovie) {
+            this.existingMovieInfo = existingMovie;
+            console.log('Movie already exists:', existingMovie);
           }
-          
-          if (this.movieRootFolders.length > 0) {
-            this.selectedMovieRootFolder = this.movieRootFolders[0].path;
+        } catch (error) {
+          if (error.message === 'Request aborted') {
+            console.log('Finding existing movie was aborted due to timeout');
+          } else {
+            throw error;
           }
-        } else {
-          this.movieError = `Could not find information for "${title}"`;
+        }
+        
+        // Only proceed if the request wasn't aborted
+        if (!abortController.signal.aborted) {
+          // Get movie information from Radarr
+          const movieLookup = await this.fetchWithAbort(
+            () => radarrService.findMovieByTitle(title),
+            abortController.signal,
+            'Movie Lookup'
+          );
+          
+          if (movieLookup) {
+            this.movieInfo = movieLookup;
+            
+            // Only proceed if the request wasn't aborted
+            if (!abortController.signal.aborted) {
+              // Get quality profiles and root folders in parallel for performance
+              const [profiles, folders] = await Promise.all([
+                this.fetchWithAbort(() => radarrService.getQualityProfiles(), abortController.signal, 'Radarr Quality Profiles'),
+                this.fetchWithAbort(() => radarrService.getRootFolders(), abortController.signal, 'Radarr Root Folders')
+              ]);
+              
+              this.movieQualityProfiles = profiles || [];
+              this.movieRootFolders = folders || [];
+              
+              // Default selections
+              if (this.movieQualityProfiles.length > 0) {
+                this.selectedMovieQualityProfile = this.movieQualityProfiles[0].id;
+              }
+              
+              if (this.movieRootFolders.length > 0) {
+                this.selectedMovieRootFolder = this.movieRootFolders[0].path;
+              }
+            }
+          } else {
+            this.movieError = `Could not find information for "${title}"`;
+          }
         }
       } catch (error) {
-        console.error('Error getting movie information:', error);
-        this.movieError = `Error: ${error.message || 'Failed to get movie information'}`;
+        if (error.message === 'Request aborted') {
+          console.error('Operation timed out');
+          this.movieError = 'Operation timed out. Please try again later.';
+        } else {
+          console.error('Error getting movie information:', error);
+          this.movieError = `Error: ${error.message || 'Failed to get movie information'}`;
+        }
       } finally {
+        clearTimeout(timeoutId);
         this.movieLoading = false;
         this.checkingMovieExistence = { ...this.checkingMovieExistence, [title]: false };
       }
@@ -1984,6 +2175,27 @@ export default {
     
     closeMovieModal() {
       this.showMovieModal = false;
+    },
+    
+    // TMDB Detail Modal methods
+    openTMDBDetailModal(mediaTitle, mediaType) {
+      // Only open if TMDB is available
+      if (!this.isTMDBAvailable) {
+        console.log('Cannot open TMDB modal: TMDB not configured');
+        return;
+      }
+      
+      this.selectedMediaTitle = mediaTitle;
+      this.selectedMediaType = mediaType;
+      this.selectedMediaId = null; // We'll search by title
+      this.showTMDBModal = true;
+      console.log('Opening TMDB modal for:', mediaTitle, 'type:', mediaType);
+    },
+    
+    closeTMDBModal() {
+      this.showTMDBModal = false;
+      this.selectedMediaId = null;
+      this.selectedMediaTitle = '';
     },
     
     async confirmAddMovie() {
@@ -2677,5 +2889,14 @@ h2 {
     width: 150px;
     height: 225px;
   }
+}
+.poster.clickable {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.poster.clickable:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
 }
 </style>

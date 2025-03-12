@@ -46,6 +46,12 @@ class ImageService {
     try {
       let showInfo = null;
       
+      // If TMDB isn't already configured, try to load its credentials first
+      if (!tmdbService.isConfigured()) {
+        console.log(`TMDB not configured, attempting to load credentials before searching for "${title}" poster`);
+        await tmdbService.loadCredentials();
+      }
+      
       // Check if TMDB is configured - prefer TMDB if available
       if (tmdbService.isConfigured()) {
         console.log(`Trying TMDB first for "${title}" poster`);
@@ -75,8 +81,8 @@ class ImageService {
         }
       }
       
-      // If TMDB failed or isn't configured, try Sonarr as fallback
-      if (!showInfo || !showInfo.images || !showInfo.images.length) {
+      // If TMDB failed or isn't configured, try Sonarr as fallback only if it's configured
+      if ((!showInfo || !showInfo.images || !showInfo.images.length) && sonarrService.isConfigured()) {
         console.log(`No results from TMDB for "${title}", trying Sonarr`);
         
         // Use Sonarr to find the show info
@@ -175,6 +181,12 @@ class ImageService {
     try {
       let movieInfo = null;
       
+      // If TMDB isn't already configured, try to load its credentials first
+      if (!tmdbService.isConfigured()) {
+        console.log(`TMDB not configured, attempting to load credentials before searching for "${title}" poster`);
+        await tmdbService.loadCredentials();
+      }
+      
       // Check if TMDB is configured - prefer TMDB if available
       if (tmdbService.isConfigured()) {
         console.log(`Trying TMDB first for "${title}" poster`);
@@ -204,8 +216,8 @@ class ImageService {
         }
       }
       
-      // If TMDB failed or isn't configured, try Radarr as fallback
-      if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
+      // If TMDB failed or isn't configured, try Radarr as fallback only if it's configured
+      if ((!movieInfo || !movieInfo.images || !movieInfo.images.length) && radarrService.isConfigured()) {
         console.log(`No results from TMDB for "${title}", trying Radarr`);
         
         // Use Radarr to find the movie info

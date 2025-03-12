@@ -631,7 +631,7 @@
               v-model.number="plexSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="50" 
+              max="2000" 
               step="1" 
             />
             <span class="slider-value">{{ plexSettings.recentLimit }}</span>
@@ -721,7 +721,7 @@
               v-model.number="jellyfinSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="50" 
+              max="2000" 
               step="1" 
             />
             <span class="slider-value">{{ jellyfinSettings.recentLimit }}</span>
@@ -799,7 +799,7 @@
               v-model.number="tautulliSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="100" 
+              max="2000" 
               step="1" 
             />
             <span class="slider-value">{{ tautulliSettings.recentLimit }}</span>
@@ -880,7 +880,7 @@
                 v-model.number="traktSettings.recentLimit" 
                 type="range" 
                 min="1" 
-                max="100" 
+                max="2000" 
                 step="1" 
               />
               <span class="slider-value">{{ traktSettings.recentLimit }}</span>

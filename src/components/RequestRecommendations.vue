@@ -94,8 +94,8 @@
                       </div>
                       <div class="modern-slider-container">
                         <div class="slider-labels">
-                          <span>Precise</span>
                           <span>Creative</span>
+                          <span>Precise</span>
                         </div>
                         <div class="slider-track-container">
                           <input 
@@ -162,7 +162,7 @@
                         </label>
                         <div class="setting-description">
                           Uses OpenAI's JSON schema feature for more reliable and consistent LLM results formatting.
-                          Check if your model supports Structured Outputs. Disable if you get inconsistent recommendation counts.
+                          Check if your model supports Structured Outputs. Disable if you are seeing failures or inconsistent recommendation counts.
                           <span class="experimental-badge">BETA</span>
                         </div>
                       </div>

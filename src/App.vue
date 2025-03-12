@@ -29,13 +29,8 @@
       <!-- Content area -->
       <div class="content">
         <transition name="fade" mode="out-in">
-          <!-- Loading indicator -->
-          <div v-if="loadingServices" class="loading-services" key="loading">
-            <p>Loading your saved services...</p>
-          </div>
-          
           <!-- Service selection -->
-          <div v-else-if="!hasAnyServiceCredentials && !hasAnyServiceConnected() && activeTab !== 'settings'" key="service-selection">
+          <div v-if="!loadingServices &&!hasAnyServiceCredentials && !hasAnyServiceConnected() && activeTab !== 'settings'" key="service-selection">
             <p class="choose-service">Choose a service to connect to:</p>
             <div class="service-buttons">
               <button class="service-button" @click="showSonarrConnect = true">
@@ -160,7 +155,7 @@
       <TraktConnection v-if="showTraktConnect && !traktConnected" @connected="handleTraktConnected" @disconnected="handleTraktDisconnected" @limitChanged="handleTraktLimitChanged" />
       
         <!-- Main components rendered based on activeTab -->
-        <TVRecommendations 
+        <RequestRecommendations 
           v-if="activeTab === 'tv-recommendations'" 
           :series="series"
           :sonarrConfigured="sonarrConnected"
@@ -186,7 +181,7 @@
           @openTautulliUserSelect="openTautulliUserSelect"
         />
         
-        <TVRecommendations 
+        <RequestRecommendations 
           v-if="activeTab === 'movie-recommendations'" 
           :initialMovieMode="true"
           :series="series"
@@ -256,7 +251,7 @@ import TautulliConnection from './components/TautulliConnection.vue'
 import TraktConnection from './components/TraktConnection.vue'
 import TraktCallback from './components/TraktCallback.vue'
 import AppNavigation from './components/Navigation.vue'
-import TVRecommendations from './components/RequestRecommendations.vue'
+import RequestRecommendations from './components/RequestRecommendations.vue'
 import History from './components/History.vue'
 import AISettings from './components/AISettings.vue'
 import LoginForm from './components/Login.vue'
@@ -282,7 +277,7 @@ export default {
     TraktConnection,
     TraktCallback,
     AppNavigation,
-    TVRecommendations,
+    RequestRecommendations,
     History,
     AISettings,
     Login: LoginForm

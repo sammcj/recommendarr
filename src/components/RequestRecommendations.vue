@@ -54,12 +54,15 @@
               <div class="settings-layout">
               <div class="settings-left">
                 <div class="info-section">
-                  <h3 class="info-section-title">Current Configuration</h3>
-                  <div class="model-info">
+                  <h3 class="info-section-title collapsible-header" @click="toggleConfiguration">
+                    Current Configuration
+                    <span class="toggle-icon">{{ configurationExpanded ? '▼' : '▶' }}</span>
+                  </h3>
+                  <div class="model-info config-content" :class="{ 'collapsed': !configurationExpanded }" v-show="configurationExpanded">
                     <div class="model-header">
                       <span class="current-model">Model:</span>
                       <button 
-                        @click="fetchModels" 
+                        @click.stop="fetchModels" 
                         class="fetch-models-button"
                         :disabled="fetchingModels"
                         title="Refresh models from API"
@@ -182,51 +185,65 @@
                 </div>
                 
                 <div class="count-selector">
-                  <div class="slider-header">
-                    <label for="recommendationsSlider">Number of recommendations</label>
-                    <span class="slider-value">{{ numRecommendations }}</span>
-                  </div>
-                  <div class="modern-slider-container">
-                    <div class="slider-track-container">
-                      <input 
-                        type="range" 
-                        id="recommendationsSlider"
-                        v-model.number="numRecommendations"
-                        min="1" 
-                        max="50"
-                        class="modern-slider"
-                        @change="saveRecommendationCount"
-                      >
-                      <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
+                  <div class="collapsible-header" @click="toggleRecNumber">
+                    <div class="slider-header">
+                      <label for="recommendationsSlider">Number of recommendations</label>
+                      <div class="header-right">
+                        <span class="slider-value">{{ numRecommendations }}</span>
+                        <span class="toggle-icon">{{ recNumberExpanded ? '▼' : '▶' }}</span>
+                      </div>
                     </div>
-                    <div class="slider-range-labels">
-                      <span>1</span>
-                      <span>50</span>
+                  </div>
+                  <div class="rec-number-content" :class="{ 'collapsed': !recNumberExpanded }" v-show="recNumberExpanded">
+                    <div class="modern-slider-container">
+                      <div class="slider-track-container">
+                        <input 
+                          type="range" 
+                          id="recommendationsSlider"
+                          v-model.number="numRecommendations"
+                          min="1" 
+                          max="50"
+                          class="modern-slider"
+                          @change="saveRecommendationCount"
+                        >
+                        <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
+                      </div>
+                      <div class="slider-range-labels">
+                        <span>1</span>
+                        <span>50</span>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
                 <div class="count-selector">
-                  <div class="slider-header">
-                    <label for="columnsSlider">Posters per row</label>
-                    <span class="slider-value">{{ columnsCount }}</span>
-                  </div>
-                  <div class="modern-slider-container">
-                    <div class="slider-track-container">
-                      <input 
-                        type="range" 
-                        id="columnsSlider"
-                        v-model.number="columnsCount"
-                        min="1" 
-                        max="4"
-                        class="modern-slider"
-                        @change="saveColumnsCount"
-                      >
-                      <div class="slider-track" :style="{ width: `${(columnsCount - 1) / 3 * 100}%` }"></div>
+                  <div class="collapsible-header" @click="togglePostersPerRow">
+                    <div class="slider-header">
+                      <label for="columnsSlider">Posters per row</label>
+                      <div class="header-right">
+                        <span class="slider-value">{{ columnsCount }}</span>
+                        <span class="toggle-icon">{{ postersPerRowExpanded ? '▼' : '▶' }}</span>
+                      </div>
                     </div>
-                    <div class="slider-range-labels">
-                      <span>1</span>
-                      <span>4</span>
+                  </div>
+                  <div class="posters-row-content" :class="{ 'collapsed': !postersPerRowExpanded }" v-show="postersPerRowExpanded">
+                    <div class="modern-slider-container">
+                      <div class="slider-track-container">
+                        <input 
+                          type="range" 
+                          id="columnsSlider"
+                          v-model.number="columnsCount"
+                          min="1" 
+                          max="4"
+                          class="modern-slider"
+                          @change="saveColumnsCount"
+                        >
+                        <div class="slider-track" :style="{ width: `${(columnsCount - 1) / 3 * 100}%` }"></div>
+                      </div>
+                      <div class="slider-range-labels">
+                        <span>1</span>
+                        <span>4</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -234,109 +251,128 @@
               
               <div class="settings-right">
                 <div class="genre-selector">
-                  <div class="section-header">
+                  <div class="section-header collapsible-header" @click="toggleGenrePreferences">
                     <label>Genre preferences</label>
-                    <span v-if="selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
-                  </div>
-                  <div class="genre-tags-container">
-                    <div 
-                      v-for="genre in availableGenres" 
-                      :key="genre.value"
-                      :class="['genre-tag', {'selected': selectedGenres.includes(genre.value)}]"
-                      @click="toggleGenre(genre.value)"
-                    >
-                      {{ genre.label }}
+                    <div class="header-right">
+                      <span v-if="selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
+                      <span class="toggle-icon">{{ genrePreferencesExpanded ? '▼' : '▶' }}</span>
                     </div>
-                    <button 
-                      v-if="selectedGenres.length > 0" 
-                      @click="clearGenres" 
-                      class="clear-all-button"
-                      title="Clear all selected genres"
-                    >
-                      Clear all
-                    </button>
+                  </div>
+                  <div class="genre-content" :class="{ 'collapsed': !genrePreferencesExpanded }" v-show="genrePreferencesExpanded">
+                    <div class="genre-tags-container">
+                      <div 
+                        v-for="genre in availableGenres" 
+                        :key="genre.value"
+                        :class="['genre-tag', {'selected': selectedGenres.includes(genre.value)}]"
+                        @click="toggleGenre(genre.value)"
+                      >
+                        {{ genre.label }}
+                      </div>
+                      <button 
+                        v-if="selectedGenres.length > 0" 
+                        @click="clearGenres" 
+                        class="clear-all-button"
+                        title="Clear all selected genres"
+                      >
+                        Clear all
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
                 <div class="vibe-selector">
-                  <div class="section-header">
+                  <div class="section-header collapsible-header" @click="toggleCustomVibe">
                     <label for="customVibe">Vibe/mood or custom prompt</label>
-                    <button 
-                      v-if="customVibe" 
-                      @click="clearCustomVibe" 
-                      class="clear-prompt-button"
-                      title="Clear prompt"
-                    >
-                      Clear
-                    </button>
+                    <div class="header-right">
+                      <button 
+                        v-if="customVibe" 
+                        @click.stop="clearCustomVibe" 
+                        class="clear-prompt-button"
+                        title="Clear prompt"
+                      >
+                        Clear
+                      </button>
+                      <span class="toggle-icon">{{ customVibeExpanded ? '▼' : '▶' }}</span>
+                    </div>
                   </div>
-                  <div class="vibe-input-container">
-                    <textarea 
-                      id="customVibe" 
-                      v-model="customVibe"
-                      @change="saveCustomVibe"
-                      @input="this.recommendationsRequested = false"
-                      placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
-                      class="vibe-input"
-                      rows="2"
-                    ></textarea>
-                  </div>
-                  <div class="setting-tip">
-                    <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
-                      <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg>
-                    <span>Guide the AI with specific themes, styles, or preferences</span>
+                  <div class="vibe-content" :class="{ 'collapsed': !customVibeExpanded }" v-show="customVibeExpanded">
+                    <div class="vibe-input-container">
+                      <textarea 
+                        id="customVibe" 
+                        v-model="customVibe"
+                        @change="saveCustomVibe"
+                        @input="this.recommendationsRequested = false"
+                        placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
+                        class="vibe-input"
+                        rows="2"
+                      ></textarea>
+                    </div>
+                    <div class="setting-tip">
+                      <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span>Guide the AI with specific themes, styles, or preferences</span>
+                    </div>
                   </div>
                 </div>
                 
                 <div class="language-selector">
-                  <div class="section-header">
+                  <div class="section-header collapsible-header" @click="toggleContentLanguage">
                     <label for="languageSelect">Content language</label>
-                    <span v-if="selectedLanguage" class="language-badge">{{ getLanguageName(selectedLanguage) }}</span>
+                    <div class="header-right">
+                      <span v-if="selectedLanguage" class="language-badge">{{ getLanguageName(selectedLanguage) }}</span>
+                      <span class="toggle-icon">{{ contentLanguageExpanded ? '▼' : '▶' }}</span>
+                    </div>
                   </div>
-                  <div class="select-wrapper">
-                    <select 
-                      id="languageSelect" 
-                      v-model="selectedLanguage"
-                      @change="saveLanguagePreference"
-                      class="language-select"
-                    >
-                      <option value="">Any language</option>
-                      <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
-                        {{ lang.name }}
-                      </option>
-                    </select>
-                    <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </div>
-                  <div class="setting-tip">
-                    <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
-                      <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg>
-                    <span>Focus recommendations on content in a specific language</span>
+                  <div class="language-content" :class="{ 'collapsed': !contentLanguageExpanded }" v-show="contentLanguageExpanded">
+                    <div class="select-wrapper">
+                      <select 
+                        id="languageSelect" 
+                        v-model="selectedLanguage"
+                        @change="saveLanguagePreference"
+                        class="language-select"
+                      >
+                        <option value="">Any language</option>
+                        <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+                          {{ lang.name }}
+                        </option>
+                      </select>
+                      <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
+                    <div class="setting-tip">
+                      <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span>Focus recommendations on content in a specific language</span>
+                    </div>
                   </div>
                 </div>
                 
                 <div v-if="plexConfigured" class="plex-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="togglePlexHistory">
                     <label>Plex Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="plexUseHistory" 
-                          @change="savePlexUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="plexUseHistory" 
+                            @change="savePlexUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ plexHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="plexUseHistory" class="service-settings">
+                  <div v-if="plexUseHistory" class="service-settings plex-content" :class="{ 'collapsed': !plexHistoryExpanded }" v-show="plexHistoryExpanded">
                     <div class="plex-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -409,22 +445,26 @@
                 </div>
                 
                 <div v-if="jellyfinConfigured" class="jellyfin-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="toggleJellyfinHistory">
                     <label>Jellyfin Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="jellyfinUseHistory" 
-                          @change="saveJellyfinUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ jellyfinUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="jellyfinUseHistory" 
+                            @change="saveJellyfinUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ jellyfinUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ jellyfinHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="jellyfinUseHistory" class="service-settings">
+                  <div v-if="jellyfinUseHistory" class="service-settings jellyfin-content" :class="{ 'collapsed': !jellyfinHistoryExpanded }" v-show="jellyfinHistoryExpanded">
                     <div class="jellyfin-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -505,22 +545,26 @@
                 </div>
                 
                 <div v-if="tautulliConfigured" class="tautulli-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="toggleTautulliHistory">
                     <label>Tautulli Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="tautulliUseHistory" 
-                          @change="saveTautulliUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ tautulliUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="tautulliUseHistory" 
+                            @change="saveTautulliUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ tautulliUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ tautulliHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="tautulliUseHistory" class="service-settings">
+                  <div v-if="tautulliUseHistory" class="service-settings tautulli-content" :class="{ 'collapsed': !tautulliHistoryExpanded }" v-show="tautulliHistoryExpanded">
                     <div class="tautulli-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -601,22 +645,26 @@
                 </div>
                 
                 <div v-if="traktConfigured" class="trakt-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="toggleTraktHistory">
                     <label>Trakt Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="traktUseHistory" 
-                          @change="saveTraktUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ traktUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="traktUseHistory" 
+                            @change="saveTraktUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ traktUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ traktHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="traktUseHistory" class="service-settings">
+                  <div v-if="traktUseHistory" class="service-settings trakt-content" :class="{ 'collapsed': !traktHistoryExpanded }" v-show="traktHistoryExpanded">
                     <div class="trakt-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -1370,7 +1418,18 @@ export default {
       fetchingModels: false, // Loading state for fetching models
       fetchError: null, // Error when fetching models
       settingsExpanded: false, // Controls visibility of settings panel
-      temperature: 0.5 // AI temperature parameter
+      temperature: 0.5, // AI temperature parameter
+      recNumberExpanded: true, // Number of recommendations section
+      postersPerRowExpanded: true, // Posters per row section
+      genrePreferencesExpanded: true, // Genre preferences section
+      contentLanguageExpanded: true, // Content language section
+      watchHistoryExpanded: true, // Watch history main section
+      plexHistoryExpanded: true, // Plex history subsection
+      configurationExpanded: true, // Current configuration section
+      customVibeExpanded: true, // Vibe/mood section
+      jellyfinHistoryExpanded: true, // Jellyfin history subsection
+      tautulliHistoryExpanded: true, // Tautulli history subsection
+      traktHistoryExpanded: true // Trakt history subsection
     };
   },
   methods: {
@@ -1416,25 +1475,144 @@ export default {
     toggleSettings() {
       this.settingsExpanded = !this.settingsExpanded;
       
-      // Add animation classes
-      if (this.settingsExpanded) {
-        // Animate opening
-        const settingsPanel = document.querySelector('.settings-content');
-        if (settingsPanel) {
-          settingsPanel.style.transition = 'max-height 0.3s ease-in, opacity 0.3s ease-in, transform 0.3s ease-in';
-          settingsPanel.style.maxHeight = '2000px';
-          settingsPanel.style.opacity = '1';
-          settingsPanel.style.transform = 'translateY(0)';
-        }
+      // Use the improved animation method for settings panel too
+      this.animateSection('.settings-content', this.settingsExpanded);
+    },
+    
+    // Toggle section visibility functions
+    toggleRecNumber() {
+      this.recNumberExpanded = !this.recNumberExpanded;
+      this.animateSection('.rec-number-content', this.recNumberExpanded);
+    },
+    
+    togglePostersPerRow() {
+      this.postersPerRowExpanded = !this.postersPerRowExpanded;
+      this.animateSection('.posters-row-content', this.postersPerRowExpanded);
+    },
+    
+    toggleGenrePreferences() {
+      this.genrePreferencesExpanded = !this.genrePreferencesExpanded;
+      this.animateSection('.genre-content', this.genrePreferencesExpanded);
+    },
+    
+    toggleContentLanguage() {
+      this.contentLanguageExpanded = !this.contentLanguageExpanded;
+      this.animateSection('.language-content', this.contentLanguageExpanded);
+    },
+    
+    toggleWatchHistory() {
+      this.watchHistoryExpanded = !this.watchHistoryExpanded;
+      this.animateSection('.watch-history-content', this.watchHistoryExpanded);
+    },
+    
+    togglePlexHistory() {
+      this.plexHistoryExpanded = !this.plexHistoryExpanded;
+      this.animateSection('.plex-content', this.plexHistoryExpanded);
+    },
+    
+    toggleJellyfinHistory() {
+      this.jellyfinHistoryExpanded = !this.jellyfinHistoryExpanded;
+      this.animateSection('.jellyfin-content', this.jellyfinHistoryExpanded);
+    },
+    
+    toggleTautulliHistory() {
+      this.tautulliHistoryExpanded = !this.tautulliHistoryExpanded;
+      this.animateSection('.tautulli-content', this.tautulliHistoryExpanded);
+    },
+    
+    toggleTraktHistory() {
+      this.traktHistoryExpanded = !this.traktHistoryExpanded;
+      this.animateSection('.trakt-content', this.traktHistoryExpanded);
+    },
+    
+    toggleConfiguration() {
+      this.configurationExpanded = !this.configurationExpanded;
+      this.animateSection('.config-content', this.configurationExpanded);
+    },
+    
+    toggleCustomVibe() {
+      this.customVibeExpanded = !this.customVibeExpanded;
+      this.animateSection('.vibe-content', this.customVibeExpanded);
+    },
+    
+    // Helper method for animating sections consistently
+    animateSection(selector, isExpanded) {
+      const panel = document.querySelector(selector);
+      if (!panel) return;
+      
+      // Clear any existing transition end listeners
+      panel.removeEventListener('transitionend', panel._transitionEndHandler);
+      
+      if (isExpanded) {
+        // OPENING ANIMATION
+        
+        // Reset display to ensure proper height calculation
+        panel.style.display = '';
+        panel.style.visibility = 'visible';
+        panel.style.height = 'auto';
+        
+        // Get actual content height
+        const height = panel.scrollHeight;
+        
+        // Setup initial state
+        panel.style.overflow = 'hidden';
+        panel.style.maxHeight = '0px';
+        panel.style.opacity = '0';
+        panel.style.transform = 'translateY(-5px)';
+        
+        // Force browser reflow
+        void panel.offsetWidth;
+        
+        // Apply transitions (faster speed)
+        panel.style.transition = 'max-height 0.3s cubic-bezier(0.25, 1, 0.5, 1), ' +
+                                'opacity 0.25s cubic-bezier(0.25, 1, 0.5, 1), ' +
+                                'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+        
+        // Trigger animation
+        panel.style.maxHeight = `${height}px`;
+        panel.style.opacity = '1';
+        panel.style.transform = 'translateY(0)';
+        
+        // Remove maxHeight constraint after animation completes to allow for content changes
+        panel._transitionEndHandler = (e) => {
+          if (e.propertyName === 'max-height') {
+            panel.style.maxHeight = 'none'; // Allow content to grow if needed
+          }
+        };
+        panel.addEventListener('transitionend', panel._transitionEndHandler);
+        
       } else {
-        // Animate closing
-        const settingsPanel = document.querySelector('.settings-content');
-        if (settingsPanel) {
-          settingsPanel.style.transition = 'max-height 0.3s ease-out, opacity 0.3s ease-out, transform 0.3s ease-out';
-          settingsPanel.style.maxHeight = '0';
-          settingsPanel.style.opacity = '0';
-          settingsPanel.style.transform = 'translateY(-20px)';
-        }
+        // CLOSING ANIMATION
+        
+        // First set a fixed height - critical for smooth animation
+        panel.style.height = 'auto';
+        panel.style.maxHeight = 'none';
+        const height = panel.scrollHeight;
+        panel.style.maxHeight = `${height}px`;
+        
+        // Force browser reflow
+        void panel.offsetWidth;
+        
+        // Setup transitions (faster speed)
+        panel.style.overflow = 'hidden';
+        panel.style.transition = 'max-height 0.25s cubic-bezier(0.55, 0, 0.1, 1), ' +
+                               'opacity 0.2s cubic-bezier(0.55, 0, 0.1, 1), ' +
+                               'transform 0.2s cubic-bezier(0.55, 0, 0.1, 1)';
+        
+        // Trigger animation
+        panel.style.maxHeight = '0px';
+        panel.style.opacity = '0';
+        panel.style.transform = 'translateY(-5px)';
+        
+        // Handle complete close
+        panel._transitionEndHandler = (e) => {
+          if (e.propertyName === 'max-height') {
+            // If the section should stay in the DOM but be hidden, we can use:
+            // panel.style.visibility = 'hidden';
+            // We're using v-show so this isn't strictly necessary
+          }
+        };
+        panel.addEventListener('transitionend', panel._transitionEndHandler);
       }
     },
     // Clean title for consistent poster lookup
@@ -6520,5 +6698,87 @@ select:focus {
   margin-left: 4px;
   vertical-align: middle;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Collapsible section styles */
+.collapsible-header {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-radius: var(--border-radius-sm);
+  position: relative;
+}
+
+.collapsible-header:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle-icon {
+  font-size: 14px;
+  color: var(--primary-color);
+  transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), color 0.15s ease;
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  transform-origin: center;
+}
+
+.collapsible-header:hover .toggle-icon {
+  color: var(--button-primary-bg);
+}
+
+/* Improved rotation logic for toggle icon */
+[class*="-content"].collapsed ~ .header-right .toggle-icon,
+[class*="-content"].collapsed + .toggle-icon,
+.collapsed + .toggle-icon,
+.collapsed ~ .toggle-icon,
+[v-show="false"] ~ .header-right .toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.collapsed {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  transform: translateY(-5px) !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+}
+
+/* Base styles for all collapsible content */
+.genre-content, .language-content, .rec-number-content, .posters-row-content, 
+.plex-content, .jellyfin-content, .tautulli-content, .trakt-content,
+.config-content, .vibe-content, .settings-content {
+  will-change: max-height, opacity, transform;
+  box-sizing: border-box;
+}
+
+/* Prevent scroll jumping during animations */
+.collapsible-header {
+  position: relative;
+  z-index: 1;
+}
+
+.info-section-title.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 5px 5px 5px 0;
+  border-radius: var(--border-radius-sm);
+  margin-bottom: 10px;
+}
+
+.info-section-title.collapsible-header:hover {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 </style>

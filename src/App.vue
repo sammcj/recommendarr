@@ -2033,7 +2033,14 @@ body {
 .logo {
   height: 48px;
   margin-right: 12px;
-  transition: filter var(--transition-speed);
+  transition: filter var(--transition-speed), box-shadow 0.3s ease, transform 0.3s ease;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.header-brand:hover .logo {
+  transform: scale(1.05);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
 }
 
 @media (min-width: 480px) {
@@ -2051,7 +2058,9 @@ body {
 }
 
 body.dark-theme .logo {
-  filter: brightness(1.5);
+  filter: brightness(1.8) contrast(1.1);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
 }
 
 h1 {

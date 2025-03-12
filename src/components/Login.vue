@@ -230,6 +230,20 @@ export default {
 .login-logo {
   height: 90px;
   margin-bottom: 16px;
+  transition: filter 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.login-header:hover .login-logo {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+body.dark-theme .login-logo {
+  filter: brightness(1.8) contrast(1.1);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
 }
 
 .login-header h1 {

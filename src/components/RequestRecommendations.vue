@@ -6353,11 +6353,16 @@ select:focus {
   border: 1px solid var(--primary-color-border);
   padding: 15px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .vibe-input-container {
   position: relative;
   margin-bottom: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .vibe-input {
@@ -6371,6 +6376,8 @@ select:focus {
   line-height: 1.5;
   min-height: 70px;
   resize: vertical;
+  box-sizing: border-box;
+  max-width: 100%;
   font-family: inherit;
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);

@@ -1,5 +1,6 @@
 import sonarrService from './SonarrService';
 import radarrService from './RadarrService';
+import tmdbService from './TMDBService';
 
 class ImageService {
   constructor() {
@@ -60,8 +61,25 @@ class ImageService {
         }
       }
       
+      // If Sonarr search failed or returned no results, try TMDB
       if (!showInfo || !showInfo.images || !showInfo.images.length) {
-        return null;
+        console.log(`No results from Sonarr for "${title}", falling back to TMDB`);
+        
+        // Try TMDB as fallback if configured
+        try {
+          if (tmdbService.isConfigured()) {
+            showInfo = await tmdbService.findSeriesByTitle(title);
+            if (!showInfo || !showInfo.images || !showInfo.images.length) {
+              return null;
+            }
+          } else {
+            console.log('TMDB not configured, cannot retrieve poster');
+            return null;
+          }
+        } catch (tmdbError) {
+          console.error(`TMDB fallback failed for "${title}":`, tmdbError);
+          return null;
+        }
       }
       
       // Find the poster image
@@ -71,7 +89,7 @@ class ImageService {
         return null;
       }
       
-      // Get original URL from Sonarr
+      // Get original URL (either from Sonarr or TMDB)
       const originalUrl = poster.remoteUrl;
       console.log(`Found TV poster URL: ${originalUrl} for title: ${title}`);
       
@@ -147,8 +165,25 @@ class ImageService {
         }
       }
       
+      // If Radarr search failed or returned no results, try TMDB
       if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
-        return null;
+        console.log(`No results from Radarr for "${title}", falling back to TMDB`);
+        
+        // Try TMDB as fallback if configured
+        try {
+          if (tmdbService.isConfigured()) {
+            movieInfo = await tmdbService.findMovieByTitle(title);
+            if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
+              return null;
+            }
+          } else {
+            console.log('TMDB not configured, cannot retrieve poster');
+            return null;
+          }
+        } catch (tmdbError) {
+          console.error(`TMDB fallback failed for "${title}":`, tmdbError);
+          return null;
+        }
       }
       
       // Find the poster image
@@ -158,7 +193,7 @@ class ImageService {
         return null;
       }
       
-      // Get original URL from Radarr
+      // Get original URL (either from Radarr or TMDB)
       const originalUrl = poster.remoteUrl;
       console.log(`Found movie poster URL: ${originalUrl} for title: ${title}`);
       

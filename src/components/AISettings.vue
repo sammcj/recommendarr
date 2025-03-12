@@ -60,6 +60,13 @@
       >
         Trakt
       </button>
+      <button 
+        @click="activeTab = 'tmdb'" 
+        :class="{ active: activeTab === 'tmdb' }" 
+        class="tab-button"
+      >
+        TMDB
+      </button>
     </div>
     
     <!-- Connected Services Section -->
@@ -911,6 +918,17 @@
       </div>
     </div>
     
+    <!-- TMDB Settings Tab -->
+    <div v-if="activeTab === 'tmdb'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to The Movie Database (TMDB) API to retrieve poster images and movie/TV show information when Sonarr/Radarr isn't available.</p>
+      </div>
+      
+      <div class="settings-form">
+        <TMDBConnection />
+      </div>
+    </div>
+    
     
     <!-- Fixed Position Notification Toast -->
     <div v-if="saveMessage" class="save-notification" :class="{ 'success': saveSuccess, 'error': !saveSuccess }">
@@ -948,6 +966,7 @@ import TautulliConnection from './TautulliConnection.vue';
 import SonarrConnection from './SonarrConnection.vue';
 import RadarrConnection from './RadarrConnection.vue';
 import TraktConnection from './TraktConnection.vue';
+import TMDBConnection from './TMDBConnection.vue';
 
 export default {
   name: 'AIServiceSettings',
@@ -957,7 +976,8 @@ export default {
     TautulliConnection,
     SonarrConnection,
     RadarrConnection,
-    TraktConnection
+    TraktConnection,
+    TMDBConnection
   },
   props: {
     sonarrConnected: {

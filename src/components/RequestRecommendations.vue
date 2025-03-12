@@ -2691,38 +2691,47 @@ export default {
         apiKey: radarrService.apiKey ? 'set' : 'not set'
       });
       
+      // Check if we have any watch history providers configured
+      const hasWatchHistoryProvider = this.plexConfigured || this.jellyfinConfigured || this.tautulliConfigured || this.traktConfigured;
+      
       // Verify we have content and OpenAI is configured
       // Force-check radarrService.isConfigured() for movie mode to bypass the issue
       const isServiceConfigured = this.isMovieMode 
         ? (this.radarrConfigured || radarrService.isConfigured()) 
         : this.sonarrConfigured;
       
-      if (!isServiceConfigured) {
-        this.error = `You need to connect to ${this.isMovieMode ? 'Radarr' : 'Sonarr'} first to get recommendations based on your library.`;
+      // Allow recommendations if either Sonarr/Radarr OR a watch history provider is configured
+      if (!isServiceConfigured && !hasWatchHistoryProvider) {
+        this.error = `You need to connect to either ${this.isMovieMode ? 'Radarr' : 'Sonarr'} or a watch history provider (Plex, Jellyfin, Tautulli, or Trakt) to get recommendations.`;
         return;
       }
       
-      // Check if the service is actually ready with a valid connection
-      if (this.isMovieMode) {
-        // Always try to load the latest Radarr credentials if we're in movie mode
-        console.log('Movie mode active, loading latest Radarr credentials');
-        await radarrService.loadCredentials();
-        
-        if (!radarrService.isConfigured()) {
-          console.error("Radarr service isn't fully configured after loading credentials");
-          this.error = "Radarr service isn't fully configured. Please check your connection settings.";
-          return;
-        } else {
-          console.log('Radarr credentials loaded successfully', {
-            baseUrl: radarrService.baseUrl, 
-            apiKey: radarrService.apiKey ? 'set' : 'not set'
-          });
-        }
-      } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
-        await sonarrService.loadCredentials();
-        if (!sonarrService.isConfigured()) {
-          this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
-          return;
+      // Check if the service is actually ready with a valid connection, but only if we're using a Sonarr/Radarr library
+      if (isServiceConfigured) {
+        if (this.isMovieMode) {
+          // Always try to load the latest Radarr credentials if we're in movie mode
+          console.log('Movie mode active, loading latest Radarr credentials');
+          await radarrService.loadCredentials();
+          
+          if (!radarrService.isConfigured()) {
+            // Only require Radarr if no watch history providers are available
+            if (!hasWatchHistoryProvider) {
+              console.error("Radarr service isn't fully configured after loading credentials");
+              this.error = "Radarr service isn't fully configured. Please check your connection settings.";
+              return;
+            }
+          } else {
+            console.log('Radarr credentials loaded successfully', {
+              baseUrl: radarrService.baseUrl, 
+              apiKey: radarrService.apiKey ? 'set' : 'not set'
+            });
+          }
+        } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
+          await sonarrService.loadCredentials();
+          if (!sonarrService.isConfigured() && !hasWatchHistoryProvider) {
+            this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
+            return;
+          }
         }
       }
       
@@ -2731,7 +2740,16 @@ export default {
         ? (!this.localMovies || this.localMovies.length === 0)
         : (!this.series || this.series.length === 0);
         
-      if (libraryEmpty) {
+      // Check if we're going to rely on watch history
+      const useWatchHistoryOnly = hasWatchHistoryProvider && (
+        (this.plexOnlyMode && this.plexUseHistory) ||
+        (this.jellyfinOnlyMode && this.jellyfinUseHistory) ||
+        (this.tautulliOnlyMode && this.tautulliUseHistory) ||
+        (this.traktOnlyMode && this.traktUseHistory)
+      );
+      
+      // Skip library emptiness check if we're using watch history only mode
+      if (libraryEmpty && !useWatchHistoryOnly) {
         if (this.isMovieMode && radarrService.isConfigured()) {
           // First check if we already have movies in our local cache
           // to avoid unnecessary API calls
@@ -2746,18 +2764,20 @@ export default {
                 console.log(`Successfully fetched ${moviesData.length} movies from Radarr directly`);
                 // Use the movies we just fetched for recommendations
                 this.localMovies = moviesData;
-              } else {
-                this.error = `Your Radarr library is empty. Add some movies to get recommendations.`;
+              } else if (!hasWatchHistoryProvider) {
+                this.error = `Your Radarr library is empty. Add some movies to get recommendations or enable a watch history provider.`;
                 return;
               }
             } catch (error) {
               console.error('Error fetching movies directly from Radarr:', error);
-              this.error = `Your Radarr library appears to be empty or inaccessible. Add some movies to get recommendations.`;
-              return;
+              if (!hasWatchHistoryProvider) {
+                this.error = `Your Radarr library appears to be empty or inaccessible. Add some movies to get recommendations or enable a watch history provider.`;
+                return;
+              }
             }
           }
-        } else {
-          this.error = `Your ${this.isMovieMode ? 'Radarr' : 'Sonarr'} library is empty. Add some ${this.isMovieMode ? 'movies' : 'TV shows'} to get recommendations.`;
+        } else if (!hasWatchHistoryProvider) {
+          this.error = `Your ${this.isMovieMode ? 'Radarr' : 'Sonarr'} library is empty. Add some ${this.isMovieMode ? 'movies' : 'TV shows'} to get recommendations or enable a watch history provider.`;
           return;
         }
       }

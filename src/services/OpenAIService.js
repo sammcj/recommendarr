@@ -317,14 +317,14 @@ class OpenAIService {
       // Only initialize conversation history if it doesn't exist yet
       if (this.tvConversation.length === 0) {
       
-      // Determine if we should use only Plex history or include the library
+      // Determine if we should use only watch history or include the library
       let sourceText;
       let primarySource = [];
       let libraryTitles = '';
       
       if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
-        // Only use the Plex watch history
-        sourceText = "my Plex watch history";
+        // Only use the watch history
+        sourceText = "my watch history";
         primarySource = recentlyWatchedShows.map(show => show.title);
         
         // Add library titles to exclusions to prevent recommending what user already has
@@ -332,7 +332,7 @@ class OpenAIService {
           const sonarrTitles = series.map(show => show.title);
           previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
         }
-      } else {
+      } else if (series && series.length > 0) {
         // Use the Sonarr library as the main library
         sourceText = "my TV show library";
         const sonarrTitles = series.map(show => show.title);
@@ -341,6 +341,14 @@ class OpenAIService {
         // We don't add liked recommendations to the primary source anymore,
         // as they will be filtered later. This ensures liked items won't be
         // recommended again, even if they're not part of the actual library.
+      } else if (recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+        // If no Sonarr library but we have watch history, use that
+        sourceText = "my watch history";
+        primarySource = recentlyWatchedShows.map(show => show.title);
+      } else {
+        // Fallback for empty state
+        sourceText = "general preferences";
+        primarySource = [];
       }
       
       // Create combined exclusion list (everything that shouldn't be recommended)

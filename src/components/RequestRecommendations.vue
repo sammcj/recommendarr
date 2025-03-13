@@ -1346,6 +1346,7 @@ export default {
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
       plexUseHistory: true, // Whether to include Plex watch history at all
       plexCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
+      // modelOptions already defined later in the data object
       
       jellyfinHistoryMode: 'all', // 'all', 'recent', or 'custom'
       jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
@@ -2736,33 +2737,20 @@ export default {
       this.fetchError = null;
       
       try {
-        // Use the server's proxy endpoint to avoid mixed content errors
-        // This is especially important when using Cloudflare as a reverse proxy
-        const headers = {};
+        // Use OpenAIService's method to fetch models, which already uses the proxy
+        const models = await openAIService.fetchModels();
         
-        // Add authentication header based on the API endpoint
-        if (openAIService.baseUrl === 'https://api.anthropic.com/v1') {
-          headers['x-api-key'] = openAIService.apiKey;
-          headers['anthropic-dangerous-direct-browser-access'] = 'true';
-          headers['anthropic-version'] = '2023-06-01';
-        } else {
-          headers['Authorization'] = `Bearer ${openAIService.apiKey}`;
-        }
+        // Initialize as empty array first to ensure there's always an array
+        this.modelOptions = [];
         
-        // Use the server's proxy endpoint instead of direct HTTP connection
-        const response = await apiService.post('/proxy', {
-          url: `${openAIService.baseUrl}/models`,
-          method: 'GET',
-          headers: headers
-        });
-        
-        if (response.data && response.data.data) {
-          // Get the list of models
-          this.modelOptions = response.data.data;
+        if (Array.isArray(models)) {
+          // Set model options only if we got a valid array
+          this.modelOptions = models;
           
           // Sort models alphabetically
           this.modelOptions.sort((a, b) => a.id.localeCompare(b.id));
         } else {
+          console.warn('Models returned is not an array:', models);
           this.fetchError = 'Invalid response format from API';
           // Redirect to settings page for invalid response format
           this.goToSettings();
@@ -4407,13 +4395,18 @@ export default {
     // Fetch models if API is configured
     if (openAIService.isConfigured()) {
       this.fetchModels().then(() => {
-        // Check if the current model is in the fetched models
-        const modelExists = this.modelOptions.some(model => model.id === currentModel);
-        
-        if (modelExists) {
-          // If current model exists in options, select it
-          this.selectedModel = currentModel;
-          this.isCustomModel = false;
+        // Make sure modelOptions is an array before calling some()
+        if (Array.isArray(this.modelOptions) && this.modelOptions.length > 0) {
+          // Check if the current model is in the fetched models
+          const modelExists = this.modelOptions.some(model => model.id === currentModel);
+          
+          if (modelExists) {
+            // If current model exists in options, select it
+            this.selectedModel = currentModel;
+            this.isCustomModel = false;
+          }
+        } else {
+          console.log('No model options available or not an array');
         }
       });
     }

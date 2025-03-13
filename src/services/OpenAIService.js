@@ -158,28 +158,23 @@ class OpenAIService {
     console.log(`Fetching models from: ${modelsUrl}`);
     
     try {
-      // Always try to use the proxy first, then fall back to direct request if proxy fails
-      const axios = (await import('axios')).default;
+      // Always use the proxy, no direct requests to avoid mixed content errors
       const apiService = (await import('./ApiService')).default;
       
       let response;
       
       try {
-        // Try using the proxy service first for all requests
-        console.log('Attempting to use proxy service for models request');
+        // Always use the proxy service for models request to avoid mixed content errors
+        console.log('Using proxy service for models request');
         response = await apiService.proxyRequest({
           url: modelsUrl,
           method: 'GET',
           headers: headers
         });
       } catch (proxyError) {
-        // If proxy fails, fallback to direct request
-        console.log('Proxy request failed, falling back to direct request:', proxyError.message);
-        response = await axios({
-          url: modelsUrl,
-          method: 'GET',
-          headers: headers
-        });
+        // Don't fallback to direct request - it causes mixed content errors
+        console.log('Proxy request failed:', proxyError.message);
+        throw new Error(`Failed to fetch models via proxy: ${proxyError.message}`);
       }
       
       console.log(`Models response status: ${response.status}`);

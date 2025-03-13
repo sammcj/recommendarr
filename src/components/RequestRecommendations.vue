@@ -808,13 +808,14 @@
       </div>
       
       <div v-if="!error && recommendations.length > 0" class="recommendation-list" :style="gridStyle">
-        <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card">
+        <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card" :class="{ 'compact-mode': shouldUseCompactMode, 'expanded': expandedCards.has(index) }">
           <!-- Clean title for poster lookup -->
           <div class="card-content" 
             @click="openTMDBDetailModal(rec)" 
-            :class="{ 'clickable': isTMDBAvailable }"
+            :class="{ 'clickable': isTMDBAvailable, 'compact-layout': shouldUseCompactMode }"
             :title="isTMDBAvailable ? 'Click for more details' : ''"
           >
+            <!-- Expand info button for compact mode moved to end of card -->
             <div class="poster-container">
               <div 
                 class="poster" 
@@ -918,6 +919,21 @@
                   <p>{{ rec.fullText }}</p>
                 </div>
               </div>
+              
+              <!-- Full-width expand button at bottom of card for compact mode -->
+              <button v-if="shouldUseCompactMode" 
+                      class="full-width-expand-button" 
+                      @click.stop="toggleCardExpansion(index)"
+                      :title="expandedCards.has(index) ? 'Hide details' : 'Show more details'"
+                      :class="{ 'expanded': expandedCards.has(index) }">
+                <span>{{ expandedCards.has(index) ? 'Show Less' : 'Show More' }}</span>
+                <svg v-if="!expandedCards.has(index)" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="7 13 12 18 17 13"></polyline>
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="7 11 12 6 17 11"></polyline>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -1201,13 +1217,45 @@ export default {
     }
   },
   computed: {
+    shouldUseCompactMode() {
+      // More targeted compact mode detection - only activate when truly needed
+      
+      // Already responsive on mobile with single column
+      if (window.innerWidth <= 600) return false;
+      
+      // Calculate available width, accounting for gaps between cards too
+      const containerPadding = 40; // Container padding (20px on each side)
+      const cardGap = 20; // Gap between cards (from CSS)
+      const availableWidth = window.innerWidth - containerPadding;
+      
+      // Calculate the width each card would have, accounting for gaps
+      // Subtract the total gap space and divide by number of columns
+      const gapSpace = (this.columnsCount - 1) * cardGap;
+      const cardWidth = (availableWidth - gapSpace) / this.columnsCount;
+      
+      // Use compact mode if cards would be narrower than 340px
+      // This provides a balanced threshold that prevents cards from becoming too cramped
+      return cardWidth < 340;
+    },
+    
     gridStyle() {
       // Use a different column count for mobile screens
       const isMobile = window.innerWidth <= 600;
-      const effectiveColumnCount = isMobile ? 1 : this.columnsCount;
+      
+      // Apply a safety limit to column count for very narrow screens
+      // This prevents columns from being too narrow even with compact mode
+      let effectiveColumnCount = isMobile ? 1 : this.columnsCount;
+      
+      // For small desktops/tablets, limit max columns for better readability
+      if (!isMobile) {
+        // Below 840px wide, max 2 columns
+        if (window.innerWidth < 840 && effectiveColumnCount > 2) {
+          effectiveColumnCount = 2;
+        }
+      }
       
       return {
-        gridTemplateColumns: `repeat(${effectiveColumnCount}, 1fr)`
+        gridTemplateColumns: `repeat(${effectiveColumnCount}, minmax(0, 1fr))`
       };
     },
     
@@ -1284,6 +1332,7 @@ export default {
     return {
       openaiConfigured: false,
       recommendations: [],
+      expandedCards: new Set(), // Track which cards are in expanded view
       loading: false,
       error: null,
       recommendationsRequested: false,
@@ -1433,6 +1482,37 @@ export default {
     };
   },
   methods: {
+    // Handle window resize for responsive features like compact mode
+    handleWindowResize() {
+      // This triggers a reactivity update for the shouldUseCompactMode computed property
+      this.$forceUpdate();
+    },
+    
+    // Toggle card expansion in compact mode
+    toggleCardExpansion(index) {
+      if (this.expandedCards.has(index)) {
+        this.expandedCards.delete(index);
+      } else {
+        this.expandedCards.add(index);
+      }
+      // Force a reactivity update since Set mutations aren't automatically detected
+      this.$forceUpdate();
+    },
+    
+    // Note: The saveColumnsCount method already exists elsewhere in this file
+    
+    
+    // Mounted and Destroyed lifecycle hooks
+    mounted() {
+      // Add window resize event listener for compact mode calculations
+      window.addEventListener('resize', this.handleWindowResize);
+    },
+    
+    beforeUnmount() {
+      // Clean up event listeners on component destruction
+      window.removeEventListener('resize', this.handleWindowResize);
+    },
+    
     goToSettings() {
       this.$emit('navigate', 'settings', 'ai');
     },
@@ -1798,10 +1878,18 @@ export default {
         
         // Also save to localStorage as a backup
         localStorage.setItem('columnsCount', this.columnsCount.toString());
+        
+        // Clear expanded cards when column count changes
+        this.expandedCards.clear();
+        this.$forceUpdate();
       } catch (error) {
         console.error('Error saving columns count to server:', error);
         // Fallback to localStorage only
         localStorage.setItem('columnsCount', this.columnsCount.toString());
+        
+        // Still clear expanded cards even on error
+        this.expandedCards.clear();
+        this.$forceUpdate();
       }
     },
     
@@ -5880,6 +5968,60 @@ select:focus {
   min-height: 275px; /* Use min-height instead of fixed height to allow content to expand */
 }
 
+/* Compact mode styling for better fit on small screens or with many columns */
+.recommendation-card.compact-mode {
+  min-height: auto;
+  max-width: 100%;
+  overflow: hidden; /* Prevent any content from overflowing */
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.recommendation-card.compact-mode:hover {
+  transform: translateY(-3px) scale(1.02);
+  z-index: 20; /* Ensure expanded card appears above others */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Full-width expand button at bottom of card */
+.full-width-expand-button {
+  width: 100%;
+  background-color: rgba(48, 65, 86, 0.8);
+  color: white;
+  border: none;
+  border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+  padding: 8px 12px;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.full-width-expand-button:hover {
+  background-color: rgba(48, 65, 86, 0.9);
+}
+
+.full-width-expand-button.expanded {
+  background-color: rgba(48, 65, 86, 0.9);
+}
+
+.full-width-expand-button svg {
+  transition: transform 0.2s ease;
+}
+
+.full-width-expand-button:hover svg {
+  transform: translateY(2px);
+}
+
+.full-width-expand-button.expanded:hover svg {
+  transform: translateY(-2px);
+}
+
 .recommendation-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
@@ -5888,6 +6030,12 @@ select:focus {
 .card-content {
   display: flex;
   flex-direction: row;
+  min-height: 100%;
+}
+
+.card-content.compact-layout {
+  flex-direction: column;
+  display: flex;
   min-height: 100%;
 }
 
@@ -5953,6 +6101,14 @@ select:focus {
   height: 100%;
 }
 
+.compact-layout .poster-container {
+  flex: 0 0 auto;
+  width: 100%;
+  height: auto;
+  margin-bottom: 10px;
+  padding: 10px 10px 0 10px;
+}
+
 @media (max-width: 600px) {
   .poster-container {
     flex: 0 0 auto;
@@ -5971,6 +6127,14 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
+}
+
+.compact-layout .poster {
+  width: 100%;
+  height: 180px;
+  border-radius: 4px;
+  background-position: center top; /* Show top of poster in compact mode */
 }
 
 @media (max-width: 600px) {
@@ -6038,6 +6202,53 @@ select:focus {
   overflow: visible;
   display: flex;
   flex-direction: column;
+}
+
+.compact-layout .details-container {
+  padding: 10px 12px 15px 12px;
+}
+
+.compact-layout .description,
+.compact-layout .reasoning {
+  /* Hide longer text content in compact mode by default */
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+  margin: 0;
+}
+
+/* Show content when expanded */
+.recommendation-card.compact-mode.expanded .description,
+.recommendation-card.compact-mode.expanded .reasoning,
+.compact-layout .card-content:hover .description,
+.compact-layout .card-content:hover .reasoning {
+  max-height: 200px; /* Enough height for content */
+  opacity: 1;
+  margin: 8px 0;
+}
+
+.compact-layout .card-header {
+  margin-bottom: 5px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.compact-layout .card-header h3 {
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  width: 100%;
+}
+
+.compact-layout .card-actions {
+  width: 100%;
+  justify-content: space-between;
 }
 
 @media (max-width: 600px) {

@@ -40,15 +40,6 @@
           <div class="settings-container">
             <div class="settings-header" @click="toggleSettings">
               <h3>Configuration <span class="toggle-icon">{{ settingsExpanded ? '▼' : '▶' }}</span></h3>
-              <button 
-                v-if="!settingsExpanded"
-                @click.stop="getRecommendations" 
-                :disabled="loading"
-                class="action-button small-action-button"
-              >
-                <span class="desktop-text">{{ loading ? 'Getting...' : 'Get Recommendations' }}</span>
-                <span class="mobile-text">{{ loading ? '...' : 'Get Recs' }}</span>
-              </button>
             </div>
             <div class="settings-content" :class="{ 'collapsed': !settingsExpanded }">
               <div class="settings-layout">
@@ -254,7 +245,7 @@
                   <div class="section-header collapsible-header" @click="toggleGenrePreferences">
                     <label>Genre preferences</label>
                     <div class="header-right">
-                      <span v-if="selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
+                      <span v-if="selectedGenres && selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
                       <span class="toggle-icon">{{ genrePreferencesExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
@@ -263,13 +254,13 @@
                       <div 
                         v-for="genre in availableGenres" 
                         :key="genre.value"
-                        :class="['genre-tag', {'selected': selectedGenres.includes(genre.value)}]"
+                        :class="['genre-tag', {'selected': selectedGenres && selectedGenres.includes(genre.value)}]"
                         @click="toggleGenre(genre.value)"
                       >
                         {{ genre.label }}
                       </div>
                       <button 
-                        v-if="selectedGenres.length > 0" 
+                        v-if="selectedGenres && selectedGenres.length > 0" 
                         @click="clearGenres" 
                         class="clear-all-button"
                         title="Clear all selected genres"
@@ -745,49 +736,58 @@
                 </div>
               </div>
             </div>
-            
-            <div class="action-button-container">
-              <button 
-                @click="getRecommendations" 
-                :disabled="loading"
-                class="action-button discover-button"
-              >
-                <div class="discover-button-inner">
-                  <span class="button-icon">{{ isMovieMode ? '🎬' : '📺' }}</span>
-                  <span class="button-text">
-                    {{ loading 
-                      ? (isMovieMode ? 'Finding Recommendations...' : 'Finding Recommendations...') 
-                      : (isMovieMode ? 'Discover Recommendations' : 'Discover Recommendations') 
-                    }}
-                  </span>
-                  <svg class="arrow-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          </div>
+          </div>
+        </div>
+
+        <div class="discover-card-container" :class="{'visible-when-collapsed': !settingsExpanded}">
+          <div 
+            @click="!loading && getRecommendations()" 
+            :class="['discover-card', {'discover-card-loading': loading}]"
+          >
+            <div class="discover-card-inner" v-if="!loading">
+              <div class="discover-icon-container">
+                <span class="discover-icon">{{ isMovieMode ? '🎬' : '📺' }}</span>
+                <div class="discover-pulse"></div>
+              </div>
+              
+              <div class="discover-content">
+                <h3 class="discover-title">{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h3>
+                <p class="discover-subtitle">Personalized just for you</p>
+              </div>
+              
+              <div class="discover-action">
+                <div class="discover-button-circle">
+                  <svg class="discover-arrow-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </div>
-                <div class="button-shine"></div>
-              </button>
+              </div>
             </div>
-          </div>
+            
+            <div class="discover-loading-content" v-if="loading">
+              <div class="discover-loading-spinner"></div>
+              <div class="discover-loading-info">
+                <p class="discover-loading-message">{{ currentLoadingMessage }}</p>
+                <p class="discover-loading-counter" :class="{'initializing': recommendations.length === 0}">
+                  <span v-if="recommendations.length > 0">
+                    Found {{ recommendations.length }} of {{ numRecommendations }} recommendations
+                  </span>
+                  <span v-else>
+                    Processing initial request...
+                  </span>
+                </p>
+              </div>
+            </div>
+            
+            <div class="discover-card-background"></div>
           </div>
         </div>
       </div>
       
-      <div v-if="loading" class="loading">
-        <div class="spinner"></div>
-        <div class="loading-content">
-          <p class="loading-message">{{ currentLoadingMessage }}</p>
-          <p class="recommendation-counter" :class="{'initializing': recommendations.length === 0}">
-            <span v-if="recommendations.length > 0">
-              Found {{ recommendations.length }} of {{ numRecommendations }} recommendations
-            </span>
-            <span v-else>
-              Processing initial request...
-            </span>
-          </p>
-        </div>
-      </div>
+      <!-- Loading UI is now integrated into the discover card -->
       
-      <div v-else-if="error" class="error">
+      <div v-if="error" class="error">
         <p>{{ error }}</p>
         <div class="action-button-container">
           <button 
@@ -807,7 +807,7 @@
         </div>
       </div>
       
-      <div v-else-if="recommendations.length > 0" class="recommendation-list" :style="gridStyle">
+      <div v-if="!error && recommendations.length > 0" class="recommendation-list" :style="gridStyle">
         <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card">
           <!-- Clean title for poster lookup -->
           <div class="card-content" 
@@ -4876,12 +4876,7 @@ h2 {
   background-color: rgba(0, 0, 0, 0.03);
 }
 
-.small-action-button {
-  font-size: 14px;
-  padding: 6px 12px;
-  border-radius: 4px;
-  min-width: 160px;
-}
+/* Removed small-action-button that was previously in the header */
 
 .retry-button {
   margin-top: 15px;
@@ -4901,16 +4896,6 @@ h2 {
 }
 
 @media (max-width: 600px) {
-  .small-action-button {
-    font-size: 12px;
-    padding: 4px 8px;
-    min-width: 0 !important;
-    max-width: 140px !important; 
-    width: 140px !important;
-    line-height: 1.3;
-    overflow: hidden;
-  }
-  
   .loading {
     padding: 12px;
     gap: 10px;
@@ -4920,14 +4905,6 @@ h2 {
     font-size: 14px;
     margin: 0;
     flex: 1;
-  }
-  
-  .desktop-text {
-    display: none;
-  }
-  
-  .mobile-text {
-    display: inline;
   }
   
   .settings-header {
@@ -4941,13 +4918,7 @@ h2 {
 }
 
 @media (min-width: 601px) {
-  .desktop-text {
-    display: inline;
-  }
-  
-  .mobile-text {
-    display: none;
-  }
+  /* Desktop-specific styles */
 }
 
 .settings-header h3 {
@@ -5468,93 +5439,275 @@ select:focus {
   }
 }
 
-.discover-button {
+.discover-card-container {
   position: relative;
   width: 100%;
-  max-width: 320px;
-  padding: 0;
+  max-width: 450px;
+  margin: 20px auto;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.discover-card-container.visible-when-collapsed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Hide the card when settings are expanded */
+.settings-content:not(.collapsed) + .discover-card-container {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+.discover-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   background-color: #4285F4;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
   border: none;
-  transition: all 0.2s ease-out;
-  margin: 5px auto;
+  color: white;
+  margin: 0 auto;
 }
 
 @media (prefers-color-scheme: dark) {
-  .discover-button {
+  .discover-card {
     background-color: #3367D6;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
   }
 }
 
-.discover-button-inner {
+.discover-card-inner {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 16px 24px;
+  width: 100%;
+  padding: 20px;
   position: relative;
   z-index: 2;
 }
 
-.discover-button:hover:not(:disabled) {
-  background-color: #3367D6;
-  transform: translateY(-1px);
+.discover-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(66, 133, 244, 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
-  .discover-button:hover:not(:disabled) {
-    background-color: #2A56C6;
+  .discover-card:hover {
+    box-shadow: 0 10px 25px rgba(51, 103, 214, 0.3);
   }
 }
 
-.discover-button:active:not(:disabled) {
+.discover-card:active {
   transform: translateY(0);
-  background-color: #2A56C6;
+}
+
+.discover-card-loading {
+  background-color: #4285F4;
+  cursor: default;
+  min-height: 140px;
+  height: auto;
 }
 
 @media (prefers-color-scheme: dark) {
-  .discover-button:active:not(:disabled) {
-    background-color: #1A46B6;
+  .discover-card-loading {
+    background-color: #3367D6;
   }
 }
 
-.discover-button:disabled {
-  background-color: #E0E0E0;
-  cursor: not-allowed;
+.discover-icon-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  margin-right: 16px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .discover-button:disabled {
-    background-color: #707070;
+.discover-icon {
+  font-size: 24px;
+  z-index: 1;
+}
+
+.discover-pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.15);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
   }
 }
 
-.button-text {
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  color: white;
+.discover-content {
+  flex: 1;
 }
 
-.button-icon {
+.discover-title {
   font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
 }
 
-.arrow-icon {
-  transition: transform 0.2s ease;
+.discover-subtitle {
+  font-size: 14px;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.discover-action {
+  margin-left: 16px;
+}
+
+.discover-button-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.discover-card:hover .discover-button-circle {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.discover-arrow-icon {
+  transition: transform 0.3s ease;
   stroke: white;
   height: 18px;
   width: 18px;
-  margin-left: 4px;
 }
 
-.discover-button:hover:not(:disabled) .arrow-icon {
-  transform: translateX(4px);
+.discover-card:hover .discover-arrow-icon {
+  transform: translateX(3px);
 }
 
-.button-shine {
-  display: none;
+.discover-card-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
+  z-index: 1;
+}
+
+.discover-loading-content {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  gap: 16px;
+  width: 100%;
+  z-index: 3;
+}
+
+.discover-loading-spinner {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spinner 1s linear infinite;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.discover-loading-info {
+  flex: 1;
+}
+
+.discover-loading-message {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+}
+
+.discover-loading-counter {
+  font-size: 14px;
+  opacity: 0.9;
+  margin: 0;
+  transition: opacity 0.3s ease;
+}
+
+.discover-loading-counter.initializing {
+  opacity: 0.7;
+}
+
+@media (max-width: 600px) {
+  .discover-card-inner {
+    padding: 15px;
+  }
+  
+  .discover-icon-container {
+    width: 40px;
+    height: 40px;
+    margin-right: 12px;
+  }
+  
+  .discover-icon {
+    font-size: 20px;
+  }
+  
+  .discover-title {
+    font-size: 16px;
+  }
+  
+  .discover-subtitle {
+    font-size: 12px;
+  }
+  
+  .discover-loading-content {
+    padding: 15px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .discover-loading-spinner {
+    margin: 0 auto 5px;
+  }
+  
+  .discover-loading-message {
+    font-size: 14px;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .discover-loading-counter {
+    font-size: 12px;
+    text-align: center;
+    width: 100%;
+  }
 }
 
 @media (max-width: 600px) {

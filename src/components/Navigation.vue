@@ -260,9 +260,9 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(48, 65, 86, 0.15);
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(48, 65, 86, 0.2);
   transition: 0.3s;
   display: flex;
   align-items: center;
@@ -272,8 +272,9 @@ export default {
 }
 
 body.dark-theme .toggle-track {
-  background-color: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(15, 15, 15, 0.8);
+  border: 1px solid rgba(48, 65, 86, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .toggle-icon {
@@ -298,11 +299,11 @@ body.dark-theme .toggle-track {
   background-color: white;
   border-radius: 9px;
   transition: 0.3s;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 input:checked + .toggle-track {
-  background-color: rgba(76, 175, 80, 0.7);
+  background-color: rgba(48, 65, 86, 0.7);
 }
 
 input:checked + .toggle-track .toggle-thumb {

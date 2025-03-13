@@ -1910,69 +1910,69 @@ export default {
 
 <style>
 :root {
-  /* Light theme (default) - softened for less eye strain */
-  --bg-color: #f0f2f5;
-  --main-bg-color: #f8f9fa;
-  --text-color: #343a40;
-  --header-color: #212529;
-  --border-color: #e9ecef;
-  --card-bg-color: #f8f9fa;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --nav-bg-color: #212529;
-  --nav-text-color: #adb5bd;
+  /* Modern light theme - refined and clean */
+  --bg-color: #f5f7fa;
+  --main-bg-color: #ffffff;
+  --text-color: #2c3e50;
+  --header-color: #1e293b;
+  --border-color: #e2e8f0;
+  --card-bg-color: #ffffff;
+  --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --nav-bg-color: #1e293b;
+  --nav-text-color: #94a3b8;
   --nav-active-bg: rgba(255, 255, 255, 0.1);
   --nav-hover-bg: rgba(255, 255, 255, 0.05);
   --nav-active-text: #ffffff;
-  --input-bg: #f5f7fa;
-  --input-border: #ced4da;
-  --input-text: #343a40;
-  --button-primary-bg: #4361ee;
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --input-text: #334155;
+  --button-primary-bg: #304156;
   --button-primary-text: white;
-  --button-secondary-bg: #e9ecef;
-  --button-secondary-text: #495057;
+  --button-secondary-bg: #f1f5f9;
+  --button-secondary-text: #334155;
   
-  /* Theme-specific colors */
-  --primary-color-light: rgba(67, 97, 238, 0.1);
-  --primary-color-lighter: rgba(67, 97, 238, 0.05);
-  --primary-color-border: rgba(67, 97, 238, 0.2);
-  --primary-color-shadow: rgba(67, 97, 238, 0.15);
+  /* Theme-specific colors - slate blue accents */
+  --primary-color-light: rgba(48, 65, 86, 0.1);
+  --primary-color-lighter: rgba(48, 65, 86, 0.05);
+  --primary-color-border: rgba(48, 65, 86, 0.2);
+  --primary-color-shadow: rgba(48, 65, 86, 0.1);
   
   /* Border radius variables for consistency */
-  --border-radius-sm: 2px;
-  --border-radius-md: 3px;
-  --border-radius-lg: 4px;
+  --border-radius-sm: 3px;
+  --border-radius-md: 4px;
+  --border-radius-lg: 6px;
   
   /* Transition for theme changes */
   --transition-speed: 0.2s;
 }
 
 body.dark-theme {
-  /* Dark theme */
+  /* Deep dark theme with darker tones */
   --bg-color: #121212;
-  --main-bg-color: #1e1e1e;
-  --text-color: #e9ecef;
-  --header-color: #f8f9fa;
-  --border-color: #343a40;
-  --card-bg-color: #2d2d2d;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  --nav-bg-color: #171717;
-  --nav-text-color: #adb5bd;
-  --nav-active-bg: rgba(255, 255, 255, 0.1);
-  --nav-hover-bg: rgba(255, 255, 255, 0.03);
-  --nav-active-text: #ffffff;
-  --input-bg: #2d2d2d;
-  --input-border: #495057;
-  --input-text: #e9ecef;
-  --button-primary-bg: #0097a7;
-  --button-primary-text: white;
-  --button-secondary-bg: #343a40;
-  --button-secondary-text: #e9ecef;
+  --main-bg-color: #1a1a1a;
+  --text-color: #d0d0d0;
+  --header-color: #e8e8e8;
+  --border-color: #303030;
+  --card-bg-color: #202020;
+  --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --nav-bg-color: #0f0f0f;
+  --nav-text-color: #a0a0a0;
+  --nav-active-bg: rgba(48, 65, 86, 0.3);
+  --nav-hover-bg: rgba(0, 0, 0, 0.2);
+  --nav-active-text: #f0f0f0;
+  --input-bg: #252525;
+  --input-border: #404040;
+  --input-text: #d0d0d0;
+  --button-primary-bg: #304156;
+  --button-primary-text: #f0f0f0;
+  --button-secondary-bg: #282828;
+  --button-secondary-text: #d0d0d0;
   
-  /* Theme-specific colors - softer teal shades for dark mode */
-  --primary-color-light: rgba(0, 151, 167, 0.18);
-  --primary-color-lighter: rgba(0, 151, 167, 0.08);
-  --primary-color-border: rgba(0, 151, 167, 0.25);
-  --primary-color-shadow: rgba(0, 151, 167, 0.2);
+  /* Theme-specific colors - darker steel blue accents */
+  --primary-color-light: rgba(48, 65, 86, 0.2);
+  --primary-color-lighter: rgba(48, 65, 86, 0.08);
+  --primary-color-border: rgba(48, 65, 86, 0.25);
+  --primary-color-shadow: rgba(48, 65, 86, 0.2);
 }
 
 body {
@@ -2058,8 +2058,8 @@ body {
 }
 
 body.dark-theme .logo {
-  filter: brightness(1.8) contrast(1.1);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+  filter: brightness(1.3) contrast(1.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   border-radius: 8px;
 }
 

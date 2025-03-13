@@ -1138,7 +1138,6 @@ import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
 import tmdbService from '../services/TMDBService';
-import axios from 'axios';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 
 export default {
@@ -2737,10 +2736,8 @@ export default {
       this.fetchError = null;
       
       try {
-        // Use the baseUrl from OpenAIService to build the models endpoint
-        const modelsEndpoint = `${openAIService.baseUrl}/models`;
-        
-        // Set up headers based on the API endpoint
+        // Use the server's proxy endpoint to avoid mixed content errors
+        // This is especially important when using Cloudflare as a reverse proxy
         const headers = {};
         
         // Add authentication header based on the API endpoint
@@ -2752,7 +2749,12 @@ export default {
           headers['Authorization'] = `Bearer ${openAIService.apiKey}`;
         }
         
-        const response = await axios.get(modelsEndpoint, { headers });
+        // Use the server's proxy endpoint instead of direct HTTP connection
+        const response = await apiService.post('/proxy', {
+          url: `${openAIService.baseUrl}/models`,
+          method: 'GET',
+          headers: headers
+        });
         
         if (response.data && response.data.data) {
           // Get the list of models

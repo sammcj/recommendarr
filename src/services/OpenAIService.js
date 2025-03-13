@@ -106,6 +106,23 @@ class OpenAIService {
   getModelsUrl() {
     // Normalize the base URL by removing trailing slashes
     const baseUrl = this.baseUrl ? this.baseUrl.replace(/\/+$/, '') : '';
+    
+    // Special handling for Anthropic API
+    if (baseUrl === 'https://api.anthropic.com/v1') {
+      console.log('Using Anthropic models endpoint');
+      return `${baseUrl}/models`;
+    }
+    
+    // Special handling for LLM servers (like LMStudio)
+    if (baseUrl.match(/192\.168\.\d+\.\d+/) || baseUrl.match(/\d+\.\d+\.\d+\.\d+/) || baseUrl.includes('lmstudio')) {
+      if (baseUrl.endsWith('/v1')) {
+        return `${baseUrl}/models`;
+      } else {
+        return `${baseUrl}/v1/models`;
+      }
+    }
+    
+    // Default for OpenAI and other providers
     return `${baseUrl}/models`;
   }
   
@@ -142,17 +159,38 @@ class OpenAIService {
       if (this.apiKey && this.apiKey.trim() !== '') {
         // Ensure the authorization header is properly formatted for OpenAI API
         // Always include Bearer prefix and ensure no extra whitespace
-        // Try adjusting header case - some proxies might be case-sensitive
-        headers['authorization'] = `Bearer ${this.apiKey.trim()}`; // lowercase header key
+        // Use correct header case for OpenAI API (capital 'A')
+        headers['Authorization'] = `Bearer ${this.apiKey.trim()}`; // OpenAI expects 'Authorization'
         console.log('Using OpenAI headers for models request');
-        console.log('Authorization header format:', headers['authorization'].substring(0, 15) + '...');
+        console.log('Authorization header format:', headers['Authorization'].substring(0, 15) + '...');
       } else {
         console.log('No API key provided, skipping Authorization header');
       }
     }
     
-    // Add content type header - lowercase for consistency
-    headers['content-type'] = 'application/json';
+    // Add content-type header with correct case for OpenAI API
+    if (this.baseUrl.includes('openai.com')) {
+      headers['Content-Type'] = 'application/json';  // OpenAI expects 'Content-Type'
+      headers['Accept'] = 'application/json';        // OpenAI expects 'Accept'
+    } else {
+      // For other services, use lowercase as it was working before
+      headers['content-type'] = 'application/json';
+      headers['accept'] = 'application/json';
+    }
+    
+    // Ensure we preserve existing Anthropic specific headers
+    if (this.baseUrl === 'https://api.anthropic.com/v1') {
+      headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      headers['anthropic-version'] = '2023-06-01';
+      console.log('Preserved Anthropic-specific headers');
+    }
+    
+    // Special handling for LMStudio
+    if (this.baseUrl.includes('lmstudio') || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/)) {
+      console.log('Detected LMStudio or local LLM server, adding additional headers');
+      headers['accept'] = 'application/json, text/plain, */*';
+      headers['user-agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
+    }
     
     const modelsUrl = this.getModelsUrl();
     console.log(`Fetching models from: ${modelsUrl}`);
@@ -172,8 +210,100 @@ class OpenAIService {
           headers: headers
         });
       } catch (proxyError) {
-        // Don't fallback to direct request - it causes mixed content errors
         console.log('Proxy request failed:', proxyError.message);
+        
+        // Log error but avoid excessive details
+        console.error('Proxy error:', proxyError.message);
+        
+        // For OpenAI, Anthropic, LMStudio or IP-based endpoints, try a direct request as fallback
+        if (this.baseUrl.includes('openai.com') || this.baseUrl === 'https://api.anthropic.com/v1' || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/) || this.baseUrl.includes('lmstudio')) {
+          console.log('Attempting direct request to LLM server as fallback...');
+          try {
+            const axios = (await import('axios')).default;
+            // Prepare headers for direct request based on API type
+            const directHeaders = {
+              'Accept': 'application/json, text/plain, */*',
+              'User-Agent': 'Mozilla/5.0 (compatible; Reccommendarr/1.0)'
+            };
+            
+            // Special handling for OpenAI API
+            if (this.baseUrl.includes('openai.com')) {
+              console.log('Using special headers for direct OpenAI API request');
+              directHeaders['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+              directHeaders['Content-Type'] = 'application/json';
+              directHeaders['Accept'] = 'application/json';
+            }
+            // Special handling for Anthropic API
+            else if (this.baseUrl === 'https://api.anthropic.com/v1') {
+              console.log('Using special headers for direct Anthropic API request');
+              directHeaders['x-api-key'] = this.apiKey;
+              directHeaders['anthropic-version'] = '2023-06-01';
+              directHeaders['anthropic-dangerous-direct-browser-access'] = 'true';
+            }
+            
+            const directResponse = await axios({
+              url: modelsUrl,
+              method: 'GET',
+              headers: directHeaders
+            });
+            
+            console.log('Direct request successful!', directResponse.status);
+            
+            // Process the response data from direct request
+            
+            // For OpenAI API
+            if (this.baseUrl.includes('openai.com')) {
+              console.log('Processing OpenAI API direct response');
+              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.data.length} OpenAI models`);
+                return directResponse.data.data;
+              }
+            }
+            
+            // For Anthropic API
+            else if (this.baseUrl === 'https://api.anthropic.com/v1') {
+              console.log('Processing Anthropic API direct response');
+              
+              // Handle format with data array property
+              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.data.length} Anthropic models (data array format)`);
+                return directResponse.data.data.map(model => ({
+                  id: model.id,
+                  object: 'model',
+                  owned_by: 'anthropic',
+                  display_name: model.display_name
+                }));
+              }
+              // Handle direct array format
+              else if (Array.isArray(directResponse.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.length} Anthropic models (direct array format)`);
+                return directResponse.data.map(model => ({
+                  id: model.id || model.name,
+                  object: 'model',
+                  owned_by: 'anthropic'
+                }));
+              }
+            }
+            
+            // For LMStudio format
+            if (directResponse.data && directResponse.data.object === 'list' && Array.isArray(directResponse.data.data)) {
+              console.log(`Successfully retrieved ${directResponse.data.data.length} models from direct request`);
+              // Return processed models directly instead of wrapping
+              return directResponse.data.data;
+            }
+            
+            // If data is in a different format, wrap it in a proxy-like response
+            return {
+              status: directResponse.status,
+              data: directResponse.data,
+              headers: directResponse.headers
+            };
+          } catch (directError) {
+            console.error('Direct request failed:', directError.message);
+            throw new Error(`Failed to connect to LLM server at ${this.baseUrl}. Please check if the server is running and accessible.`);
+          }
+        }
+        
         throw new Error(`Failed to fetch models via proxy: ${proxyError.message}`);
       }
       
@@ -181,12 +311,80 @@ class OpenAIService {
       
       // Check if the request was successful
       if (response && response.status >= 200 && response.status < 300 && response.data) {
-        if (response.data.data) {
-          console.log(`Successfully retrieved ${response.data.data.length} models`);
-          return response.data.data;
-        } else {
-          console.warn('Response successful but missing data.data property:', response.data);
+        
+        // Handle Anthropic API first since it has specific requirements
+        if (this.baseUrl === 'https://api.anthropic.com/v1') {
+          // Anthropic format with data array
+          if (response.data.data && Array.isArray(response.data.data)) {
+            console.log(`Successfully retrieved ${response.data.data.length} Anthropic models (data array format)`);
+            return response.data.data.map(model => ({
+              id: model.id,
+              object: 'model',
+              owned_by: 'anthropic',
+              display_name: model.display_name
+            }));
+          }
+          // Anthropic direct array format
+          else if (Array.isArray(response.data)) {
+            console.log(`Successfully retrieved ${response.data.length} Anthropic models (direct array format)`);
+            return response.data.map(model => ({
+              id: model.id || model.name,
+              object: 'model',
+              owned_by: 'anthropic'
+            }));
+          }
         }
+        
+        // Standard OpenAI API format
+        if (response.data.data && Array.isArray(response.data.data)) {
+          console.log(`Successfully retrieved ${response.data.data.length} models (standard format)`);
+          return response.data.data;
+        } 
+        
+        // LMStudio format with object=list
+        if (response.data && response.data.object === 'list' && Array.isArray(response.data.data)) {
+          console.log(`Successfully retrieved ${response.data.data.length} models (LMStudio format)`);
+          return response.data.data;
+        }
+        
+        // Generic direct array format for other providers
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`Successfully retrieved ${response.data.length} models (direct array format)`);
+          return response.data.map(model => ({ 
+            id: model.id || model.name || String(model),
+            object: model.object || 'model',
+            owned_by: model.owned_by || 'local'
+          }));
+        }
+        
+        // Fallback: try to interpret any JSON object as a model list
+        else if (response.data && typeof response.data === 'object') {
+          console.warn('Non-standard API response format, attempting to extract models:', response.data);
+          
+          // Look for any array property that might contain models
+          for (const key in response.data) {
+            if (Array.isArray(response.data[key])) {
+              console.log(`Found array in response.data.${key}, using as models list`);
+              return response.data[key].map(model => ({
+                id: model.id || model.name || String(model),
+                object: model.object || 'model',
+                owned_by: model.owned_by || 'local'
+              }));
+            }
+          }
+          
+          // If no arrays found but we have a data object, create a single model entry
+          const modelId = response.data.id || response.data.name || 'default-model';
+          console.log(`Creating single model entry with ID: ${modelId}`);
+          return [{ 
+            id: modelId,
+            object: 'model',
+            owned_by: 'local'
+          }];
+        }
+        
+        // No valid model format found
+        console.warn('Response successful but could not extract models:', response.data);
       }
       
       throw new Error('Failed to fetch models: Invalid response format');

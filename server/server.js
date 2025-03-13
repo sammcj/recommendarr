@@ -319,7 +319,9 @@ initStorage().then(async () => {
 // Enable CORS with credentials
 app.use(cors({
   origin: true, // Allow request origin
-  credentials: true // Allow cookies to be sent with requests
+  credentials: true, // Allow cookies to be sent with requests
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'User-Agent']
 }));
 
 // Add cookie parser middleware
@@ -1313,6 +1315,21 @@ app.post('/api/proxy', async (req, res) => {
   }
   
   try {
+    // Ensure proper headers are set for LMStudio API requests
+    if (processedUrl.includes('/v1/models')) {
+      console.log('Adding headers for LMStudio models API request');
+      
+      // Set Accept header to tell server what response format we want
+      headers['Accept'] = 'application/json';
+      
+      // Ensure user-agent is set
+      if (!headers['User-Agent']) {
+        headers['User-Agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
+      }
+      
+      console.log('Final headers for LMStudio request:', JSON.stringify(headers));
+    }
+    
     // Add request timeout to prevent hanging connections
     const response = await axios({
       url: processedUrl,
@@ -1329,9 +1346,9 @@ app.post('/api/proxy', async (req, res) => {
     
     console.log(`Proxy response from: ${processedUrl}, status: ${response.status}`);
     
-    // Log detailed information for OpenAI API errors
-    if (processedUrl.includes('openai.com') && response.status >= 400) {
-      console.error('OpenAI API error response:', JSON.stringify({
+    // Log detailed information for API errors (OpenAI or LLM-related endpoints)
+    if ((processedUrl.includes('openai.com') || processedUrl.includes('/v1/models')) && response.status >= 400) {
+      console.error('API error response:', JSON.stringify({
         status: response.status,
         statusText: response.statusText,
         data: response.data,

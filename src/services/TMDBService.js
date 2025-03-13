@@ -8,9 +8,27 @@ class TMDBService {
     this.baseUrl = 'https://api.themoviedb.org/3';
     this.imageBaseUrl = 'https://image.tmdb.org/t/p/w500'; // Default image base URL
     this.useProxy = true;
+    this.initialized = false;
+    this.initPromise = null;
     
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Initialize the service asynchronously
+    this.initPromise = this.initialize();
+  }
+  
+  /**
+   * Initialize the service by loading credentials
+   * @returns {Promise<boolean>}
+   */
+  async initialize() {
+    try {
+      const result = await this.loadCredentials();
+      this.initialized = true;
+      return result;
+    } catch (error) {
+      console.error('Failed to initialize TMDB service:', error);
+      this.initialized = true; // Still mark as initialized to avoid hanging
+      return false;
+    }
   }
   
   /**
@@ -28,9 +46,17 @@ class TMDBService {
         this.apiKey = credentials.apiKey;
         
         // If we have a valid API key, fetch the configuration for image URLs
-        await this.fetchConfiguration();
-        
-        return true;
+        try {
+          await this.fetchConfiguration();
+          console.log('Successfully loaded and validated TMDB configuration');
+          return true;
+        } catch (configError) {
+          console.error('Failed to validate TMDB credentials:', configError);
+          // If configuration fetch fails, the API key might be invalid
+          // Reset API key to prevent future requests with an invalid key
+          this.apiKey = '';
+          return false;
+        }
       } else {
         console.log('No valid TMDB credentials found in server storage');
         return false;
@@ -43,29 +69,68 @@ class TMDBService {
   
   /**
    * Check if the service is configured
-   * @returns {boolean} - Whether the service is configured
+   * @returns {Promise<boolean>} - Whether the service is configured
    */
-  isConfigured() {
+  async isConfigured() {
+    // If we haven't started initialization, wait for it
+    if (this.initPromise && !this.initialized) {
+      await this.initPromise;
+    }
+    
+    // If we don't have an API key, try to load it once more
+    if (!this.apiKey) {
+      try {
+        await this.loadCredentials();
+      } catch (error) {
+        console.error('Error checking TMDB configuration:', error);
+      }
+    }
+    
+    return Boolean(this.apiKey);
+  }
+  
+  /**
+   * Synchronous check if service is configured (for immediate UI state)
+   * @returns {boolean} - Whether the service appears to be configured
+   */
+  isConfiguredSync() {
     return Boolean(this.apiKey);
   }
   
   /**
    * Fetch TMDB configuration for image URLs
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} - Whether configuration was successful
    */
   async fetchConfiguration() {
-    if (!this.isConfigured()) return;
+    // Check if we have an API key synchronously to avoid unnecessary calls
+    if (!this.isConfiguredSync()) {
+      console.log('TMDB not configured, skipping configuration fetch');
+      return false;
+    }
     
     try {
+      console.log('Fetching TMDB configuration to validate API key');
       const config = await this._apiRequest('/configuration');
       
       if (config && config.images && config.images.secure_base_url) {
         this.imageBaseUrl = config.images.secure_base_url + 'w500';
-        console.log(`TMDB image base URL: ${this.imageBaseUrl}`);
+        console.log(`TMDB configuration validated successfully, image base URL: ${this.imageBaseUrl}`);
+        return true;
+      } else {
+        console.error('Invalid TMDB configuration response:', config);
+        return false;
       }
     } catch (error) {
       console.error('Error fetching TMDB configuration:', error);
-      // Fall back to default image base URL if configuration fetch fails
+      
+      // Specific error handling for API key issues
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        console.error('TMDB API key appears to be invalid or unauthorized');
+        // Clear the API key to force reauthorization
+        this.apiKey = '';
+      }
+      
+      return false;
     }
   }
   
@@ -77,11 +142,11 @@ class TMDBService {
    * @private
    */
   async _apiRequest(endpoint, params = {}) {
-    if (!this.isConfigured()) {
+    if (!this.isConfiguredSync()) {
       // Try to load credentials again in case they weren't ready during init
-      await this.loadCredentials();
+      const configResult = await this.isConfigured();
       
-      if (!this.isConfigured()) {
+      if (!configResult) {
         throw new Error('TMDB service is not configured. Please set apiKey.');
       }
     }

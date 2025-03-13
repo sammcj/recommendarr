@@ -36,9 +36,9 @@
     
     <div v-else>
       <div class="actions">
-        <div class="recommendations-settings" :class="{ 'collapsed': loading || recommendations.length > 0 || error || recommendationsRequested }">
+        <div class="recommendations-settings">
           <div class="settings-container">
-            <div class="settings-header" v-if="loading || recommendations.length > 0 || error || recommendationsRequested" @click="toggleSettings">
+            <div class="settings-header" @click="toggleSettings">
               <h3>Configuration <span class="toggle-icon">{{ settingsExpanded ? '▼' : '▶' }}</span></h3>
               <button 
                 v-if="!settingsExpanded"
@@ -50,7 +50,7 @@
                 <span class="mobile-text">{{ loading ? '...' : 'Get Recs' }}</span>
               </button>
             </div>
-            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded && (loading || recommendations.length > 0 || error || recommendationsRequested) }" v-if="true">
+            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded }">
               <div class="settings-layout">
               <div class="settings-left">
                 <div class="info-section">
@@ -3065,16 +3065,6 @@ export default {
           loadingElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 100);
-      
-      // Add a nice closing animation to the settings panel
-      const settingsPanel = document.querySelector('.settings-content');
-      if (settingsPanel) {
-        settingsPanel.style.transition = 'max-height 0.3s ease-out, opacity 0.3s ease-out, transform 0.3s ease-out';
-        settingsPanel.style.overflow = 'hidden';
-        settingsPanel.style.maxHeight = '0';
-        settingsPanel.style.opacity = '0';
-        settingsPanel.style.transform = 'translateY(-20px)';
-      }
       
       try {
         // Convert selectedGenres array to a comma-separated string for the API

@@ -101,7 +101,7 @@
             v-model.number="jellyfinHistoryLimit"
             type="number"
             min="1"
-            max="500"
+            max="2000"
             :disabled="loading"
           />
           <div class="limit-buttons">
@@ -205,7 +205,7 @@ export default {
     },
     
     increaseLimit() {
-      if (this.jellyfinHistoryLimit < 500) {
+      if (this.jellyfinHistoryLimit < 2000) {
         this.jellyfinHistoryLimit++;
       }
     },

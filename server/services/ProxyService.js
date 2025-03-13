@@ -72,6 +72,20 @@ class ProxyService {
     }
     console.log('Request headers:', JSON.stringify(sanitizedHeaders));
     
+    // Ensure proper headers are set for LMStudio API requests
+    if (processedUrl.includes('/v1/models')) {
+      console.log('Adding headers for LMStudio models API request');
+      if (!options.headers) options.headers = {};
+      
+      // Set Accept header to tell server what response format we want
+      options.headers['Accept'] = 'application/json';
+      
+      // Ensure user-agent is set
+      if (!options.headers['User-Agent']) {
+        options.headers['User-Agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
+      }
+    }
+    
     const requestOptions = {
       ...options,
       url: processedUrl,
@@ -136,6 +150,26 @@ class ProxyService {
       };
     } catch (error) {
       console.error('Error in proxy service:', error.message);
+      
+      // For debugging LMStudio requests
+      if (options.url.includes('/v1/models')) {
+        console.error('LMStudio API request failed:', {
+          message: error.message,
+          code: error.code,
+          stack: error.stack,
+          response: error.response ? {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            headers: error.response.headers,
+            data: error.response.data
+          } : 'No response',
+          request: {
+            url: options.url,
+            method: options.method,
+            headers: { ...options.headers, Authorization: options.headers.Authorization ? '[REDACTED]' : undefined }
+          }
+        });
+      }
       
       // Provide a more detailed error message for network issues
       if (error.code === 'ECONNREFUSED' && (options.url.includes('localhost') || options.url.includes('127.0.0.1'))) {

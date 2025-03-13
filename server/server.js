@@ -319,7 +319,9 @@ initStorage().then(async () => {
 // Enable CORS with credentials
 app.use(cors({
   origin: true, // Allow request origin
-  credentials: true // Allow cookies to be sent with requests
+  credentials: true, // Allow cookies to be sent with requests
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'User-Agent']
 }));
 
 // Add cookie parser middleware
@@ -415,6 +417,17 @@ app.post('/api/auth/login', async (req, res) => {
   console.log(`Login attempt for user: ${username}`);
   
   try {
+    // First clear any existing auth cookie to prevent issues with stale session
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+      expires: new Date(0)
+    });
+    console.log('Cleared any existing auth cookie');
+    
     // Authenticate user
     console.log('Authenticating user...');
     const authResult = await authService.authenticate(username, password);
@@ -439,7 +452,7 @@ app.post('/api/auth/login', async (req, res) => {
         httpOnly: true,          // Prevents JavaScript access
         secure: isSecureConnection, // Only set secure flag on HTTPS connections
         sameSite: 'lax',         // Provides some CSRF protection
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/'                // Available across the site
       });
       
@@ -503,14 +516,17 @@ app.post('/api/auth/logout', (req, res) => {
                            req.headers['x-forwarded-proto'] === 'https' || 
                            process.env.FORCE_SECURE_COOKIES === 'true';
   
-  // Clear the auth cookie
+  // Clear the auth cookie - ensure correct path and domain settings
   res.clearCookie('auth_token', {
     httpOnly: true,
     secure: isSecureConnection, // Only set secure flag on HTTPS connections
     sameSite: 'lax',
-    path: '/'
+    path: '/',
+    maxAge: 0, // Immediately expire the cookie
+    expires: new Date(0) // Set expiration date in the past
   });
   
+  console.log('Auth cookie cleared during logout');
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
@@ -1299,6 +1315,21 @@ app.post('/api/proxy', async (req, res) => {
   }
   
   try {
+    // Ensure proper headers are set for LMStudio API requests
+    if (processedUrl.includes('/v1/models')) {
+      console.log('Adding headers for LMStudio models API request');
+      
+      // Set Accept header to tell server what response format we want
+      headers['Accept'] = 'application/json';
+      
+      // Ensure user-agent is set
+      if (!headers['User-Agent']) {
+        headers['User-Agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
+      }
+      
+      console.log('Final headers for LMStudio request:', JSON.stringify(headers));
+    }
+    
     // Add request timeout to prevent hanging connections
     const response = await axios({
       url: processedUrl,
@@ -1315,9 +1346,9 @@ app.post('/api/proxy', async (req, res) => {
     
     console.log(`Proxy response from: ${processedUrl}, status: ${response.status}`);
     
-    // Log detailed information for OpenAI API errors
-    if (processedUrl.includes('openai.com') && response.status >= 400) {
-      console.error('OpenAI API error response:', JSON.stringify({
+    // Log detailed information for API errors (OpenAI or LLM-related endpoints)
+    if ((processedUrl.includes('openai.com') || processedUrl.includes('/v1/models')) && response.status >= 400) {
+      console.error('API error response:', JSON.stringify({
         status: response.status,
         statusText: response.statusText,
         data: response.data,

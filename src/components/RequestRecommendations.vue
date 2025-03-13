@@ -36,30 +36,24 @@
     
     <div v-else>
       <div class="actions">
-        <div class="recommendations-settings" :class="{ 'collapsed': loading || recommendations.length > 0 || error || recommendationsRequested }">
+        <div class="recommendations-settings">
           <div class="settings-container">
-            <div class="settings-header" v-if="loading || recommendations.length > 0 || error || recommendationsRequested" @click="toggleSettings">
+            <div class="settings-header" @click="toggleSettings">
               <h3>Configuration <span class="toggle-icon">{{ settingsExpanded ? '▼' : '▶' }}</span></h3>
-              <button 
-                v-if="!settingsExpanded"
-                @click.stop="getRecommendations" 
-                :disabled="loading"
-                class="action-button small-action-button"
-              >
-                <span class="desktop-text">{{ loading ? 'Getting...' : 'Get Recommendations' }}</span>
-                <span class="mobile-text">{{ loading ? '...' : 'Get Recs' }}</span>
-              </button>
             </div>
-            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded && (loading || recommendations.length > 0 || error || recommendationsRequested) }" v-if="true">
+            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded }">
               <div class="settings-layout">
               <div class="settings-left">
                 <div class="info-section">
-                  <h3 class="info-section-title">Current Configuration</h3>
-                  <div class="model-info">
+                  <h3 class="info-section-title collapsible-header" @click="toggleConfiguration">
+                    Current Configuration
+                    <span class="toggle-icon">{{ configurationExpanded ? '▼' : '▶' }}</span>
+                  </h3>
+                  <div class="model-info config-content" :class="{ 'collapsed': !configurationExpanded }" v-show="configurationExpanded">
                     <div class="model-header">
                       <span class="current-model">Model:</span>
                       <button 
-                        @click="fetchModels" 
+                        @click.stop="fetchModels" 
                         class="fetch-models-button"
                         :disabled="fetchingModels"
                         title="Refresh models from API"
@@ -94,8 +88,8 @@
                       </div>
                       <div class="modern-slider-container">
                         <div class="slider-labels">
-                          <span>Precise</span>
                           <span>Creative</span>
+                          <span>Precise</span>
                         </div>
                         <div class="slider-track-container">
                           <input 
@@ -150,6 +144,22 @@
                           </div>
                         </div>
                       </div>
+
+                      <div class="experimental-toggle">
+                        <label class="checkbox-label">
+                          <input 
+                            type="checkbox" 
+                            v-model="useStructuredOutput" 
+                            @change="saveStructuredOutputPreference"
+                          >
+                          Use Structured Output (Experimental)
+                        </label>
+                        <div class="setting-description">
+                          Uses OpenAI's JSON schema feature for more reliable and consistent LLM results formatting.
+                          Check if your model supports Structured Outputs. Disable if you are seeing failures or inconsistent recommendation counts.
+                          <span class="experimental-badge">BETA</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div class="history-info">
@@ -166,51 +176,65 @@
                 </div>
                 
                 <div class="count-selector">
-                  <div class="slider-header">
-                    <label for="recommendationsSlider">Number of recommendations</label>
-                    <span class="slider-value">{{ numRecommendations }}</span>
-                  </div>
-                  <div class="modern-slider-container">
-                    <div class="slider-track-container">
-                      <input 
-                        type="range" 
-                        id="recommendationsSlider"
-                        v-model.number="numRecommendations"
-                        min="1" 
-                        max="50"
-                        class="modern-slider"
-                        @change="saveRecommendationCount"
-                      >
-                      <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
+                  <div class="collapsible-header" @click="toggleRecNumber">
+                    <div class="slider-header">
+                      <label for="recommendationsSlider">Number of recommendations</label>
+                      <div class="header-right">
+                        <span class="slider-value">{{ numRecommendations }}</span>
+                        <span class="toggle-icon">{{ recNumberExpanded ? '▼' : '▶' }}</span>
+                      </div>
                     </div>
-                    <div class="slider-range-labels">
-                      <span>1</span>
-                      <span>50</span>
+                  </div>
+                  <div class="rec-number-content" :class="{ 'collapsed': !recNumberExpanded }" v-show="recNumberExpanded">
+                    <div class="modern-slider-container">
+                      <div class="slider-track-container">
+                        <input 
+                          type="range" 
+                          id="recommendationsSlider"
+                          v-model.number="numRecommendations"
+                          min="1" 
+                          max="50"
+                          class="modern-slider"
+                          @change="saveRecommendationCount"
+                        >
+                        <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
+                      </div>
+                      <div class="slider-range-labels">
+                        <span>1</span>
+                        <span>50</span>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
                 <div class="count-selector">
-                  <div class="slider-header">
-                    <label for="columnsSlider">Posters per row</label>
-                    <span class="slider-value">{{ columnsCount }}</span>
-                  </div>
-                  <div class="modern-slider-container">
-                    <div class="slider-track-container">
-                      <input 
-                        type="range" 
-                        id="columnsSlider"
-                        v-model.number="columnsCount"
-                        min="1" 
-                        max="4"
-                        class="modern-slider"
-                        @change="saveColumnsCount"
-                      >
-                      <div class="slider-track" :style="{ width: `${(columnsCount - 1) / 3 * 100}%` }"></div>
+                  <div class="collapsible-header" @click="togglePostersPerRow">
+                    <div class="slider-header">
+                      <label for="columnsSlider">Posters per row</label>
+                      <div class="header-right">
+                        <span class="slider-value">{{ columnsCount }}</span>
+                        <span class="toggle-icon">{{ postersPerRowExpanded ? '▼' : '▶' }}</span>
+                      </div>
                     </div>
-                    <div class="slider-range-labels">
-                      <span>1</span>
-                      <span>4</span>
+                  </div>
+                  <div class="posters-row-content" :class="{ 'collapsed': !postersPerRowExpanded }" v-show="postersPerRowExpanded">
+                    <div class="modern-slider-container">
+                      <div class="slider-track-container">
+                        <input 
+                          type="range" 
+                          id="columnsSlider"
+                          v-model.number="columnsCount"
+                          min="1" 
+                          max="10"
+                          class="modern-slider"
+                          @change="saveColumnsCount"
+                        >
+                        <div class="slider-track"></div>
+                      </div>
+                      <div class="slider-range-labels">
+                        <span>1</span>
+                        <span>10</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -218,109 +242,128 @@
               
               <div class="settings-right">
                 <div class="genre-selector">
-                  <div class="section-header">
+                  <div class="section-header collapsible-header" @click="toggleGenrePreferences">
                     <label>Genre preferences</label>
-                    <span v-if="selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
-                  </div>
-                  <div class="genre-tags-container">
-                    <div 
-                      v-for="genre in availableGenres" 
-                      :key="genre.value"
-                      :class="['genre-tag', {'selected': selectedGenres.includes(genre.value)}]"
-                      @click="toggleGenre(genre.value)"
-                    >
-                      {{ genre.label }}
+                    <div class="header-right">
+                      <span v-if="selectedGenres && selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
+                      <span class="toggle-icon">{{ genrePreferencesExpanded ? '▼' : '▶' }}</span>
                     </div>
-                    <button 
-                      v-if="selectedGenres.length > 0" 
-                      @click="clearGenres" 
-                      class="clear-all-button"
-                      title="Clear all selected genres"
-                    >
-                      Clear all
-                    </button>
+                  </div>
+                  <div class="genre-content" :class="{ 'collapsed': !genrePreferencesExpanded }" v-show="genrePreferencesExpanded">
+                    <div class="genre-tags-container">
+                      <div 
+                        v-for="genre in availableGenres" 
+                        :key="genre.value"
+                        :class="['genre-tag', {'selected': selectedGenres && selectedGenres.includes(genre.value)}]"
+                        @click="toggleGenre(genre.value)"
+                      >
+                        {{ genre.label }}
+                      </div>
+                      <button 
+                        v-if="selectedGenres && selectedGenres.length > 0" 
+                        @click="clearGenres" 
+                        class="clear-all-button"
+                        title="Clear all selected genres"
+                      >
+                        Clear all
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
                 <div class="vibe-selector">
-                  <div class="section-header">
+                  <div class="section-header collapsible-header" @click="toggleCustomVibe">
                     <label for="customVibe">Vibe/mood or custom prompt</label>
-                    <button 
-                      v-if="customVibe" 
-                      @click="clearCustomVibe" 
-                      class="clear-prompt-button"
-                      title="Clear prompt"
-                    >
-                      Clear
-                    </button>
+                    <div class="header-right">
+                      <button 
+                        v-if="customVibe" 
+                        @click.stop="clearCustomVibe" 
+                        class="clear-prompt-button"
+                        title="Clear prompt"
+                      >
+                        Clear
+                      </button>
+                      <span class="toggle-icon">{{ customVibeExpanded ? '▼' : '▶' }}</span>
+                    </div>
                   </div>
-                  <div class="vibe-input-container">
-                    <textarea 
-                      id="customVibe" 
-                      v-model="customVibe"
-                      @change="saveCustomVibe"
-                      @input="this.recommendationsRequested = false"
-                      placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
-                      class="vibe-input"
-                      rows="2"
-                    ></textarea>
-                  </div>
-                  <div class="setting-tip">
-                    <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
-                      <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg>
-                    <span>Guide the AI with specific themes, styles, or preferences</span>
+                  <div class="vibe-content" :class="{ 'collapsed': !customVibeExpanded }" v-show="customVibeExpanded">
+                    <div class="vibe-input-container">
+                      <textarea 
+                        id="customVibe" 
+                        v-model="customVibe"
+                        @change="saveCustomVibe"
+                        @input="this.recommendationsRequested = false"
+                        placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
+                        class="vibe-input"
+                        rows="2"
+                      ></textarea>
+                    </div>
+                    <div class="setting-tip">
+                      <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span>Guide the AI with specific themes, styles, or preferences</span>
+                    </div>
                   </div>
                 </div>
                 
                 <div class="language-selector">
-                  <div class="section-header">
+                  <div class="section-header collapsible-header" @click="toggleContentLanguage">
                     <label for="languageSelect">Content language</label>
-                    <span v-if="selectedLanguage" class="language-badge">{{ getLanguageName(selectedLanguage) }}</span>
+                    <div class="header-right">
+                      <span v-if="selectedLanguage" class="language-badge">{{ getLanguageName(selectedLanguage) }}</span>
+                      <span class="toggle-icon">{{ contentLanguageExpanded ? '▼' : '▶' }}</span>
+                    </div>
                   </div>
-                  <div class="select-wrapper">
-                    <select 
-                      id="languageSelect" 
-                      v-model="selectedLanguage"
-                      @change="saveLanguagePreference"
-                      class="language-select"
-                    >
-                      <option value="">Any language</option>
-                      <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
-                        {{ lang.name }}
-                      </option>
-                    </select>
-                    <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </div>
-                  <div class="setting-tip">
-                    <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
-                      <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg>
-                    <span>Focus recommendations on content in a specific language</span>
+                  <div class="language-content" :class="{ 'collapsed': !contentLanguageExpanded }" v-show="contentLanguageExpanded">
+                    <div class="select-wrapper">
+                      <select 
+                        id="languageSelect" 
+                        v-model="selectedLanguage"
+                        @change="saveLanguagePreference"
+                        class="language-select"
+                      >
+                        <option value="">Any language</option>
+                        <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+                          {{ lang.name }}
+                        </option>
+                      </select>
+                      <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
+                    <div class="setting-tip">
+                      <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span>Focus recommendations on content in a specific language</span>
+                    </div>
                   </div>
                 </div>
                 
                 <div v-if="plexConfigured" class="plex-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="togglePlexHistory">
                     <label>Plex Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="plexUseHistory" 
-                          @change="savePlexUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="plexUseHistory" 
+                            @change="savePlexUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ plexHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="plexUseHistory" class="service-settings">
+                  <div v-if="plexUseHistory" class="service-settings plex-content" :class="{ 'collapsed': !plexHistoryExpanded }" v-show="plexHistoryExpanded">
                     <div class="plex-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -393,22 +436,26 @@
                 </div>
                 
                 <div v-if="jellyfinConfigured" class="jellyfin-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="toggleJellyfinHistory">
                     <label>Jellyfin Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="jellyfinUseHistory" 
-                          @change="saveJellyfinUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ jellyfinUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="jellyfinUseHistory" 
+                            @change="saveJellyfinUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ jellyfinUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ jellyfinHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="jellyfinUseHistory" class="service-settings">
+                  <div v-if="jellyfinUseHistory" class="service-settings jellyfin-content" :class="{ 'collapsed': !jellyfinHistoryExpanded }" v-show="jellyfinHistoryExpanded">
                     <div class="jellyfin-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -489,22 +536,26 @@
                 </div>
                 
                 <div v-if="tautulliConfigured" class="tautulli-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="toggleTautulliHistory">
                     <label>Tautulli Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="tautulliUseHistory" 
-                          @change="saveTautulliUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ tautulliUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="tautulliUseHistory" 
+                            @change="saveTautulliUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ tautulliUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ tautulliHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="tautulliUseHistory" class="service-settings">
+                  <div v-if="tautulliUseHistory" class="service-settings tautulli-content" :class="{ 'collapsed': !tautulliHistoryExpanded }" v-show="tautulliHistoryExpanded">
                     <div class="tautulli-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -585,22 +636,26 @@
                 </div>
                 
                 <div v-if="traktConfigured" class="trakt-options">
-                  <div class="service-header">
+                  <div class="service-header collapsible-header" @click="toggleTraktHistory">
                     <label>Trakt Watch History:</label>
-                    <div class="service-controls">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="traktUseHistory" 
-                          @change="saveTraktUseHistory"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">{{ traktUseHistory ? 'Include' : 'Exclude' }}</span>
-                      </label>
+                    <div class="header-right">
+                      <div class="service-controls">
+                        <label class="toggle-switch">
+                          <input 
+                            type="checkbox" 
+                            v-model="traktUseHistory" 
+                            @change="saveTraktUseHistory"
+                            @click.stop
+                          >
+                          <span class="toggle-slider"></span>
+                          <span class="toggle-label">{{ traktUseHistory ? 'Include' : 'Exclude' }}</span>
+                        </label>
+                      </div>
+                      <span class="toggle-icon">{{ traktHistoryExpanded ? '▼' : '▶' }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="traktUseHistory" class="service-settings">
+                  <div v-if="traktUseHistory" class="service-settings trakt-content" :class="{ 'collapsed': !traktHistoryExpanded }" v-show="traktHistoryExpanded">
                     <div class="trakt-history-toggle">
                       <div class="history-selection">
                         <label class="toggle-option">
@@ -681,49 +736,58 @@
                 </div>
               </div>
             </div>
-            
-            <div class="action-button-container">
-              <button 
-                @click="getRecommendations" 
-                :disabled="loading"
-                class="action-button discover-button"
-              >
-                <div class="discover-button-inner">
-                  <span class="button-icon">{{ isMovieMode ? '🎬' : '📺' }}</span>
-                  <span class="button-text">
-                    {{ loading 
-                      ? (isMovieMode ? 'Finding Recommendations...' : 'Finding Recommendations...') 
-                      : (isMovieMode ? 'Discover Recommendations' : 'Discover Recommendations') 
-                    }}
-                  </span>
-                  <svg class="arrow-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          </div>
+          </div>
+        </div>
+
+        <div class="discover-card-container" :class="{'visible-when-collapsed': !settingsExpanded}">
+          <div 
+            @click="!loading && getRecommendations()" 
+            :class="['discover-card', {'discover-card-loading': loading}]"
+          >
+            <div class="discover-card-inner" v-if="!loading">
+              <div class="discover-icon-container">
+                <span class="discover-icon">{{ isMovieMode ? '🎬' : '📺' }}</span>
+                <div class="discover-pulse"></div>
+              </div>
+              
+              <div class="discover-content">
+                <h3 class="discover-title">{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h3>
+                <p class="discover-subtitle">Personalized just for you</p>
+              </div>
+              
+              <div class="discover-action">
+                <div class="discover-button-circle">
+                  <svg class="discover-arrow-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </div>
-                <div class="button-shine"></div>
-              </button>
+              </div>
             </div>
-          </div>
+            
+            <div class="discover-loading-content" v-if="loading">
+              <div class="discover-loading-spinner"></div>
+              <div class="discover-loading-info">
+                <p class="discover-loading-message">{{ currentLoadingMessage }}</p>
+                <p class="discover-loading-counter" :class="{'initializing': recommendations.length === 0}">
+                  <span v-if="recommendations.length > 0">
+                    Found {{ recommendations.length }} of {{ numRecommendations }} recommendations
+                  </span>
+                  <span v-else>
+                    Processing initial request...
+                  </span>
+                </p>
+              </div>
+            </div>
+            
+            <div class="discover-card-background"></div>
           </div>
         </div>
       </div>
       
-      <div v-if="loading" class="loading">
-        <div class="spinner"></div>
-        <div class="loading-content">
-          <p class="loading-message">{{ currentLoadingMessage }}</p>
-          <p class="recommendation-counter" :class="{'initializing': recommendations.length === 0}">
-            <span v-if="recommendations.length > 0">
-              Found {{ recommendations.length }} of {{ numRecommendations }} recommendations
-            </span>
-            <span v-else>
-              Processing initial request...
-            </span>
-          </p>
-        </div>
-      </div>
+      <!-- Loading UI is now integrated into the discover card -->
       
-      <div v-else-if="error" class="error">
+      <div v-if="error" class="error">
         <p>{{ error }}</p>
         <div class="action-button-container">
           <button 
@@ -743,10 +807,15 @@
         </div>
       </div>
       
-      <div v-else-if="recommendations.length > 0" class="recommendation-list" :style="gridStyle">
-        <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card">
+      <div v-if="!error && recommendations.length > 0" class="recommendation-list" :style="gridStyle">
+        <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card" :class="{ 'compact-mode': shouldUseCompactMode, 'expanded': expandedCards.has(index) }">
           <!-- Clean title for poster lookup -->
-          <div class="card-content">
+          <div class="card-content" 
+            @click="openTMDBDetailModal(rec)" 
+            :class="{ 'clickable': isTMDBAvailable, 'compact-layout': shouldUseCompactMode }"
+            :title="isTMDBAvailable ? 'Click for more details' : ''"
+          >
+            <!-- Expand info button for compact mode moved to end of card -->
             <div class="poster-container">
               <div 
                 class="poster" 
@@ -760,7 +829,7 @@
                   v-if="isPosterFallback(rec.title)" 
                   class="retry-poster-button" 
                   :class="{ 'loading': loadingPosters.get(cleanTitle(rec.title)) }"
-                  @click.stop="retryPoster(rec.title)"
+                  @click.stop.prevent="retryPoster(rec.title)"
                   title="Retry loading poster"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
@@ -779,7 +848,7 @@
                 <div class="card-actions">
                   <div class="like-dislike-buttons">
                     <button 
-                      @click="likeRecommendation(rec.title)" 
+                      @click.stop="likeRecommendation(rec.title)" 
                       class="action-btn like-btn"
                       :class="{'active': isLiked(rec.title)}"
                       title="Like this recommendation">
@@ -788,7 +857,7 @@
                       </svg>
                     </button>
                     <button 
-                      @click="dislikeRecommendation(rec.title)" 
+                      @click.stop="dislikeRecommendation(rec.title)" 
                       class="action-btn dislike-btn"
                       :class="{'active': isDisliked(rec.title)}"
                       title="Dislike this recommendation">
@@ -798,7 +867,7 @@
                     </button>
                   </div>
                   <button 
-                    @click="requestSeries(rec.title)" 
+                    @click.stop="requestSeries(rec.title)" 
                     class="request-button compact"
                     :class="{'loading': requestingSeries === rec.title, 'requested': requestStatus[rec.title]?.success}"
                     :disabled="requestingSeries || requestStatus[rec.title]?.success"
@@ -843,9 +912,6 @@
                       {{ extractScore(rec.rating) }}%
                     </div>
                   </div>
-                  <div class="rating-details">
-                    {{ extractRatingDetails(rec.rating) }}
-                  </div>
                 </div>
                 
                 
@@ -853,12 +919,36 @@
                   <p>{{ rec.fullText }}</p>
                 </div>
               </div>
+              
+              <!-- Full-width expand button at bottom of card for compact mode -->
+              <button v-if="shouldUseCompactMode" 
+                      class="full-width-expand-button" 
+                      @click.stop="toggleCardExpansion(index)"
+                      :title="expandedCards.has(index) ? 'Hide details' : 'Show more details'"
+                      :class="{ 'expanded': expandedCards.has(index) }">
+                <span>{{ expandedCards.has(index) ? 'Show Less' : 'Show More' }}</span>
+                <svg v-if="!expandedCards.has(index)" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="7 13 12 18 17 13"></polyline>
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="7 11 12 6 17 11"></polyline>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
       </div>
       
-      <div v-else-if="recommendationsRequested" class="no-recommendations">
+      <!-- TMDB Detail Modal - moved outside of conditional rendering -->
+      <TMDBDetailModal 
+        :show="showTMDBModal"
+        :media-id="selectedMediaId"
+        :media-type="isMovieMode ? 'movie' : 'tv'"
+        :title="selectedMediaTitle"
+        @close="closeTMDBModal"
+      />
+      
+      <div v-if="recommendationsRequested && !recommendations.length && !loading" class="no-recommendations">
         <p>No recommendations could be generated. Try again or check your TV show library.</p>
         <div class="action-button-container">
           <button 
@@ -1047,11 +1137,13 @@ import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
-import axios from 'axios';
+import tmdbService from '../services/TMDBService';
+import TMDBDetailModal from './TMDBDetailModal.vue';
 
 export default {
   name: 'TVRecommendations',
   components: {
+    TMDBDetailModal
   },
   props: {
     initialMovieMode: {
@@ -1124,13 +1216,45 @@ export default {
     }
   },
   computed: {
+    shouldUseCompactMode() {
+      // More targeted compact mode detection - only activate when truly needed
+      
+      // Already responsive on mobile with single column
+      if (window.innerWidth <= 600) return false;
+      
+      // Calculate available width, accounting for gaps between cards too
+      const containerPadding = 40; // Container padding (20px on each side)
+      const cardGap = 20; // Gap between cards (from CSS)
+      const availableWidth = window.innerWidth - containerPadding;
+      
+      // Calculate the width each card would have, accounting for gaps
+      // Subtract the total gap space and divide by number of columns
+      const gapSpace = (this.columnsCount - 1) * cardGap;
+      const cardWidth = (availableWidth - gapSpace) / this.columnsCount;
+      
+      // Use compact mode if cards would be narrower than 340px
+      // This provides a balanced threshold that prevents cards from becoming too cramped
+      return cardWidth < 340;
+    },
+    
     gridStyle() {
       // Use a different column count for mobile screens
       const isMobile = window.innerWidth <= 600;
-      const effectiveColumnCount = isMobile ? 1 : this.columnsCount;
+      
+      // Apply a safety limit to column count for very narrow screens
+      // This prevents columns from being too narrow even with compact mode
+      let effectiveColumnCount = isMobile ? 1 : this.columnsCount;
+      
+      // For small desktops/tablets, limit max columns for better readability
+      if (!isMobile) {
+        // Below 840px wide, max 2 columns
+        if (window.innerWidth < 840 && effectiveColumnCount > 2) {
+          effectiveColumnCount = 2;
+        }
+      }
       
       return {
-        gridTemplateColumns: `repeat(${effectiveColumnCount}, 1fr)`
+        gridTemplateColumns: `repeat(${effectiveColumnCount}, minmax(0, 1fr))`
       };
     },
     
@@ -1155,6 +1279,11 @@ export default {
         ...(this.jellyfinRecentlyWatchedShows || []),
         ...(this.tautulliRecentlyWatchedShows || [])
       ];
+    },
+    
+    // Computed property to check if TMDB integration is available
+    isTMDBAvailable() {
+      return imageService.isTMDBAvailable();
     }
   },
   watch: {
@@ -1200,8 +1329,9 @@ export default {
   },
   data() {
     return {
-      openaiConfigured: false,
+      openaiConfigured: openAIService.isConfigured(), // Initialize with current configuration state
       recommendations: [],
+      expandedCards: new Set(), // Track which cards are in expanded view
       loading: false,
       error: null,
       recommendationsRequested: false,
@@ -1216,6 +1346,7 @@ export default {
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
       plexUseHistory: true, // Whether to include Plex watch history at all
       plexCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
+      // modelOptions already defined later in the data object
       
       jellyfinHistoryMode: 'all', // 'all', 'recent', or 'custom'
       jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
@@ -1234,6 +1365,7 @@ export default {
       localMovies: [], // Local copy of movies prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
+      useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
       rootFolders: [], // Available Sonarr root folders
       qualityProfiles: [], // Available Sonarr quality profiles
       selectedRootFolder: null, // Selected root folder for series
@@ -1263,6 +1395,12 @@ export default {
       ],
       currentLoadingMessage: "",  // Current displayed loading message
       loadingMessageInterval: null, // For rotating messages
+      
+      // TMDB Modal state
+      showTMDBModal: false,
+      selectedMediaId: null,
+      selectedMediaTitle: '',
+      
       availableGenres: [
         { value: 'action', label: 'Action' },
         { value: 'adventure', label: 'Adventure' },
@@ -1329,10 +1467,52 @@ export default {
       fetchingModels: false, // Loading state for fetching models
       fetchError: null, // Error when fetching models
       settingsExpanded: false, // Controls visibility of settings panel
-      temperature: 0.5 // AI temperature parameter
+      temperature: 0.5, // AI temperature parameter
+      recNumberExpanded: true, // Number of recommendations section
+      postersPerRowExpanded: true, // Posters per row section
+      genrePreferencesExpanded: true, // Genre preferences section
+      contentLanguageExpanded: true, // Content language section
+      watchHistoryExpanded: true, // Watch history main section
+      plexHistoryExpanded: true, // Plex history subsection
+      configurationExpanded: true, // Current configuration section
+      customVibeExpanded: true, // Vibe/mood section
+      jellyfinHistoryExpanded: true, // Jellyfin history subsection
+      tautulliHistoryExpanded: true, // Tautulli history subsection
+      traktHistoryExpanded: true // Trakt history subsection
     };
   },
   methods: {
+    // Handle window resize for responsive features like compact mode
+    handleWindowResize() {
+      // This triggers a reactivity update for the shouldUseCompactMode computed property
+      this.$forceUpdate();
+    },
+    
+    // Toggle card expansion in compact mode
+    toggleCardExpansion(index) {
+      if (this.expandedCards.has(index)) {
+        this.expandedCards.delete(index);
+      } else {
+        this.expandedCards.add(index);
+      }
+      // Force a reactivity update since Set mutations aren't automatically detected
+      this.$forceUpdate();
+    },
+    
+    // Note: The saveColumnsCount method already exists elsewhere in this file
+    
+    
+    // Mounted and Destroyed lifecycle hooks
+    mounted() {
+      // Add window resize event listener for compact mode calculations
+      window.addEventListener('resize', this.handleWindowResize);
+    },
+    
+    beforeUnmount() {
+      // Clean up event listeners on component destruction
+      window.removeEventListener('resize', this.handleWindowResize);
+    },
+    
     goToSettings() {
       this.$emit('navigate', 'settings', 'ai');
     },
@@ -1375,25 +1555,144 @@ export default {
     toggleSettings() {
       this.settingsExpanded = !this.settingsExpanded;
       
-      // Add animation classes
-      if (this.settingsExpanded) {
-        // Animate opening
-        const settingsPanel = document.querySelector('.settings-content');
-        if (settingsPanel) {
-          settingsPanel.style.transition = 'max-height 0.3s ease-in, opacity 0.3s ease-in, transform 0.3s ease-in';
-          settingsPanel.style.maxHeight = '2000px';
-          settingsPanel.style.opacity = '1';
-          settingsPanel.style.transform = 'translateY(0)';
-        }
+      // Use the improved animation method for settings panel too
+      this.animateSection('.settings-content', this.settingsExpanded);
+    },
+    
+    // Toggle section visibility functions
+    toggleRecNumber() {
+      this.recNumberExpanded = !this.recNumberExpanded;
+      this.animateSection('.rec-number-content', this.recNumberExpanded);
+    },
+    
+    togglePostersPerRow() {
+      this.postersPerRowExpanded = !this.postersPerRowExpanded;
+      this.animateSection('.posters-row-content', this.postersPerRowExpanded);
+    },
+    
+    toggleGenrePreferences() {
+      this.genrePreferencesExpanded = !this.genrePreferencesExpanded;
+      this.animateSection('.genre-content', this.genrePreferencesExpanded);
+    },
+    
+    toggleContentLanguage() {
+      this.contentLanguageExpanded = !this.contentLanguageExpanded;
+      this.animateSection('.language-content', this.contentLanguageExpanded);
+    },
+    
+    toggleWatchHistory() {
+      this.watchHistoryExpanded = !this.watchHistoryExpanded;
+      this.animateSection('.watch-history-content', this.watchHistoryExpanded);
+    },
+    
+    togglePlexHistory() {
+      this.plexHistoryExpanded = !this.plexHistoryExpanded;
+      this.animateSection('.plex-content', this.plexHistoryExpanded);
+    },
+    
+    toggleJellyfinHistory() {
+      this.jellyfinHistoryExpanded = !this.jellyfinHistoryExpanded;
+      this.animateSection('.jellyfin-content', this.jellyfinHistoryExpanded);
+    },
+    
+    toggleTautulliHistory() {
+      this.tautulliHistoryExpanded = !this.tautulliHistoryExpanded;
+      this.animateSection('.tautulli-content', this.tautulliHistoryExpanded);
+    },
+    
+    toggleTraktHistory() {
+      this.traktHistoryExpanded = !this.traktHistoryExpanded;
+      this.animateSection('.trakt-content', this.traktHistoryExpanded);
+    },
+    
+    toggleConfiguration() {
+      this.configurationExpanded = !this.configurationExpanded;
+      this.animateSection('.config-content', this.configurationExpanded);
+    },
+    
+    toggleCustomVibe() {
+      this.customVibeExpanded = !this.customVibeExpanded;
+      this.animateSection('.vibe-content', this.customVibeExpanded);
+    },
+    
+    // Helper method for animating sections consistently
+    animateSection(selector, isExpanded) {
+      const panel = document.querySelector(selector);
+      if (!panel) return;
+      
+      // Clear any existing transition end listeners
+      panel.removeEventListener('transitionend', panel._transitionEndHandler);
+      
+      if (isExpanded) {
+        // OPENING ANIMATION
+        
+        // Reset display to ensure proper height calculation
+        panel.style.display = '';
+        panel.style.visibility = 'visible';
+        panel.style.height = 'auto';
+        
+        // Get actual content height
+        const height = panel.scrollHeight;
+        
+        // Setup initial state
+        panel.style.overflow = 'hidden';
+        panel.style.maxHeight = '0px';
+        panel.style.opacity = '0';
+        panel.style.transform = 'translateY(-5px)';
+        
+        // Force browser reflow
+        void panel.offsetWidth;
+        
+        // Apply transitions (faster speed)
+        panel.style.transition = 'max-height 0.3s cubic-bezier(0.25, 1, 0.5, 1), ' +
+                                'opacity 0.25s cubic-bezier(0.25, 1, 0.5, 1), ' +
+                                'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+        
+        // Trigger animation
+        panel.style.maxHeight = `${height}px`;
+        panel.style.opacity = '1';
+        panel.style.transform = 'translateY(0)';
+        
+        // Remove maxHeight constraint after animation completes to allow for content changes
+        panel._transitionEndHandler = (e) => {
+          if (e.propertyName === 'max-height') {
+            panel.style.maxHeight = 'none'; // Allow content to grow if needed
+          }
+        };
+        panel.addEventListener('transitionend', panel._transitionEndHandler);
+        
       } else {
-        // Animate closing
-        const settingsPanel = document.querySelector('.settings-content');
-        if (settingsPanel) {
-          settingsPanel.style.transition = 'max-height 0.3s ease-out, opacity 0.3s ease-out, transform 0.3s ease-out';
-          settingsPanel.style.maxHeight = '0';
-          settingsPanel.style.opacity = '0';
-          settingsPanel.style.transform = 'translateY(-20px)';
-        }
+        // CLOSING ANIMATION
+        
+        // First set a fixed height - critical for smooth animation
+        panel.style.height = 'auto';
+        panel.style.maxHeight = 'none';
+        const height = panel.scrollHeight;
+        panel.style.maxHeight = `${height}px`;
+        
+        // Force browser reflow
+        void panel.offsetWidth;
+        
+        // Setup transitions (faster speed)
+        panel.style.overflow = 'hidden';
+        panel.style.transition = 'max-height 0.25s cubic-bezier(0.55, 0, 0.1, 1), ' +
+                               'opacity 0.2s cubic-bezier(0.55, 0, 0.1, 1), ' +
+                               'transform 0.2s cubic-bezier(0.55, 0, 0.1, 1)';
+        
+        // Trigger animation
+        panel.style.maxHeight = '0px';
+        panel.style.opacity = '0';
+        panel.style.transform = 'translateY(-5px)';
+        
+        // Handle complete close
+        panel._transitionEndHandler = (e) => {
+          if (e.propertyName === 'max-height') {
+            // If the section should stay in the DOM but be hidden, we can use:
+            // panel.style.visibility = 'hidden';
+            // We're using v-show so this isn't strictly necessary
+          }
+        };
+        panel.addEventListener('transitionend', panel._transitionEndHandler);
       }
     },
     // Clean title for consistent poster lookup
@@ -1526,48 +1825,8 @@ export default {
       return '??';
     },
     
-    // Extract the details portion of the rating
-    extractRatingDetails(ratingText) {
-      if (!ratingText || ratingText === 'N/A') {
-        return 'No rating information available';
-      }
-      
-      // Try various patterns to extract details after the rating
-      
-      // Pattern 1: "85% - Details here"
-      let detailsMatch = ratingText.match(/\d+%\s*-\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // Pattern 2: "85/100 - Details here"
-      detailsMatch = ratingText.match(/\d+\s*\/\s*100\s*-\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // Pattern 3: "8.5/10 - Details here"
-      detailsMatch = ratingText.match(/\d+(?:\.\d+)?\s*\/\s*10\s*-\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // Pattern 4: Look for a colon followed by details
-      detailsMatch = ratingText.match(/:\s*(.*)/);
-      if (detailsMatch && detailsMatch[1]) {
-        return detailsMatch[1].trim();
-      }
-      
-      // If no specific pattern matches, remove any numbers and rating symbols
-      const cleanedText = ratingText.replace(/(\d+%|\d+\/\d+|\d+\.\d+\/\d+|\d+)/, '').trim();
-      if (cleanedText && cleanedText !== ratingText) {
-        // If we removed something and have text left, return that
-        return cleanedText.replace(/^[-:\s]+/, '').trim();
-      }
-      
-      // Fall back to the original text if no patterns match
-      return ratingText;
-    },
+    // This method has been removed as we no longer display rating details
+    // The extractScore method is still used to get the percentage value
     
     // Determine CSS class for Recommendarr Rating
     getScoreClass(scoreText) {
@@ -1619,10 +1878,18 @@ export default {
         
         // Also save to localStorage as a backup
         localStorage.setItem('columnsCount', this.columnsCount.toString());
+        
+        // Clear expanded cards when column count changes
+        this.expandedCards.clear();
+        this.$forceUpdate();
       } catch (error) {
         console.error('Error saving columns count to server:', error);
         // Fallback to localStorage only
         localStorage.setItem('columnsCount', this.columnsCount.toString());
+        
+        // Still clear expanded cards even on error
+        this.expandedCards.clear();
+        this.$forceUpdate();
       }
     },
     
@@ -1648,12 +1915,30 @@ export default {
         this.selectedGenres.splice(index, 1);
       }
       this.saveGenrePreference();
+      
+      // Reset conversation when genre selection changes
+      openAIService.resetConversation();
+      
+      // Clear current recommendations if any
+      if (this.recommendations.length > 0) {
+        this.recommendations = [];
+        this.recommendationsRequested = false;
+      }
     },
     
     // Clear all selected genres
     clearGenres() {
       this.selectedGenres = [];
       this.saveGenrePreference();
+      
+      // Reset conversation when genres are cleared
+      openAIService.resetConversation();
+      
+      // Clear current recommendations if any
+      if (this.recommendations.length > 0) {
+        this.recommendations = [];
+        this.recommendationsRequested = false;
+      }
     },
     
     // Save custom vibe preference to server and reset conversation
@@ -1706,6 +1991,15 @@ export default {
           plexCustomHistoryDays: this.plexCustomHistoryDays
         });
         this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
+        
+        // Reset conversation when watch history settings change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Plex history mode to server:', error);
       }
@@ -1732,6 +2026,15 @@ export default {
       try {
         // Save to User_Data.json via API service
         await apiService.saveSettings({ plexCustomHistoryDays: this.plexCustomHistoryDays });
+        
+        // Reset conversation when watch history days change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Plex custom history days to server:', error);
       }
@@ -1746,6 +2049,15 @@ export default {
           jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays
         });
         this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+        
+        // Reset conversation when watch history settings change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Jellyfin history mode to server:', error);
       }
@@ -1772,6 +2084,15 @@ export default {
       try {
         // Save to User_Data.json via API service
         await apiService.saveSettings({ jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays });
+        
+        // Reset conversation when watch history days change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Jellyfin custom history days to server:', error);
       }
@@ -2370,6 +2691,39 @@ export default {
       }
     },
     
+    // Save structured output preference
+    async saveStructuredOutputPreference() {
+      try {
+        console.log('Saving structured output preference:', this.useStructuredOutput);
+        await apiService.saveSettings({ useStructuredOutput: this.useStructuredOutput });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('useStructuredOutput', this.useStructuredOutput.toString());
+        
+        // Set the useStructuredOutput property on the OpenAIService
+        openAIService.useStructuredOutput = this.useStructuredOutput;
+        
+        // Reset the conversation history in OpenAI service to ensure proper formatting
+        openAIService.resetConversation();
+        console.log('Conversation history reset due to structured output setting change');
+        
+        // Reset current recommendations if any to encourage getting fresh ones with the new format
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+          console.log('Cleared current recommendations due to structured output setting change');
+        }
+      } catch (error) {
+        console.error('Error saving structured output preference to server:', error);
+        // Fallback to localStorage only
+        localStorage.setItem('useStructuredOutput', this.useStructuredOutput.toString());
+        openAIService.useStructuredOutput = this.useStructuredOutput;
+        
+        // Still reset the conversation even if there was an error saving
+        openAIService.resetConversation();
+      }
+    },
+    
     // Fetch available models from the API
     async fetchModels() {
       if (!openAIService.isConfigured()) {
@@ -2383,30 +2737,20 @@ export default {
       this.fetchError = null;
       
       try {
-        // Use the baseUrl from OpenAIService to build the models endpoint
-        const modelsEndpoint = `${openAIService.baseUrl}/models`;
+        // Use OpenAIService's method to fetch models, which already uses the proxy
+        const models = await openAIService.fetchModels();
         
-        // Set up headers based on the API endpoint
-        const headers = {};
+        // Initialize as empty array first to ensure there's always an array
+        this.modelOptions = [];
         
-        // Add authentication header based on the API endpoint
-        if (openAIService.baseUrl === 'https://api.anthropic.com/v1') {
-          headers['x-api-key'] = openAIService.apiKey;
-          headers['anthropic-dangerous-direct-browser-access'] = 'true';
-          headers['anthropic-version'] = '2023-06-01';
-        } else {
-          headers['Authorization'] = `Bearer ${openAIService.apiKey}`;
-        }
-        
-        const response = await axios.get(modelsEndpoint, { headers });
-        
-        if (response.data && response.data.data) {
-          // Get the list of models
-          this.modelOptions = response.data.data;
+        if (Array.isArray(models)) {
+          // Set model options only if we got a valid array
+          this.modelOptions = models;
           
           // Sort models alphabetically
           this.modelOptions.sort((a, b) => a.id.localeCompare(b.id));
         } else {
+          console.warn('Models returned is not an array:', models);
           this.fetchError = 'Invalid response format from API';
           // Redirect to settings page for invalid response format
           this.goToSettings();
@@ -2684,38 +3028,47 @@ export default {
         apiKey: radarrService.apiKey ? 'set' : 'not set'
       });
       
+      // Check if we have any watch history providers configured
+      const hasWatchHistoryProvider = this.plexConfigured || this.jellyfinConfigured || this.tautulliConfigured || this.traktConfigured;
+      
       // Verify we have content and OpenAI is configured
       // Force-check radarrService.isConfigured() for movie mode to bypass the issue
       const isServiceConfigured = this.isMovieMode 
         ? (this.radarrConfigured || radarrService.isConfigured()) 
         : this.sonarrConfigured;
       
-      if (!isServiceConfigured) {
-        this.error = `You need to connect to ${this.isMovieMode ? 'Radarr' : 'Sonarr'} first to get recommendations based on your library.`;
+      // Allow recommendations if either Sonarr/Radarr OR a watch history provider is configured
+      if (!isServiceConfigured && !hasWatchHistoryProvider) {
+        this.error = `You need to connect to either ${this.isMovieMode ? 'Radarr' : 'Sonarr'} or a watch history provider (Plex, Jellyfin, Tautulli, or Trakt) to get recommendations.`;
         return;
       }
       
-      // Check if the service is actually ready with a valid connection
-      if (this.isMovieMode) {
-        // Always try to load the latest Radarr credentials if we're in movie mode
-        console.log('Movie mode active, loading latest Radarr credentials');
-        await radarrService.loadCredentials();
-        
-        if (!radarrService.isConfigured()) {
-          console.error("Radarr service isn't fully configured after loading credentials");
-          this.error = "Radarr service isn't fully configured. Please check your connection settings.";
-          return;
-        } else {
-          console.log('Radarr credentials loaded successfully', {
-            baseUrl: radarrService.baseUrl, 
-            apiKey: radarrService.apiKey ? 'set' : 'not set'
-          });
-        }
-      } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
-        await sonarrService.loadCredentials();
-        if (!sonarrService.isConfigured()) {
-          this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
-          return;
+      // Check if the service is actually ready with a valid connection, but only if we're using a Sonarr/Radarr library
+      if (isServiceConfigured) {
+        if (this.isMovieMode) {
+          // Always try to load the latest Radarr credentials if we're in movie mode
+          console.log('Movie mode active, loading latest Radarr credentials');
+          await radarrService.loadCredentials();
+          
+          if (!radarrService.isConfigured()) {
+            // Only require Radarr if no watch history providers are available
+            if (!hasWatchHistoryProvider) {
+              console.error("Radarr service isn't fully configured after loading credentials");
+              this.error = "Radarr service isn't fully configured. Please check your connection settings.";
+              return;
+            }
+          } else {
+            console.log('Radarr credentials loaded successfully', {
+              baseUrl: radarrService.baseUrl, 
+              apiKey: radarrService.apiKey ? 'set' : 'not set'
+            });
+          }
+        } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
+          await sonarrService.loadCredentials();
+          if (!sonarrService.isConfigured() && !hasWatchHistoryProvider) {
+            this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
+            return;
+          }
         }
       }
       
@@ -2724,7 +3077,16 @@ export default {
         ? (!this.localMovies || this.localMovies.length === 0)
         : (!this.series || this.series.length === 0);
         
-      if (libraryEmpty) {
+      // Check if we're going to rely on watch history
+      const useWatchHistoryOnly = hasWatchHistoryProvider && (
+        (this.plexOnlyMode && this.plexUseHistory) ||
+        (this.jellyfinOnlyMode && this.jellyfinUseHistory) ||
+        (this.tautulliOnlyMode && this.tautulliUseHistory) ||
+        (this.traktOnlyMode && this.traktUseHistory)
+      );
+      
+      // Skip library emptiness check if we're using watch history only mode
+      if (libraryEmpty && !useWatchHistoryOnly) {
         if (this.isMovieMode && radarrService.isConfigured()) {
           // First check if we already have movies in our local cache
           // to avoid unnecessary API calls
@@ -2739,18 +3101,20 @@ export default {
                 console.log(`Successfully fetched ${moviesData.length} movies from Radarr directly`);
                 // Use the movies we just fetched for recommendations
                 this.localMovies = moviesData;
-              } else {
-                this.error = `Your Radarr library is empty. Add some movies to get recommendations.`;
+              } else if (!hasWatchHistoryProvider) {
+                this.error = `Your Radarr library is empty. Add some movies to get recommendations or enable a watch history provider.`;
                 return;
               }
             } catch (error) {
               console.error('Error fetching movies directly from Radarr:', error);
-              this.error = `Your Radarr library appears to be empty or inaccessible. Add some movies to get recommendations.`;
-              return;
+              if (!hasWatchHistoryProvider) {
+                this.error = `Your Radarr library appears to be empty or inaccessible. Add some movies to get recommendations or enable a watch history provider.`;
+                return;
+              }
             }
           }
-        } else {
-          this.error = `Your ${this.isMovieMode ? 'Radarr' : 'Sonarr'} library is empty. Add some ${this.isMovieMode ? 'movies' : 'TV shows'} to get recommendations.`;
+        } else if (!hasWatchHistoryProvider) {
+          this.error = `Your ${this.isMovieMode ? 'Radarr' : 'Sonarr'} library is empty. Add some ${this.isMovieMode ? 'movies' : 'TV shows'} to get recommendations or enable a watch history provider.`;
           return;
         }
       }
@@ -2779,16 +3143,6 @@ export default {
           loadingElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 100);
-      
-      // Add a nice closing animation to the settings panel
-      const settingsPanel = document.querySelector('.settings-content');
-      if (settingsPanel) {
-        settingsPanel.style.transition = 'max-height 0.3s ease-out, opacity 0.3s ease-out, transform 0.3s ease-out';
-        settingsPanel.style.overflow = 'hidden';
-        settingsPanel.style.maxHeight = '0';
-        settingsPanel.style.opacity = '0';
-        settingsPanel.style.transform = 'translateY(-20px)';
-      }
       
       try {
         // Convert selectedGenres array to a comma-separated string for the API
@@ -3145,7 +3499,7 @@ export default {
      * @param {number} [recursionDepth=0] - Current recursion depth to limit excessive API calls
      */
     async getAdditionalRecommendations(additionalCount, genreString, recursionDepth = 0) {
-      if (additionalCount <= 0 || recursionDepth >= 5) return;
+      if (additionalCount <= 0 || recursionDepth >= 10) return;
       
       console.log(`Getting ${additionalCount} additional ${this.isMovieMode ? 'movie' : 'TV show'} recommendations after filtering (recursion depth: ${recursionDepth})`);
       
@@ -3161,7 +3515,7 @@ export default {
         const updatedPrevious = [...new Set([...previousRecsList, ...currentTitles])];
         
         // Request more recommendations than we need to account for filtering
-        const requestCount = Math.min(additionalCount * 1.5, 20); // Request 50% more, up to 20 max
+        const requestCount = Math.min(additionalCount * 2, 25); // Request 100% more, up to 25 max
         
         // Use the appropriate method based on content type mode
         let additionalRecommendations;
@@ -3172,7 +3526,10 @@ export default {
             updatedPrevious,
             genreString,
             this.customVibe,
-            this.selectedLanguage
+            this.selectedLanguage,
+            this.userMovies,
+            this.likedRecommendations,
+            this.dislikedRecommendations
           );
         } else {
           // Use TV show recommendations method
@@ -3181,7 +3538,10 @@ export default {
             updatedPrevious,
             genreString,
             this.customVibe,
-            this.selectedLanguage
+            this.selectedLanguage,
+            this.userShows,
+            this.likedRecommendations,
+            this.dislikedRecommendations
           );
         }
         
@@ -3194,21 +3554,26 @@ export default {
         // Combine with existing recommendations
         this.recommendations = [...this.recommendations, ...filteredAdditional];
         
-        // If we still don't have enough and got some results, try again with incremented recursion depth
-        if (this.recommendations.length < this.numRecommendations && filteredAdditional.length > 0) {
+        // If we still don't have enough, try again with incremented recursion depth
+        // Even if no additional results were found, we should still try again
+        if (this.recommendations.length < this.numRecommendations) {
           // Calculate how many more we need
           const stillNeeded = this.numRecommendations - this.recommendations.length;
+          
+          console.log(`After filtering, have ${this.recommendations.length}/${this.numRecommendations} recommendations. Need ${stillNeeded} more. Recursion depth: ${recursionDepth}`);
           
           // Recursive call with updated exclusion list and incremented recursion depth
           if (stillNeeded > 0) {
             await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
           }
+        } else {
+          console.log(`Successfully gathered all ${this.numRecommendations} recommendations at recursion depth ${recursionDepth}`);
         }
       } catch (error) {
         console.error('Error getting additional recommendations:', error);
         
         // Count this as one attempt but continue if we're not at the limit
-        if (recursionDepth + 1 < 5) {
+        if (recursionDepth + 1 < 10) {
           console.log(`Retrying after error (recursion depth: ${recursionDepth + 1})`);
           // Calculate how many we still need
           const stillNeeded = this.numRecommendations - this.recommendations.length;
@@ -3536,6 +3901,36 @@ export default {
     },
     
     /**
+     * Open the TMDB detail modal for a recommendation
+     * @param {Object} recommendation - The recommendation to show details for
+     */
+    openTMDBDetailModal(recommendation) {
+      console.log('Opening TMDB modal for:', recommendation.title);
+      console.log('TMDB available:', this.isTMDBAvailable);
+      console.log('TMDB configured:', tmdbService.isConfigured());
+      
+      // Only open if TMDB is available
+      if (!this.isTMDBAvailable || !tmdbService.isConfigured()) {
+        console.log('Cannot open modal: TMDB not available or configured');
+        return;
+      }
+      
+      this.selectedMediaTitle = recommendation.title;
+      this.selectedMediaId = null; // We'll search by title
+      this.showTMDBModal = true;
+      console.log('Modal state set to open:', this.showTMDBModal);
+    },
+    
+    /**
+     * Close the TMDB detail modal
+     */
+    closeTMDBModal() {
+      this.showTMDBModal = false;
+      this.selectedMediaId = null;
+      this.selectedMediaTitle = '';
+    },
+    
+    /**
      * Request a series to be added to Sonarr with selected seasons and options
      */
     async confirmAddSeries() {
@@ -3818,9 +4213,16 @@ export default {
         
         if (settings.librarySampleSize !== undefined) {
           const sampleSize = parseInt(settings.librarySampleSize, 10);
-          if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 50) {
+          if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 1000) {
             this.sampleSize = sampleSize;
           }
+        }
+        
+        // Structured output setting
+        if (settings.useStructuredOutput !== undefined) {
+          this.useStructuredOutput = settings.useStructuredOutput === true || settings.useStructuredOutput === 'true';
+          // Also set it in the OpenAIService
+          openAIService.useStructuredOutput = this.useStructuredOutput;
         }
         
         // Plex settings
@@ -3934,7 +4336,17 @@ export default {
       }
     }
     
-    // Check if OpenAI is already configured
+    // Make sure OpenAI credentials are loaded
+    if (!openAIService.isConfigured()) {
+      try {
+        await openAIService.loadCredentials();
+        console.log('After loading OpenAI credentials, service configured:', openAIService.isConfigured());
+      } catch (error) {
+        console.error('Error loading OpenAI credentials:', error);
+      }
+    }
+    
+    // Check if OpenAI is configured after loading credentials
     this.openaiConfigured = openAIService.isConfigured();
     
     // Initialize model selection
@@ -3983,13 +4395,18 @@ export default {
     // Fetch models if API is configured
     if (openAIService.isConfigured()) {
       this.fetchModels().then(() => {
-        // Check if the current model is in the fetched models
-        const modelExists = this.modelOptions.some(model => model.id === currentModel);
-        
-        if (modelExists) {
-          // If current model exists in options, select it
-          this.selectedModel = currentModel;
-          this.isCustomModel = false;
+        // Make sure modelOptions is an array before calling some()
+        if (Array.isArray(this.modelOptions) && this.modelOptions.length > 0) {
+          // Check if the current model is in the fetched models
+          const modelExists = this.modelOptions.some(model => model.id === currentModel);
+          
+          if (modelExists) {
+            // If current model exists in options, select it
+            this.selectedModel = currentModel;
+            this.isCustomModel = false;
+          }
+        } else {
+          console.log('No model options available or not an array');
         }
       });
     }
@@ -4007,6 +4424,15 @@ export default {
           console.log('Setting numRecommendations from localStorage:', this.numRecommendations);
         }
       }
+    }
+    
+    // Check for structured output setting in localStorage if we didn't get it from server
+    const savedStructuredOutput = localStorage.getItem('useStructuredOutput');
+    if (savedStructuredOutput !== null) {
+      const useStructured = savedStructuredOutput === 'true';
+      this.useStructuredOutput = useStructured;
+      openAIService.useStructuredOutput = useStructured;
+      console.log('Setting useStructuredOutput from localStorage:', useStructured);
     }
     
     if (this.columnsCount === 2) { // 2 is the default - if it's still default, check localStorage
@@ -4352,11 +4778,11 @@ h2 {
 .content-type-selector {
   display: flex;
   align-items: center;
-  background-color: rgba(52, 168, 83, 0.08);
-  border-radius: 12px;
+  background-color: rgba(67, 97, 238, 0.06);
+  border-radius: var(--border-radius-md);
   margin-left: 15px;
-  padding: 4px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   overflow: hidden;
 }
 
@@ -4365,14 +4791,14 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
   transition: all 0.2s ease-out;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-color);
   position: relative;
   min-width: 120px;
@@ -4380,13 +4806,13 @@ h2 {
 }
 
 .content-type-button:hover {
-  background-color: rgba(52, 168, 83, 0.08);
+  background-color: rgba(67, 97, 238, 0.08);
 }
 
 .content-type-button.active {
-  background-color: var(--button-primary-bg, #34A853);
+  background-color: var(--button-primary-bg);
   color: white;
-  box-shadow: 0 2px 8px rgba(52, 168, 83, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .content-type-button .button-icon {
@@ -4414,7 +4840,7 @@ h2 {
   align-items: center;
   background-color: var(--card-bg-color);
   padding: 30px;
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
   max-width: 600px;
   margin: 0 auto 30px;
@@ -4485,7 +4911,7 @@ h2 {
 
 .settings-container {
   background-color: var(--card-bg-color);
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
   width: 100%;
   box-sizing: border-box;
@@ -4536,48 +4962,33 @@ h2 {
   justify-content: space-between;
   align-items: center;
   transition: background-color 0.2s;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
 }
 
 .settings-header:hover {
   background-color: rgba(0, 0, 0, 0.03);
 }
 
-.small-action-button {
-  font-size: 14px;
-  padding: 6px 12px;
-  border-radius: 4px;
-  min-width: 160px;
-}
+/* Removed small-action-button that was previously in the header */
 
 .retry-button {
   margin-top: 15px;
   background-color: transparent;
-  color: #34A853;
+  color: var(--button-primary-bg);
   font-size: 15px;
   padding: 8px 20px;
   min-width: 120px;
-  border: 2px solid #34A853;
-  border-radius: 10px;
+  border: 1px solid var(--button-primary-bg);
+  border-radius: var(--border-radius-md);
   transition: all 0.2s ease;
 }
 
 .retry-button:hover:not(:disabled) {
-  background-color: rgba(52, 168, 83, 0.08);
+  background-color: rgba(67, 97, 238, 0.08);
   transform: translateY(-1px);
 }
 
 @media (max-width: 600px) {
-  .small-action-button {
-    font-size: 12px;
-    padding: 4px 8px;
-    min-width: 0 !important;
-    max-width: 140px !important; 
-    width: 140px !important;
-    line-height: 1.3;
-    overflow: hidden;
-  }
-  
   .loading {
     padding: 12px;
     gap: 10px;
@@ -4587,14 +4998,6 @@ h2 {
     font-size: 14px;
     margin: 0;
     flex: 1;
-  }
-  
-  .desktop-text {
-    display: none;
-  }
-  
-  .mobile-text {
-    display: inline;
   }
   
   .settings-header {
@@ -4608,13 +5011,7 @@ h2 {
 }
 
 @media (min-width: 601px) {
-  .desktop-text {
-    display: inline;
-  }
-  
-  .mobile-text {
-    display: none;
-  }
+  /* Desktop-specific styles */
 }
 
 .settings-header h3 {
@@ -4656,27 +5053,27 @@ h2 {
 }
 
 .info-section {
-  background-color: rgba(52, 168, 83, 0.03);
+  background-color: var(--primary-color-lighter);
   padding: 20px;
-  border-radius: 12px;
+  border-radius: var(--border-radius-md);
   margin-bottom: 24px;
-  border: 1px solid rgba(52, 168, 83, 0.1);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--primary-color-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .info-section:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transform: translateY(-1px);
 }
 
 .info-section-title {
   margin: 0 0 16px 0;
   font-size: 16px;
-  color: #34A853;
+  color: var(--text-color);
   font-weight: 600;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(52, 168, 83, 0.15);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
 }
@@ -4687,8 +5084,9 @@ h2 {
   width: 4px;
   height: 16px;
   margin-right: 8px;
-  background: linear-gradient(to bottom, #34A853, #27AE60);
+  background: var(--button-primary-bg);
   border-radius: 2px;
+  opacity: 0.9;
 }
 
 .model-info {
@@ -4711,20 +5109,20 @@ h2 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
-  background-color: rgba(52, 168, 83, 0.05);
+  background-color: var(--primary-color-lighter);
   padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(52, 168, 83, 0.1);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
 }
 
 .fetch-models-button {
   background: none;
-  border: 1px solid rgba(52, 168, 83, 0.2);
-  color: #34A853;
+  border: 1px solid var(--primary-color-border);
+  color: var(--button-primary-bg);
   font-size: 16px;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--border-radius-sm);
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -4732,9 +5130,9 @@ h2 {
 }
 
 .fetch-models-button:hover:not(:disabled) {
-  background-color: rgba(52, 168, 83, 0.1);
+  background-color: var(--primary-color-light);
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .fetch-models-button:disabled {
@@ -4768,8 +5166,8 @@ h2 {
 
 .model-select {
   padding: 12px 15px;
-  border-radius: 8px;
-  border: 1px solid rgba(52, 168, 83, 0.2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
@@ -4780,13 +5178,13 @@ h2 {
 }
 
 .model-select:hover {
-  border-color: #34A853;
+  border-color: var(--button-primary-bg);
 }
 
 .model-select:focus {
-  border-color: #34A853;
+  border-color: var(--button-primary-bg);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
+  box-shadow: 0 0 0 1px var(--primary-color-shadow);
 }
 
 .model-select-custom {
@@ -4795,8 +5193,8 @@ h2 {
 
 .custom-model-input {
   padding: 12px 15px;
-  border-radius: 8px;
-  border: 1px solid rgba(52, 168, 83, 0.2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
@@ -4806,13 +5204,13 @@ h2 {
 }
 
 .custom-model-input:hover {
-  border-color: #34A853;
+  border-color: var(--button-primary-bg);
 }
 
 .custom-model-input:focus {
-  border-color: #34A853;
+  border-color: var(--button-primary-bg);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
+  box-shadow: 0 0 0 1px var(--primary-color-shadow);
 }
 
 /* Modern Slider Components */
@@ -4836,13 +5234,13 @@ h2 {
 
 .slider-value {
   font-weight: 600;
-  color: #34A853;
-  background-color: rgba(52, 168, 83, 0.1);
-  border-radius: 30px;
+  color: var(--button-primary-text);
+  background-color: var(--button-primary-bg);
+  border-radius: var(--border-radius-sm);
   padding: 1px 8px;
   min-width: 20px;
   text-align: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   font-size: 13px;
 }
 
@@ -4865,7 +5263,7 @@ h2 {
   top: 50%;
   transform: translateY(-50%);
   height: 4px; /* Thinner track for better contrast with handle */
-  background: linear-gradient(to right, #34A853, #27AE60);
+  background: linear-gradient(to right, var(--button-primary-bg), var(--button-primary-bg));
   border-radius: 2px;
   z-index: 1;
   transition: width 0.2s ease;
@@ -4886,6 +5284,10 @@ h2 {
   cursor: pointer;
 }
 
+body.dark-theme .modern-slider {
+  background: #4a4a4a;
+}
+
 .modern-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -4894,13 +5296,18 @@ h2 {
   border-radius: 50%;
   background: #fff;
   cursor: pointer;
-  border: 2px solid #34A853;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--button-primary-bg);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 3;
   /* Fine-tuned perfect centering */
   transform: translateY(0px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.dark-theme .modern-slider::-webkit-slider-thumb {
+  background: #e0e0e0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .modern-slider::-moz-range-thumb {
@@ -4909,24 +5316,29 @@ h2 {
   border-radius: 50%;
   background: #fff;
   cursor: pointer;
-  border: 2px solid #34A853;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--button-primary-bg);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 3;
   transform: translateY(0px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+body.dark-theme .modern-slider::-moz-range-thumb {
+  background: #e0e0e0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
 .modern-slider::-webkit-slider-thumb:hover,
 .modern-slider:active::-webkit-slider-thumb {
   transform: translateY(0px) scale(1.1);
-  box-shadow: 0 3px 8px rgba(52, 168, 83, 0.3);
+  box-shadow: 0 3px 8px var(--primary-color-shadow);
 }
 
 .modern-slider::-moz-range-thumb:hover,
 .modern-slider:active::-moz-range-thumb {
   transform: translateY(0px) scale(1.1);
-  box-shadow: 0 3px 8px rgba(52, 168, 83, 0.3);
+  box-shadow: 0 3px 8px var(--primary-color-shadow);
 }
 
 .slider-labels {
@@ -4959,6 +5371,7 @@ h2 {
   font-size: 15px;
   font-weight: 500;
   color: var(--text-color);
+  opacity: 0.95; /* Improve readability in dark mode */
 }
 
 .genre-badge {
@@ -4967,9 +5380,9 @@ h2 {
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  background-color: #34A853;
+  background-color: var(--button-primary-bg);
   color: white;
-  border-radius: 10px;
+  border-radius: var(--border-radius-sm);
   font-size: 12px;
   font-weight: 600;
   padding: 0 6px;
@@ -4984,7 +5397,7 @@ h2 {
   padding: 5px 0;
   margin-bottom: 10px;
   scrollbar-width: thin;
-  scrollbar-color: #34A853 rgba(52, 168, 83, 0.1);
+  scrollbar-color: var(--button-primary-bg) rgba(67, 97, 238, 0.1);
 }
 
 .genre-tags-container::-webkit-scrollbar {
@@ -4992,12 +5405,12 @@ h2 {
 }
 
 .genre-tags-container::-webkit-scrollbar-track {
-  background: rgba(52, 168, 83, 0.05);
+  background: rgba(67, 97, 238, 0.05);
   border-radius: 3px;
 }
 
 .genre-tags-container::-webkit-scrollbar-thumb {
-  background-color: rgba(52, 168, 83, 0.4);
+  background-color: rgba(67, 97, 238, 0.4);
   border-radius: 3px;
 }
 
@@ -5005,9 +5418,9 @@ h2 {
   display: inline-flex;
   align-items: center;
   padding: 6px 12px;
-  background-color: rgba(52, 168, 83, 0.05);
-  border: 1px solid rgba(52, 168, 83, 0.15);
-  border-radius: 30px;
+  background-color: rgba(48, 65, 86, 0.08);
+  border: 1px solid rgba(48, 65, 86, 0.15);
+  border-radius: var(--border-radius-md);
   color: var(--text-color);
   font-size: 13px;
   cursor: pointer;
@@ -5015,20 +5428,29 @@ h2 {
   user-select: none;
 }
 
+body.dark-theme .genre-tag {
+  background-color: rgba(48, 65, 86, 0.25);
+  border: 1px solid rgba(48, 65, 86, 0.3);
+}
+
 .genre-tag:hover {
-  background-color: rgba(52, 168, 83, 0.1);
+  background-color: rgba(48, 65, 86, 0.15);
   transform: translateY(-1px);
 }
 
+body.dark-theme .genre-tag:hover {
+  background-color: rgba(48, 65, 86, 0.35);
+}
+
 .genre-tag.selected {
-  background-color: #34A853;
+  background-color: var(--button-primary-bg);
   color: white;
-  border-color: #34A853;
-  box-shadow: 0 2px 5px rgba(52, 168, 83, 0.3);
+  border-color: var(--button-primary-bg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .genre-tag.selected:hover {
-  background-color: #2E9648;
+  filter: brightness(1.05);
 }
 
 .clear-all-button {
@@ -5057,10 +5479,10 @@ h2 {
   box-sizing: border-box;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
   padding: 15px;
-  background-color: rgba(52, 168, 83, 0.03);
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(52, 168, 83, 0.1);
+  background-color: var(--card-bg-color);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
 }
 
 .count-selector {
@@ -5117,8 +5539,8 @@ select:focus {
 }
 
 .action-button {
-  background-color: var(--button-primary-bg);
-  color: var(--button-primary-text);
+  background-color: #4285F4;
+  color: white;
   padding: 10px 20px;
   border: none;
   border-radius: 4px;
@@ -5126,94 +5548,284 @@ select:focus {
   font-weight: bold;
   font-size: 16px;
   min-width: 200px;
-  transition: background-color var(--transition-speed), color var(--transition-speed);
+  transition: all 0.2s ease-out;
 }
 
-.discover-button {
+@media (prefers-color-scheme: dark) {
+  .action-button {
+    background-color: #3367D6;
+  }
+}
+
+.discover-card-container {
   position: relative;
   width: 100%;
-  max-width: 320px;
-  padding: 0;
-  background: linear-gradient(105deg, #34A853, #27AE60);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(52, 168, 83, 0.25);
-  overflow: hidden;
-  border: none;
-  transition: all 0.3s ease-out;
-  margin: 5px auto;
+  max-width: 450px;
+  margin: 20px auto;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-.discover-button-inner {
+.discover-card-container.visible-when-collapsed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Hide the card when settings are expanded */
+.settings-content:not(.collapsed) + .discover-card-container {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+.discover-card {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 14px 20px;
+  justify-content: space-between;
+  background-color: #4285F4;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  color: white;
+  margin: 0 auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .discover-card {
+    background-color: #3367D6;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.discover-card-inner {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 20px;
   position: relative;
   z-index: 2;
 }
 
-.discover-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(52, 168, 83, 0.3);
-  background: linear-gradient(105deg, #2E9648, #229954);
+.discover-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(66, 133, 244, 0.3);
 }
 
-.discover-button:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: 0 2px 8px rgba(52, 168, 83, 0.2);
+@media (prefers-color-scheme: dark) {
+  .discover-card:hover {
+    box-shadow: 0 10px 25px rgba(51, 103, 214, 0.3);
+  }
 }
 
-.discover-button:disabled {
-  background: linear-gradient(105deg, #a9a9a9, #8a8a8a);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  cursor: not-allowed;
+.discover-card:active {
+  transform: translateY(0);
 }
 
-.button-text {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  color: white;
+.discover-card-loading {
+  background-color: #4285F4;
+  cursor: default;
+  min-height: 140px;
+  height: auto;
 }
 
-.button-icon {
+@media (prefers-color-scheme: dark) {
+  .discover-card-loading {
+    background-color: #3367D6;
+  }
+}
+
+.discover-icon-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  margin-right: 16px;
+}
+
+.discover-icon {
+  font-size: 24px;
+  z-index: 1;
+}
+
+.discover-pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.15);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.discover-content {
+  flex: 1;
+}
+
+.discover-title {
   font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
 }
 
-.arrow-icon {
+.discover-subtitle {
+  font-size: 14px;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.discover-action {
+  margin-left: 16px;
+}
+
+.discover-button-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.discover-card:hover .discover-button-circle {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.discover-arrow-icon {
   transition: transform 0.3s ease;
   stroke: white;
   height: 18px;
   width: 18px;
 }
 
-.discover-button:hover:not(:disabled) .arrow-icon {
+.discover-card:hover .discover-arrow-icon {
   transform: translateX(3px);
 }
 
-.button-shine {
+.discover-card-background {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    110deg, 
-    rgba(255,255,255,0) 0%, 
-    rgba(255,255,255,0) 20%, 
-    rgba(255,255,255,0.1) 20.1%, 
-    rgba(255,255,255,0.1) 30%, 
-    rgba(255,255,255,0) 30.1%, 
-    rgba(255,255,255,0) 100%
-  );
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
   z-index: 1;
-  transition: transform 0.5s ease;
-  transform: translateX(-100%);
 }
 
-.discover-button:hover:not(:disabled) .button-shine {
-  transform: translateX(100%);
+.discover-loading-content {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  gap: 16px;
+  width: 100%;
+  z-index: 3;
+}
+
+.discover-loading-spinner {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spinner 1s linear infinite;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.discover-loading-info {
+  flex: 1;
+}
+
+.discover-loading-message {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+}
+
+.discover-loading-counter {
+  font-size: 14px;
+  opacity: 0.9;
+  margin: 0;
+  transition: opacity 0.3s ease;
+}
+
+.discover-loading-counter.initializing {
+  opacity: 0.7;
+}
+
+@media (max-width: 600px) {
+  .discover-card-inner {
+    padding: 15px;
+  }
+  
+  .discover-icon-container {
+    width: 40px;
+    height: 40px;
+    margin-right: 12px;
+  }
+  
+  .discover-icon {
+    font-size: 20px;
+  }
+  
+  .discover-title {
+    font-size: 16px;
+  }
+  
+  .discover-subtitle {
+    font-size: 12px;
+  }
+  
+  .discover-loading-content {
+    padding: 15px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .discover-loading-spinner {
+    margin: 0 auto 5px;
+  }
+  
+  .discover-loading-message {
+    font-size: 14px;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .discover-loading-counter {
+    font-size: 12px;
+    text-align: center;
+    width: 100%;
+  }
 }
 
 @media (max-width: 600px) {
@@ -5227,12 +5839,36 @@ select:focus {
 }
 
 .action-button:hover:not(:disabled) {
-  filter: brightness(1.1);
+  background-color: #3367D6;
+  transform: translateY(-1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .action-button:hover:not(:disabled) {
+    background-color: #2A56C6;
+  }
+}
+
+.action-button:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: #2A56C6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .action-button:active:not(:disabled) {
+    background-color: #1A46B6;
+  }
 }
 
 .action-button:disabled {
-  opacity: 0.7;
+  background-color: #E0E0E0;
   cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .action-button:disabled {
+    background-color: #707070;
+  }
 }
 
 .loading {
@@ -5362,6 +5998,60 @@ select:focus {
   min-height: 275px; /* Use min-height instead of fixed height to allow content to expand */
 }
 
+/* Compact mode styling for better fit on small screens or with many columns */
+.recommendation-card.compact-mode {
+  min-height: auto;
+  max-width: 100%;
+  overflow: hidden; /* Prevent any content from overflowing */
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.recommendation-card.compact-mode:hover {
+  transform: translateY(-3px) scale(1.02);
+  z-index: 20; /* Ensure expanded card appears above others */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Full-width expand button at bottom of card */
+.full-width-expand-button {
+  width: 100%;
+  background-color: rgba(48, 65, 86, 0.8);
+  color: white;
+  border: none;
+  border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+  padding: 8px 12px;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.full-width-expand-button:hover {
+  background-color: rgba(48, 65, 86, 0.9);
+}
+
+.full-width-expand-button.expanded {
+  background-color: rgba(48, 65, 86, 0.9);
+}
+
+.full-width-expand-button svg {
+  transition: transform 0.2s ease;
+}
+
+.full-width-expand-button:hover svg {
+  transform: translateY(2px);
+}
+
+.full-width-expand-button.expanded:hover svg {
+  transform: translateY(-2px);
+}
+
 .recommendation-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
@@ -5371,6 +6061,38 @@ select:focus {
   display: flex;
   flex-direction: row;
   min-height: 100%;
+}
+
+.card-content.compact-layout {
+  flex-direction: column;
+  display: flex;
+  min-height: 100%;
+}
+
+.card-content.clickable {
+  cursor: pointer;
+  position: relative;
+}
+
+.card-content.clickable::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 114, 229, 0.03);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.card-content.clickable:hover::after {
+  opacity: 1;
+}
+
+.card-content.clickable:active {
+  transform: scale(0.99);
 }
 
 @media (max-width: 600px) {
@@ -5409,6 +6131,14 @@ select:focus {
   height: 100%;
 }
 
+.compact-layout .poster-container {
+  flex: 0 0 auto;
+  width: 100%;
+  height: auto;
+  margin-bottom: 10px;
+  padding: 10px 10px 0 10px;
+}
+
 @media (max-width: 600px) {
   .poster-container {
     flex: 0 0 auto;
@@ -5427,6 +6157,14 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
+}
+
+.compact-layout .poster {
+  width: 100%;
+  height: 180px;
+  border-radius: 4px;
+  background-position: center top; /* Show top of poster in compact mode */
 }
 
 @media (max-width: 600px) {
@@ -5494,6 +6232,53 @@ select:focus {
   overflow: visible;
   display: flex;
   flex-direction: column;
+}
+
+.compact-layout .details-container {
+  padding: 10px 12px 15px 12px;
+}
+
+.compact-layout .description,
+.compact-layout .reasoning {
+  /* Hide longer text content in compact mode by default */
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+  margin: 0;
+}
+
+/* Show content when expanded */
+.recommendation-card.compact-mode.expanded .description,
+.recommendation-card.compact-mode.expanded .reasoning,
+.compact-layout .card-content:hover .description,
+.compact-layout .card-content:hover .reasoning {
+  max-height: 200px; /* Enough height for content */
+  opacity: 1;
+  margin: 8px 0;
+}
+
+.compact-layout .card-header {
+  margin-bottom: 5px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.compact-layout .card-header h3 {
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  width: 100%;
+}
+
+.compact-layout .card-actions {
+  width: 100%;
+  justify-content: space-between;
 }
 
 @media (max-width: 600px) {
@@ -5641,31 +6426,17 @@ select:focus {
 
 .rating-score {
   font-weight: bold;
-  font-size: 15px;
+  font-size: 16px;
   display: inline-flex;
   align-items: center;
   color: #2196F3;
-  padding: 4px 10px 4px 8px;
+  padding: 4px 12px;
   border-radius: 4px;
   width: fit-content;
   line-height: 1;
   margin-top: 4px;
   vertical-align: middle;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.rating-details {
-  font-size: 13px;
-  margin-top: 6px;
-  color: var(--text-color);
-  line-height: 1.4;
-  opacity: 0.85;
-  padding-left: 2px;
-}
-
-.rating-score {
-  padding: 4px 12px;
-  font-size: 16px;
 }
 
 .score-fresh {
@@ -5915,32 +6686,40 @@ select:focus {
 
 .plex-options, .jellyfin-options, .tautulli-options, .trakt-options {
   margin-top: 20px;
+  margin-bottom: 20px;
+  background-color: var(--primary-color-lighter);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
   padding: 15px;
-  background-color: rgba(52, 168, 83, 0.05); /* Light green background for all services */
-  border-radius: 8px;
-  border: 1px solid rgba(52, 168, 83, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .service-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.service-header label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-color);
 }
 
 .service-settings {
-  margin-top: 10px;
+  margin-top: 12px;
   padding: 12px;
-  background-color: rgba(52, 168, 83, 0.02);
-  border-radius: 8px;
-  border: 1px solid rgba(52, 168, 83, 0.1);
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
 }
 
-.plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle {
-  margin-top: 5px;
+.plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle, .trakt-history-toggle {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .history-selection {
@@ -5956,26 +6735,33 @@ select:focus {
   cursor: pointer;
   margin: 0;
   font-size: 14px;
+  padding: 6px 8px;
+  border-radius: var(--border-radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.toggle-option:hover {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .toggle-option input[type="radio"] {
-  margin-right: 8px;
+  margin-right: 10px;
   cursor: pointer;
 }
 
-.plex-only-toggle, .jellyfin-only-toggle, .tautulli-only-toggle {
+.plex-only-toggle, .jellyfin-only-toggle, .tautulli-only-toggle, .trakt-only-toggle {
   margin-top: 15px;
   padding-top: 12px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--primary-color-border);
 }
 
 .days-slider-container {
-  margin-top: 5px;
+  margin-top: 8px;
   margin-bottom: 15px;
-  padding: 10px;
-  background-color: rgba(52, 168, 83, 0.05);
-  border-radius: 8px;
-  border: 1px dashed rgba(52, 168, 83, 0.2);
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
 }
 
 /* Toggle Switch Styles */
@@ -6169,34 +6955,47 @@ select:focus {
 }
 /* Vibe Selector Styles */
 .vibe-selector {
+  margin-top: 10px;
   margin-bottom: 20px;
+  background-color: var(--primary-color-lighter);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .vibe-input-container {
   position: relative;
   margin-bottom: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .vibe-input {
   width: 100%;
   padding: 12px 15px;
-  border-radius: 10px;
-  border: 1px solid rgba(52, 168, 83, 0.2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
   line-height: 1.5;
   min-height: 70px;
   resize: vertical;
+  box-sizing: border-box;
+  max-width: 100%;
   font-family: inherit;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .vibe-input:focus {
   outline: none;
-  border-color: #34A853;
-  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
+  border-color: var(--button-primary-bg);
+  box-shadow: 0 0 0 1px var(--primary-color-shadow);
 }
 
 .vibe-input::placeholder {
@@ -6232,21 +7031,26 @@ select:focus {
 .tip-icon {
   width: 16px;
   height: 16px;
-  color: #34A853;
+  color: var(--button-primary-bg);
   opacity: 0.7;
 }
 
 .language-selector {
   margin-bottom: 20px;
+  background-color: var(--primary-color-lighter);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .language-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(52, 168, 83, 0.1);
-  color: #34A853;
-  border-radius: 30px;
+  background-color: var(--primary-color-light);
+  color: var(--button-primary-bg);
+  border-radius: var(--border-radius-sm);
   font-size: 12px;
   font-weight: 500;
   padding: 2px 10px;
@@ -6271,8 +7075,8 @@ select:focus {
 .language-select {
   width: 100%;
   padding: 12px 15px;
-  border-radius: 10px;
-  border: 1px solid rgba(52, 168, 83, 0.2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-size: 14px;
@@ -6284,12 +7088,126 @@ select:focus {
 }
 
 .language-select:hover {
-  border-color: #34A853;
+  border-color: var(--button-primary-bg);
 }
 
 .language-select:focus {
   outline: none;
-  border-color: #34A853;
-  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
+  border-color: var(--button-primary-bg);
+  box-shadow: 0 0 0 1px var(--primary-color-shadow);
+}
+
+.experimental-toggle {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.experimental-badge {
+  display: inline-block;
+  background-color: #ff9800;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  margin-left: 4px;
+  vertical-align: middle;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Collapsible section styles */
+.collapsible-header {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-radius: var(--border-radius-sm);
+  position: relative;
+}
+
+.collapsible-header:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+body.dark-theme .collapsible-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle-icon {
+  font-size: 14px;
+  color: var(--button-primary-bg);
+  transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), color 0.15s ease;
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  transform-origin: center;
+  opacity: 0.8;
+}
+
+body.dark-theme .toggle-icon {
+  opacity: 0.9;
+}
+
+.collapsible-header:hover .toggle-icon {
+  color: var(--button-primary-bg);
+}
+
+/* Improved rotation logic for toggle icon */
+[class*="-content"].collapsed ~ .header-right .toggle-icon,
+[class*="-content"].collapsed + .toggle-icon,
+.collapsed + .toggle-icon,
+.collapsed ~ .toggle-icon,
+[v-show="false"] ~ .header-right .toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.collapsed {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  transform: translateY(-5px) !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+}
+
+/* Base styles for all collapsible content */
+.genre-content, .language-content, .rec-number-content, .posters-row-content, 
+.plex-content, .jellyfin-content, .tautulli-content, .trakt-content,
+.config-content, .vibe-content, .settings-content {
+  will-change: max-height, opacity, transform;
+  box-sizing: border-box;
+}
+
+/* Prevent scroll jumping during animations */
+.collapsible-header {
+  position: relative;
+  z-index: 1;
+}
+
+.info-section-title.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 5px 5px 5px 0;
+  border-radius: var(--border-radius-sm);
+  margin-bottom: 10px;
+}
+
+.info-section-title.collapsible-header:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+body.dark-theme .info-section-title.collapsible-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 </style>

@@ -9,6 +9,7 @@ class OpenAIService {
     this.temperature = 0.8;
     this.useSampledLibrary = false;
     this.sampleSize = 20;
+    this.useStructuredOutput = false; // Default to legacy output format
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -54,6 +55,7 @@ class OpenAIService {
         if (credentials.temperature) this.temperature = parseFloat(credentials.temperature);
         if (credentials.useSampledLibrary !== undefined) this.useSampledLibrary = credentials.useSampledLibrary === true;
         if (credentials.sampleSize) this.sampleSize = parseInt(credentials.sampleSize);
+        if (credentials.useStructuredOutput !== undefined) this.useStructuredOutput = credentials.useStructuredOutput === true;
         
         // Update API URL if baseUrl changed
         this.apiUrl = this.getCompletionsUrl();
@@ -94,6 +96,17 @@ class OpenAIService {
   getCompletionsUrl() {
     // Normalize the base URL by removing trailing slashes
     const baseUrl = this.baseUrl ? this.baseUrl.replace(/\/+$/, '') : '';
+    
+    // Special handling for Google AI API (generativelanguage)
+    if (baseUrl.includes('generativelanguage.googleapis.com')) {
+      if (baseUrl.includes('/openai')) {
+        return `${baseUrl}/chat/completions`;
+      } else {
+        return `${baseUrl}/openai/chat/completions`;
+      }
+    }
+    
+    // Default for OpenAI and other providers
     return `${baseUrl}/chat/completions`;
   }
   
@@ -104,6 +117,32 @@ class OpenAIService {
   getModelsUrl() {
     // Normalize the base URL by removing trailing slashes
     const baseUrl = this.baseUrl ? this.baseUrl.replace(/\/+$/, '') : '';
+    
+    // Special handling for Anthropic API
+    if (baseUrl === 'https://api.anthropic.com/v1') {
+      console.log('Using Anthropic models endpoint');
+      return `${baseUrl}/models`;
+    }
+    
+    // Special handling for Google AI API (generativelanguage)
+    if (baseUrl.includes('generativelanguage.googleapis.com')) {
+      if (baseUrl.includes('/openai')) {
+        return `${baseUrl}/models`;
+      } else {
+        return `${baseUrl}/openai/models`;
+      }
+    }
+    
+    // Special handling for LLM servers (like LMStudio)
+    if (baseUrl.match(/192\.168\.\d+\.\d+/) || baseUrl.match(/\d+\.\d+\.\d+\.\d+/) || baseUrl.includes('lmstudio')) {
+      if (baseUrl.endsWith('/v1')) {
+        return `${baseUrl}/models`;
+      } else {
+        return `${baseUrl}/v1/models`;
+      }
+    }
+    
+    // Default for OpenAI and other providers
     return `${baseUrl}/models`;
   }
   
@@ -135,61 +174,318 @@ class OpenAIService {
       } else {
         console.log('No API key provided for Anthropic API request');
       }
-    } else {
+    } 
+    // Google AI API authentication
+    else if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+      if (this.apiKey && this.apiKey.trim() !== '') {
+        // For Google AI, try both methods - some endpoints use Authorization header
+        // and some use API key as a query parameter
+        this.googleApiKey = this.apiKey.trim();
+        
+        // Add Authorization header
+        headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+        console.log('Using Google AI API with Authorization header');
+      } else {
+        console.log('No API key provided for Google AI API request');
+      }
+    } 
+    // Default OpenAI-compatible authentication
+    else {
       // Only add Authorization header if apiKey is present and not empty
       if (this.apiKey && this.apiKey.trim() !== '') {
         // Ensure the authorization header is properly formatted for OpenAI API
         // Always include Bearer prefix and ensure no extra whitespace
-        // Try adjusting header case - some proxies might be case-sensitive
-        headers['authorization'] = `Bearer ${this.apiKey.trim()}`; // lowercase header key
+        // Use correct header case for OpenAI API (capital 'A')
+        headers['Authorization'] = `Bearer ${this.apiKey.trim()}`; // OpenAI expects 'Authorization'
         console.log('Using OpenAI headers for models request');
-        console.log('Authorization header format:', headers['authorization'].substring(0, 15) + '...');
+        console.log('Authorization header format:', headers['Authorization'].substring(0, 15) + '...');
       } else {
         console.log('No API key provided, skipping Authorization header');
       }
     }
     
-    // Add content type header - lowercase for consistency
-    headers['content-type'] = 'application/json';
+    // Add content-type header with correct case for different APIs
+    if (this.baseUrl.includes('openai.com') || this.baseUrl.includes('generativelanguage.googleapis.com')) {
+      headers['Content-Type'] = 'application/json';  // OpenAI/Google expect 'Content-Type'
+      headers['Accept'] = 'application/json';        // OpenAI/Google expect 'Accept'
+    } else {
+      // For other services, use lowercase as it was working before
+      headers['content-type'] = 'application/json';
+      headers['accept'] = 'application/json';
+    }
     
-    const modelsUrl = this.getModelsUrl();
+    // Ensure we preserve existing Anthropic specific headers
+    if (this.baseUrl === 'https://api.anthropic.com/v1') {
+      headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      headers['anthropic-version'] = '2023-06-01';
+      console.log('Preserved Anthropic-specific headers');
+    }
+    
+    // Special handling for LMStudio
+    if (this.baseUrl.includes('lmstudio') || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/)) {
+      console.log('Detected LMStudio or local LLM server, adding additional headers');
+      headers['accept'] = 'application/json, text/plain, */*';
+      headers['user-agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
+    }
+    
+    let modelsUrl = this.getModelsUrl();
+    
+    // For Google AI API, also add the API key as a query parameter
+    // (some endpoints might use query param instead of Authorization header)
+    if (this.baseUrl.includes('generativelanguage.googleapis.com') && this.googleApiKey) {
+      const separator = modelsUrl.includes('?') ? '&' : '?';
+      modelsUrl = `${modelsUrl}${separator}key=${this.googleApiKey}`;
+    }
+    
     console.log(`Fetching models from: ${modelsUrl}`);
     
     try {
-      // Always try to use the proxy first, then fall back to direct request if proxy fails
-      const axios = (await import('axios')).default;
+      // Always use the proxy, no direct requests to avoid mixed content errors
       const apiService = (await import('./ApiService')).default;
       
       let response;
       
       try {
-        // Try using the proxy service first for all requests
-        console.log('Attempting to use proxy service for models request');
+        // Always use the proxy service for models request to avoid mixed content errors
+        console.log('Using proxy service for models request');
         response = await apiService.proxyRequest({
           url: modelsUrl,
           method: 'GET',
           headers: headers
         });
       } catch (proxyError) {
-        // If proxy fails, fallback to direct request
-        console.log('Proxy request failed, falling back to direct request:', proxyError.message);
-        response = await axios({
-          url: modelsUrl,
-          method: 'GET',
-          headers: headers
-        });
+        console.log('Proxy request failed:', proxyError.message);
+        
+        // Log error but avoid excessive details
+        console.error('Proxy error:', proxyError.message);
+        
+        // For OpenAI, Google AI, Anthropic, LMStudio or IP-based endpoints, try a direct request as fallback
+        if (this.baseUrl.includes('openai.com') || this.baseUrl.includes('generativelanguage.googleapis.com') || this.baseUrl === 'https://api.anthropic.com/v1' || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/) || this.baseUrl.includes('lmstudio')) {
+          console.log('Attempting direct request to LLM server as fallback...');
+          try {
+            const axios = (await import('axios')).default;
+            // Prepare headers for direct request based on API type
+            const directHeaders = {
+              'Accept': 'application/json, text/plain, */*',
+              'User-Agent': 'Mozilla/5.0 (compatible; Reccommendarr/1.0)'
+            };
+            
+            // Special handling for OpenAI API
+            if (this.baseUrl.includes('openai.com')) {
+              console.log('Using special headers for direct OpenAI API request');
+              directHeaders['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+              directHeaders['Content-Type'] = 'application/json';
+              directHeaders['Accept'] = 'application/json';
+            }
+            // Special handling for Google AI API
+            else if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+              console.log('Using special headers for direct Google AI API request');
+              
+              // Add Authorization header
+              if (this.googleApiKey) {
+                directHeaders['Authorization'] = `Bearer ${this.googleApiKey}`;
+                
+                // Also add as query parameter for certain endpoints
+                const separator = modelsUrl.includes('?') ? '&' : '?';
+                modelsUrl = `${modelsUrl}${separator}key=${this.googleApiKey}`;
+              }
+              
+              // Set standard headers
+              directHeaders['Content-Type'] = 'application/json';
+              directHeaders['Accept'] = 'application/json';
+            }
+            // Special handling for Anthropic API
+            else if (this.baseUrl === 'https://api.anthropic.com/v1') {
+              console.log('Using special headers for direct Anthropic API request');
+              directHeaders['x-api-key'] = this.apiKey;
+              directHeaders['anthropic-version'] = '2023-06-01';
+              directHeaders['anthropic-dangerous-direct-browser-access'] = 'true';
+            }
+            
+            const directResponse = await axios({
+              url: modelsUrl,
+              method: 'GET',
+              headers: directHeaders
+            });
+            
+            console.log('Direct request successful!', directResponse.status);
+            
+            // Process the response data from direct request
+            
+            // For OpenAI API
+            if (this.baseUrl.includes('openai.com')) {
+              console.log('Processing OpenAI API direct response');
+              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.data.length} OpenAI models`);
+                return directResponse.data.data;
+              }
+            }
+            
+            // For Google AI API
+            if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+              console.log('Processing Google AI API direct response');
+              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.data.length} Google AI models`);
+                return directResponse.data.data;
+              } else if (directResponse.data && Array.isArray(directResponse.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.length} Google AI models (array format)`);
+                return directResponse.data.map(model => ({
+                  id: model.id || model.name,
+                  object: 'model',
+                  owned_by: 'google'
+                }));
+              }
+            }
+            
+            // For Anthropic API
+            else if (this.baseUrl === 'https://api.anthropic.com/v1') {
+              console.log('Processing Anthropic API direct response');
+              
+              // Handle format with data array property
+              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.data.length} Anthropic models (data array format)`);
+                return directResponse.data.data.map(model => ({
+                  id: model.id,
+                  object: 'model',
+                  owned_by: 'anthropic',
+                  display_name: model.display_name
+                }));
+              }
+              // Handle direct array format
+              else if (Array.isArray(directResponse.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.length} Anthropic models (direct array format)`);
+                return directResponse.data.map(model => ({
+                  id: model.id || model.name,
+                  object: 'model',
+                  owned_by: 'anthropic'
+                }));
+              }
+            }
+            
+            // For LMStudio format
+            if (directResponse.data && directResponse.data.object === 'list' && Array.isArray(directResponse.data.data)) {
+              console.log(`Successfully retrieved ${directResponse.data.data.length} models from direct request`);
+              // Return processed models directly instead of wrapping
+              return directResponse.data.data;
+            }
+            
+            // If data is in a different format, wrap it in a proxy-like response
+            return {
+              status: directResponse.status,
+              data: directResponse.data,
+              headers: directResponse.headers
+            };
+          } catch (directError) {
+            console.error('Direct request failed:', directError.message);
+            throw new Error(`Failed to connect to LLM server at ${this.baseUrl}. Please check if the server is running and accessible.`);
+          }
+        }
+        
+        throw new Error(`Failed to fetch models via proxy: ${proxyError.message}`);
       }
       
       console.log(`Models response status: ${response.status}`);
       
       // Check if the request was successful
       if (response && response.status >= 200 && response.status < 300 && response.data) {
-        if (response.data.data) {
-          console.log(`Successfully retrieved ${response.data.data.length} models`);
-          return response.data.data;
-        } else {
-          console.warn('Response successful but missing data.data property:', response.data);
+        
+        // Handle provider-specific formats first
+        
+        // Google AI API format
+        if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+          // Google data array format
+          if (response.data && response.data.data && Array.isArray(response.data.data)) {
+            console.log(`Successfully retrieved ${response.data.data.length} Google AI models`);
+            return response.data.data.map(model => ({
+              id: model.id || model.name,
+              object: 'model',
+              owned_by: 'google'
+            }));
+          }
+          // Google direct array format 
+          else if (Array.isArray(response.data)) {
+            console.log(`Successfully retrieved ${response.data.length} Google AI models (array format)`);
+            return response.data.map(model => ({
+              id: model.id || model.name,
+              object: 'model',
+              owned_by: 'google'
+            }));
+          }
         }
+        
+        // Anthropic API format
+        else if (this.baseUrl === 'https://api.anthropic.com/v1') {
+          // Anthropic format with data array
+          if (response.data.data && Array.isArray(response.data.data)) {
+            console.log(`Successfully retrieved ${response.data.data.length} Anthropic models (data array format)`);
+            return response.data.data.map(model => ({
+              id: model.id,
+              object: 'model',
+              owned_by: 'anthropic',
+              display_name: model.display_name
+            }));
+          }
+          // Anthropic direct array format
+          else if (Array.isArray(response.data)) {
+            console.log(`Successfully retrieved ${response.data.length} Anthropic models (direct array format)`);
+            return response.data.map(model => ({
+              id: model.id || model.name,
+              object: 'model',
+              owned_by: 'anthropic'
+            }));
+          }
+        }
+        
+        // Standard OpenAI API format
+        if (response.data.data && Array.isArray(response.data.data)) {
+          console.log(`Successfully retrieved ${response.data.data.length} models (standard format)`);
+          return response.data.data;
+        } 
+        
+        // LMStudio format with object=list
+        if (response.data && response.data.object === 'list' && Array.isArray(response.data.data)) {
+          console.log(`Successfully retrieved ${response.data.data.length} models (LMStudio format)`);
+          return response.data.data;
+        }
+        
+        // Generic direct array format for other providers
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`Successfully retrieved ${response.data.length} models (direct array format)`);
+          return response.data.map(model => ({ 
+            id: model.id || model.name || String(model),
+            object: model.object || 'model',
+            owned_by: model.owned_by || 'local'
+          }));
+        }
+        
+        // Fallback: try to interpret any JSON object as a model list
+        else if (response.data && typeof response.data === 'object') {
+          console.warn('Non-standard API response format, attempting to extract models:', response.data);
+          
+          // Look for any array property that might contain models
+          for (const key in response.data) {
+            if (Array.isArray(response.data[key])) {
+              console.log(`Found array in response.data.${key}, using as models list`);
+              return response.data[key].map(model => ({
+                id: model.id || model.name || String(model),
+                object: model.object || 'model',
+                owned_by: model.owned_by || 'local'
+              }));
+            }
+          }
+          
+          // If no arrays found but we have a data object, create a single model entry
+          const modelId = response.data.id || response.data.name || 'default-model';
+          console.log(`Creating single model entry with ID: ${modelId}`);
+          return [{ 
+            id: modelId,
+            object: 'model',
+            owned_by: 'local'
+          }];
+        }
+        
+        // No valid model format found
+        console.warn('Response successful but could not extract models:', response.data);
       }
       
       throw new Error('Failed to fetch models: Invalid response format');
@@ -215,8 +511,9 @@ class OpenAIService {
    * @param {number} temperature - Temperature for randomness
    * @param {boolean} useSampledLibrary - Whether to use sampled library for recommendations
    * @param {number} sampleSize - Sample size to use when sampling the library
+   * @param {boolean} useStructuredOutput - Whether to use structured output in API requests
    */
-  async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null) {
+  async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null, useStructuredOutput = null) {
     // Trim the API key to remove any accidental whitespace
     this.apiKey = apiKey ? apiKey.trim() : '';
     
@@ -248,6 +545,10 @@ class OpenAIService {
       this.sampleSize = sampleSize;
     }
     
+    if (useStructuredOutput !== null) {
+      this.useStructuredOutput = useStructuredOutput;
+    }
+    
     // Store credentials server-side (including model selection as backup)
     await credentialsService.storeCredentials('openai', {
       apiKey: this.apiKey,
@@ -256,7 +557,8 @@ class OpenAIService {
       maxTokens: this.maxTokens,
       temperature: this.temperature,
       useSampledLibrary: this.useSampledLibrary,
-      sampleSize: this.sampleSize
+      sampleSize: this.sampleSize,
+      useStructuredOutput: this.useStructuredOutput
     });
   }
 
@@ -309,14 +611,14 @@ class OpenAIService {
       // Only initialize conversation history if it doesn't exist yet
       if (this.tvConversation.length === 0) {
       
-      // Determine if we should use only Plex history or include the library
+      // Determine if we should use only watch history or include the library
       let sourceText;
       let primarySource = [];
       let libraryTitles = '';
       
       if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
-        // Only use the Plex watch history
-        sourceText = "my Plex watch history";
+        // Only use the watch history
+        sourceText = "my watch history";
         primarySource = recentlyWatchedShows.map(show => show.title);
         
         // Add library titles to exclusions to prevent recommending what user already has
@@ -324,7 +626,7 @@ class OpenAIService {
           const sonarrTitles = series.map(show => show.title);
           previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
         }
-      } else {
+      } else if (series && series.length > 0) {
         // Use the Sonarr library as the main library
         sourceText = "my TV show library";
         const sonarrTitles = series.map(show => show.title);
@@ -333,6 +635,14 @@ class OpenAIService {
         // We don't add liked recommendations to the primary source anymore,
         // as they will be filtered later. This ensures liked items won't be
         // recommended again, even if they're not part of the actual library.
+      } else if (recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+        // If no Sonarr library but we have watch history, use that
+        sourceText = "my watch history";
+        primarySource = recentlyWatchedShows.map(show => show.title);
+      } else {
+        // Fallback for empty state
+        sourceText = "general preferences";
+        primarySource = [];
       }
       
       // Create combined exclusion list (everything that shouldn't be recommended)
@@ -425,7 +735,11 @@ Prioritize shows that:
         userPrompt += `\n\nI've recently watched these shows, so please consider them for better recommendations: ${recentTitles}`;
       }
       
-      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.`;
+      
+      // Include detailed formatting instructions if structured output is disabled
+      if (!this.useStructuredOutput) {
+        userPrompt += `
 
 ⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
 
@@ -436,18 +750,6 @@ Description: [brief description]
 Why you might like it: [short reason based on my current shows] 
 Recommendarr Rating: [score]% - [brief qualitative assessment]
 Available on: [streaming service]
-
-For the Recommendarr Rating, conduct a thorough analysis using multiple methodologies:
-- Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, TVDB, Metacritic
-- Quantitative analysis: Evaluate objective metrics like episode count, seasons completed, awards won, and viewership numbers
-- Qualitative analysis: Assess writing quality, acting performances, character development, and production values 
-- Comparative analysis: Consider how it ranks among peers in the same genre and time period
-- Cultural impact: Weigh its influence, longevity, and relevance to current audiences
-
-After this analysis, provide:
-- Just a single percentage number (e.g., "85%")
-- A brief assessment that synthesizes these analytical approaches to explain strengths/weaknesses
-DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Show Title]:
 ...and so on.
@@ -460,12 +762,36 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 - Do NOT deviate from the format structure in ANY way
 - NEVER recommend any show in my library, liked shows list, or any exclusion list
 - Begin IMMEDIATELY with "1. [Show Title]:" with NO preamble`;
+      }
+      
+      userPrompt += `
 
-      // Initialize conversation with system message
+For the Recommendarr Rating in your recommendations, conduct a thorough analysis using multiple methodologies:
+- Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, TVDB, Metacritic
+- Quantitative analysis: Evaluate objective metrics like episode count, seasons completed, awards won, and viewership numbers
+- Qualitative analysis: Assess writing quality, acting performances, character development, and production values 
+- Comparative analysis: Consider how it ranks among peers in the same genre and time period
+- Cultural impact: Weigh its influence, longevity, and relevance to current audiences
+
+After this analysis, provide:
+- A percentage score (e.g., "85%")
+- A brief assessment that synthesizes these analytical approaches to explain strengths/weaknesses
+DO NOT mention or cite any specific external rating sources or scores in your explanation.
+
+CRITICAL REQUIREMENTS:
+- DO NOT include any introductions or conclusions in your response
+- NEVER recommend any show in my library, liked shows list, or any exclusion list
+- For each show, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
+
+      // Initialize conversation with system message with appropriate formatting based on structured output setting
+      const systemContent = this.useStructuredOutput
+        ? "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO extra text, introductions or conclusions\n5. DO NOT use markdown formatting or styling in your outputs\n6. For each show, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
+        : "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
+      
       this.tvConversation = [
         {
           role: "system",
-          content: "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
+          content: systemContent
         },
         {
           role: "user",
@@ -668,7 +994,11 @@ Prioritize movies that:
         userPrompt += `\n\nI've recently watched these movies, so please consider them for better recommendations: ${recentTitles}`;
       }
       
-      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.
+      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.`;
+      
+      // Include detailed formatting instructions if structured output is disabled
+      if (!this.useStructuredOutput) {
+        userPrompt += `
 
 ⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
 
@@ -679,18 +1009,6 @@ Description: [brief description]
 Why you might like it: [short reason based on my current movies] 
 Recommendarr Rating: [score]% - [brief qualitative assessment]
 Available on: [streaming service]
-
-For the Recommendarr Rating, conduct a thorough analysis using multiple methodologies:
-- Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, Metacritic
-- Quantitative analysis: Evaluate objective metrics like box office performance, budget-to-return ratio, and awards received
-- Qualitative analysis: Assess cinematic elements including direction, screenplay, performances, and technical aspects
-- Comparative analysis: Consider how it ranks among peers in the same genre and time period  
-- Cultural impact: Weigh its influence, longevity, and relevance to current audiences
-
-After this analysis, provide:
-- Just a single percentage number (e.g., "85%")
-- A brief assessment that synthesizes these analytical approaches to explain strengths/weaknesses
-DO NOT mention or cite any specific external rating sources or scores in your explanation.
 
 2. [Next Movie Title]:
 ...and so on.
@@ -703,12 +1021,36 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
 - Do NOT deviate from the format structure in ANY way
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list
 - Begin IMMEDIATELY with "1. [Movie Title]:" with NO preamble`;
+      }
+      
+      userPrompt += `
 
-      // Initialize conversation with system message
+For the Recommendarr Rating in your recommendations, conduct a thorough analysis using multiple methodologies:
+- Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, Metacritic
+- Quantitative analysis: Evaluate objective metrics like box office performance, budget-to-return ratio, and awards received
+- Qualitative analysis: Assess cinematic elements including direction, screenplay, performances, and technical aspects
+- Comparative analysis: Consider how it ranks among peers in the same genre and time period  
+- Cultural impact: Weigh its influence, longevity, and relevance to current audiences
+
+After this analysis, provide:
+- A percentage score (e.g., "85%")
+- A brief assessment that synthesizes these analytical approaches to explain strengths/weaknesses
+DO NOT mention or cite any specific external rating sources or scores in your explanation.
+
+CRITICAL REQUIREMENTS:
+- DO NOT include any introductions or conclusions in your response
+- NEVER recommend any movie in my library, liked movies list, or any exclusion list
+- For each movie, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
+
+      // Initialize conversation with system message with appropriate formatting based on structured output setting
+      const systemContent = this.useStructuredOutput
+        ? "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO extra text, introductions or conclusions\n5. DO NOT use markdown formatting or styling in your outputs\n6. For each movie, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
+        : "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
+      
       this.movieConversation = [
         {
           role: "system",
-          content: "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'"
+          content: systemContent
         },
         {
           role: "user",
@@ -779,7 +1121,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @param {string} language - Optional language preference
    * @returns {Promise<Array>} - List of additional recommended TV shows
    */
-  async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
+  async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -832,14 +1174,12 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       // Get recommendations using the conversation-based method
       const additionalRecs = await this.getFormattedRecommendationsWithConversation(this.tvConversation);
       
-      // No series data is available for the verify method in this context, so we have to trust 
-      // that the initial filter via the user prompt is sufficient
-      // But we can still filter against the provided previousRecommendations
+      // Filter recommendations against library items, liked items, disliked items and previous recommendations
       return this.verifyRecommendations(
         additionalRecs,
-        [],                     // No library items in this context
-        [],                     // No liked items in this context
-        [],                     // No disliked items in this context
+        libraryItems,           // Library items to filter out
+        likedItems,             // Liked items to filter out
+        dislikedItems,          // Disliked items to filter out
         previousRecommendations // Previous recommendations to avoid
       );
     } catch (error) {
@@ -857,7 +1197,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
    * @param {string} language - Optional language preference
    * @returns {Promise<Array>} - List of additional recommended movies
    */
-  async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '') {
+  async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -910,14 +1250,12 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       // Get recommendations using the conversation-based method
       const additionalRecs = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
       
-      // No movies data is available for the verify method in this context, so we have to trust 
-      // that the initial filter via the user prompt is sufficient
-      // But we can still filter against the provided previousRecommendations
+      // Filter recommendations against library items, liked items, disliked items and previous recommendations
       return this.verifyRecommendations(
         additionalRecs,
-        [],                     // No library items in this context
-        [],                     // No liked items in this context
-        [],                     // No disliked items in this context
+        libraryItems,           // Library items to filter out
+        likedItems,             // Liked items to filter out
+        dislikedItems,          // Disliked items to filter out
         previousRecommendations // Previous recommendations to avoid
       );
     } catch (error) {
@@ -986,15 +1324,49 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       
       headers['Content-Type'] = 'application/json';
       
-      // Prepare the request data
+      // Prepare the base request data
       const requestData = {
         model: this.model,
         messages: conversation,
         temperature: this.temperature,
-        max_tokens: this.maxTokens,
-        presence_penalty: 0.1,  // Slightly discourage repetition
-        frequency_penalty: 0.1  // Slightly encourage diversity
+        max_tokens: this.maxTokens
       };
+      
+      // Add structured output format if enabled
+      if (this.useStructuredOutput) {
+        console.log('Using structured output format for API request');
+        requestData.response_format = {
+          type: "json_schema",
+          json_schema: {
+            name: "media_recommendations",
+            schema: {
+              type: "object",
+              properties: {
+                recommendations: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      title: { type: "string" },
+                      description: { type: "string" },
+                      reasoning: { type: "string" },
+                      rating: { type: "string" },
+                      streaming: { type: "string" }
+                    },
+                    required: ["title", "description", "reasoning", "rating", "streaming"],
+                    additionalProperties: false
+                  }
+                }
+              },
+              required: ["recommendations"],
+              additionalProperties: false
+            },
+            strict: true
+          }
+        };
+      } else {
+        console.log('Using legacy format for API request (structured output disabled)');
+      }
       
       let response;
       const axios = (await import('axios')).default;
@@ -1032,16 +1404,87 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         throw new Error('The AI API returned an unexpected response format. Please check your API key and endpoint configuration.');
       }
       
+      // Get the structured JSON response
+      const responseContent = response.data.choices[0].message.content;
+      console.log("Response content type:", typeof responseContent);
+      
+      let parsedRecommendations = [];
+      
+      // Parse the JSON response (if it's a string) or use it directly (if it's already an object)
+      try {
+        let recommendationsData;
+        
+        // Handle different response formats
+        if (typeof responseContent === 'string') {
+          // Log the first part of the content to help debug
+          console.log("Response content preview:", responseContent.substring(0, 100));
+          
+          // Clean the response if needed - some models might return invalid JSON with comments or prefixes
+          let cleanedContent = responseContent.trim();
+          
+          // If response starts with markdown code block indicators, clean them up
+          if (cleanedContent.startsWith('```json')) {
+            cleanedContent = cleanedContent.replace(/^```json\n/, '').replace(/\n```$/, '');
+          } else if (cleanedContent.startsWith('```')) {
+            cleanedContent = cleanedContent.replace(/^```\n/, '').replace(/\n```$/, '');
+          }
+          
+          // Try to parse the JSON
+          try {
+            recommendationsData = JSON.parse(cleanedContent);
+          } catch (initialParseError) {
+            console.warn('Initial JSON parse failed, attempting fallback cleanup:', initialParseError);
+            
+            // Handle case where content might have strange characters at start
+            if (cleanedContent.length > 10) {
+              // Try cleaning by finding first { and last }
+              const firstBrace = cleanedContent.indexOf('{');
+              const lastBrace = cleanedContent.lastIndexOf('}');
+              
+              if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+                try {
+                  const extractedJson = cleanedContent.substring(firstBrace, lastBrace + 1);
+                  recommendationsData = JSON.parse(extractedJson);
+                  console.log('Successfully parsed JSON after extracting braces');
+                } catch (extractError) {
+                  throw new Error(`Failed to parse extracted JSON: ${extractError.message}`);
+                }
+              } else {
+                throw new Error('Could not find matching JSON braces in response');
+              }
+            } else {
+              throw initialParseError;
+            }
+          }
+        } else {
+          // If it's already an object, use it directly
+          recommendationsData = responseContent;
+        }
+        
+        // Extract recommendations from the structured response
+        if (recommendationsData && recommendationsData.recommendations) {
+          parsedRecommendations = recommendationsData.recommendations.map(rec => ({
+            ...rec,
+            // Add fullText for backward compatibility
+            fullText: `${rec.title}:\nDescription: ${rec.description}\nWhy you might like it: ${rec.reasoning}\nRecommendarr Rating: ${rec.rating}\nAvailable on: ${rec.streaming}`
+          }));
+        } else {
+          console.warn('Response is missing recommendations array:', recommendationsData);
+        }
+      } catch (parseError) {
+        console.error('Error parsing structured response:', parseError);
+        console.log('Falling back to legacy parsing for content:', responseContent);
+        // Fall back to legacy parsing if JSON parsing fails
+        parsedRecommendations = this.parseRecommendations(responseContent);
+      }
+      
       // Add the assistant's response to the conversation history
       conversation.push({
         role: "assistant",
-        content: response.data.choices[0].message.content
+        content: responseContent
       });
       
-      // Parse the recommendations from the response
-      let recommendations = this.parseRecommendations(response.data.choices[0].message.content);
-      
-      return recommendations;
+      return parsedRecommendations;
     } catch (error) {
       console.error('Error getting recommendations with conversation:', error);
       throw error;
@@ -1080,7 +1523,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       headers['Content-Type'] = 'application/json';
 
       // Check if we need to chunk the user prompt to stay under token limits
-      const MAX_TOKEN_LIMIT = 4000;
+      const MAX_TOKEN_LIMIT = 3800;
       let response;
       
       // We're only concerned with chunking the user prompt (last message)
@@ -1095,14 +1538,49 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         response = await this.sendChunkedMessages(systemMessage, userMessage, headers);
       } else {
         // We can send in a single request
+        // Prepare the base request data
         const requestData = {
           model: this.model,
           messages: messages,
           temperature: this.temperature,
-          max_tokens: this.maxTokens,
-          presence_penalty: 0.1,  // Slightly discourage repetition
-          frequency_penalty: 0.1  // Slightly encourage diversity
+          max_tokens: this.maxTokens
         };
+        
+        // Add structured output format if enabled
+        if (this.useStructuredOutput) {
+          console.log('Using structured output format for API request');
+          requestData.response_format = {
+            type: "json_schema",
+            json_schema: {
+              name: "media_recommendations",
+              schema: {
+                type: "object",
+                properties: {
+                  recommendations: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        description: { type: "string" },
+                        reasoning: { type: "string" },
+                        rating: { type: "string" },
+                        streaming: { type: "string" }
+                      },
+                      required: ["title", "description", "reasoning", "rating", "streaming"],
+                      additionalProperties: false
+                    }
+                  }
+                },
+                required: ["recommendations"],
+                additionalProperties: false
+              },
+              strict: true
+            }
+          };
+        } else {
+          console.log('Using legacy format for API request (structured output disabled)');
+        }
         
         // Try proxy first, then fall back to direct request
         try {
@@ -1135,11 +1613,82 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         throw new Error('The API returned an unexpected response format. Please check your API key and endpoint configuration.');
       }
       
-      // Parse the recommendations from the response
-      let recommendations = this.parseRecommendations(response.data.choices[0].message.content);
+      // Get the structured JSON response
+      const responseContent = response.data.choices[0].message.content;
+      console.log("Response content type:", typeof responseContent);
+      
+      let parsedRecommendations = [];
+      
+      // Parse the JSON response (if it's a string) or use it directly (if it's already an object)
+      try {
+        let recommendationsData;
+        
+        // Handle different response formats
+        if (typeof responseContent === 'string') {
+          // Log the first part of the content to help debug
+          console.log("Response content preview:", responseContent.substring(0, 100));
+          
+          // Clean the response if needed - some models might return invalid JSON with comments or prefixes
+          let cleanedContent = responseContent.trim();
+          
+          // If response starts with markdown code block indicators, clean them up
+          if (cleanedContent.startsWith('```json')) {
+            cleanedContent = cleanedContent.replace(/^```json\n/, '').replace(/\n```$/, '');
+          } else if (cleanedContent.startsWith('```')) {
+            cleanedContent = cleanedContent.replace(/^```\n/, '').replace(/\n```$/, '');
+          }
+          
+          // Try to parse the JSON
+          try {
+            recommendationsData = JSON.parse(cleanedContent);
+          } catch (initialParseError) {
+            console.warn('Initial JSON parse failed, attempting fallback cleanup:', initialParseError);
+            
+            // Handle case where content might have strange characters at start
+            if (cleanedContent.length > 10) {
+              // Try cleaning by finding first { and last }
+              const firstBrace = cleanedContent.indexOf('{');
+              const lastBrace = cleanedContent.lastIndexOf('}');
+              
+              if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+                try {
+                  const extractedJson = cleanedContent.substring(firstBrace, lastBrace + 1);
+                  recommendationsData = JSON.parse(extractedJson);
+                  console.log('Successfully parsed JSON after extracting braces');
+                } catch (extractError) {
+                  throw new Error(`Failed to parse extracted JSON: ${extractError.message}`);
+                }
+              } else {
+                throw new Error('Could not find matching JSON braces in response');
+              }
+            } else {
+              throw initialParseError;
+            }
+          }
+        } else {
+          // If it's already an object, use it directly
+          recommendationsData = responseContent;
+        }
+        
+        // Extract recommendations from the structured response
+        if (recommendationsData && recommendationsData.recommendations) {
+          parsedRecommendations = recommendationsData.recommendations.map(rec => ({
+            ...rec,
+            // Add fullText for backward compatibility
+            fullText: `${rec.title}:\nDescription: ${rec.description}\nWhy you might like it: ${rec.reasoning}\nRecommendarr Rating: ${rec.rating}\nAvailable on: ${rec.streaming}`
+          }));
+        } else {
+          console.warn('Response is missing recommendations array:', recommendationsData);
+        }
+      } catch (parseError) {
+        console.error('Error parsing structured response:', parseError);
+        console.log('Falling back to legacy parsing for content:', responseContent);
+        // Fall back to legacy parsing if JSON parsing fails
+        parsedRecommendations = this.parseRecommendations(responseContent);
+      }
       
       // We'll add a verification check later when we have context about existing items
-      return recommendations;
+      return parsedRecommendations;
     } catch (error) {
       console.error('Error getting recommendations from AI:', error);
       throw error;
@@ -1184,7 +1733,7 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
         model: this.model,
         messages: conversationMessages,
         temperature: this.temperature,
-        max_tokens: 50,  // Small token limit since we just need acknowledgment
+        max_tokens: 50  // Small token limit since we just need acknowledgment
       };
       
       // Try to send via proxy first, then fall back to direct request
@@ -1219,14 +1768,49 @@ DO NOT mention or cite any specific external rating sources or scores in your ex
       content: `Final part ${chunks.length}/${chunks.length}: ${chunks[chunks.length - 1]}\n\nThat's the complete request. Please provide recommendations based on all parts of my message.`
     });
     
+    // Prepare the base request data for final chunk
     const finalRequestData = {
       model: this.model,
       messages: conversationMessages,
       temperature: this.temperature,
-      max_tokens: this.maxTokens,
-      presence_penalty: 0.1,
-      frequency_penalty: 0.1
+      max_tokens: this.maxTokens
     };
+    
+    // Add structured output format if enabled
+    if (this.useStructuredOutput) {
+      console.log('Using structured output format for final chunked request');
+      finalRequestData.response_format = {
+        type: "json_schema",
+        json_schema: {
+          name: "media_recommendations",
+          schema: {
+            type: "object",
+            properties: {
+              recommendations: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    description: { type: "string" },
+                    reasoning: { type: "string" },
+                    rating: { type: "string" },
+                    streaming: { type: "string" }
+                  },
+                  required: ["title", "description", "reasoning", "rating", "streaming"],
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ["recommendations"],
+            additionalProperties: false
+          },
+          strict: true
+        }
+      };
+    } else {
+      console.log('Using legacy format for final chunked request (structured output disabled)');
+    }
     
     // Send final chunk using proxy first, then fall back to direct request
     try {

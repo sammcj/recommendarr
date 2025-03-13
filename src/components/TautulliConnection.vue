@@ -47,7 +47,7 @@
             v-model.number="recentLimit" 
             type="number" 
             min="1" 
-            max="100" 
+            max="2000" 
             @keyup.enter="connectToTautulli"
           />
         </div>
@@ -94,7 +94,7 @@
               type="number" 
               v-model.number="newLimit" 
               min="1" 
-              max="100"
+              max="2000"
             />
             <div class="edit-actions">
               <button class="save-button" @click="updateLimit">Save</button>
@@ -209,8 +209,8 @@ export default {
     updateLimit() {
       if (this.newLimit < 1) {
         this.newLimit = 1;
-      } else if (this.newLimit > 100) {
-        this.newLimit = 100;
+      } else if (this.newLimit > 2000) {
+        this.newLimit = 2000;
       }
       
       this.recentLimit = this.newLimit;

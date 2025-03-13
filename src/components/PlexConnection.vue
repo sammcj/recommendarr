@@ -52,7 +52,7 @@
             v-model.number="recentLimit" 
             type="number" 
             min="1" 
-            max="100" 
+            max="2000" 
             @change="saveRecentLimit"
           />
           <div class="limit-buttons">
@@ -240,7 +240,7 @@ export default {
       this.$emit('disconnected');
     },
     increaseLimit() {
-      if (this.recentLimit < 100) {
+      if (this.recentLimit < 2000) {
         this.recentLimit++;
         this.saveRecentLimit();
       }
@@ -254,7 +254,7 @@ export default {
     saveRecentLimit() {
       // Ensure limit is within bounds
       if (this.recentLimit < 1) this.recentLimit = 1;
-      if (this.recentLimit > 100) this.recentLimit = 100;
+      if (this.recentLimit > 2000) this.recentLimit = 2000;
       
       localStorage.setItem('plexRecentLimit', this.recentLimit);
       this.$emit('limitChanged', this.recentLimit);

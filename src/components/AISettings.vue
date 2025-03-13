@@ -60,6 +60,13 @@
       >
         Trakt
       </button>
+      <button 
+        @click="activeTab = 'tmdb'" 
+        :class="{ active: activeTab === 'tmdb' }" 
+        class="tab-button"
+      >
+        TMDB
+      </button>
     </div>
     
     <!-- Connected Services Section -->
@@ -624,7 +631,7 @@
               v-model.number="plexSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="50" 
+              max="2000" 
               step="1" 
             />
             <span class="slider-value">{{ plexSettings.recentLimit }}</span>
@@ -714,7 +721,7 @@
               v-model.number="jellyfinSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="50" 
+              max="2000" 
               step="1" 
             />
             <span class="slider-value">{{ jellyfinSettings.recentLimit }}</span>
@@ -792,7 +799,7 @@
               v-model.number="tautulliSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="100" 
+              max="2000" 
               step="1" 
             />
             <span class="slider-value">{{ tautulliSettings.recentLimit }}</span>
@@ -873,7 +880,7 @@
                 v-model.number="traktSettings.recentLimit" 
                 type="range" 
                 min="1" 
-                max="100" 
+                max="2000" 
                 step="1" 
               />
               <span class="slider-value">{{ traktSettings.recentLimit }}</span>
@@ -908,6 +915,17 @@
             {{ traktConnectionMessage }}
           </div>
         </div>
+      </div>
+    </div>
+    
+    <!-- TMDB Settings Tab -->
+    <div v-if="activeTab === 'tmdb'" class="settings-section">
+      <div class="settings-intro">
+        <p>Connect to The Movie Database (TMDB) API to retrieve poster images and movie/TV show information when Sonarr/Radarr isn't available.</p>
+      </div>
+      
+      <div class="settings-form">
+        <TMDBConnection />
       </div>
     </div>
     
@@ -948,6 +966,7 @@ import TautulliConnection from './TautulliConnection.vue';
 import SonarrConnection from './SonarrConnection.vue';
 import RadarrConnection from './RadarrConnection.vue';
 import TraktConnection from './TraktConnection.vue';
+import TMDBConnection from './TMDBConnection.vue';
 
 export default {
   name: 'AIServiceSettings',
@@ -957,7 +976,8 @@ export default {
     TautulliConnection,
     SonarrConnection,
     RadarrConnection,
-    TraktConnection
+    TraktConnection,
+    TMDBConnection
   },
   props: {
     sonarrConnected: {

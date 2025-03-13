@@ -214,12 +214,12 @@ export default {
 
 .login-card {
   background-color: var(--card-bg-color);
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
   width: 100%;
   max-width: 400px;
   padding: 30px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .login-header {
@@ -228,8 +228,22 @@ export default {
 }
 
 .login-logo {
-  height: 60px;
+  height: 90px;
   margin-bottom: 16px;
+  transition: filter 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.login-header:hover .login-logo {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+body.dark-theme .login-logo {
+  filter: brightness(1.8) contrast(1.1);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
 }
 
 .login-header h1 {
@@ -274,19 +288,19 @@ export default {
 }
 
 .form-group input {
-  padding: 12px;
+  padding: 10px 12px;
   background-color: var(--input-bg);
   color: var(--input-text);
   border: 1px solid var(--input-border);
-  border-radius: 4px;
-  font-size: 16px;
+  border-radius: var(--border-radius-sm);
+  font-size: 15px;
   transition: all 0.2s ease;
 }
 
 .form-group input:focus {
   border-color: var(--button-primary-bg);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+  box-shadow: 0 0 0 1px rgba(67, 97, 238, 0.15);
 }
 
 .form-actions {
@@ -297,19 +311,20 @@ export default {
 }
 
 .login-button {
-  padding: 12px;
+  padding: 10px 12px;
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
   border: none;
-  border-radius: 4px;
-  font-size: 16px;
+  border-radius: var(--border-radius-sm);
+  font-size: 15px;
   font-weight: 500;
+  letter-spacing: 0.3px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .login-button:hover:not(:disabled) {
-  background-color: #388E3C;
+  filter: brightness(1.1);
 }
 
 .login-button:disabled {
@@ -342,23 +357,24 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  backdrop-filter: blur(2px);
 }
 
 .register-modal {
   background-color: var(--card-bg-color);
-  border-radius: 8px;
+  border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
   width: 90%;
   max-width: 450px;
   display: flex;
   flex-direction: column;
   padding: 24px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .modal-header {
@@ -399,19 +415,20 @@ export default {
 }
 
 .register-button {
-  padding: 12px;
+  padding: 10px 12px;
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
   border: none;
-  border-radius: 4px;
-  font-size: 16px;
+  border-radius: var(--border-radius-sm);
+  font-size: 15px;
   font-weight: 500;
+  letter-spacing: 0.3px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .register-button:hover:not(:disabled) {
-  background-color: #388E3C;
+  filter: brightness(1.1);
 }
 
 .register-button:disabled {
@@ -420,18 +437,19 @@ export default {
 }
 
 .cancel-button {
-  padding: 12px;
+  padding: 10px 12px;
   background-color: var(--button-secondary-bg);
   color: var(--button-secondary-text);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 16px;
+  border-radius: var(--border-radius-sm);
+  font-size: 15px;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .cancel-button:hover:not(:disabled) {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .cancel-button:disabled {
@@ -459,15 +477,17 @@ export default {
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   padding: 8px 16px;
   margin-top: 12px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
+  letter-spacing: 0.3px;
+  transition: all 0.2s ease;
 }
 
 .login-now:hover {
-  background-color: #388E3C;
+  filter: brightness(1.1);
 }
 </style>

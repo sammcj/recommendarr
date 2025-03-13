@@ -23,6 +23,7 @@
     "@babel/eslint-parser": "^7.26.8",
     "@vue/cli-plugin-babel": "~5.0.0",
     "@vue/cli-plugin-eslint": "~5.0.0",
+    "@vue/cli-plugin-pwa": "^5.0.8",
     "@vue/cli-service": "~5.0.8",
     "concurrently": "^9.1.2",
     "eslint": "^8.57.1",

@@ -20,10 +20,9 @@ class ApiService {
     this.axiosInstance.interceptors.response.use(
       response => response,
       error => {
-        // If we receive a 401 Unauthorized error, it means our session has expired
-        // or the token is invalid - we should force logout
-        if (error.response && error.response.status === 401) {
-          console.log('Session expired or invalid token checking...', error.config?.url);
+        // Handle 401 Unauthorized or 530 errors - both indicate auth issues
+        if (error.response && (error.response.status === 401 || error.response.status === 530)) {
+          console.log(`Auth error (${error.response.status}) detected, checking...`, error.config?.url);
           
           // Skip auth-related paths to prevent loops
           const skipPaths = ['/auth/login', '/auth/logout', '/auth/register'];
@@ -36,9 +35,13 @@ class ApiService {
           const isLoginPage = window.location.pathname === '/login' || 
                              document.querySelector('.login-container') !== null;
           
-          // Don't trigger logout flow if we're already on the login page
+          // Don't trigger logout flow if we're already on the login page or if it's an auth request
           if (!isAuthRequest && !isLoginPage) {
-            console.log('Valid session timeout detected, logging out...');
+            console.log('Session expired, clearing auth data...');
+            
+            // Force clear the auth cookie by setting it to expire in the past
+            document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            
             // Import needs to be here to avoid circular dependency
             import('./AuthService').then(module => {
               const authService = module.default;

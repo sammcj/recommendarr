@@ -176,6 +176,9 @@ class AuthService {
       // Continue even if localStorage fails
     }
     
+    // Force clear the auth cookie by setting it to expire in the past
+    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    
     // Remove auth header (for backward compatibility)
     ApiService.removeHeader('Authorization');
   }

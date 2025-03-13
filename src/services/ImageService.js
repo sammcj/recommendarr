@@ -1,5 +1,6 @@
 import sonarrService from './SonarrService';
 import radarrService from './RadarrService';
+import tmdbService from './TMDBService';
 
 class ImageService {
   constructor() {
@@ -43,24 +44,72 @@ class ImageService {
     }
     
     try {
-      // Use Sonarr to find the show info
-      let showInfo = await sonarrService.findSeriesByTitle(title);
+      let showInfo = null;
       
-      // If first attempt fails, try with a simplified title (remove everything after ":")
-      if (!showInfo && title.includes(':')) {
-        const simplifiedTitle = title.split(':')[0].trim();
-        showInfo = await sonarrService.findSeriesByTitle(simplifiedTitle);
+      // If TMDB isn't already configured, try to load its credentials first
+      if (!tmdbService.isConfigured()) {
+        console.log(`TMDB not configured, attempting to load credentials before searching for "${title}" poster`);
+        await tmdbService.loadCredentials();
       }
       
-      // If still no results, try without special characters
-      if (!showInfo) {
-        const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
-        if (alphanumericTitle !== title) {
-          showInfo = await sonarrService.findSeriesByTitle(alphanumericTitle);
+      // Check if TMDB is configured - prefer TMDB if available
+      if (tmdbService.isConfigured()) {
+        console.log(`Trying TMDB first for "${title}" poster`);
+        try {
+          showInfo = await tmdbService.findSeriesByTitle(title);
+          
+          // If first attempt fails, try with a simplified title (remove everything after ":")
+          if ((!showInfo || !showInfo.images || !showInfo.images.length) && title.includes(':')) {
+            const simplifiedTitle = title.split(':')[0].trim();
+            showInfo = await tmdbService.findSeriesByTitle(simplifiedTitle);
+          }
+          
+          // If still no results, try without special characters
+          if (!showInfo || !showInfo.images || !showInfo.images.length) {
+            const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
+            if (alphanumericTitle !== title) {
+              showInfo = await tmdbService.findSeriesByTitle(alphanumericTitle);
+            }
+          }
+          
+          if (showInfo && showInfo.images && showInfo.images.length) {
+            console.log(`Found TV poster via TMDB for "${title}"`);
+          }
+        } catch (tmdbError) {
+          console.error(`TMDB search failed for "${title}":`, tmdbError);
+          showInfo = null;
         }
       }
       
+      // If TMDB failed or isn't configured, try Sonarr as fallback only if it's configured
+      if ((!showInfo || !showInfo.images || !showInfo.images.length) && sonarrService.isConfigured()) {
+        console.log(`No results from TMDB for "${title}", trying Sonarr`);
+        
+        // Use Sonarr to find the show info
+        showInfo = await sonarrService.findSeriesByTitle(title);
+        
+        // If first attempt fails, try with a simplified title (remove everything after ":")
+        if (!showInfo && title.includes(':')) {
+          const simplifiedTitle = title.split(':')[0].trim();
+          showInfo = await sonarrService.findSeriesByTitle(simplifiedTitle);
+        }
+        
+        // If still no results, try without special characters
+        if (!showInfo) {
+          const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
+          if (alphanumericTitle !== title) {
+            showInfo = await sonarrService.findSeriesByTitle(alphanumericTitle);
+          }
+        }
+        
+        if (showInfo && showInfo.images && showInfo.images.length) {
+          console.log(`Found TV poster via Sonarr for "${title}"`);
+        }
+      }
+      
+      // Return null if we couldn't find anything
       if (!showInfo || !showInfo.images || !showInfo.images.length) {
+        console.log(`No poster found for "${title}" via any method`);
         return null;
       }
       
@@ -71,7 +120,7 @@ class ImageService {
         return null;
       }
       
-      // Get original URL from Sonarr
+      // Get original URL (either from TMDB or Sonarr)
       const originalUrl = poster.remoteUrl;
       console.log(`Found TV poster URL: ${originalUrl} for title: ${title}`);
       
@@ -130,24 +179,72 @@ class ImageService {
     }
     
     try {
-      // Use Radarr to find the movie info
-      let movieInfo = await radarrService.findMovieByTitle(title);
+      let movieInfo = null;
       
-      // If first attempt fails, try with a simplified title (remove everything after ":")
-      if (!movieInfo && title.includes(':')) {
-        const simplifiedTitle = title.split(':')[0].trim();
-        movieInfo = await radarrService.findMovieByTitle(simplifiedTitle);
+      // If TMDB isn't already configured, try to load its credentials first
+      if (!tmdbService.isConfigured()) {
+        console.log(`TMDB not configured, attempting to load credentials before searching for "${title}" poster`);
+        await tmdbService.loadCredentials();
       }
       
-      // If still no results, try without special characters
-      if (!movieInfo) {
-        const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
-        if (alphanumericTitle !== title) {
-          movieInfo = await radarrService.findMovieByTitle(alphanumericTitle);
+      // Check if TMDB is configured - prefer TMDB if available
+      if (tmdbService.isConfigured()) {
+        console.log(`Trying TMDB first for "${title}" poster`);
+        try {
+          movieInfo = await tmdbService.findMovieByTitle(title);
+          
+          // If first attempt fails, try with a simplified title (remove everything after ":")
+          if ((!movieInfo || !movieInfo.images || !movieInfo.images.length) && title.includes(':')) {
+            const simplifiedTitle = title.split(':')[0].trim();
+            movieInfo = await tmdbService.findMovieByTitle(simplifiedTitle);
+          }
+          
+          // If still no results, try without special characters
+          if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
+            const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
+            if (alphanumericTitle !== title) {
+              movieInfo = await tmdbService.findMovieByTitle(alphanumericTitle);
+            }
+          }
+          
+          if (movieInfo && movieInfo.images && movieInfo.images.length) {
+            console.log(`Found movie poster via TMDB for "${title}"`);
+          }
+        } catch (tmdbError) {
+          console.error(`TMDB search failed for "${title}":`, tmdbError);
+          movieInfo = null;
         }
       }
       
+      // If TMDB failed or isn't configured, try Radarr as fallback only if it's configured
+      if ((!movieInfo || !movieInfo.images || !movieInfo.images.length) && radarrService.isConfigured()) {
+        console.log(`No results from TMDB for "${title}", trying Radarr`);
+        
+        // Use Radarr to find the movie info
+        movieInfo = await radarrService.findMovieByTitle(title);
+        
+        // If first attempt fails, try with a simplified title (remove everything after ":")
+        if (!movieInfo && title.includes(':')) {
+          const simplifiedTitle = title.split(':')[0].trim();
+          movieInfo = await radarrService.findMovieByTitle(simplifiedTitle);
+        }
+        
+        // If still no results, try without special characters
+        if (!movieInfo) {
+          const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
+          if (alphanumericTitle !== title) {
+            movieInfo = await radarrService.findMovieByTitle(alphanumericTitle);
+          }
+        }
+        
+        if (movieInfo && movieInfo.images && movieInfo.images.length) {
+          console.log(`Found movie poster via Radarr for "${title}"`);
+        }
+      }
+      
+      // Return null if we couldn't find anything
       if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
+        console.log(`No poster found for "${title}" via any method`);
         return null;
       }
       
@@ -158,7 +255,7 @@ class ImageService {
         return null;
       }
       
-      // Get original URL from Radarr
+      // Get original URL (either from TMDB or Radarr)
       const originalUrl = poster.remoteUrl;
       console.log(`Found movie poster URL: ${originalUrl} for title: ${title}`);
       
@@ -277,6 +374,14 @@ class ImageService {
       .map(word => word[0].toUpperCase())
       .slice(0, 2)
       .join('');
+  }
+  
+  /**
+   * Check if TMDB is available for poster retrieval
+   * @returns {boolean} - Whether TMDB is configured
+   */
+  isTMDBAvailable() {
+    return tmdbService.isConfigured();
   }
 }
 

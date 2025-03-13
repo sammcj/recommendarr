@@ -225,15 +225,15 @@
                           id="columnsSlider"
                           v-model.number="columnsCount"
                           min="1" 
-                          max="4"
+                          max="10"
                           class="modern-slider"
                           @change="saveColumnsCount"
                         >
-                        <div class="slider-track" :style="{ width: `${(columnsCount - 1) / 3 * 100}%` }"></div>
+                        <div class="slider-track"></div>
                       </div>
                       <div class="slider-range-labels">
                         <span>1</span>
-                        <span>4</span>
+                        <span>10</span>
                       </div>
                     </div>
                   </div>
@@ -5065,10 +5065,10 @@ h2 {
 .info-section-title {
   margin: 0 0 16px 0;
   font-size: 16px;
-  color: var(--button-primary-bg);
+  color: var(--text-color);
   font-weight: 600;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--primary-color-border);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
 }
@@ -5081,6 +5081,7 @@ h2 {
   margin-right: 8px;
   background: var(--button-primary-bg);
   border-radius: 2px;
+  opacity: 0.9;
 }
 
 .model-info {
@@ -5228,13 +5229,13 @@ h2 {
 
 .slider-value {
   font-weight: 600;
-  color: var(--button-primary-bg);
-  background-color: var(--primary-color-light);
+  color: var(--button-primary-text);
+  background-color: var(--button-primary-bg);
   border-radius: var(--border-radius-sm);
   padding: 1px 8px;
   min-width: 20px;
   text-align: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   font-size: 13px;
 }
 
@@ -5278,6 +5279,10 @@ h2 {
   cursor: pointer;
 }
 
+body.dark-theme .modern-slider {
+  background: #4a4a4a;
+}
+
 .modern-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -5295,6 +5300,11 @@ h2 {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+body.dark-theme .modern-slider::-webkit-slider-thumb {
+  background: #e0e0e0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
 .modern-slider::-moz-range-thumb {
   width: 16px;
   height: 16px;
@@ -5307,6 +5317,11 @@ h2 {
   z-index: 3;
   transform: translateY(0px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.dark-theme .modern-slider::-moz-range-thumb {
+  background: #e0e0e0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .modern-slider::-webkit-slider-thumb:hover,
@@ -5351,6 +5366,7 @@ h2 {
   font-size: 15px;
   font-weight: 500;
   color: var(--text-color);
+  opacity: 0.95; /* Improve readability in dark mode */
 }
 
 .genre-badge {
@@ -5397,8 +5413,8 @@ h2 {
   display: inline-flex;
   align-items: center;
   padding: 6px 12px;
-  background-color: var(--primary-color-lighter);
-  border: 1px solid var(--primary-color-border);
+  background-color: rgba(48, 65, 86, 0.08);
+  border: 1px solid rgba(48, 65, 86, 0.15);
   border-radius: var(--border-radius-md);
   color: var(--text-color);
   font-size: 13px;
@@ -5407,9 +5423,18 @@ h2 {
   user-select: none;
 }
 
+body.dark-theme .genre-tag {
+  background-color: rgba(48, 65, 86, 0.25);
+  border: 1px solid rgba(48, 65, 86, 0.3);
+}
+
 .genre-tag:hover {
-  background-color: var(--primary-color-light);
+  background-color: rgba(48, 65, 86, 0.15);
   transform: translateY(-1px);
+}
+
+body.dark-theme .genre-tag:hover {
+  background-color: rgba(48, 65, 86, 0.35);
 }
 
 .genre-tag.selected {
@@ -5449,10 +5474,10 @@ h2 {
   box-sizing: border-box;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
   padding: 15px;
-  background-color: var(--primary-color-lighter);
+  background-color: var(--card-bg-color);
   border-radius: var(--border-radius-md);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  border: 1px solid var(--primary-color-border);
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
 }
 
 .count-selector {
@@ -7098,6 +7123,10 @@ select:focus {
   background-color: rgba(0, 0, 0, 0.03);
 }
 
+body.dark-theme .collapsible-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -7106,12 +7135,17 @@ select:focus {
 
 .toggle-icon {
   font-size: 14px;
-  color: var(--primary-color);
+  color: var(--button-primary-bg);
   transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), color 0.15s ease;
   display: inline-block;
   width: 14px;
   text-align: center;
   transform-origin: center;
+  opacity: 0.8;
+}
+
+body.dark-theme .toggle-icon {
+  opacity: 0.9;
 }
 
 .collapsible-header:hover .toggle-icon {
@@ -7166,5 +7200,9 @@ select:focus {
 
 .info-section-title.collapsible-header:hover {
   background-color: rgba(0, 0, 0, 0.03);
+}
+
+body.dark-theme .info-section-title.collapsible-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 </style>

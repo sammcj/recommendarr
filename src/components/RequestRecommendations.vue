@@ -5450,8 +5450,8 @@ select:focus {
 }
 
 .action-button {
-  background-color: var(--button-primary-bg);
-  color: var(--button-primary-text);
+  background-color: #4285F4;
+  color: white;
   padding: 10px 20px;
   border: none;
   border-radius: 4px;
@@ -5459,7 +5459,13 @@ select:focus {
   font-weight: bold;
   font-size: 16px;
   min-width: 200px;
-  transition: background-color var(--transition-speed), color var(--transition-speed);
+  transition: all 0.2s ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  .action-button {
+    background-color: #3367D6;
+  }
 }
 
 .discover-button {
@@ -5467,46 +5473,67 @@ select:focus {
   width: 100%;
   max-width: 320px;
   padding: 0;
-  background: linear-gradient(105deg, #34A853, #27AE60);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(52, 168, 83, 0.25);
+  background-color: #4285F4;
+  border-radius: 8px;
   overflow: hidden;
   border: none;
-  transition: all 0.3s ease-out;
+  transition: all 0.2s ease-out;
   margin: 5px auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .discover-button {
+    background-color: #3367D6;
+  }
 }
 
 .discover-button-inner {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 14px 20px;
+  gap: 12px;
+  padding: 16px 24px;
   position: relative;
   z-index: 2;
 }
 
 .discover-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(52, 168, 83, 0.3);
-  background: linear-gradient(105deg, #2E9648, #229954);
+  background-color: #3367D6;
+  transform: translateY(-1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .discover-button:hover:not(:disabled) {
+    background-color: #2A56C6;
+  }
 }
 
 .discover-button:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: 0 2px 8px rgba(52, 168, 83, 0.2);
+  transform: translateY(0);
+  background-color: #2A56C6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .discover-button:active:not(:disabled) {
+    background-color: #1A46B6;
+  }
 }
 
 .discover-button:disabled {
-  background: linear-gradient(105deg, #a9a9a9, #8a8a8a);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  background-color: #E0E0E0;
   cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .discover-button:disabled {
+    background-color: #707070;
+  }
 }
 
 .button-text {
   font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
   color: white;
 }
 
@@ -5515,38 +5542,19 @@ select:focus {
 }
 
 .arrow-icon {
-  transition: transform 0.3s ease;
+  transition: transform 0.2s ease;
   stroke: white;
   height: 18px;
   width: 18px;
+  margin-left: 4px;
 }
 
 .discover-button:hover:not(:disabled) .arrow-icon {
-  transform: translateX(3px);
+  transform: translateX(4px);
 }
 
 .button-shine {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    110deg, 
-    rgba(255,255,255,0) 0%, 
-    rgba(255,255,255,0) 20%, 
-    rgba(255,255,255,0.1) 20.1%, 
-    rgba(255,255,255,0.1) 30%, 
-    rgba(255,255,255,0) 30.1%, 
-    rgba(255,255,255,0) 100%
-  );
-  z-index: 1;
-  transition: transform 0.5s ease;
-  transform: translateX(-100%);
-}
-
-.discover-button:hover:not(:disabled) .button-shine {
-  transform: translateX(100%);
+  display: none;
 }
 
 @media (max-width: 600px) {
@@ -5560,12 +5568,36 @@ select:focus {
 }
 
 .action-button:hover:not(:disabled) {
-  filter: brightness(1.1);
+  background-color: #3367D6;
+  transform: translateY(-1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .action-button:hover:not(:disabled) {
+    background-color: #2A56C6;
+  }
+}
+
+.action-button:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: #2A56C6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .action-button:active:not(:disabled) {
+    background-color: #1A46B6;
+  }
 }
 
 .action-button:disabled {
-  opacity: 0.7;
+  background-color: #E0E0E0;
   cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .action-button:disabled {
+    background-color: #707070;
+  }
 }
 
 .loading {

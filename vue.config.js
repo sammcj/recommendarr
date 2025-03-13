@@ -11,5 +11,20 @@ module.exports = defineConfig({
         changeOrigin: true
       }
     }
+  },
+  pwa: {
+    name: 'Recommendarr',
+    themeColor: '#4DBA87',
+    msTileColor: '#000000',
+    appleMobileWebAppCapable: 'yes',
+    appleMobileWebAppStatusBarStyle: 'black',
+    workboxPluginMode: 'GenerateSW',
+    workboxOptions: {
+      skipWaiting: true
+    },
+    manifestOptions: {
+      display: 'standalone',
+      background_color: '#000000'
+    }
   }
 })

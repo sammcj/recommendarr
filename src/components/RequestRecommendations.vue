@@ -1330,7 +1330,7 @@ export default {
   },
   data() {
     return {
-      openaiConfigured: false,
+      openaiConfigured: openAIService.isConfigured(), // Initialize with current configuration state
       recommendations: [],
       expandedCards: new Set(), // Track which cards are in expanded view
       loading: false,
@@ -4346,7 +4346,17 @@ export default {
       }
     }
     
-    // Check if OpenAI is already configured
+    // Make sure OpenAI credentials are loaded
+    if (!openAIService.isConfigured()) {
+      try {
+        await openAIService.loadCredentials();
+        console.log('After loading OpenAI credentials, service configured:', openAIService.isConfigured());
+      } catch (error) {
+        console.error('Error loading OpenAI credentials:', error);
+      }
+    }
+    
+    // Check if OpenAI is configured after loading credentials
     this.openaiConfigured = openAIService.isConfigured();
     
     // Initialize model selection

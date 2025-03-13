@@ -96,6 +96,17 @@ class OpenAIService {
   getCompletionsUrl() {
     // Normalize the base URL by removing trailing slashes
     const baseUrl = this.baseUrl ? this.baseUrl.replace(/\/+$/, '') : '';
+    
+    // Special handling for Google AI API (generativelanguage)
+    if (baseUrl.includes('generativelanguage.googleapis.com')) {
+      if (baseUrl.includes('/openai')) {
+        return `${baseUrl}/chat/completions`;
+      } else {
+        return `${baseUrl}/openai/chat/completions`;
+      }
+    }
+    
+    // Default for OpenAI and other providers
     return `${baseUrl}/chat/completions`;
   }
   
@@ -111,6 +122,15 @@ class OpenAIService {
     if (baseUrl === 'https://api.anthropic.com/v1') {
       console.log('Using Anthropic models endpoint');
       return `${baseUrl}/models`;
+    }
+    
+    // Special handling for Google AI API (generativelanguage)
+    if (baseUrl.includes('generativelanguage.googleapis.com')) {
+      if (baseUrl.includes('/openai')) {
+        return `${baseUrl}/models`;
+      } else {
+        return `${baseUrl}/openai/models`;
+      }
     }
     
     // Special handling for LLM servers (like LMStudio)
@@ -154,7 +174,23 @@ class OpenAIService {
       } else {
         console.log('No API key provided for Anthropic API request');
       }
-    } else {
+    } 
+    // Google AI API authentication
+    else if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+      if (this.apiKey && this.apiKey.trim() !== '') {
+        // For Google AI, try both methods - some endpoints use Authorization header
+        // and some use API key as a query parameter
+        this.googleApiKey = this.apiKey.trim();
+        
+        // Add Authorization header
+        headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+        console.log('Using Google AI API with Authorization header');
+      } else {
+        console.log('No API key provided for Google AI API request');
+      }
+    } 
+    // Default OpenAI-compatible authentication
+    else {
       // Only add Authorization header if apiKey is present and not empty
       if (this.apiKey && this.apiKey.trim() !== '') {
         // Ensure the authorization header is properly formatted for OpenAI API
@@ -168,10 +204,10 @@ class OpenAIService {
       }
     }
     
-    // Add content-type header with correct case for OpenAI API
-    if (this.baseUrl.includes('openai.com')) {
-      headers['Content-Type'] = 'application/json';  // OpenAI expects 'Content-Type'
-      headers['Accept'] = 'application/json';        // OpenAI expects 'Accept'
+    // Add content-type header with correct case for different APIs
+    if (this.baseUrl.includes('openai.com') || this.baseUrl.includes('generativelanguage.googleapis.com')) {
+      headers['Content-Type'] = 'application/json';  // OpenAI/Google expect 'Content-Type'
+      headers['Accept'] = 'application/json';        // OpenAI/Google expect 'Accept'
     } else {
       // For other services, use lowercase as it was working before
       headers['content-type'] = 'application/json';
@@ -192,7 +228,15 @@ class OpenAIService {
       headers['user-agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
     }
     
-    const modelsUrl = this.getModelsUrl();
+    let modelsUrl = this.getModelsUrl();
+    
+    // For Google AI API, also add the API key as a query parameter
+    // (some endpoints might use query param instead of Authorization header)
+    if (this.baseUrl.includes('generativelanguage.googleapis.com') && this.googleApiKey) {
+      const separator = modelsUrl.includes('?') ? '&' : '?';
+      modelsUrl = `${modelsUrl}${separator}key=${this.googleApiKey}`;
+    }
+    
     console.log(`Fetching models from: ${modelsUrl}`);
     
     try {
@@ -215,8 +259,8 @@ class OpenAIService {
         // Log error but avoid excessive details
         console.error('Proxy error:', proxyError.message);
         
-        // For OpenAI, Anthropic, LMStudio or IP-based endpoints, try a direct request as fallback
-        if (this.baseUrl.includes('openai.com') || this.baseUrl === 'https://api.anthropic.com/v1' || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/) || this.baseUrl.includes('lmstudio')) {
+        // For OpenAI, Google AI, Anthropic, LMStudio or IP-based endpoints, try a direct request as fallback
+        if (this.baseUrl.includes('openai.com') || this.baseUrl.includes('generativelanguage.googleapis.com') || this.baseUrl === 'https://api.anthropic.com/v1' || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/) || this.baseUrl.includes('lmstudio')) {
           console.log('Attempting direct request to LLM server as fallback...');
           try {
             const axios = (await import('axios')).default;
@@ -230,6 +274,23 @@ class OpenAIService {
             if (this.baseUrl.includes('openai.com')) {
               console.log('Using special headers for direct OpenAI API request');
               directHeaders['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+              directHeaders['Content-Type'] = 'application/json';
+              directHeaders['Accept'] = 'application/json';
+            }
+            // Special handling for Google AI API
+            else if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+              console.log('Using special headers for direct Google AI API request');
+              
+              // Add Authorization header
+              if (this.googleApiKey) {
+                directHeaders['Authorization'] = `Bearer ${this.googleApiKey}`;
+                
+                // Also add as query parameter for certain endpoints
+                const separator = modelsUrl.includes('?') ? '&' : '?';
+                modelsUrl = `${modelsUrl}${separator}key=${this.googleApiKey}`;
+              }
+              
+              // Set standard headers
               directHeaders['Content-Type'] = 'application/json';
               directHeaders['Accept'] = 'application/json';
             }
@@ -257,6 +318,22 @@ class OpenAIService {
               if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
                 console.log(`Successfully retrieved ${directResponse.data.data.length} OpenAI models`);
                 return directResponse.data.data;
+              }
+            }
+            
+            // For Google AI API
+            if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+              console.log('Processing Google AI API direct response');
+              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.data.length} Google AI models`);
+                return directResponse.data.data;
+              } else if (directResponse.data && Array.isArray(directResponse.data)) {
+                console.log(`Successfully retrieved ${directResponse.data.length} Google AI models (array format)`);
+                return directResponse.data.map(model => ({
+                  id: model.id || model.name,
+                  object: 'model',
+                  owned_by: 'google'
+                }));
               }
             }
             
@@ -312,8 +389,32 @@ class OpenAIService {
       // Check if the request was successful
       if (response && response.status >= 200 && response.status < 300 && response.data) {
         
-        // Handle Anthropic API first since it has specific requirements
-        if (this.baseUrl === 'https://api.anthropic.com/v1') {
+        // Handle provider-specific formats first
+        
+        // Google AI API format
+        if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+          // Google data array format
+          if (response.data && response.data.data && Array.isArray(response.data.data)) {
+            console.log(`Successfully retrieved ${response.data.data.length} Google AI models`);
+            return response.data.data.map(model => ({
+              id: model.id || model.name,
+              object: 'model',
+              owned_by: 'google'
+            }));
+          }
+          // Google direct array format 
+          else if (Array.isArray(response.data)) {
+            console.log(`Successfully retrieved ${response.data.length} Google AI models (array format)`);
+            return response.data.map(model => ({
+              id: model.id || model.name,
+              object: 'model',
+              owned_by: 'google'
+            }));
+          }
+        }
+        
+        // Anthropic API format
+        else if (this.baseUrl === 'https://api.anthropic.com/v1') {
           // Anthropic format with data array
           if (response.data.data && Array.isArray(response.data.data)) {
             console.log(`Successfully retrieved ${response.data.data.length} Anthropic models (data array format)`);

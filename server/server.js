@@ -415,6 +415,17 @@ app.post('/api/auth/login', async (req, res) => {
   console.log(`Login attempt for user: ${username}`);
   
   try {
+    // First clear any existing auth cookie to prevent issues with stale session
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+      expires: new Date(0)
+    });
+    console.log('Cleared any existing auth cookie');
+    
     // Authenticate user
     console.log('Authenticating user...');
     const authResult = await authService.authenticate(username, password);
@@ -439,7 +450,7 @@ app.post('/api/auth/login', async (req, res) => {
         httpOnly: true,          // Prevents JavaScript access
         secure: isSecureConnection, // Only set secure flag on HTTPS connections
         sameSite: 'lax',         // Provides some CSRF protection
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/'                // Available across the site
       });
       
@@ -503,14 +514,17 @@ app.post('/api/auth/logout', (req, res) => {
                            req.headers['x-forwarded-proto'] === 'https' || 
                            process.env.FORCE_SECURE_COOKIES === 'true';
   
-  // Clear the auth cookie
+  // Clear the auth cookie - ensure correct path and domain settings
   res.clearCookie('auth_token', {
     httpOnly: true,
     secure: isSecureConnection, // Only set secure flag on HTTPS connections
     sameSite: 'lax',
-    path: '/'
+    path: '/',
+    maxAge: 0, // Immediately expire the cookie
+    expires: new Date(0) // Set expiration date in the past
   });
   
+  console.log('Auth cookie cleared during logout');
   res.json({ success: true, message: 'Logged out successfully' });
 });
 

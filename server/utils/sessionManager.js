@@ -3,8 +3,8 @@ const crypto = require('crypto');
 class SessionManager {
   constructor() {
     this.sessions = {};
-    // Session expiration time (24 hours in milliseconds)
-    this.sessionExpiry = 24 * 60 * 60 * 1000;
+    // Session expiration time (7 days in milliseconds)
+    this.sessionExpiry = 7 * 24 * 60 * 60 * 1000;
   }
   
   // Create a new session for a user

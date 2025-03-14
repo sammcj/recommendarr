@@ -204,15 +204,16 @@ class OpenAIService {
       }
     }
     
-    // Add content-type header with correct case for different APIs
+    // Add Accept header for all APIs
     if (this.baseUrl.includes('openai.com') || this.baseUrl.includes('generativelanguage.googleapis.com')) {
-      headers['Content-Type'] = 'application/json';  // OpenAI/Google expect 'Content-Type'
       headers['Accept'] = 'application/json';        // OpenAI/Google expect 'Accept'
     } else {
-      // For other services, use lowercase as it was working before
-      headers['content-type'] = 'application/json';
       headers['accept'] = 'application/json';
     }
+    
+    // We intentionally DO NOT set Content-Type for GET requests to the models endpoint
+    // as this causes the OpenAI API to reject the request with a 400 error
+    console.log('Not setting Content-Type header for models GET request to avoid OpenAI API errors');
     
     // Ensure we preserve existing Anthropic specific headers
     if (this.baseUrl === 'https://api.anthropic.com/v1') {
@@ -309,7 +310,8 @@ class OpenAIService {
           if (this.baseUrl.includes('openai.com')) {
             console.log('Using special headers for direct OpenAI API request');
             directHeaders['Authorization'] = `Bearer ${this.apiKey.trim()}`;
-            directHeaders['Content-Type'] = 'application/json';
+            // For GET requests to model endpoints, we must NOT include Content-Type
+            // as OpenAI will reject the request with a 400 error
             directHeaders['Accept'] = 'application/json';
           }
           // Special handling for Google AI API
@@ -328,7 +330,10 @@ class OpenAIService {
             }
             
             // Set standard headers
-            directHeaders['Content-Type'] = 'application/json';
+            // For GET requests, omit Content-Type to avoid errors
+            if (this.getModelsMethod !== 'GET') {
+              directHeaders['Content-Type'] = 'application/json';
+            }
             directHeaders['Accept'] = 'application/json';
           }
           // Special handling for Anthropic API
@@ -339,11 +344,22 @@ class OpenAIService {
             directHeaders['anthropic-dangerous-direct-browser-access'] = 'true';
           }
           
-          const directResponse = await axios({
+          // For GET requests, ensure we don't send a request body
+          const directRequestConfig = {
             url: modelsUrl,
             method: 'GET',
-            headers: directHeaders
+            headers: directHeaders,
+            // Explicitly set no data for GET requests to model endpoints
+            data: undefined
+          };
+          
+          console.log('Sending direct request with configuration:', {
+            url: directRequestConfig.url,
+            method: directRequestConfig.method,
+            headers: { ...directRequestConfig.headers, Authorization: directRequestConfig.headers.Authorization ? '[REDACTED]' : undefined }
           });
+          
+          const directResponse = await axios(directRequestConfig);
           
           console.log('Direct request successful!', directResponse.status);
           

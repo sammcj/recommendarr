@@ -80,8 +80,22 @@ class ProxyService {
       // Set Accept header to tell server what response format we want
       options.headers['Accept'] = 'application/json';
       
-      // Ensure content-type is set for all requests, even GET
-      options.headers['Content-Type'] = 'application/json';
+      // IMPORTANT: For GET requests, we should NOT include Content-Type header as it implies a body
+      // which causes errors with OpenAI API
+      if (options.method === 'GET') {
+        // Remove content-type for GET requests to avoid OpenAI API errors
+        if (options.headers['Content-Type'] || options.headers['content-type']) {
+          delete options.headers['Content-Type'];
+          delete options.headers['content-type'];
+          console.log('Removed Content-Type header for GET request to avoid OpenAI API errors');
+        }
+        
+        // Ensure data is empty for GET requests
+        if (options.data) {
+          console.log('Removing body data from GET request to avoid OpenAI API errors');
+          delete options.data;
+        }
+      }
       
       // Remove User-Agent header as browsers block this header in XHR/fetch requests
       if (options.headers['User-Agent']) {

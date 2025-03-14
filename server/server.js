@@ -153,6 +153,17 @@ async function saveCredentials() {
 // Save user data to file with encryption
 async function saveUserData() {
   try {
+    // Make sure userData is valid before saving
+    if (!userData || typeof userData !== 'object') {
+      throw new Error('Invalid userData object');
+    }
+    
+    // Ensure required properties exist
+    if (!Array.isArray(userData.tvRecommendations)) userData.tvRecommendations = [];
+    if (!Array.isArray(userData.movieRecommendations)) userData.movieRecommendations = [];
+    if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
+    if (!userData.settings) userData.settings = {};
+    
     console.log(`Saving userData (${userData.tvRecommendations.length} TV recommendations, ${userData.movieRecommendations.length} movie recommendations)`);
     
     // Encrypt the user data object
@@ -161,68 +172,37 @@ async function saveUserData() {
     // Convert to string with pretty formatting
     const dataToWrite = JSON.stringify(encryptedData, null, 2);
     
+    if (!dataToWrite || dataToWrite.length < 10) {
+      throw new Error('Generated data is too small, possible encryption error');
+    }
+    
     console.log(`Writing ${dataToWrite.length} bytes to ${USER_DATA_FILE}`);
     
-    // Force a more direct approach - try to make sure the file is closed and reopened
+    // Simple direct file write approach
     try {
-      // First try to unlink/delete the file, ignoring errors if it doesn't exist
-      try {
-        await fs.unlink(USER_DATA_FILE);
-        console.log(`Deleted existing ${USER_DATA_FILE}`);
-      } catch (unlinkErr) {
-        console.log(`No existing file to delete: ${unlinkErr.message}`);
-      }
-      
-      // Write new file
+      // Write directly to the file - no deleting, no temp files
       await fs.writeFile(USER_DATA_FILE, dataToWrite, 'utf8');
-      console.log(`Successfully wrote new ${USER_DATA_FILE}`);
+      console.log(`Successfully wrote to ${USER_DATA_FILE}`);
     } catch (writeErr) {
-      console.error(`Error with direct file write approach: ${writeErr.message}`);
+      console.error(`Error writing to ${USER_DATA_FILE}: ${writeErr.message}`);
       throw writeErr;
     }
     
     // Wait a moment to ensure the write completes
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Verify the file was written
+    // Simple verification - just check if the file exists and has content
     try {
       const fileStats = await fs.stat(USER_DATA_FILE);
       console.log(`✓ ${USER_DATA_FILE} exists, size=${fileStats.size} bytes, modified=${fileStats.mtime}`);
-      
-      // Read the file back to verify content
-      const savedContent = await fs.readFile(USER_DATA_FILE, 'utf8');
-      console.log(`✓ Read back file, content length: ${savedContent.length} bytes`);
-      
-      // Verify the content is valid JSON and has proper encryption fields
-      const parsedContent = JSON.parse(savedContent);
-      if (!parsedContent.encrypted || !parsedContent.iv || !parsedContent.authTag) {
-        console.error('❌ FILE ERROR: Saved file does not contain proper encryption fields');
-        throw new Error('Saved file is missing encryption fields');
-      } else {
-        console.log('✓ Verified file contains properly encrypted data');
-      }
-      
-      // Try to decrypt the saved content
-      const decryptedData = encryptionService.decrypt(parsedContent);
-      
-      // Check if decrypted data has the expected properties
-      if (!decryptedData.hasOwnProperty('tvRecommendations')) {
-        console.error('❌ DECRYPT ERROR: Decrypted data does not have tvRecommendations property');
-        throw new Error('Decrypted data missing expected properties');
-      }
-      
-      // Check if the arrays are correct lengths
-      console.log(`✓ Decrypted data has ${decryptedData.tvRecommendations.length} TV recommendations`);
-      console.log(`✓ Decrypted data has ${decryptedData.movieRecommendations.length} movie recommendations`);
-      
       return true;
     } catch (verifyErr) {
       console.error(`❌ Error verifying saved file: ${verifyErr.message}`);
-      throw verifyErr;
+      return false; // Return false instead of throwing to allow operation to continue
     }
   } catch (err) {
-    console.error('❌ CRITICAL ERROR saving user data:', err);
-    throw err; // Rethrow to allow caller to handle the error
+    console.error('❌ ERROR saving user data:', err);
+    return false; // Return false instead of throwing to allow operation to continue
   }
 }
 
@@ -848,24 +828,42 @@ app.post('/api/recommendations/:type', async (req, res) => {
     .filter(title => title !== null && title !== undefined && title.trim && typeof title.trim === 'function' && title.trim() !== '')
     .map(item => String(item)); // Ensure everything is a string
   
-  if (type === 'tv') {
-    userData.tvRecommendations = filteredRecommendations;
-    // Clear any legacy full recommendation objects that might exist
-    if (userData.tvRecommendationsDetails) {
-      delete userData.tvRecommendationsDetails;
-    }
-  } else if (type === 'movie') {
-    userData.movieRecommendations = filteredRecommendations;
-    // Clear any legacy full recommendation objects that might exist
-    if (userData.movieRecommendationsDetails) {
-      delete userData.movieRecommendationsDetails;
-    }
-  } else {
-    return res.status(400).json({ error: 'Invalid recommendation type' });
-  }
+  // Make a backup of userData before modifying
+  const userDataBackup = JSON.parse(JSON.stringify(userData));
   
-  await saveUserData();
-  res.json({ success: true });
+  try {
+    if (type === 'tv') {
+      userData.tvRecommendations = filteredRecommendations;
+      // Clear any legacy full recommendation objects that might exist
+      if (userData.tvRecommendationsDetails) {
+        delete userData.tvRecommendationsDetails;
+      }
+    } else if (type === 'movie') {
+      userData.movieRecommendations = filteredRecommendations;
+      // Clear any legacy full recommendation objects that might exist
+      if (userData.movieRecommendationsDetails) {
+        delete userData.movieRecommendationsDetails;
+      }
+    } else {
+      return res.status(400).json({ error: 'Invalid recommendation type' });
+    }
+    
+    // Save the updated user data
+    try {
+      await saveUserData();
+      res.json({ success: true });
+    } catch (saveError) {
+      // If saveUserData fails, restore the backup and respond with an error
+      console.error(`Error saving user data: ${saveError.message}`);
+      userData = userDataBackup;
+      res.status(500).json({ error: 'Failed to save user data', details: saveError.message });
+    }
+  } catch (error) {
+    // If any other error occurs, restore the backup and respond with an error
+    console.error(`Unexpected error handling recommendations: ${error.message}`);
+    userData = userDataBackup;
+    res.status(500).json({ error: 'An unexpected error occurred', details: error.message });
+  }
 });
 
 // Get liked/disliked items

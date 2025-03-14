@@ -1515,16 +1515,16 @@ export default {
       try {
         // Reload recommendations based on current mode
         if (this.isMovieMode) {
-          const movieRecsResponse = await apiService.getRecommendations('movie') || [];
+          const movieRecsResponse = await apiService.getRecommendationsReadOnly('movie') || [];
           if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
-            console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server on activation`);
+            console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server on activation (read-only)`);
             this.previousMovieRecommendations = movieRecsResponse;
             this.previousRecommendations = [...this.previousMovieRecommendations];
           }
         } else {
-          const tvRecsResponse = await apiService.getRecommendations('tv') || [];
+          const tvRecsResponse = await apiService.getRecommendationsReadOnly('tv') || [];
           if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
-            console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server on activation`);
+            console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server on activation (read-only)`);
             this.previousShowRecommendations = tvRecsResponse;
             this.previousRecommendations = [...this.previousShowRecommendations];
           }
@@ -1532,6 +1532,12 @@ export default {
       } catch (error) {
         console.error("Error reloading recommendations on activation:", error);
       }
+    },
+    
+    // Add deactivated hook to prevent saving state when component is hidden
+    deactivated() {
+      console.log("RequestRecommendations component deactivated");
+      // Do not save state when navigating away
     },
     
     beforeUnmount() {

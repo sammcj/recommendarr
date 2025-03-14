@@ -729,13 +729,57 @@ app.delete('/api/credentials/:service', async (req, res) => {
 
 // User data endpoints
 // Get all recommendations
+// Add a special endpoint for read-only recommendations
+app.get('/api/recommendations-readonly/:type', async (req, res) => {
+  const { type } = req.params;
+  
+  console.log(`GET /api/recommendations-readonly/${type} requested (safe read-only mode)`);
+  
+  // Force reload from disk to ensure we're using the latest data
+  try {
+    const reloadUserDataSuccess = await reloadUserDataFromDisk();
+    
+    if (reloadUserDataSuccess) {
+      console.log(`Reloaded user_data.json from disk (readonly mode)`);
+    } else {
+      console.warn(`Failed to reload user_data.json - using in-memory data`);
+    }
+  } catch (reloadError) {
+    console.error(`Error reloading data: ${reloadError.message}`);
+  }
+  
+  // Return the recommendations without any side effects
+  if (type === 'tv') {
+    console.log(`Returning ${userData.tvRecommendations ? userData.tvRecommendations.length : 0} TV recommendations (readonly)`);
+    
+    // Deep copy to ensure we're not sending a reference to the original
+    const recommendations = Array.isArray(userData.tvRecommendations) 
+      ? [...userData.tvRecommendations] 
+      : [];
+      
+    res.json(recommendations);
+  } else if (type === 'movie') {
+    console.log(`Returning ${userData.movieRecommendations ? userData.movieRecommendations.length : 0} movie recommendations (readonly)`);
+    
+    // Deep copy to ensure we're not sending a reference to the original
+    const recommendations = Array.isArray(userData.movieRecommendations) 
+      ? [...userData.movieRecommendations] 
+      : [];
+      
+    res.json(recommendations);
+  } else {
+    console.log(`Invalid recommendation type: ${type}`);
+    res.status(400).json({ error: 'Invalid recommendation type' });
+  }
+});
+
+// Regular endpoint
 app.get('/api/recommendations/:type', async (req, res) => {
   const { type } = req.params;
   
   console.log(`GET /api/recommendations/${type} requested`);
   
   // Force reload from disk to ensure we're using the latest data
-  // This is only needed because we're having issues with the reset functionality
   try {
     const reloadUserDataSuccess = await reloadUserDataFromDisk();
     const reloadCredentialsSuccess = await reloadCredentialsFromDisk();
@@ -800,7 +844,9 @@ app.post('/api/recommendations/:type', async (req, res) => {
   });
   
   // Filter out empty strings and store only the normalized array
-  const filteredRecommendations = normalizedRecommendations.filter(title => title.trim() !== '');
+  const filteredRecommendations = normalizedRecommendations
+    .filter(title => title !== null && title !== undefined && title.trim && typeof title.trim === 'function' && title.trim() !== '')
+    .map(item => String(item)); // Ensure everything is a string
   
   if (type === 'tv') {
     userData.tvRecommendations = filteredRecommendations;

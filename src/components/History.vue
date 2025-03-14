@@ -733,10 +733,11 @@ export default {
       
       try {
         // First try to load TV recommendations from server with abort signal
+        // Use readonly method to avoid overwriting server data
         const tvRecommendations = await this.fetchWithAbort(
-          () => apiService.getRecommendations('tv'),
+          () => apiService.getRecommendationsReadOnly('tv'),
           signal,
-          'Loading TV recommendations'
+          'Loading TV recommendations (readonly)'
         );
         
         if (tvRecommendations && tvRecommendations.length > 0 && !signal.aborted) {
@@ -760,9 +761,9 @@ export default {
         // Then try to load movie recommendations from server with abort signal
         if (!signal.aborted) {
           const movieRecommendations = await this.fetchWithAbort(
-            () => apiService.getRecommendations('movie'),
+            () => apiService.getRecommendationsReadOnly('movie'),
             signal,
-            'Loading movie recommendations'
+            'Loading movie recommendations (readonly)'
           );
           
           if (movieRecommendations && movieRecommendations.length > 0 && !signal.aborted) {

@@ -1508,6 +1508,32 @@ export default {
       window.addEventListener('resize', this.handleWindowResize);
     },
     
+    // This will be called when the component is shown (keep-alive)
+    async activated() {
+      console.log("RequestRecommendations component activated, reloading recommendations from server");
+      
+      try {
+        // Reload recommendations based on current mode
+        if (this.isMovieMode) {
+          const movieRecsResponse = await apiService.getRecommendations('movie') || [];
+          if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
+            console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server on activation`);
+            this.previousMovieRecommendations = movieRecsResponse;
+            this.previousRecommendations = [...this.previousMovieRecommendations];
+          }
+        } else {
+          const tvRecsResponse = await apiService.getRecommendations('tv') || [];
+          if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
+            console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server on activation`);
+            this.previousShowRecommendations = tvRecsResponse;
+            this.previousRecommendations = [...this.previousShowRecommendations];
+          }
+        }
+      } catch (error) {
+        console.error("Error reloading recommendations on activation:", error);
+      }
+    },
+    
     beforeUnmount() {
       // Clean up event listeners on component destruction
       window.removeEventListener('resize', this.handleWindowResize);
@@ -1523,6 +1549,30 @@ export default {
       if (this.isMovieMode !== isMovie) {
         this.isMovieMode = isMovie;
         await this.saveContentTypePreference();
+        
+        // Reload the previous recommendations from the server after switching content type
+        try {
+          console.log("Content type changed, reloading recommendations from server...");
+          if (isMovie) {
+            // Switching to movie mode - reload movie recommendations
+            const movieRecsResponse = await apiService.getRecommendations('movie') || [];
+            if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
+              console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server after content type change`);
+              this.previousMovieRecommendations = movieRecsResponse;
+              this.previousRecommendations = [...this.previousMovieRecommendations];
+            }
+          } else {
+            // Switching to TV mode - reload TV recommendations
+            const tvRecsResponse = await apiService.getRecommendations('tv') || [];
+            if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
+              console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server after content type change`);
+              this.previousShowRecommendations = tvRecsResponse;
+              this.previousRecommendations = [...this.previousShowRecommendations];
+            }
+          }
+        } catch (error) {
+          console.error("Error reloading recommendations after content type change:", error);
+        }
       }
     },
     
@@ -2517,10 +2567,20 @@ export default {
           localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
         } else {
           // Save only the titles array to the server
-          await apiService.saveRecommendations('tv', this.previousShowRecommendations);
+          // Ensure all items are valid strings before saving
+          const sanitizedRecommendations = this.previousShowRecommendations
+            .filter(item => item !== null && item !== undefined)
+            .map(item => String(item));
+          await apiService.saveRecommendations('tv', sanitizedRecommendations);
           
           // Store in localStorage for backup only after successfully saving to server
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(sanitizedRecommendations));
+          
+          // Also update our local array with the sanitized version to maintain consistency
+          this.previousShowRecommendations = sanitizedRecommendations;
+          this.previousRecommendations = sanitizedRecommendations;
+          
+          // Store current recommendations separately
           localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
         }
         
@@ -2533,7 +2593,17 @@ export default {
           localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
           localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
         } else {
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+          // Ensure all items are valid strings before saving to localStorage
+          const sanitizedRecommendations = this.previousShowRecommendations
+            .filter(item => item !== null && item !== undefined)
+            .map(item => String(item));
+            
+          localStorage.setItem('previousTVRecommendations', JSON.stringify(sanitizedRecommendations));
+          
+          // Also update our local array with the sanitized version to maintain consistency
+          this.previousShowRecommendations = sanitizedRecommendations;
+          this.previousRecommendations = sanitizedRecommendations;
+          
           localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
         }
       }
@@ -4746,7 +4816,25 @@ export default {
   
   // Save state when component is destroyed
   beforeUnmount() {
-    this.savePreviousRecommendations();
+    // Don't save recommendations on unmount - this was causing issues when navigating to History
+    // Only save to localStorage for backup, but don't make server API calls
+    try {
+      if (this.isMovieMode) {
+        localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
+        if (this.recommendations && this.recommendations.length > 0) {
+          localStorage.setItem('currentMovieRecommendations', JSON.stringify(this.recommendations));
+        }
+      } else {
+        localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+        if (this.recommendations && this.recommendations.length > 0) {
+          localStorage.setItem('currentTVRecommendations', JSON.stringify(this.recommendations));
+        }
+      }
+      console.log('Saved recommendations to localStorage only (no server call) before unmount');
+    } catch (error) {
+      console.error('Error saving recommendations to localStorage on unmount:', error);
+    }
+    
     this.saveLikedDislikedLists();
     // Remove event listener
     window.removeEventListener('resize', this.handleResize);

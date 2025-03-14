@@ -197,6 +197,7 @@ class ApiService {
 
   /**
    * Get recommendations from the server
+   * (History component should use getRecommendationsReadOnly instead)
    * 
    * @param {string} type - 'tv' or 'movie'
    * @returns {Promise<Array>} - Recommendations
@@ -207,6 +208,24 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error(`Failed to get ${type} recommendations:`, error);
+      return [];
+    }
+  }
+  
+  /**
+   * Get recommendations from the server in read-only mode (doesn't trigger save)
+   * This should be used by History component to avoid overwriting data
+   * 
+   * @param {string} type - 'tv' or 'movie'
+   * @returns {Promise<Array>} - Recommendations
+   */
+  async getRecommendationsReadOnly(type) {
+    try {
+      // This calls a different endpoint entirely, ensuring no side effects
+      const response = await this.get(`/recommendations-readonly/${type}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get ${type} recommendations (readonly):`, error);
       return [];
     }
   }

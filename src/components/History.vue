@@ -86,7 +86,7 @@
             id="columnsAdjuster" 
             v-model.number="columnsCount" 
             min="1" 
-            max="5" 
+            max="10" 
             @change="saveColumnsCount"
             class="columns-slider"
           >
@@ -2483,6 +2483,8 @@ h2 {
   overflow: hidden;
   height: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .recommendation-item:hover {
@@ -2495,6 +2497,7 @@ h2 {
   display: flex;
   flex-direction: column;
   height: 100%;
+  flex: 1;
 }
 
 .poster {
@@ -2503,6 +2506,7 @@ h2 {
   padding-bottom: 150%; /* 2:3 aspect ratio for movie posters */
   background-color: var(--card-bg-color);
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .poster-loading-overlay {
@@ -2583,6 +2587,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  height: 100px; /* Fixed height for consistent card sizing */
 }
 
 .item-overview {
@@ -2591,6 +2596,10 @@ h2 {
   opacity: 0.8;
   text-align: left;
   line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
 }
 
 .item-year {
@@ -2605,6 +2614,8 @@ h2 {
   padding: 0 8px 8px;
   display: flex;
   justify-content: center;
+  height: 50px; /* Fixed height for button area */
+  align-items: center;
 }
 
 .add-button {

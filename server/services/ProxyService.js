@@ -72,17 +72,43 @@ class ProxyService {
     }
     console.log('Request headers:', JSON.stringify(sanitizedHeaders));
     
-    // Ensure proper headers are set for LMStudio API requests
+    // Ensure proper headers are set for LLM API requests
     if (processedUrl.includes('/v1/models')) {
-      console.log('Adding headers for LMStudio models API request');
+      console.log('Adding headers for models API request');
       if (!options.headers) options.headers = {};
       
       // Set Accept header to tell server what response format we want
       options.headers['Accept'] = 'application/json';
       
-      // Ensure user-agent is set
-      if (!options.headers['User-Agent']) {
-        options.headers['User-Agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
+      // Ensure content-type is set for all requests, even GET
+      options.headers['Content-Type'] = 'application/json';
+      
+      // Remove User-Agent header as browsers block this header in XHR/fetch requests
+      if (options.headers['User-Agent']) {
+        delete options.headers['User-Agent'];
+        console.log('Removed User-Agent header which browsers block in XHR requests');
+      }
+      
+      // Ensure authorization header has correct capitalization if present
+      if (options.headers['authorization'] && !options.headers['Authorization']) {
+        options.headers['Authorization'] = options.headers['authorization'];
+        delete options.headers['authorization'];
+        console.log('Fixed Authorization header capitalization');
+      }
+      
+      // Handle query params for API keys (particularly for Google AI)
+      if (options.method === 'GET' && options.params && options.params.key) {
+        // Check if the URL already has the key parameter to avoid duplication
+        if (!processedUrl.includes('key=')) {
+          const hasQueryParam = processedUrl.includes('?');
+          const separator = hasQueryParam ? '&' : '?';
+          processedUrl = `${processedUrl}${separator}key=${options.params.key}`;
+          console.log('Added API key as query parameter');
+        } else {
+          console.log('URL already contains key parameter, skipping addition');
+        }
+        // Remove from params to avoid duplication
+        delete options.params.key;
       }
     }
     
@@ -96,10 +122,36 @@ class ProxyService {
       }
     };
     
+    // Log complete request configuration for debugging
+    if (processedUrl.includes('/v1/models')) {
+      console.log('Models API request configuration:', {
+        method: requestOptions.method,
+        url: requestOptions.url,
+        headers: { 
+          ...requestOptions.headers,
+          Authorization: requestOptions.headers.Authorization ? 'Bearer [REDACTED]' : undefined
+        },
+        params: requestOptions.params
+      });
+    }
+    
     try {
       console.log(`Sending ${options.method} request to ${processedUrl}`);
       const response = await axios(requestOptions);
       console.log(`Response received from ${processedUrl}, status: ${response.status}, content-type: ${response.headers['content-type'] || 'not specified'}`);
+      
+      // Log detailed response info for debugging
+      if (processedUrl.includes('/v1/models')) {
+        console.log('Detailed model endpoint response:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          dataType: typeof response.data,
+          dataPreview: typeof response.data === 'string' 
+                      ? response.data.substring(0, 100) 
+                      : JSON.stringify(response.data).substring(0, 100)
+        });
+      }
       
       // Check if the response appears to be HTML instead of JSON
       const contentType = response.headers['content-type'] || '';
@@ -137,8 +189,38 @@ class ProxyService {
         console.log(`Successful response (${response.status}) with data type: ${typeof response.data}`);
       } else {
         console.warn(`Non-success response: ${response.status} ${response.statusText}`);
+        
+        // Extra debugging for Google AI API
+        if (processedUrl.includes('generativelanguage.googleapis.com')) {
+          console.warn('Google AI API error details:', {
+            status: response.status,
+            statusText: response.statusText,
+            data: response.data,
+            url: processedUrl,
+            headers: requestOptions.headers ? 
+              { ...requestOptions.headers, Authorization: requestOptions.headers.Authorization ? '[REDACTED]' : undefined } : 
+              'No headers'
+          });
+        }
+        
         if (response.data && response.data.error) {
           console.warn(`API error: ${response.data.error.message || response.data.error}`);
+        }
+        
+        // For status 400, provide more details
+        if (response.status === 400) {
+          console.warn('Bad Request (400) details:', {
+            data: response.data,
+            requestMethod: requestOptions.method,
+            requestParams: requestOptions.params
+          });
+          
+          // For Google API, check if the key is valid
+          if (processedUrl.includes('generativelanguage.googleapis.com') && 
+              (response.data?.error?.message?.includes('API key') || 
+               JSON.stringify(response.data).includes('API key'))) {
+            console.error('Likely Google API key validation issue. Check that the API key is correct and has Gemini API enabled.');
+          }
         }
       }
       
@@ -151,9 +233,9 @@ class ProxyService {
     } catch (error) {
       console.error('Error in proxy service:', error.message);
       
-      // For debugging LMStudio requests
+      // For debugging model API requests
       if (options.url.includes('/v1/models')) {
-        console.error('LMStudio API request failed:', {
+        console.error('Model API request failed:', {
           message: error.message,
           code: error.code,
           stack: error.stack,
@@ -166,9 +248,19 @@ class ProxyService {
           request: {
             url: options.url,
             method: options.method,
-            headers: { ...options.headers, Authorization: options.headers.Authorization ? '[REDACTED]' : undefined }
+            headers: { ...options.headers, Authorization: options.headers.Authorization ? '[REDACTED]' : undefined },
+            params: options.params
           }
         });
+        
+        // Check for specific API provider errors
+        if (options.url.includes('generativelanguage.googleapis.com')) {
+          console.error('Google API specific error - check:');
+          console.error('1. API key is correct and has Gemini API enabled');
+          console.error('2. You have proper permissions for the project');
+          console.error('3. The model endpoint URL format is correct');
+          console.error('4. You have not exceeded quota limits');
+        }
       }
       
       // Provide a more detailed error message for network issues

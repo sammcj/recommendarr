@@ -225,16 +225,21 @@ class OpenAIService {
     if (this.baseUrl.includes('lmstudio') || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/)) {
       console.log('Detected LMStudio or local LLM server, adding additional headers');
       headers['accept'] = 'application/json, text/plain, */*';
-      headers['user-agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
+      // Removed user-agent header which browsers block in XHR requests
     }
     
     let modelsUrl = this.getModelsUrl();
     
-    // For Google AI API, also add the API key as a query parameter
-    // (some endpoints might use query param instead of Authorization header)
-    if (this.baseUrl.includes('generativelanguage.googleapis.com') && this.googleApiKey) {
-      const separator = modelsUrl.includes('?') ? '&' : '?';
-      modelsUrl = `${modelsUrl}${separator}key=${this.googleApiKey}`;
+    // For Google AI API, we'll handle the key in the proxy request params
+    // instead of appending it to the URL to avoid duplicates
+    if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+      console.log('Detected Google AI API, will send API key via params to avoid duplication');
+      // We'll use the params object instead of directly modifying the URL
+      if (this.apiKey && this.apiKey.trim() !== '') {
+        this.googleApiKey = this.apiKey.trim();
+      } else {
+        console.warn('No API key provided for Google AI API - requests will likely fail');
+      }
     }
     
     console.log(`Fetching models from: ${modelsUrl}`);
@@ -248,140 +253,170 @@ class OpenAIService {
       try {
         // Always use the proxy service for models request to avoid mixed content errors
         console.log('Using proxy service for models request');
-        response = await apiService.proxyRequest({
+        
+        // Configure parameters for different API providers
+        const params = {};
+        let apiOptions = {
           url: modelsUrl,
           method: 'GET',
           headers: headers
+        };
+        
+        // Special handling for Google AI
+        if (this.baseUrl.includes('generativelanguage.googleapis.com') && this.googleApiKey) {
+          // For Google AI, we need to properly format the key as a parameter
+          // Check if the API key is already in the URL
+          if (!modelsUrl.includes('key=')) {
+            params.key = this.googleApiKey;
+            apiOptions.params = params;
+            console.log('Added Google API key as query parameter');
+          } else {
+            console.log('Google API key already in URL, not adding as parameter');
+          }
+        } else {
+          // For other APIs, include any params if needed
+          if (Object.keys(params).length > 0) {
+            apiOptions.params = params;
+          }
+        }
+        
+        console.log('Sending model request with configuration:', {
+          url: apiOptions.url,
+          method: apiOptions.method,
+          hasParams: apiOptions.params ? true : false,
+          headers: { ...apiOptions.headers, Authorization: apiOptions.headers.Authorization ? '[REDACTED]' : undefined }
         });
+        
+        response = await apiService.proxyRequest(apiOptions);
       } catch (proxyError) {
         console.log('Proxy request failed:', proxyError.message);
         
         // Log error but avoid excessive details
         console.error('Proxy error:', proxyError.message);
         
-        // For OpenAI, Google AI, Anthropic, LMStudio or IP-based endpoints, try a direct request as fallback
-        if (this.baseUrl.includes('openai.com') || this.baseUrl.includes('generativelanguage.googleapis.com') || this.baseUrl === 'https://api.anthropic.com/v1' || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/) || this.baseUrl.includes('lmstudio')) {
-          console.log('Attempting direct request to LLM server as fallback...');
-          try {
-            const axios = (await import('axios')).default;
-            // Prepare headers for direct request based on API type
-            const directHeaders = {
-              'Accept': 'application/json, text/plain, */*',
-              'User-Agent': 'Mozilla/5.0 (compatible; Reccommendarr/1.0)'
-            };
+        // Try a direct request as fallback for all API endpoints
+        // (Previously this was limited to specific endpoints, but now we try for all)
+        console.log('Attempting direct request to LLM server as fallback...');
+        try {
+          const axios = (await import('axios')).default;
+          // Prepare headers for direct request based on API type
+          const directHeaders = {
+            'Accept': 'application/json, text/plain, */*'
+            // Removed User-Agent header which browsers block in XHR/fetch requests
+          };
+          
+          // Special handling for OpenAI API
+          if (this.baseUrl.includes('openai.com')) {
+            console.log('Using special headers for direct OpenAI API request');
+            directHeaders['Authorization'] = `Bearer ${this.apiKey.trim()}`;
+            directHeaders['Content-Type'] = 'application/json';
+            directHeaders['Accept'] = 'application/json';
+          }
+          // Special handling for Google AI API
+          else if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+            console.log('Using special headers for direct Google AI API request');
             
-            // Special handling for OpenAI API
-            if (this.baseUrl.includes('openai.com')) {
-              console.log('Using special headers for direct OpenAI API request');
-              directHeaders['Authorization'] = `Bearer ${this.apiKey.trim()}`;
-              directHeaders['Content-Type'] = 'application/json';
-              directHeaders['Accept'] = 'application/json';
-            }
-            // Special handling for Google AI API
-            else if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
-              console.log('Using special headers for direct Google AI API request');
+            // Add Authorization header
+            if (this.googleApiKey) {
+              directHeaders['Authorization'] = `Bearer ${this.googleApiKey}`;
               
-              // Add Authorization header
-              if (this.googleApiKey) {
-                directHeaders['Authorization'] = `Bearer ${this.googleApiKey}`;
-                
-                // Also add as query parameter for certain endpoints
+              // Only add key as query parameter if not already present
+              if (!modelsUrl.includes('key=')) {
                 const separator = modelsUrl.includes('?') ? '&' : '?';
                 modelsUrl = `${modelsUrl}${separator}key=${this.googleApiKey}`;
               }
-              
-              // Set standard headers
-              directHeaders['Content-Type'] = 'application/json';
-              directHeaders['Accept'] = 'application/json';
-            }
-            // Special handling for Anthropic API
-            else if (this.baseUrl === 'https://api.anthropic.com/v1') {
-              console.log('Using special headers for direct Anthropic API request');
-              directHeaders['x-api-key'] = this.apiKey;
-              directHeaders['anthropic-version'] = '2023-06-01';
-              directHeaders['anthropic-dangerous-direct-browser-access'] = 'true';
             }
             
-            const directResponse = await axios({
-              url: modelsUrl,
-              method: 'GET',
-              headers: directHeaders
-            });
-            
-            console.log('Direct request successful!', directResponse.status);
-            
-            // Process the response data from direct request
-            
-            // For OpenAI API
-            if (this.baseUrl.includes('openai.com')) {
-              console.log('Processing OpenAI API direct response');
-              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
-                console.log(`Successfully retrieved ${directResponse.data.data.length} OpenAI models`);
-                return directResponse.data.data;
-              }
-            }
-            
-            // For Google AI API
-            if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
-              console.log('Processing Google AI API direct response');
-              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
-                console.log(`Successfully retrieved ${directResponse.data.data.length} Google AI models`);
-                return directResponse.data.data;
-              } else if (directResponse.data && Array.isArray(directResponse.data)) {
-                console.log(`Successfully retrieved ${directResponse.data.length} Google AI models (array format)`);
-                return directResponse.data.map(model => ({
-                  id: model.id || model.name,
-                  object: 'model',
-                  owned_by: 'google'
-                }));
-              }
-            }
-            
-            // For Anthropic API
-            else if (this.baseUrl === 'https://api.anthropic.com/v1') {
-              console.log('Processing Anthropic API direct response');
-              
-              // Handle format with data array property
-              if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
-                console.log(`Successfully retrieved ${directResponse.data.data.length} Anthropic models (data array format)`);
-                return directResponse.data.data.map(model => ({
-                  id: model.id,
-                  object: 'model',
-                  owned_by: 'anthropic',
-                  display_name: model.display_name
-                }));
-              }
-              // Handle direct array format
-              else if (Array.isArray(directResponse.data)) {
-                console.log(`Successfully retrieved ${directResponse.data.length} Anthropic models (direct array format)`);
-                return directResponse.data.map(model => ({
-                  id: model.id || model.name,
-                  object: 'model',
-                  owned_by: 'anthropic'
-                }));
-              }
-            }
-            
-            // For LMStudio format
-            if (directResponse.data && directResponse.data.object === 'list' && Array.isArray(directResponse.data.data)) {
-              console.log(`Successfully retrieved ${directResponse.data.data.length} models from direct request`);
-              // Return processed models directly instead of wrapping
+            // Set standard headers
+            directHeaders['Content-Type'] = 'application/json';
+            directHeaders['Accept'] = 'application/json';
+          }
+          // Special handling for Anthropic API
+          else if (this.baseUrl === 'https://api.anthropic.com/v1') {
+            console.log('Using special headers for direct Anthropic API request');
+            directHeaders['x-api-key'] = this.apiKey;
+            directHeaders['anthropic-version'] = '2023-06-01';
+            directHeaders['anthropic-dangerous-direct-browser-access'] = 'true';
+          }
+          
+          const directResponse = await axios({
+            url: modelsUrl,
+            method: 'GET',
+            headers: directHeaders
+          });
+          
+          console.log('Direct request successful!', directResponse.status);
+          
+          // Process the response data from direct request
+          
+          // For OpenAI API
+          if (this.baseUrl.includes('openai.com')) {
+            console.log('Processing OpenAI API direct response');
+            if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+              console.log(`Successfully retrieved ${directResponse.data.data.length} OpenAI models`);
               return directResponse.data.data;
             }
-            
-            // If data is in a different format, wrap it in a proxy-like response
-            return {
-              status: directResponse.status,
-              data: directResponse.data,
-              headers: directResponse.headers
-            };
-          } catch (directError) {
-            console.error('Direct request failed:', directError.message);
-            throw new Error(`Failed to connect to LLM server at ${this.baseUrl}. Please check if the server is running and accessible.`);
           }
+          
+          // For Google AI API
+          if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
+            console.log('Processing Google AI API direct response');
+            if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+              console.log(`Successfully retrieved ${directResponse.data.data.length} Google AI models`);
+              return directResponse.data.data;
+            } else if (directResponse.data && Array.isArray(directResponse.data)) {
+              console.log(`Successfully retrieved ${directResponse.data.length} Google AI models (array format)`);
+              return directResponse.data.map(model => ({
+                id: model.id || model.name,
+                object: 'model',
+                owned_by: 'google'
+              }));
+            }
+          }
+          
+          // For Anthropic API
+          else if (this.baseUrl === 'https://api.anthropic.com/v1') {
+            console.log('Processing Anthropic API direct response');
+            
+            // Handle format with data array property
+            if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
+              console.log(`Successfully retrieved ${directResponse.data.data.length} Anthropic models (data array format)`);
+              return directResponse.data.data.map(model => ({
+                id: model.id,
+                object: 'model',
+                owned_by: 'anthropic',
+                display_name: model.display_name
+              }));
+            }
+            // Handle direct array format
+            else if (Array.isArray(directResponse.data)) {
+              console.log(`Successfully retrieved ${directResponse.data.length} Anthropic models (direct array format)`);
+              return directResponse.data.map(model => ({
+                id: model.id || model.name,
+                object: 'model',
+                owned_by: 'anthropic'
+              }));
+            }
+          }
+          
+          // For LMStudio format
+          if (directResponse.data && directResponse.data.object === 'list' && Array.isArray(directResponse.data.data)) {
+            console.log(`Successfully retrieved ${directResponse.data.data.length} models from direct request`);
+            // Return processed models directly instead of wrapping
+            return directResponse.data.data;
+          }
+          
+          // If data is in a different format, wrap it in a proxy-like response
+          return {
+            status: directResponse.status,
+            data: directResponse.data,
+            headers: directResponse.headers
+          };
+        } catch (directError) {
+          console.error('Direct request failed:', directError.message);
+          // For direct request errors, combine the error messages for better diagnosis
+          throw new Error(`Failed to connect to LLM server at ${this.baseUrl}. Original proxy error: ${proxyError.message}. Direct request error: ${directError.message}`);
         }
-        
-        throw new Error(`Failed to fetch models via proxy: ${proxyError.message}`);
       }
       
       console.log(`Models response status: ${response.status}`);

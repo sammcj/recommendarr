@@ -331,23 +331,12 @@ class PlexService {
         'X-Plex-Token': this.token,
         'type': 1, // Type 1 is movie
         'sort': 'viewedAt:desc',
-        'limit': limit
+        'limit': limit * 2 // Request more items since we'll filter some out
       };
       
       // If we have a specific user ID, add it to the request
       if (userIdToUse) {
         params['accountID'] = userIdToUse;
-      }
-      
-      // Add viewedAt filter if daysAgo is specified
-      if (daysAgo > 0) {
-        // Calculate timestamp for X days ago (in seconds, Plex API uses seconds not milliseconds)
-        const nowInSeconds = Math.floor(Date.now() / 1000);
-        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
-        const timestampFilter = nowInSeconds - daysAgoInSeconds;
-        
-        // Add filter to only include items watched after this timestamp
-        params['viewedAt>'] = timestampFilter;
       }
       
       // Get recently watched from the history endpoint through the proxy server
@@ -453,14 +442,39 @@ class PlexService {
         }
       }
       
-      // Filter out items without titles and remove duplicates
-      const validMovies = movies.filter(movie => movie.title);
+      // Filter out items without titles
+      let validMovies = movies.filter(movie => movie.title);
+      
+      // Apply the daysAgo filter manually
+      if (daysAgo > 0) {
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
+        const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
+        
+        console.log(`Filtering movies watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
+        validMovies = validMovies.filter(movie => {
+          const viewedAtTimestamp = parseInt(movie.viewedAt, 10);
+          const isRecent = viewedAtTimestamp >= cutoffTimestamp;
+          
+          if (!isRecent) {
+            console.log(`Filtering out movie "${movie.title}" watched at ${viewedAtTimestamp} (before cutoff ${cutoffTimestamp})`);
+          }
+          
+          return isRecent;
+        });
+      }
+      
+      // Remove duplicates
       const uniqueMovies = validMovies.filter((movie, index, self) => 
         index === self.findIndex((m) => m.title === movie.title)
       );
       
-      console.log(`Returning ${uniqueMovies.length} unique recently watched movies`);
-      return uniqueMovies;
+      // Apply the limit after filtering
+      const limitedMovies = uniqueMovies.slice(0, limit);
+      
+      console.log(`Returning ${limitedMovies.length} unique recently watched movies`);
+      return limitedMovies;
     } catch (error) {
       console.error('Error fetching recently watched movies from Plex:', error);
       throw error;
@@ -478,12 +492,11 @@ class PlexService {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
-      
       if (!this.isConfigured()) {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
       }
     }
-
+    
     try {
       // Use provided userId or fall back to the selectedUserId
       const userIdToUse = userId || this.selectedUserId;
@@ -493,23 +506,12 @@ class PlexService {
         'X-Plex-Token': this.token,
         'type': 4, // Type 4 is TV episode
         'sort': 'viewedAt:desc',
-        'limit': limit
+        'limit': limit * 2 // Request more items since we'll filter some out
       };
       
       // If we have a specific user ID, add it to the request
       if (userIdToUse) {
         params['accountID'] = userIdToUse;
-      }
-      
-      // Add viewedAt filter if daysAgo is specified
-      if (daysAgo > 0) {
-        // Calculate timestamp for X days ago (in seconds, Plex API uses seconds not milliseconds)
-        const nowInSeconds = Math.floor(Date.now() / 1000);
-        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
-        const timestampFilter = nowInSeconds - daysAgoInSeconds;
-        
-        // Add filter to only include items watched after this timestamp
-        params['viewedAt>'] = timestampFilter;
       }
       
       // Get recently watched from the history endpoint through the proxy server
@@ -518,12 +520,12 @@ class PlexService {
         method: 'GET',
         params: params
       });
-
+      
       // Log response type and structure for debugging
       console.log('Plex TV response type:', typeof response.data);
       
-      // Store unique shows with a Map
-      const showMap = new Map();
+      // Store episodes with their timestamps for filtering
+      const episodes = [];
       
       if (typeof response.data === 'object') {
         // Handle JSON response
@@ -538,8 +540,8 @@ class PlexService {
             const showTitle = item.grandparentTitle;
             
             // Only proceed if we have a valid show title
-            if (showTitle && !showMap.has(showTitle)) {
-              showMap.set(showTitle, {
+            if (showTitle) {
+              episodes.push({
                 title: showTitle,
                 year: item.parentYear || item.year,
                 viewedAt: item.lastViewedAt || item.viewedAt,
@@ -568,8 +570,8 @@ class PlexService {
               const showTitle = node.getAttribute('grandparentTitle');
               
               // Only proceed if we have a valid show title
-              if (showTitle && !showMap.has(showTitle)) {
-                showMap.set(showTitle, {
+              if (showTitle) {
+                episodes.push({
                   title: showTitle,
                   year: node.getAttribute('parentYear') || node.getAttribute('year'),
                   viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
@@ -585,8 +587,8 @@ class PlexService {
             // Process each video node
             Array.from(videoNodes).forEach(node => {
               const showTitle = node.getAttribute('grandparentTitle');
-              if (showTitle && !showMap.has(showTitle)) {
-                showMap.set(showTitle, {
+              if (showTitle) {
+                episodes.push({
                   title: showTitle,
                   year: node.getAttribute('parentYear') || node.getAttribute('year'),
                   viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
@@ -598,10 +600,43 @@ class PlexService {
         }
       }
       
+      // Apply the daysAgo filter manually
+      let filteredEpisodes = episodes;
+      if (daysAgo > 0) {
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
+        const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
+        
+        console.log(`Filtering TV shows watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
+        filteredEpisodes = episodes.filter(episode => {
+          const viewedAtTimestamp = parseInt(episode.viewedAt, 10);
+          const isRecent = viewedAtTimestamp >= cutoffTimestamp;
+          
+          if (!isRecent) {
+            console.log(`Filtering out episode of "${episode.title}" watched at ${viewedAtTimestamp} (before cutoff ${cutoffTimestamp})`);
+          }
+          
+          return isRecent;
+        });
+      }
+      
+      // Store unique shows with a Map (using the filtered episodes)
+      const showMap = new Map();
+      filteredEpisodes.forEach(episode => {
+        if (!showMap.has(episode.title)) {
+          showMap.set(episode.title, episode);
+        }
+      });
+      
       // Convert the Map to an array
       const shows = Array.from(showMap.values());
-      console.log(`Returning ${shows.length} unique recently watched TV shows`);
-      return shows;
+      
+      // Apply the limit after filtering
+      const limitedShows = shows.slice(0, limit);
+      
+      console.log(`Returning ${limitedShows.length} unique recently watched TV shows`);
+      return limitedShows;
     } catch (error) {
       console.error('Error fetching recently watched shows from Plex:', error);
       throw error;

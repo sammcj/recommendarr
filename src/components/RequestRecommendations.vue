@@ -403,15 +403,6 @@
                           >
                           Recent (30 days)
                         </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="plexHistoryMode" 
-                            value="custom"
-                            @change="savePlexHistoryMode"
-                          >
-                          Custom period
-                        </label>
                       </div>
                       
                       <div v-if="plexHistoryMode === 'custom'" class="days-slider-container">
@@ -451,7 +442,7 @@
                         Use only Plex history for recommendations (ignore library)
                       </label>
                     </div>
-                    
+                    <br>
                     <button 
                       class="action-button plex-user-select-button"
                       @click="$emit('openPlexUserSelect')"

@@ -2088,14 +2088,17 @@ main {
   background-color: var(--main-bg-color);
   border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to allow proper stacking */
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+  position: relative; /* Added for proper stacking context */
 }
 
 .content {
   min-height: 400px;
   will-change: opacity;
   animation: fade-in 0.2s ease-out;
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes fade-in {
@@ -2246,7 +2249,7 @@ main {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 5;
   backdrop-filter: blur(2px);
 }
 

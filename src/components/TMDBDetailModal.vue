@@ -547,7 +547,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 999999; /* Extremely high z-index */
+  z-index: 4; /* Above navigation */
   overflow-y: auto;
   padding: 20px;
   box-sizing: border-box;
@@ -566,7 +566,7 @@ export default {
   animation: modal-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   scrollbar-width: thin;
   border: 1px solid rgba(0, 0, 0, 0.2); /* Stronger border */
-  z-index: 999999; /* Same high z-index */
+  z-index: 4; /* Same as modal overlay */
 }
 
 /* Dark theme support */

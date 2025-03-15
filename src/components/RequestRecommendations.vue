@@ -1361,7 +1361,6 @@ import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
-import tmdbService from '../services/TMDBService';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 
 export default {
@@ -1489,11 +1488,22 @@ export default {
     
     // Computed property to get movie watch history from all sources
     allMovieWatchHistory() {
-      return [
+      // First try the standard movie props
+      const standardMovies = [
         ...(this.recentlyWatchedMovies || []),
         ...(this.jellyfinRecentlyWatchedMovies || []),
-        ...(this.tautulliRecentlyWatchedMovies || [])
+        ...(this.tautulliRecentlyWatchedMovies || []),
+        ...(this.traktRecentlyWatchedMovies || [])
       ];
+      
+      // Then check if we have movies in the 'movies' prop
+      const moviesFromProp = (this.movies || []).map(movie => ({
+        ...movie,
+        type: 'movie',
+        source: 'plex'  // Assuming these come from Plex based on format
+      }));
+      
+      return [...standardMovies, ...moviesFromProp];
     },
     
     // Computed property to get TV watch history from all sources
@@ -1758,12 +1768,24 @@ export default {
       
       // Log data directly when modal is opened
       console.log('MODAL OPENED - DIRECT DATA CHECK:');
-      console.log('Movies data when modal opened:', this.recentlyWatchedMovies);
+      console.log('Movies data when modal opened:', this.movies);
       console.log('Shows data when modal opened:', this.recentlyWatchedShows);
       
-      // Check in global window object for debugging
-      if (window && window.app) {
-        console.log('App instance found in window:', window.app);
+      // Create temporary watch history data for testing
+      // This will be a "global" property that the computed property can access
+      this._watchHistoryData = [];
+      
+      // Add movies from the movies prop
+      if (this.movies && this.movies.length > 0) {
+        this._watchHistoryData = this.movies.map(movie => ({
+          ...movie,
+          title: movie.title,
+          type: 'movie',
+          source: 'plex',
+          // Convert Unix timestamp to readable date if needed
+          watchedDate: movie.viewedAt ? new Date(movie.viewedAt * 1000).toISOString() : new Date().toISOString()
+        }));
+        console.log('Created watch history data with movies:', this._watchHistoryData.length);
       }
       
       // Try accessing data from App component directly
@@ -1775,6 +1797,11 @@ export default {
     closeWatchHistoryModal() {
       this.showWatchHistoryModal = false;
       this.showRawHistoryData = false;
+      
+      // Clean up our temporary data
+      this._watchHistoryData = null;
+      
+      console.log('Watch history modal closed and temporary data cleared');
     },
     
     viewRawHistoryData() {
@@ -1829,6 +1856,11 @@ export default {
     // Helper methods for finding properties in different data formats
     findTitle(item) {
       if (!item) return 'Unknown';
+      
+      // Debug the item structure when it's the first item
+      if (this.filteredWatchHistory && this.filteredWatchHistory[0] === item) {
+        console.log('DEBUG: First item structure in findTitle:', JSON.stringify(item));
+      }
       
       // Try different possible property names for the title
       return item.title || item.name || item.showName || item.movieName || 
@@ -4540,15 +4572,8 @@ export default {
      */
     openTMDBDetailModal(recommendation) {
       console.log('Opening TMDB modal for:', recommendation.title);
-      console.log('TMDB available:', this.isTMDBAvailable);
-      console.log('TMDB configured:', tmdbService.isConfigured());
       
-      // Only open if TMDB is available
-      if (!this.isTMDBAvailable || !tmdbService.isConfigured()) {
-        console.log('Cannot open modal: TMDB not available or configured');
-        return;
-      }
-      
+      // Set these values regardless of TMDB configuration
       this.selectedMediaTitle = recommendation.title;
       this.selectedMediaId = null; // We'll search by title
       this.showTMDBModal = true;
@@ -5421,129 +5446,44 @@ export default {
     // Watch history modal computed properties 
     filteredWatchHistory() {
       console.log('WATCH HISTORY INSPECTION - DIRECT APPROACH:');
-      console.log('Component props:', Object.keys(this.$props));
       
-      // Initialize collections for all watch history
+      // Use the temporary watch history data we created when opening the modal
+      if (this._watchHistoryData && this._watchHistoryData.length > 0) {
+        console.log('Using pre-populated watch history data:', this._watchHistoryData.length, 'items');
+        
+        // Apply type filter if needed
+        if (this.historyTypeFilter !== 'all') {
+          return this._watchHistoryData.filter(item => 
+            item.type === this.historyTypeFilter
+          );
+        }
+        
+        // Otherwise return all data
+        return this._watchHistoryData;
+      }
+      
+      // Initialize collections for all watch history (fallback)
       let allWatchHistory = [];
       
-      // Try direct access to all the different watch history props
+      // If no pre-populated data, try direct access
+      console.log('Fallback: Using direct data access');
+      if (this.movies && this.movies.length > 0) {
+        const moviesWithMetadata = this.movies.map(movie => ({
+          ...movie,
+          title: movie.title,
+          type: 'movie',
+          source: 'plex'
+        }));
+        allWatchHistory = [...allWatchHistory, ...moviesWithMetadata];
+      }
+      
+      // Initialize historyProps to fix reference error
       const historyProps = {
-        // Plex
-        plexMovies: this.recentlyWatchedMovies,
         plexShows: this.recentlyWatchedShows,
-        
-        // Jellyfin
-        jellyfinMovies: this.jellyfinRecentlyWatchedMovies,
         jellyfinShows: this.jellyfinRecentlyWatchedShows,
-        
-        // Tautulli
-        tautulliMovies: this.tautulliRecentlyWatchedMovies,
         tautulliShows: this.tautulliRecentlyWatchedShows,
-        
-        // Trakt
-        traktMovies: this.traktRecentlyWatchedMovies,
         traktShows: this.traktRecentlyWatchedShows
       };
-      
-      console.log('History props availability:', {
-        plexMovies: !!historyProps.plexMovies,
-        plexShows: !!historyProps.plexShows,
-        jellyfinMovies: !!historyProps.jellyfinMovies,
-        jellyfinShows: !!historyProps.jellyfinShows,
-        tautulliMovies: !!historyProps.tautulliMovies,
-        tautulliShows: !!historyProps.tautulliShows,
-        traktMovies: !!historyProps.traktMovies,
-        traktShows: !!historyProps.traktShows
-      });
-      
-      // Process movies if we're showing movies
-      if (this.historyTypeFilter === 'all' || this.historyTypeFilter === 'movie') {
-        // Try to process each source's movie history
-        
-        // Plex movies
-        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'plex') && 
-            historyProps.plexMovies) {
-          let plexData = historyProps.plexMovies;
-          
-          // Handle possible structure variations
-          if (Array.isArray(plexData)) {
-            allWatchHistory = [...allWatchHistory, ...plexData.map(item => ({
-              ...item, 
-              source: 'plex', 
-              type: 'movie'
-            }))];
-          } else if (plexData.movies && Array.isArray(plexData.movies)) {
-            allWatchHistory = [...allWatchHistory, ...plexData.movies.map(item => ({
-              ...item, 
-              source: 'plex', 
-              type: 'movie'
-            }))];
-          }
-        }
-        
-        // Jellyfin movies
-        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'jellyfin') && 
-            historyProps.jellyfinMovies) {
-          let jellyfinData = historyProps.jellyfinMovies;
-          
-          // Handle possible structure variations
-          if (Array.isArray(jellyfinData)) {
-            allWatchHistory = [...allWatchHistory, ...jellyfinData.map(item => ({
-              ...item, 
-              source: 'jellyfin', 
-              type: 'movie'
-            }))];
-          } else if (jellyfinData.movies && Array.isArray(jellyfinData.movies)) {
-            allWatchHistory = [...allWatchHistory, ...jellyfinData.movies.map(item => ({
-              ...item, 
-              source: 'jellyfin', 
-              type: 'movie'
-            }))];
-          }
-        }
-        
-        // Tautulli movies
-        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'tautulli') && 
-            historyProps.tautulliMovies) {
-          let tautulliData = historyProps.tautulliMovies;
-          
-          // Handle possible structure variations
-          if (Array.isArray(tautulliData)) {
-            allWatchHistory = [...allWatchHistory, ...tautulliData.map(item => ({
-              ...item, 
-              source: 'tautulli', 
-              type: 'movie'
-            }))];
-          } else if (tautulliData.movies && Array.isArray(tautulliData.movies)) {
-            allWatchHistory = [...allWatchHistory, ...tautulliData.movies.map(item => ({
-              ...item, 
-              source: 'tautulli', 
-              type: 'movie'
-            }))];
-          }
-        }
-        
-        // Trakt movies
-        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'trakt') && 
-            historyProps.traktMovies) {
-          let traktData = historyProps.traktMovies;
-          
-          // Handle possible structure variations
-          if (Array.isArray(traktData)) {
-            allWatchHistory = [...allWatchHistory, ...traktData.map(item => ({
-              ...item, 
-              source: 'trakt', 
-              type: 'movie'
-            }))];
-          } else if (traktData.movies && Array.isArray(traktData.movies)) {
-            allWatchHistory = [...allWatchHistory, ...traktData.movies.map(item => ({
-              ...item, 
-              source: 'trakt', 
-              type: 'movie'
-            }))];
-          }
-        }
-      }
       
       // Process TV shows if we're showing shows
       if (this.historyTypeFilter === 'all' || this.historyTypeFilter === 'show') {
@@ -5649,10 +5589,12 @@ export default {
       allWatchHistory.sort((a, b) => {
         const dateA = a.lastWatched || a.watched || a.viewedAt || 0;
         const dateB = b.lastWatched || b.watched || b.viewedAt || 0;
-        return new Date(dateB) - new Date(dateA);
+        return dateB - dateA; // Compare directly as timestamps
       });
       
       console.log(`Final filtered watch history: ${allWatchHistory.length} items`);
+      console.log('Movie items:', allWatchHistory.filter(item => item.type === 'movie').length);
+      console.log('TV items:', allWatchHistory.filter(item => item.type === 'show').length);
       if (allWatchHistory.length > 0) {
         console.log('Sample items:', allWatchHistory.slice(0, 2));
         return allWatchHistory;
@@ -5768,6 +5710,8 @@ export default {
 
 .recommendations {
   padding: 20px;
+  position: relative;
+  z-index: 0; /* Lower than navigation */
 }
 
 .recommendation-header {
@@ -7018,7 +6962,7 @@ select:focus {
 
 .recommendation-card.compact-mode:hover {
   transform: translateY(-3px) scale(1.02);
-  z-index: 20; /* Ensure expanded card appears above others */
+  z-index: 2; /* Ensure expanded card appears above others */
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
@@ -7529,7 +7473,7 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 5; /* Above mobile menu */
 }
 
 .modal-container {
@@ -7541,6 +7485,8 @@ select:focus {
   max-height: 90vh;
   overflow-y: auto;
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 5;
 }
 
 .modal-header {
@@ -8225,6 +8171,7 @@ body.dark-theme .info-section-title.collapsible-header:hover {
   max-width: 90%;
   width: 900px;
   max-height: 90vh;
+  z-index: 5; /* Ensure it's above the mobile menu */
 }
 
 .watch-history-section {

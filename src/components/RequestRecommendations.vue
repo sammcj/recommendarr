@@ -174,7 +174,7 @@
                     </button>
                   </div>
                   
-                  <div class="watch-history-section">
+                  <!-- <div class="watch-history-section">
                     <h3 class="info-section-title collapsible-header" @click="toggleWatchHistory">
                       Watch History
                       <span class="toggle-icon">{{ watchHistoryExpanded ? '▼' : '▶' }}</span>
@@ -191,7 +191,7 @@
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </div> -->
                 </div>
                 
                 <div class="count-selector">

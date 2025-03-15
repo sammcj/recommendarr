@@ -5441,8 +5441,7 @@ export default {
   },
   
   /* eslint-disable */
-  computed: {
-    // Watch history modal computed properties 
+  // Additional computed properties 
     filteredWatchHistory() {
       console.log('WATCH HISTORY INSPECTION - DIRECT APPROACH:');
       
@@ -5637,7 +5636,6 @@ export default {
         gap: '20px'
       };
     }
-  }
   /* eslint-enable */
 };
 </script>

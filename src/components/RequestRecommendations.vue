@@ -6379,7 +6379,6 @@ body.dark-theme .modern-slider::-moz-range-thumb {
 }
 
 body.dark-theme .genre-tag {
-  background-color: rgba(48, 65, 86, 0.25);
   border: 1px solid rgba(48, 65, 86, 0.3);
 }
 
@@ -6393,7 +6392,7 @@ body.dark-theme .genre-tag:hover {
 }
 
 .genre-tag.selected {
-  background-color: var(--button-primary-bg);
+  background-color: #163860;;
   color: white;
   border-color: var(--button-primary-bg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);

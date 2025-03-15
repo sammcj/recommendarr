@@ -2351,7 +2351,7 @@ main {
   backdrop-filter: blur(2px);
 }
 
-.jellyfin-user-modal, .tautulli-user-modal {
+.jellyfin-user-modal, .tautulli-user-modal, .plex-user-modal {
   background-color: var(--card-bg-color);
   border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
@@ -2366,6 +2366,10 @@ main {
 
 .tautulli-user-modal .modal-header {
   border-bottom: 2px solid #7c3aed; /* Tautulli purple color */
+}
+
+.plex-user-modal .modal-header {
+  border-bottom: 2px solid #e5a00d; /* Plex orange color */
 }
 
 .modal-header {
@@ -2440,6 +2444,16 @@ main {
   background-color: rgba(67, 97, 238, 0.08);
 }
 
+.plex-user-modal .user-item:hover {
+  border-color: #e5a00d;
+  background-color: rgba(229, 160, 13, 0.05);
+}
+
+.plex-user-modal .user-item.selected {
+  border-color: #e5a00d;
+  background-color: rgba(229, 160, 13, 0.1);
+}
+
 .user-name {
   font-weight: 500;
   color: var(--text-color);
@@ -2457,12 +2471,30 @@ main {
   color: var(--button-primary-text);
 }
 
+.user-badge.owner {
+  background-color: #e5a00d; /* Plex orange color */
+  color: white;
+}
+
 .modal-footer {
   padding: 15px 20px;
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.plex-user-modal .modal-footer {
+  border-top: 1px solid var(--border-color);
+}
+
+.plex-user-modal .apply-button {
+  background-color: #e5a00d;
+  color: white;
+}
+
+.plex-user-modal .apply-button:hover:not(:disabled) {
+  background-color: #c48b0b;
 }
 
 .config-navigation {

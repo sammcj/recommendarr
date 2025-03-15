@@ -451,6 +451,14 @@
                         Use only Plex history for recommendations (ignore library)
                       </label>
                     </div>
+                    
+                    <button 
+                      class="action-button plex-user-select-button"
+                      @click="$emit('openPlexUserSelect')"
+                      style="padding: 6px 12px; font-size: 13px; background-color: #E5A00D; color: white;"
+                    >
+                      Change User
+                    </button>
                   </div>
                 </div>
                 

@@ -147,6 +147,50 @@
         </div>
       </div>
       
+      <!-- User Selection Modal for Plex -->
+      <div v-if="showPlexUserSelect && plexConnected" class="modal-overlay">
+        <div class="plex-user-modal">
+          <div class="modal-header">
+            <h4>Select Plex User</h4>
+            <button class="close-button" @click="closePlexUserSelect">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="plexUsersLoading" class="loading-users">
+              <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+              </div>
+              <p>Loading users...</p>
+            </div>
+            <div v-else-if="plexUsers.length === 0" class="no-users-found">
+              <p>No users found. Please check your API token permissions.</p>
+            </div>
+            <div v-else class="users-list">
+              <button 
+                v-for="user in plexUsers" 
+                :key="user.id"
+                class="user-item"
+                :class="{ 'selected': user.id === selectedPlexUserId }"
+                @click="selectPlexUser(user)"
+              >
+                <span class="user-name">{{ user.name }}</span>
+                <span v-if="user.isAdmin" class="user-badge admin">Admin</span>
+                <span v-if="user.isOwner" class="user-badge owner">Owner</span>
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="cancel-button" @click="closePlexUserSelect">Cancel</button>
+            <button 
+              class="apply-button" 
+              @click="applyPlexUserSelection"
+              :disabled="!selectedPlexUserId"
+            >
+              Apply Selection
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" @disconnected="handleSonarrDisconnected" />
       <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" @disconnected="handleRadarrDisconnected" />
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @disconnected="handlePlexDisconnected" @limitChanged="handlePlexLimitChanged" />
@@ -179,6 +223,7 @@
           @refreshTraktHistory="fetchTraktData"
           @openJellyfinUserSelect="openJellyfinUserSelect"
           @openTautulliUserSelect="openTautulliUserSelect"
+          @openPlexUserSelect="openPlexUserSelect"
         />
         
         <RequestRecommendations 
@@ -212,6 +257,7 @@
           @refreshTraktHistory="fetchTraktData"
           @openJellyfinUserSelect="openJellyfinUserSelect"
           @openTautulliUserSelect="openTautulliUserSelect"
+          @openPlexUserSelect="openPlexUserSelect"
         />
         
         <History
@@ -308,12 +354,16 @@ export default {
       showTraktConnect: false,
       showJellyfinUserSelect: false,
       showTautulliUserSelect: false,
+      showPlexUserSelect: false,
       jellyfinUsers: [],
       jellyfinUsersLoading: false,
       tautulliUsers: [],
       tautulliUsersLoading: false,
+      plexUsers: [],
+      plexUsersLoading: false,
       selectedJellyfinUserId: '',
       selectedTautulliUserId: '',
+      selectedPlexUserId: '',
       activeTab: 'tv-recommendations',
       series: [],
       movies: [],
@@ -1298,6 +1348,50 @@ export default {
       this.fetchTautulliData(this.selectedTautulliUserId);
     },
     
+    async openPlexUserSelect() {
+      this.showPlexUserSelect = true;
+      this.plexUsersLoading = true;
+      this.plexUsers = [];
+      this.selectedPlexUserId = plexService.selectedUserId;
+      
+      try {
+        this.plexUsers = await plexService.getUsers();
+      } catch (error) {
+        console.error('Error fetching Plex users:', error);
+      } finally {
+        this.plexUsersLoading = false;
+      }
+    },
+    
+    closePlexUserSelect() {
+      this.showPlexUserSelect = false;
+    },
+    
+    selectPlexUser(user) {
+      this.selectedPlexUserId = user.id;
+    },
+    
+    async applyPlexUserSelection() {
+      if (!this.selectedPlexUserId) return;
+      
+      // Save current history limit to ensure it persists across user changes
+      localStorage.setItem('plexRecentLimit', this.plexRecentLimit.toString());
+      
+      // Update the Plex service with the new user ID
+      plexService.configure(
+        plexService.baseUrl,
+        plexService.token,
+        this.selectedPlexUserId,
+        this.plexRecentLimit
+      );
+      
+      // Close the modal
+      this.showPlexUserSelect = false;
+      
+      // Fetch updated watch history
+      this.fetchPlexData();
+    },
+    
     async checkSonarrConnection() {
       try {
         const success = await sonarrService.testConnection();
@@ -1577,7 +1671,7 @@ export default {
       }
     },
     
-    async fetchPlexData() {
+    async fetchPlexData(userId = '') {
       if (!plexService.isConfigured()) {
         return;
       }
@@ -1586,16 +1680,20 @@ export default {
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.plexHistoryMode === 'recent' ? 30 : 0;
         
+        // If a specific userId is provided, use it, otherwise use the one from the service
+        const userIdToUse = userId || plexService.selectedUserId;
+        
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([
-          plexService.getRecentlyWatchedMovies(this.plexRecentLimit, daysAgo),
-          plexService.getRecentlyWatchedShows(this.plexRecentLimit, daysAgo)
+          plexService.getRecentlyWatchedMovies(this.plexRecentLimit, daysAgo, userIdToUse),
+          plexService.getRecentlyWatchedShows(this.plexRecentLimit, daysAgo, userIdToUse)
         ]);
         
         this.recentlyWatchedMovies = moviesResponse;
         this.recentlyWatchedShows = showsResponse;
         
         console.log('Fetched Plex watch history:', {
+          userId: userIdToUse || 'none specified',
           movies: this.recentlyWatchedMovies,
           shows: this.recentlyWatchedShows
         });

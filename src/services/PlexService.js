@@ -8,6 +8,7 @@ class PlexService {
   constructor() {
     this.token = '';
     this.baseUrl = '';
+    this.selectedUserId = ''; // Add selectedUserId property
     // Load credentials when instantiated
     this.loadCredentials();
   }
@@ -20,6 +21,7 @@ class PlexService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.token = credentials.token || '';
+      this.selectedUserId = credentials.selectedUserId || '';
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
@@ -32,15 +34,18 @@ class PlexService {
    * Configure the Plex service with API details
    * @param {string} baseUrl - The base URL of your Plex instance (e.g., http://localhost:32400)
    * @param {string} token - Your Plex token
+   * @param {string} selectedUserId - The ID of the selected Plex user for watch history
    */
-  async configure(baseUrl, token, recentLimit = null) {
+  async configure(baseUrl, token, selectedUserId = '', recentLimit = null) {
     // Normalize the URL by removing trailing slashes
     this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.token = token;
+    this.selectedUserId = selectedUserId;
     
     const credentials = {
       baseUrl: this.baseUrl,
-      token: this.token
+      token: this.token,
+      selectedUserId: this.selectedUserId
     };
     
     // If recentLimit is provided, store it with the credentials
@@ -91,14 +96,159 @@ class PlexService {
       return false;
     }
   }
+  
+  /**
+   * Get list of all Plex users that have access to the server
+   * @returns {Promise<Array>} - List of Plex users
+   */
+  async getUsers() {
+    if (!this.isConfigured()) {
+      await this.loadCredentials();
+      
+      if (!this.isConfigured()) {
+        throw new Error('Plex service is not configured. Please set baseUrl and token.');
+      }
+    }
+
+    try {
+      // Get the owner/admin account info from the local server
+      const meResponse = await apiService.proxyRequest({
+        url: `${this.baseUrl}/`,
+        method: 'GET',
+        params: { 
+          'X-Plex-Token': this.token 
+        }
+      });
+      
+      let users = [];
+      let serverOwnerUsername = 'Owner';
+      
+      // Process the response to extract the server owner info
+      if (typeof meResponse.data === 'object') {
+        // JSON response
+        if (meResponse.data.MediaContainer) {
+          if (meResponse.data.MediaContainer.MyPlex) {
+            const myPlex = meResponse.data.MediaContainer.MyPlex;
+            serverOwnerUsername = myPlex.username || 'Owner';
+          }
+        }
+      } else if (typeof meResponse.data === 'string') {
+        // XML response
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(meResponse.data, "text/xml");
+        
+        const mediaContainer = xmlDoc.querySelector('MediaContainer');
+        if (mediaContainer) {
+          const myPlex = mediaContainer.querySelector('MyPlex');
+          if (myPlex) {
+            serverOwnerUsername = myPlex.getAttribute('username') || 'Owner';
+          }
+        }
+      }
+      
+      // Add the server owner/admin (special case for accountID=1)
+      users.push({
+        id: '1',
+        username: serverOwnerUsername,
+        name: serverOwnerUsername,
+        isAdmin: true,
+        isOwner: true
+      });
+      
+      // Try to find watch history from different users to identify them
+      try {
+        // First try to get history for all users which might show user-specific entries
+        const historyResponse = await apiService.proxyRequest({
+          url: `${this.baseUrl}/status/sessions/history/all`,
+          method: 'GET',
+          params: { 
+            'X-Plex-Token': this.token,
+            'sort': 'viewedAt:desc',
+            'limit': 100
+          }
+        });
+        
+        // Parse the history data to extract user information
+        const userMap = new Map();
+        
+        if (typeof historyResponse.data === 'object') {
+          // JSON response
+          if (historyResponse.data.MediaContainer && historyResponse.data.MediaContainer.Metadata) {
+            const entries = historyResponse.data.MediaContainer.Metadata;
+            
+            // Process each history entry to extract user information
+            entries.forEach(entry => {
+              if (entry.accountID && !userMap.has(entry.accountID.toString())) {
+                userMap.set(entry.accountID.toString(), {
+                  id: entry.accountID.toString(),
+                  username: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
+                  name: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
+                  isAdmin: false,
+                  isOwner: false
+                });
+              }
+            });
+          }
+        } else if (typeof historyResponse.data === 'string') {
+          // XML response
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(historyResponse.data, "text/xml");
+          
+          const metadataNodes = xmlDoc.querySelectorAll('Metadata');
+          Array.from(metadataNodes).forEach(node => {
+            const accountID = node.getAttribute('accountID');
+            const accountTitle = node.querySelector('Account')?.getAttribute('title');
+            
+            if (accountID && !userMap.has(accountID)) {
+              userMap.set(accountID, {
+                id: accountID,
+                username: accountTitle || `User ${accountID}`,
+                name: accountTitle || `User ${accountID}`,
+                isAdmin: false,
+                isOwner: false
+              });
+            }
+          });
+        }
+        
+        // Add any found users to our users array
+        userMap.forEach(user => {
+          // Skip user ID 1 which we already added as the admin
+          if (user.id !== '1') {
+            users.push(user);
+          }
+        });
+      } catch (error) {
+        console.warn('Could not fetch user information from watch history:', error);
+        // Continue with just the owner user
+      }
+      
+      // If we still only have the admin user, add a generic "All Users" option
+      if (users.length === 1) {
+        users.push({
+          id: '0',
+          username: 'All Users',
+          name: 'All Users',
+          isAdmin: false,
+          isOwner: false
+        });
+      }
+      
+      return users;
+    } catch (error) {
+      console.error('Error fetching users from Plex:', error);
+      throw error;
+    }
+  }
 
   /**
    * Get recently watched movies from Plex
    * @param {number} limit - Maximum number of items to return
    * @param {number} [daysAgo=0] - Only include movies watched within this many days (0 for all)
+   * @param {string} [userId=''] - User ID to filter history by (defaults to selectedUserId)
    * @returns {Promise<Array>} - List of recently watched movies
    */
-  async getRecentlyWatchedMovies(limit = 100, daysAgo = 0) {
+  async getRecentlyWatchedMovies(limit = 100, daysAgo = 0, userId = '') {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -109,6 +259,9 @@ class PlexService {
     }
 
     try {
+      // Use provided userId or fall back to the selectedUserId
+      const userIdToUse = userId || this.selectedUserId;
+      
       // Build params object
       const params = {
         'X-Plex-Token': this.token,
@@ -116,6 +269,11 @@ class PlexService {
         'sort': 'viewedAt:desc',
         'limit': limit
       };
+      
+      // If we have a specific user ID, add it to the request
+      if (userIdToUse) {
+        params['accountID'] = userIdToUse;
+      }
       
       // Add viewedAt filter if daysAgo is specified
       if (daysAgo > 0) {
@@ -249,9 +407,10 @@ class PlexService {
    * Get recently watched TV shows from Plex
    * @param {number} limit - Maximum number of items to return
    * @param {number} [daysAgo=0] - Only include shows watched within this many days (0 for all)
+   * @param {string} [userId=''] - User ID to filter history by (defaults to selectedUserId)
    * @returns {Promise<Array>} - List of recently watched TV shows
    */
-  async getRecentlyWatchedShows(limit = 100, daysAgo = 0) {
+  async getRecentlyWatchedShows(limit = 100, daysAgo = 0, userId = '') {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -262,6 +421,9 @@ class PlexService {
     }
 
     try {
+      // Use provided userId or fall back to the selectedUserId
+      const userIdToUse = userId || this.selectedUserId;
+      
       // Build params object
       const params = {
         'X-Plex-Token': this.token,
@@ -269,6 +431,11 @@ class PlexService {
         'sort': 'viewedAt:desc',
         'limit': limit
       };
+      
+      // If we have a specific user ID, add it to the request
+      if (userIdToUse) {
+        params['accountID'] = userIdToUse;
+      }
       
       // Add viewedAt filter if daysAgo is specified
       if (daysAgo > 0) {

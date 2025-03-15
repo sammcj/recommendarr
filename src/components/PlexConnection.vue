@@ -45,6 +45,57 @@
       <h3>Recently Watched Options</h3>
       
       <div class="form-group">
+        <label for="plexUser">User:</label>
+        
+        <div v-if="userSelectMode" class="user-selection">
+          <div v-if="loadingUsers" class="loading-users">
+            <div class="spinner"></div>
+            <span>Loading users...</span>
+          </div>
+          
+          <div v-else-if="users.length === 0" class="no-users-warning">
+            No users found. Please check your API token permissions.
+          </div>
+          
+          <div v-else class="users-list">
+            <button 
+              v-for="user in users" 
+              :key="user.id"
+              class="user-item"
+              :class="{ selected: user.id === selectedUserId }"
+              @click="selectUser(user)"
+              type="button"
+            >
+              <span class="user-name">{{ user.name }}</span>
+              <div class="user-badges">
+                <span v-if="user.id === selectedUserId" class="badge selected-badge">Selected</span>
+                <span v-if="user.isAdmin" class="badge admin-badge">Admin</span>
+                <span v-if="user.isOwner" class="badge owner-badge">Owner</span>
+              </div>
+            </button>
+          </div>
+          
+          <button type="button" class="secondary-button" @click="userSelectMode = false">
+            Cancel
+          </button>
+        </div>
+        
+        <div v-else class="manual-user-entry">
+          <div v-if="selectedUserName" class="selected-user-info">
+            <span>Current User: <strong>{{ selectedUserName }}</strong></span>
+          </div>
+          <button 
+            type="button" 
+            class="secondary-button" 
+            @click="fetchUsers" 
+            :disabled="loading"
+          >
+            Select User
+          </button>
+        </div>
+      </div>
+      
+      <div class="form-group">
         <label for="recentLimit">Number of recently watched items to include:</label>
         <div class="limit-control">
           <input 
@@ -89,7 +140,13 @@ export default {
       token: '',
       connectionStatus: null,
       connecting: false,
-      recentLimit: 50 // Default limit for recently watched items
+      recentLimit: 50, // Default limit for recently watched items
+      users: [],
+      selectedUserId: '',
+      selectedUserName: '',
+      loading: false,
+      loadingUsers: false,
+      userSelectMode: false
     };
   },
   async created() {
@@ -102,6 +159,12 @@ export default {
       // Load current values from service
       this.baseUrl = plexService.baseUrl;
       this.token = plexService.token;
+      this.selectedUserId = plexService.selectedUserId;
+      
+      // If there's a selected user ID but no name, try to find the name
+      if (this.selectedUserId && !this.selectedUserName) {
+        this.fetchUsers(true);
+      }
     }
     
     // Try to load credentials from server
@@ -111,6 +174,7 @@ export default {
         if (credentials && credentials.baseUrl && credentials.token) {
           this.baseUrl = credentials.baseUrl;
           this.token = credentials.token;
+          this.selectedUserId = credentials.selectedUserId || '';
           
           // Try to automatically connect with loaded credentials
           if (!this.connected) {
@@ -145,7 +209,7 @@ export default {
         }
         
         // Configure the service with saved details
-        await plexService.configure(this.baseUrl, this.token);
+        await plexService.configure(this.baseUrl, this.token, this.selectedUserId);
         
         // Test the connection
         const success = await plexService.testConnection();
@@ -154,6 +218,11 @@ export default {
         if (success) {
           this.connectionStatus = 'success';
           this.$emit('connected');
+          
+          // If we have a selected user ID but no name, try to find the name
+          if (this.selectedUserId && !this.selectedUserName) {
+            this.fetchUsers(true);
+          }
         } else {
           // Clear invalid credentials
           await this.clearStoredCredentials();
@@ -178,7 +247,7 @@ export default {
         }
         
         // Configure the service with provided details
-        await plexService.configure(this.baseUrl, this.token);
+        await plexService.configure(this.baseUrl, this.token, this.selectedUserId);
         
         // Test the connection
         const success = await plexService.testConnection();
@@ -189,6 +258,11 @@ export default {
         // If successful, emit event
         if (success) {
           this.$emit('connected');
+          
+          // If we have a selected user ID but no name, try to find the name
+          if (this.selectedUserId && !this.selectedUserName) {
+            this.fetchUsers(true);
+          }
         }
       } catch (error) {
         console.error('Error connecting to Plex:', error);
@@ -235,6 +309,9 @@ export default {
       this.connectionStatus = null;
       this.baseUrl = '';
       this.token = '';
+      this.selectedUserId = '';
+      this.selectedUserName = '';
+      this.users = [];
       
       // Notify parent components
       this.$emit('disconnected');
@@ -258,6 +335,42 @@ export default {
       
       localStorage.setItem('plexRecentLimit', this.recentLimit);
       this.$emit('limitChanged', this.recentLimit);
+    },
+    
+    async fetchUsers(skipToggle = false) {
+      if (!skipToggle) {
+        this.userSelectMode = true;
+      }
+      this.loadingUsers = true;
+      
+      try {
+        this.users = await plexService.getUsers();
+        
+        // If we have a selected user ID, find the corresponding name
+        if (this.selectedUserId) {
+          const selectedUser = this.users.find(user => user.id === this.selectedUserId);
+          if (selectedUser) {
+            this.selectedUserName = selectedUser.name;
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error fetching Plex users:', error);
+      } finally {
+        this.loadingUsers = false;
+      }
+    },
+    
+    async selectUser(user) {
+      this.selectedUserId = user.id;
+      this.selectedUserName = user.name;
+      this.userSelectMode = false;
+      
+      // Update the service with the selected user
+      await plexService.configure(this.baseUrl, this.token, this.selectedUserId, this.recentLimit);
+      
+      // Notify parent that a user was selected
+      this.$emit('userSelected', user.id);
     }
   }
 };
@@ -423,5 +536,113 @@ button:disabled {
 .disconnect-btn:hover {
   background-color: #d32f2f;
   filter: brightness(1.1);
+}
+
+/* User selection styling */
+.user-selection {
+  margin-top: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.loading-users {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: var(--button-primary-bg);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 10px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.no-users-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.users-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.user-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 5px;
+  text-align: left;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.user-item:hover {
+  border-color: var(--button-primary-bg);
+}
+
+.user-item.selected {
+  border-color: #4caf50;
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.user-badges {
+  display: flex;
+  gap: 5px;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 3px 6px;
+  border-radius: 10px;
+}
+
+.selected-badge {
+  background-color: #4caf50;
+  color: white;
+}
+
+.admin-badge {
+  background-color: #6c757d;
+  color: white;
+}
+
+.owner-badge {
+  background-color: #3f51b5;
+  color: white;
+}
+
+.secondary-button {
+  background-color: #6c757d;
+  color: white;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.selected-user-info {
+  margin-bottom: 10px;
+  padding: 8px;
+  background-color: var(--input-bg);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
 }
 </style>

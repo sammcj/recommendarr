@@ -155,56 +155,53 @@ class PlexService {
         isOwner: true
       });
       
-      // Try to find watch history from different users to identify them
+      // Get users from the accounts endpoint
       try {
-        // First try to get history for all users which might show user-specific entries
-        const historyResponse = await apiService.proxyRequest({
-          url: `${this.baseUrl}/status/sessions/history/all`,
+        const accountsResponse = await apiService.proxyRequest({
+          url: `${this.baseUrl}/accounts`,
           method: 'GET',
           params: { 
-            'X-Plex-Token': this.token,
-            'sort': 'viewedAt:desc',
-            'limit': 100
+            'X-Plex-Token': this.token
           }
         });
         
-        // Parse the history data to extract user information
         const userMap = new Map();
         
-        if (typeof historyResponse.data === 'object') {
+        if (typeof accountsResponse.data === 'object') {
           // JSON response
-          if (historyResponse.data.MediaContainer && historyResponse.data.MediaContainer.Metadata) {
-            const entries = historyResponse.data.MediaContainer.Metadata;
+          if (accountsResponse.data.MediaContainer && accountsResponse.data.MediaContainer.Account) {
+            const accounts = accountsResponse.data.MediaContainer.Account;
             
-            // Process each history entry to extract user information
-            entries.forEach(entry => {
-              if (entry.accountID && !userMap.has(entry.accountID.toString())) {
-                userMap.set(entry.accountID.toString(), {
-                  id: entry.accountID.toString(),
-                  username: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
-                  name: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
-                  isAdmin: false,
+            // Process each account to extract user information
+            accounts.forEach(account => {
+              if (account.id && !userMap.has(account.id.toString())) {
+                userMap.set(account.id.toString(), {
+                  id: account.id.toString(),
+                  username: account.name || account.title || `User ${account.id}`,
+                  name: account.name || account.title || `User ${account.id}`,
+                  isAdmin: account.roles && account.roles.includes('admin'),
                   isOwner: false
                 });
               }
             });
           }
-        } else if (typeof historyResponse.data === 'string') {
+        } else if (typeof accountsResponse.data === 'string') {
           // XML response
           const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(historyResponse.data, "text/xml");
+          const xmlDoc = parser.parseFromString(accountsResponse.data, "text/xml");
           
-          const metadataNodes = xmlDoc.querySelectorAll('Metadata');
-          Array.from(metadataNodes).forEach(node => {
-            const accountID = node.getAttribute('accountID');
-            const accountTitle = node.querySelector('Account')?.getAttribute('title');
+          const accountNodes = xmlDoc.querySelectorAll('Account');
+          Array.from(accountNodes).forEach(node => {
+            const accountID = node.getAttribute('id');
+            const name = node.getAttribute('name') || node.getAttribute('title');
+            const roles = node.getAttribute('roles') || '';
             
             if (accountID && !userMap.has(accountID)) {
               userMap.set(accountID, {
                 id: accountID,
-                username: accountTitle || `User ${accountID}`,
-                name: accountTitle || `User ${accountID}`,
-                isAdmin: false,
+                username: name || `User ${accountID}`,
+                name: name || `User ${accountID}`,
+                isAdmin: roles.includes('admin'),
                 isOwner: false
               });
             }
@@ -219,8 +216,75 @@ class PlexService {
           }
         });
       } catch (error) {
-        console.warn('Could not fetch user information from watch history:', error);
-        // Continue with just the owner user
+        console.warn('Could not fetch user information from accounts endpoint:', error);
+        
+        // Fall back to trying to find users from watch history
+        try {
+          // Try to get history for all users which might show user-specific entries
+          const historyResponse = await apiService.proxyRequest({
+            url: `${this.baseUrl}/status/sessions/history/all`,
+            method: 'GET',
+            params: { 
+              'X-Plex-Token': this.token,
+              'sort': 'viewedAt:desc',
+              'limit': 100
+            }
+          });
+          
+          // Parse the history data to extract user information
+          const userMap = new Map();
+          
+          if (typeof historyResponse.data === 'object') {
+            // JSON response
+            if (historyResponse.data.MediaContainer && historyResponse.data.MediaContainer.Metadata) {
+              const entries = historyResponse.data.MediaContainer.Metadata;
+              
+              // Process each history entry to extract user information
+              entries.forEach(entry => {
+                if (entry.accountID && !userMap.has(entry.accountID.toString())) {
+                  userMap.set(entry.accountID.toString(), {
+                    id: entry.accountID.toString(),
+                    username: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
+                    name: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
+                    isAdmin: false,
+                    isOwner: false
+                  });
+                }
+              });
+            }
+          } else if (typeof historyResponse.data === 'string') {
+            // XML response
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(historyResponse.data, "text/xml");
+            
+            const metadataNodes = xmlDoc.querySelectorAll('Metadata');
+            Array.from(metadataNodes).forEach(node => {
+              const accountID = node.getAttribute('accountID');
+              const accountTitle = node.querySelector('Account')?.getAttribute('title');
+              
+              if (accountID && !userMap.has(accountID)) {
+                userMap.set(accountID, {
+                  id: accountID,
+                  username: accountTitle || `User ${accountID}`,
+                  name: accountTitle || `User ${accountID}`,
+                  isAdmin: false,
+                  isOwner: false
+                });
+              }
+            });
+          }
+          
+          // Add any found users to our users array
+          userMap.forEach(user => {
+            // Skip user ID 1 which we already added as the admin
+            if (user.id !== '1') {
+              users.push(user);
+            }
+          });
+        } catch (historyError) {
+          console.warn('Could not fetch user information from watch history:', historyError);
+          // Continue with just the owner user
+        }
       }
       
       // If we still only have the admin user, add a generic "All Users" option

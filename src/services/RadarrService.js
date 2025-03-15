@@ -254,13 +254,41 @@ class RadarrService {
   }
 
   /**
+   * Get all available tags from Radarr
+   * @returns {Promise<Array>} - List of tags
+   */
+  async getTags() {
+    try {
+      return await this._apiRequest('/api/v3/tag');
+    } catch (error) {
+      console.error('Error fetching tags from Radarr:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new tag in Radarr
+   * @param {string} label - The tag label/name
+   * @returns {Promise<Object>} - The created tag object
+   */
+  async createTag(label) {
+    try {
+      return await this._apiRequest('/api/v3/tag', 'POST', { label });
+    } catch (error) {
+      console.error(`Error creating tag "${label}" in Radarr:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Add a movie to Radarr
    * @param {string} title - The movie title to search for
    * @param {number} [qualityProfileId] - Quality profile ID to use (optional)
    * @param {string} [rootFolderPath] - Root folder path to use (optional)
+   * @param {Array<number>} [tags] - Array of tag IDs to apply (optional)
    * @returns {Promise<Object>} - The added movie object
    */
-  async addMovie(title, qualityProfileId = null, rootFolderPath = null) {
+  async addMovie(title, qualityProfileId = null, rootFolderPath = null, tags = []) {
     try {
       // 1. Look up the movie to get details
       const cleanTitle = title.trim();
@@ -298,6 +326,7 @@ class RadarrService {
         qualityProfileId: selectedQualityProfileId,
         rootFolderPath: selectedRootFolderPath,
         monitored: true,
+        tags: tags, // Add the tags array
         addOptions: {
           searchForMovie: true
         }

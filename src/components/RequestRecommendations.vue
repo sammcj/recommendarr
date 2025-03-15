@@ -1068,6 +1068,38 @@
                   </option>
                 </select>
               </div>
+              
+              <div class="setting-item tags-section">
+                <label>Tags:</label>
+                <div class="tags-container">
+                  <div v-for="tag in availableTags.sonarr" :key="tag.id" class="tag-item">
+                    <label class="tag-checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        :value="tag.id" 
+                        v-model="selectedTags.sonarr"
+                      >
+                      {{ tag.label }}
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="new-tag-input">
+                  <input 
+                    type="text" 
+                    v-model="tagInput" 
+                    placeholder="Create new tag..." 
+                    @keyup.enter="createSonarrTag(tagInput).then(() => { tagInput = ''; })"
+                  >
+                  <button 
+                    @click="createSonarrTag(tagInput).then(() => { tagInput = ''; })"
+                    :disabled="!tagInput.trim()"
+                    class="tag-add-button"
+                  >
+                    Add Tag
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1131,6 +1163,38 @@
                     {{ profile.name }}
                   </option>
                 </select>
+              </div>
+              
+              <div class="setting-item tags-section">
+                <label>Tags:</label>
+                <div class="tags-container">
+                  <div v-for="tag in availableTags.radarr" :key="tag.id" class="tag-item">
+                    <label class="tag-checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        :value="tag.id" 
+                        v-model="selectedTags.radarr"
+                      >
+                      {{ tag.label }}
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="new-tag-input">
+                  <input 
+                    type="text" 
+                    v-model="tagInput" 
+                    placeholder="Create new tag..." 
+                    @keyup.enter="createRadarrTag(tagInput).then(() => { tagInput = ''; })"
+                  >
+                  <button 
+                    @click="createRadarrTag(tagInput).then(() => { tagInput = ''; })"
+                    :disabled="!tagInput.trim()"
+                    class="tag-add-button"
+                  >
+                    Add Tag
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1531,6 +1595,21 @@ export default {
       selectedRootFolder: null, // Selected root folder for series
       selectedQualityProfile: null, // Selected quality profile for series
       loadingFolders: false, // Loading status for folders
+      
+      // Tags for Radarr and Sonarr
+      availableTags: {
+        radarr: [],
+        sonarr: []
+      },
+      selectedTags: {
+        radarr: [],
+        sonarr: []
+      },
+      tagInput: '',
+      loadingTags: {
+        radarr: false,
+        sonarr: false
+      },
       funLoadingMessages: [
         "Consulting with TV critics from alternate dimensions...",
         "Analyzing your taste in shows (don't worry, we won't judge)...",
@@ -1875,10 +1954,92 @@ export default {
     // Note: The saveColumnsCount method already exists elsewhere in this file
     
     
+    // Tag-related methods
+    async loadRadarrTags() {
+      if (!radarrService.isConfigured() || this.loadingTags.radarr) {
+        return;
+      }
+      
+      this.loadingTags.radarr = true;
+      
+      try {
+        const tags = await radarrService.getTags();
+        this.availableTags.radarr = tags || [];
+        console.log('Loaded Radarr tags:', this.availableTags.radarr);
+      } catch (error) {
+        console.error('Error loading Radarr tags:', error);
+      } finally {
+        this.loadingTags.radarr = false;
+      }
+    },
+    
+    async loadSonarrTags() {
+      if (!sonarrService.isConfigured() || this.loadingTags.sonarr) {
+        return;
+      }
+      
+      this.loadingTags.sonarr = true;
+      
+      try {
+        const tags = await sonarrService.getTags();
+        this.availableTags.sonarr = tags || [];
+        console.log('Loaded Sonarr tags:', this.availableTags.sonarr);
+      } catch (error) {
+        console.error('Error loading Sonarr tags:', error);
+      } finally {
+        this.loadingTags.sonarr = false;
+      }
+    },
+    
+    async createRadarrTag(label) {
+      if (!label || !radarrService.isConfigured()) {
+        return null;
+      }
+      
+      try {
+        const newTag = await radarrService.createTag(label);
+        if (newTag && newTag.id) {
+          this.availableTags.radarr = [...this.availableTags.radarr, newTag];
+          return newTag;
+        }
+        return null;
+      } catch (error) {
+        console.error(`Error creating Radarr tag "${label}":`, error);
+        return null;
+      }
+    },
+    
+    async createSonarrTag(label) {
+      if (!label || !sonarrService.isConfigured()) {
+        return null;
+      }
+      
+      try {
+        const newTag = await sonarrService.createTag(label);
+        if (newTag && newTag.id) {
+          this.availableTags.sonarr = [...this.availableTags.sonarr, newTag];
+          return newTag;
+        }
+        return null;
+      } catch (error) {
+        console.error(`Error creating Sonarr tag "${label}":`, error);
+        return null;
+      }
+    },
+    
     // Mounted and Destroyed lifecycle hooks
     mounted() {
       // Add window resize event listener for compact mode calculations
       window.addEventListener('resize', this.handleWindowResize);
+      
+      // Load available tags if services are configured
+      if (radarrService.isConfigured()) {
+        this.loadRadarrTags();
+      }
+      
+      if (sonarrService.isConfigured()) {
+        this.loadSonarrTags();
+      }
       
       // Debug watch history directly
       console.log('MOUNTED HOOK - DIRECT INSPECTION:');
@@ -4300,6 +4461,13 @@ export default {
         if (this.currentSeries.seasons.length > 0) {
           const season1 = this.currentSeries.seasons.find(s => s.seasonNumber === 1);
           this.selectedSeasons = season1 ? [1] : [this.currentSeries.seasons[0].seasonNumber];
+          
+          // Reset tag selection
+          this.selectedTags.sonarr = [];
+          this.tagInput = '';
+          
+          // Reload tags
+          this.loadSonarrTags();
         } else {
           this.selectedSeasons = [];
         }
@@ -4420,7 +4588,8 @@ export default {
             this.currentSeries.title,
             null, // Null indicates all seasons should be monitored
             this.selectedQualityProfile,
-            this.selectedRootFolder
+            this.selectedRootFolder,
+            this.selectedTags.sonarr
           );
           
           // Store success response
@@ -4435,7 +4604,8 @@ export default {
             this.currentSeries.title, 
             this.selectedSeasons,
             this.selectedQualityProfile,
-            this.selectedRootFolder
+            this.selectedRootFolder,
+            this.selectedTags.sonarr
           );
           
           // Store success response
@@ -4540,6 +4710,13 @@ export default {
           if (qualityProfiles.length > 0) {
             this.selectedMovieQualityProfile = qualityProfiles[0].id;
           }
+          
+          // Reset tag selection
+          this.selectedTags.radarr = [];
+          this.tagInput = '';
+          
+          // Load tags
+          this.loadRadarrTags();
         } finally {
           this.loadingMovieFolders = false;
         }
@@ -4595,7 +4772,8 @@ export default {
         const response = await radarrService.addMovie(
           this.currentMovie.title,
           this.selectedMovieQualityProfile,
-          this.selectedMovieRootFolder
+          this.selectedMovieRootFolder,
+          this.selectedTags.radarr
         );
         
         // Store success response
@@ -5508,6 +5686,15 @@ export default {
       // Ensure filteredWatchHistory exists or use empty array
       const watchHistory = this.filteredWatchHistory || [];
       return Math.max(1, Math.ceil(watchHistory.length / this.historyItemsPerPage));
+    },
+    
+    // Grid style based on the number of columns
+    gridStyle() {
+      return {
+        display: 'grid',
+        gridTemplateColumns: `repeat(${this.columnsCount}, 1fr)`,
+        gap: '20px'
+      };
     }
   }
   /* eslint-enable */
@@ -5515,6 +5702,70 @@ export default {
 </script>
 
 <style scoped>
+/* Tags Styling */
+.tags-section {
+  flex-direction: column;
+  width: 100%;
+  margin-top: 15px;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--card-bg-color);
+}
+
+.tag-item {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.tag-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.new-tag-input {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.new-tag-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--input-bg-color);
+  color: var(--text-color);
+}
+
+.tag-add-button {
+  padding: 8px 12px;
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tag-add-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .recommendations {
   padding: 20px;
 }

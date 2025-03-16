@@ -415,8 +415,22 @@ export default {
         
         // Sync selectedUserId from services
         this.selectedPlexUserId = plexService.selectedUserId;
-        this.selectedJellyfinUserId = jellyfinService.userId;
-        this.selectedTautulliUserId = tautulliService.selectedUserId;
+        
+        // For Jellyfin, try localStorage first, then fall back to service
+        const savedJellyfinUserId = localStorage.getItem('selectedJellyfinUserId');
+        if (savedJellyfinUserId) {
+          this.selectedJellyfinUserId = savedJellyfinUserId;
+          console.log(`Loaded Jellyfin user ID from localStorage: ${savedJellyfinUserId}`);
+        } else {
+          this.selectedJellyfinUserId = jellyfinService.userId;
+        }
+        
+        // For Tautulli, we need to load from localStorage since it's not stored in the service
+        const savedTautulliUserId = localStorage.getItem('selectedTautulliUserId');
+        if (savedTautulliUserId) {
+          this.selectedTautulliUserId = savedTautulliUserId;
+          console.log(`Loaded Tautulli user ID from localStorage: ${savedTautulliUserId}`);
+        }
 
         // After connections are established, fetch and store watch history
         if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
@@ -1070,10 +1084,14 @@ export default {
               // Update the component's state with the user ID from credentials
               this.selectedJellyfinUserId = credentials.userId || '';
               
+              // Save the userId to localStorage for extra persistence
+              localStorage.setItem('selectedJellyfinUserId', this.selectedJellyfinUserId);
+              
               const result = await jellyfinService.testConnection();
               if (result.success) {
                 this.jellyfinConnected = true;
                 // Pass the userId explicitly to ensure it's used
+                console.log(`Using Jellyfin user ID from credentials: ${this.selectedJellyfinUserId}`);
                 this.fetchJellyfinData(this.selectedJellyfinUserId);
               }
             }
@@ -1302,7 +1320,16 @@ export default {
       this.showJellyfinUserSelect = true;
       this.jellyfinUsersLoading = true;
       this.jellyfinUsers = [];
-      this.selectedJellyfinUserId = jellyfinService.userId;
+      
+      // Try to load the user ID from localStorage first (for extra persistence)
+      const savedUserId = localStorage.getItem('selectedJellyfinUserId');
+      if (savedUserId) {
+        this.selectedJellyfinUserId = savedUserId;
+        console.log(`Loaded Jellyfin user ID from localStorage: ${savedUserId}`);
+      } else {
+        // Fall back to the service's stored user ID
+        this.selectedJellyfinUserId = jellyfinService.userId;
+      }
       
       try {
         this.jellyfinUsers = await jellyfinService.getUsers();
@@ -1319,26 +1346,36 @@ export default {
     
     selectJellyfinUser(user) {
       this.selectedJellyfinUserId = user.id;
+      // Also store the selection in localStorage for extra safety
+      localStorage.setItem('selectedJellyfinUserId', user.id);
     },
     
     async applyJellyfinUserSelection() {
-      if (!this.selectedJellyfinUserId) return;
+      // Validate the user ID
+      if (!this.selectedJellyfinUserId) {
+        console.error('No Jellyfin user ID selected. Jellyfin requires a user ID for watch history.');
+        return;
+      }
       
       // Save current history limit to ensure it persists across user changes
       localStorage.setItem('jellyfinHistoryLimit', this.jellyfinRecentLimit.toString());
+      // Always persist the user ID selection to localStorage
+      localStorage.setItem('selectedJellyfinUserId', this.selectedJellyfinUserId);
       
       // Update the Jellyfin service with the new user ID
-      jellyfinService.configure(
+      await jellyfinService.configure(
         jellyfinService.baseUrl,
         jellyfinService.apiKey,
-        this.selectedJellyfinUserId
+        this.selectedJellyfinUserId,
+        this.jellyfinRecentLimit
       );
       
       // Close the modal
       this.showJellyfinUserSelect = false;
       
-      // Fetch updated watch history
-      this.fetchJellyfinData();
+      // Fetch updated watch history with the explicitly selected user ID
+      console.log(`Applying Jellyfin user selection: ${this.selectedJellyfinUserId}`);
+      this.fetchJellyfinData(this.selectedJellyfinUserId);
     },
     
     async openTautulliUserSelect() {
@@ -1365,19 +1402,25 @@ export default {
     
     selectTautulliUser(user) {
       this.selectedTautulliUserId = user.user_id;
+      // Store the selection immediately to ensure it's available on page reload
+      localStorage.setItem('selectedTautulliUserId', user.user_id);
     },
     
     applyTautulliUserSelection() {
-      if (!this.selectedTautulliUserId) return;
-      
       // Save current history limit to ensure it persists
       localStorage.setItem('tautulliRecentLimit', this.tautulliRecentLimit.toString());
+      
+      // Always persist the user ID selection to localStorage
+      localStorage.setItem('selectedTautulliUserId', this.selectedTautulliUserId || '');
       
       // Close the modal
       this.showTautulliUserSelect = false;
       
       // Fetch updated watch history with the new user filter
-      this.fetchTautulliData(this.selectedTautulliUserId);
+      // If selectedTautulliUserId is empty, pass null to indicate "all users"
+      const userId = this.selectedTautulliUserId ? this.selectedTautulliUserId : null;
+      console.log(`Applying Tautulli user selection: ${userId || 'all users'}`);
+      this.fetchTautulliData(userId);
     },
     
     async openPlexUserSelect() {
@@ -1768,11 +1811,32 @@ export default {
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.jellyfinHistoryMode === 'recent' ? 30 : 0;
         
-        // Use passed userId, component state, or service value in that order
-        const userIdToUse = userId || this.selectedJellyfinUserId || jellyfinService.userId;
+        // Use passed userId or component state in that order
+        let userIdToUse = '';
+        
+        // If userId parameter is provided and not empty, use it
+        if (userId !== null && userId !== undefined && userId !== '') {
+          userIdToUse = userId;
+        } 
+        // Otherwise use the component's stored ID if it's not empty
+        else if (this.selectedJellyfinUserId && this.selectedJellyfinUserId !== '') {
+          userIdToUse = this.selectedJellyfinUserId;
+        }
+        // Finally fall back to the service's userId
+        else if (jellyfinService.userId && jellyfinService.userId !== '') {
+          userIdToUse = jellyfinService.userId;
+        }
+        
+        // If we still don't have a valid user ID, log an error
+        if (!userIdToUse) {
+          console.error('No valid Jellyfin user ID found. Jellyfin requires a user ID for watch history.');
+          return;
+        }
+        
+        console.log(`Fetching Jellyfin history with user ID: ${userIdToUse}`);
         
         // Always ensure jellyfinService has the updated userId for future calls
-        if (userIdToUse && userIdToUse !== jellyfinService.userId) {
+        if (userIdToUse !== jellyfinService.userId) {
           console.log(`Updating jellyfinService.userId to ${userIdToUse}`);
           await jellyfinService.configure(
             jellyfinService.baseUrl,
@@ -1792,9 +1856,9 @@ export default {
         this.jellyfinRecentlyWatchedShows = showsResponse;
         
         console.log('Fetched Jellyfin watch history:', {
-          userId: userIdToUse || 'none specified',
-          movies: this.jellyfinRecentlyWatchedMovies,
-          shows: this.jellyfinRecentlyWatchedShows
+          userId: userIdToUse,
+          movies: this.jellyfinRecentlyWatchedMovies.length,
+          shows: this.jellyfinRecentlyWatchedShows.length
         });
       } catch (error) {
         console.error('Failed to fetch Jellyfin watch history:', error);
@@ -1811,13 +1875,25 @@ export default {
         const daysAgo = this.tautulliHistoryMode === 'recent' ? 30 : 0;
         
         // Use passed userId or component state in that order
-        const userIdToUse = userId !== null ? userId : this.selectedTautulliUserId;
+        // Note: null/undefined/empty string should all mean "no user filter" (all users)
+        let userIdToUse = null;
+        
+        // If userId parameter is provided and not empty, use it
+        if (userId !== null && userId !== undefined && userId !== '') {
+          userIdToUse = userId;
+        } 
+        // Otherwise use the component's stored ID if it's not empty
+        else if (this.selectedTautulliUserId && this.selectedTautulliUserId !== '') {
+          userIdToUse = this.selectedTautulliUserId;
+        }
         
         // Store the selected user ID in component state for future use
         if (userIdToUse && userIdToUse !== this.selectedTautulliUserId) {
           this.selectedTautulliUserId = userIdToUse;
           localStorage.setItem('selectedTautulliUserId', userIdToUse);
         }
+        
+        console.log(`Fetching Tautulli history with user ID: ${userIdToUse || 'all users'}`);
         
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([

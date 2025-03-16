@@ -166,9 +166,12 @@ class TautulliService {
         length: limit
       };
       
-      // If userId is provided, filter by that user
-      if (userId) {
+      // If userId is provided and not empty string, filter by that user
+      if (userId !== null && userId !== undefined && userId !== '') {
+        console.log(`Filtering Tautulli history by user_id: ${userId}`);
         params.user_id = userId;
+      } else {
+        console.log('No user_id filter applied to Tautulli history (showing all users)');
       }
       
       // Filter by media type if provided (movie or episode)

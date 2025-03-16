@@ -1161,6 +1161,7 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of additional recommended TV shows
    */
   async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
+    console.log(`getAdditionalTVRecommendations called with: ${libraryItems.length} library items, ${likedItems.length} liked items, ${dislikedItems.length} disliked items, ${previousRecommendations.length} previous recommendations`);
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -1235,6 +1236,7 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of additional recommended movies
    */
   async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
+    console.log(`getAdditionalMovieRecommendations called with: ${libraryItems.length} library items, ${likedItems.length} liked items, ${dislikedItems.length} disliked items, ${previousRecommendations.length} previous recommendations`);
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -2014,10 +2016,26 @@ CRITICAL REQUIREMENTS:
         }
       }
       
-      // Then check other exclusion lists
-      for (const existingTitle of [...likedTitles, ...dislikedTitles, ...previousRecTitles]) {
+      // Then check liked items specifically (these should be excluded)
+      for (const existingTitle of likedTitles) {
         if (this.areTitlesSimilar(title, existingTitle)) {
-          console.log(`Recommendation "${title}" filtered out - similar to existing "${existingTitle}"`);
+          console.log(`Recommendation "${title}" filtered out - matches LIKED item "${existingTitle}"`);
+          return false;
+        }
+      }
+      
+      // Then check disliked items
+      for (const existingTitle of dislikedTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - matches DISLIKED item "${existingTitle}"`);
+          return false;
+        }
+      }
+      
+      // Finally check previous recommendations
+      for (const existingTitle of previousRecTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - matches PREVIOUS rec "${existingTitle}"`);
           return false;
         }
       }

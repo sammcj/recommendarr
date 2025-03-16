@@ -4185,7 +4185,7 @@ export default {
             genreString,
             this.customVibe,
             this.selectedLanguage,
-            this.userMovies,
+            this.localMovies, // Use localMovies same as initial request
             this.likedRecommendations,
             this.dislikedRecommendations
           );
@@ -4197,7 +4197,7 @@ export default {
             genreString,
             this.customVibe,
             this.selectedLanguage,
-            this.userShows,
+            this.series, // Use series same as initial request
             this.likedRecommendations,
             this.dislikedRecommendations
           );

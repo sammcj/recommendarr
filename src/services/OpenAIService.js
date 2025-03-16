@@ -661,13 +661,13 @@ class OpenAIService {
     try {
       // Only initialize conversation history if it doesn't exist yet
       if (this.tvConversation.length === 0) {
-      
-      // Determine if we should use only watch history or include the library
-      let sourceText;
-      let primarySource = [];
-      let libraryTitles = '';
-      
-      if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+        
+        // Determine if we should use only watch history or include the library
+        let sourceText;
+        let primarySource = [];
+        let libraryTitles = '';
+        
+        if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
         // Only use the watch history
         sourceText = "my watch history";
         primarySource = recentlyWatchedShows.map(show => show.title);
@@ -777,32 +777,42 @@ class OpenAIService {
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.`;
       
-      // Include detailed formatting instructions if structured output is disabled
-      if (!this.useStructuredOutput) {
-        userPrompt += `
+      // Always include JSON formatting instructions regardless of structured output mode
+      userPrompt += `
 
-⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT JSON FORMAT WITHOUT ANY DEVIATION ⚠️
 
 The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
 
-1. [Show Title]: 
-Description: [brief description] 
-Why you might like it: [short reason based on my current shows] 
-Recommendarr Rating: [score]% - [brief qualitative assessment]
-Available on: [streaming service]
-
-2. [Next Show Title]:
-...and so on.
+\`\`\`json
+{
+  "recommendations": [
+    {
+      "title": "Show Title",
+      "description": "Brief description of the show",
+      "reasoning": "Short reason why I might like it based on my current shows",
+      "rating": "85% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    },
+    {
+      "title": "Another Show Title",
+      "description": "Brief description of the show",
+      "reasoning": "Short reason why I might like it based on my current shows",
+      "rating": "90% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    }
+    // Additional recommendations...
+  ]
+}
+\`\`\`
 
 ⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
-- Follow this output format with ABSOLUTE PRECISION 
-- Do NOT add ANY extra text, headings, introductions, or conclusions
-- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per show
-- Do NOT use Markdown formatting like bold or italics
-- Do NOT deviate from the format structure in ANY way
+- Format must be valid, parseable JSON
+- Response must be ONLY the JSON object with no additional text before or after
+- Each show must include all five properties: title, description, reasoning, rating, and streaming
+- NO Markdown formatting inside the JSON values
 - NEVER recommend any show in my library, liked shows list, or any exclusion list
-- Begin IMMEDIATELY with "1. [Show Title]:" with NO preamble`;
-      }
+- DO NOT include any introductory or concluding text outside the JSON object`;
       
       userPrompt += `
 
@@ -823,10 +833,8 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any show in my library, liked shows list, or any exclusion list
 - For each show, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-      // Initialize conversation with system message with appropriate formatting based on structured output setting
-      const systemContent = this.useStructuredOutput
-        ? "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO extra text, introductions or conclusions\n5. DO NOT use markdown formatting or styling in your outputs\n6. For each show, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
-        : "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
+      // Use the same JSON-focused system message regardless of the useStructuredOutput setting
+      const systemContent = "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. ALWAYS respond using the exact JSON structure specified\n5. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n6. NO extra text, introductions or conclusions outside the JSON structure\n7. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
       
       this.tvConversation = [
         {
@@ -1019,32 +1027,42 @@ CRITICAL REQUIREMENTS:
 
         userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.`;
 
-        // Include detailed formatting instructions if structured output is disabled
-        if (!this.useStructuredOutput) {
-          userPrompt += `
+        // Always include JSON formatting instructions regardless of structured output mode
+        userPrompt += `
 
-⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT JSON FORMAT WITHOUT ANY DEVIATION ⚠️
 
 The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
 
-1. [Movie Title]: 
-Description: [brief description] 
-Why you might like it: [short reason based on my current movies] 
-Recommendarr Rating: [score]% - [brief qualitative assessment]
-Available on: [streaming service]
-
-2. [Next Movie Title]:
-...and so on.
+\`\`\`json
+{
+  "recommendations": [
+    {
+      "title": "Movie Title",
+      "description": "Brief description of the movie",
+      "reasoning": "Short reason why I might like it based on my current movies",
+      "rating": "85% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    },
+    {
+      "title": "Another Movie Title",
+      "description": "Brief description of the movie",
+      "reasoning": "Short reason why I might like it based on my current movies",
+      "rating": "90% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    }
+    // Additional recommendations...
+  ]
+}
+\`\`\`
 
 ⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
-- Follow this output format with ABSOLUTE PRECISION 
-- Do NOT add ANY extra text, headings, introductions, or conclusions
-- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per movie
-- Do NOT use Markdown formatting like bold or italics
-- Do NOT deviate from the format structure in ANY way
+- Format must be valid, parseable JSON
+- Response must be ONLY the JSON object with no additional text before or after
+- Each movie must include all five properties: title, description, reasoning, rating, and streaming
+- NO Markdown formatting inside the JSON values
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list
-- Begin IMMEDIATELY with "1. [Movie Title]:" with NO preamble`;
-        }
+- DO NOT include any introductory or concluding text outside the JSON object`;
 
         userPrompt += `
 
@@ -1065,10 +1083,8 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list
 - For each movie, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-        // Initialize conversation with system message with appropriate formatting based on structured output setting
-        const systemContent = this.useStructuredOutput
-          ? "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO extra text, introductions or conclusions\n5. DO NOT use markdown formatting or styling in your outputs\n6. For each movie, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
-          : "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
+        // Use the same JSON-focused system message regardless of the useStructuredOutput setting
+        const systemContent = "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. ALWAYS respond using the exact JSON structure specified\n5. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n6. NO extra text, introductions or conclusions outside the JSON structure\n7. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
 
         this.movieConversation = [
           {

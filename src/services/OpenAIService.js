@@ -2061,6 +2061,20 @@ CRITICAL REQUIREMENTS:
           }
         }
         
+        // Properly extract movie/show title from formatted labels
+        // Handle the specific case where title is "Movie Title" or "TV Show" label
+        if (title.toLowerCase() === "movie title" || title.toLowerCase() === "tv show") {
+          // Try to extract the actual title from the beginning of the details
+          const firstLineBreak = details.indexOf('\n');
+          if (firstLineBreak > 0) {
+            const actualTitle = details.substring(0, firstLineBreak).trim();
+            if (actualTitle.length > 0 && actualTitle.length < 100) {
+              title = actualTitle;
+              details = details.substring(firstLineBreak + 1).trim();
+            }
+          }
+        }
+        
         // Check if this title is a duplicate (case-insensitive)
         const titleLower = title.toLowerCase();
         if (seenTitles.has(titleLower)) {

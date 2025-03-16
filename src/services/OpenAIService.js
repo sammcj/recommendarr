@@ -2003,11 +2003,19 @@ CRITICAL REQUIREMENTS:
     const filteredRecommendations = recommendations.filter(rec => {
       const title = rec.title;
       
-      // Debug the recommendation being checked
-      // console.log(`Checking recommendation: "${title}"`);
+      // Enhanced debugging of the recommendation being checked
+      console.log(`Verifying recommendation: "${title}" against ${libraryTitles.length} library items, ${allExistingTitles.length} total items`);
       
-      // Check against all existing titles
-      for (const existingTitle of allExistingTitles) {
+      // First check library items (priority and most important)
+      for (const existingTitle of libraryTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - LIBRARY MATCH to "${existingTitle}"`);
+          return false;
+        }
+      }
+      
+      // Then check other exclusion lists
+      for (const existingTitle of [...likedTitles, ...dislikedTitles, ...previousRecTitles]) {
         if (this.areTitlesSimilar(title, existingTitle)) {
           console.log(`Recommendation "${title}" filtered out - similar to existing "${existingTitle}"`);
           return false;

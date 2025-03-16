@@ -938,16 +938,7 @@ CRITICAL REQUIREMENTS:
         sourceText = "my movie library";
         const radarrTitles = movies.map(movie => movie.title);
         primarySource = [...radarrTitles];
-        
-        // We don't add liked recommendations to the primary source anymore,
-        // as they will be filtered later. This ensures liked items won't be
-        // recommended again, even if they're not part of the actual library.
       }
-      
-      // Create combined exclusion list (everything that shouldn't be recommended)
-      // We're not adding the library titles to the exclusion list to save tokens
-      // For the sampled approach, we're betting on the AI being smart enough to avoid recommending library items
-      // even without an explicit exclusion list
       
       // Determine if we're using the full library or sampled approach
       if (this.useSampledLibrary) {
@@ -1892,70 +1883,127 @@ CRITICAL REQUIREMENTS:
    * @param {Array} previousRecommendations - List of previously recommended items
    * @returns {Array} - Filtered list of recommendations
    */
+  /**
+   * Helper function to normalize titles for comparison
+   * @param {string} title - The title to normalize
+   * @returns {string} - Normalized title
+   */
+  normalizeTitleForComparison(title) {
+    if (!title) return '';
+    
+    // Convert to lowercase and trim
+    let normalized = title.toLowerCase().trim();
+    
+    // Remove common prefixes like "the ", "a ", "an "
+    normalized = normalized.replace(/^(the|a|an) /, '');
+    
+    // Remove special characters and extra spaces
+    normalized = normalized.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Remove year patterns like (2021) or [2021]
+    normalized = normalized.replace(/[([]?(19|20)\d{2}[)\]]?/g, '').trim();
+    
+    // Remove common suffixes or subtitles
+    const commonSplitters = [': ', ' - ', ' – '];
+    for (const splitter of commonSplitters) {
+      if (normalized.includes(splitter)) {
+        // Only take the main title part if it's reasonably long
+        const mainPart = normalized.split(splitter)[0].trim();
+        if (mainPart.length >= 3) {
+          normalized = mainPart;
+        }
+      }
+    }
+    
+    return normalized;
+  }
+
+  /**
+   * Helper function to check if two titles are similar
+   * @param {string} title1 - First title
+   * @param {string} title2 - Second title
+   * @returns {boolean} - True if titles are similar
+   */
+  areTitlesSimilar(title1, title2) {
+    // Get normalized versions
+    const normalized1 = this.normalizeTitleForComparison(title1);
+    const normalized2 = this.normalizeTitleForComparison(title2);
+    
+    // Check for exact match after normalization
+    if (normalized1 === normalized2) {
+      return true;
+    }
+    
+    // Check for suffix/prefix relationship
+    // Example: "Star Wars: A New Hope" and "Star Wars"
+    if (normalized1.length > 4 && normalized2.length > 4) {
+      // Only consider it a match if one title is substantially contained within the other
+      // and makes up at least 80% of the contained title's length
+      if (normalized1.includes(normalized2) && normalized2.length >= normalized1.length * 0.8) {
+        return true;
+      }
+      if (normalized2.includes(normalized1) && normalized1.length >= normalized2.length * 0.8) {
+        return true;
+      }
+    }
+    
+    // Check for word-level similarity
+    const words1 = normalized1.split(' ').filter(word => word.length >= 3);
+    const words2 = normalized2.split(' ').filter(word => word.length >= 3);
+    
+    // If both titles have significant words
+    if (words1.length > 0 && words2.length > 0) {
+      // Count matching words
+      const matchingWords = words1.filter(word => words2.includes(word));
+      
+      // If at least 70% of words match in either direction, consider similar
+      const matchRatio1 = matchingWords.length / words1.length;
+      const matchRatio2 = matchingWords.length / words2.length;
+      
+      if (matchRatio1 >= 0.7 || matchRatio2 >= 0.7) {
+        return true;
+      }
+    }
+    
+    // Check for article transposition
+    // "Matrix, The" vs "The Matrix"
+    const articlesRegex = /(^the |^a |^an |, the$|, a$|, an$)/;
+    const withoutArticles1 = normalized1.replace(articlesRegex, '');
+    const withoutArticles2 = normalized2.replace(articlesRegex, '');
+    
+    if (withoutArticles1 === withoutArticles2) {
+      return true;
+    }
+    
+    return false;
+  }
+
   verifyRecommendations(recommendations, libraryItems = [], likedItems = [], dislikedItems = [], previousRecommendations = []) {
     if (!recommendations || !recommendations.length) {
       return [];
     }
 
-    // Create normalized sets for faster lookups
-    const librarySet = new Set(libraryItems.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
+    // Prepare library items for comparison
+    const libraryTitles = libraryItems.map(item => typeof item === 'string' ? item : item.title);
+    const likedTitles = likedItems.map(item => typeof item === 'string' ? item : item.title);
+    const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title);
+    const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title);
     
-    const likedSet = new Set(likedItems.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
-    
-    const dislikedSet = new Set(dislikedItems.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
-    
-    const previousRecsSet = new Set(previousRecommendations.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
+    // All titles to check against
+    const allExistingTitles = [...libraryTitles, ...likedTitles, ...dislikedTitles, ...previousRecTitles];
 
     // Filter out any recommendations that match existing items
     const filteredRecommendations = recommendations.filter(rec => {
-      const normalizedTitle = rec.title.toLowerCase().trim();
+      const title = rec.title;
       
-      // Check for exact matches
-      if (librarySet.has(normalizedTitle) ||
-          likedSet.has(normalizedTitle) ||
-          dislikedSet.has(normalizedTitle) ||
-          previousRecsSet.has(normalizedTitle)) {
-        return false;
-      }
+      // Debug the recommendation being checked
+      // console.log(`Checking recommendation: "${title}"`);
       
-      // Check for title contained within library items (handles substring matches)
-      // This helps with variations like "The Matrix" vs "Matrix" or "Star Wars: A New Hope" vs "Star Wars"
-      for (const libraryTitle of librarySet) {
-        if (normalizedTitle.length > 4 && libraryTitle.length > 4) {
-          if (normalizedTitle.includes(libraryTitle) || libraryTitle.includes(normalizedTitle)) {
-            return false;
-          }
-        }
-      }
-      
-      // Also check against liked items using the same approach
-      for (const likedTitle of likedSet) {
-        if (normalizedTitle.length > 4 && likedTitle.length > 4) {
-          if (normalizedTitle.includes(likedTitle) || likedTitle.includes(normalizedTitle)) {
-            return false;
-          }
-        }
-      }
-      
-      // Also check against disliked items using the same approach
-      for (const dislikedTitle of dislikedSet) {
-        if (normalizedTitle.length > 4 && dislikedTitle.length > 4) {
-          if (normalizedTitle.includes(dislikedTitle) || dislikedTitle.includes(normalizedTitle)) {
-            return false;
-          }
-        }
-      }
-      
-      // Also check against previous recommendations using the same approach
-      for (const prevRecTitle of previousRecsSet) {
-        if (normalizedTitle.length > 4 && prevRecTitle.length > 4) {
-          if (normalizedTitle.includes(prevRecTitle) || prevRecTitle.includes(normalizedTitle)) {
-            return false;
-          }
+      // Check against all existing titles
+      for (const existingTitle of allExistingTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - similar to existing "${existingTitle}"`);
+          return false;
         }
       }
       

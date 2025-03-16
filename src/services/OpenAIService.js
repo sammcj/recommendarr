@@ -756,10 +756,8 @@ class OpenAIService {
         userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
       }
       
-      // Add previous recommendations to avoid repeating them
-      if (previousRecommendations.length > 0) {
-        userPrompt += ` You also MUST NOT recommend these previously suggested shows: ${previousRecommendations.join(', ')}`;
-      }
+      // We no longer include previous recommendations in the prompt
+      // We'll use verifyRecommendations to filter out duplicates afterward
       
       // Add liked shows as explicit examples to not recommend again
       if (likedRecommendations.length > 0) {
@@ -990,10 +988,8 @@ CRITICAL REQUIREMENTS:
           userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
         }
 
-        // Add previous recommendations to avoid repeating them
-        if (previousRecommendations.length > 0) {
-          userPrompt += ` You also MUST NOT recommend these previously suggested movies: ${previousRecommendations.join(', ')}`;
-        }
+        // We no longer include previous recommendations in the prompt
+        // We'll use verifyRecommendations to filter out duplicates afterward
 
         // Add liked movies as explicit examples to not recommend again
         if (likedRecommendations.length > 0) {
@@ -1185,10 +1181,8 @@ CRITICAL REQUIREMENTS:
         userPrompt += ` ONLY recommend TV shows in ${language} language.`;
       }
       
-      // Add previous recommendations to avoid repeating them
-      if (previousRecommendations.length > 0) {
-        userPrompt += `\n\nDO NOT recommend any of these shows: ${previousRecommendations.join(', ')}`;
-      }
+      // We no longer include previous recommendations in the prompt
+      // We'll use verifyRecommendations to filter out duplicates afterward
       
       userPrompt += `\n\nUse the EXACT same format as before.`;
 
@@ -1261,10 +1255,8 @@ CRITICAL REQUIREMENTS:
         userPrompt += ` ONLY recommend movies in ${language} language.`;
       }
       
-      // Add previous recommendations to avoid repeating them
-      if (previousRecommendations.length > 0) {
-        userPrompt += `\n\nDO NOT recommend any of these movies: ${previousRecommendations.join(', ')}`;
-      }
+      // We no longer include previous recommendations in the prompt
+      // We'll use verifyRecommendations to filter out duplicates afterward
       
       userPrompt += `\n\nUse the EXACT same format as before.`;
 
@@ -1919,20 +1911,28 @@ CRITICAL REQUIREMENTS:
       return true;
     }
     
-    // Check for suffix/prefix relationship
-    // Example: "Star Wars: A New Hope" and "Star Wars"
+    // Check for suffix/prefix relationship with improved handling for distinct titles
+    // Example: "Star Wars: A New Hope" and "Star Wars" should match
+    // But "The Duke" and "The Duke of Burgundy" should NOT match
     if (normalized1.length > 4 && normalized2.length > 4) {
-      // Only consider it a match if one title is substantially contained within the other
-      // and makes up at least 80% of the contained title's length
-      if (normalized1.includes(normalized2) && normalized2.length >= normalized1.length * 0.8) {
-        return true;
-      }
-      if (normalized2.includes(normalized1) && normalized1.length >= normalized2.length * 0.8) {
+      // Check if one is a prefix of the other, but add boundary check to avoid partial word matches
+      // For example: "The Duke" should not match with "The Duke of Burgundy"
+      const shorterStr = normalized1.length < normalized2.length ? normalized1 : normalized2;
+      const longerStr = normalized1.length < normalized2.length ? normalized2 : normalized1;
+      
+      // Only consider exact prefix matches followed by separators (space, colon, etc.)
+      // This handles franchise titles like "Star Wars" and "Star Wars: A New Hope"
+      if (longerStr.startsWith(shorterStr) && 
+          (longerStr.length === shorterStr.length || // Exact match
+           longerStr[shorterStr.length] === ' ' ||   // Space after prefix
+           longerStr[shorterStr.length] === ':' ||   // Colon after prefix
+           longerStr[shorterStr.length] === '-')) {  // Dash after prefix
+        // For cases like "Star Wars" vs "Star Wars: The Force Awakens"
         return true;
       }
     }
     
-    // Check for word-level similarity
+    // Check for word-level similarity with stricter criteria
     const words1 = normalized1.split(' ').filter(word => word.length >= 3);
     const words2 = normalized2.split(' ').filter(word => word.length >= 3);
     
@@ -1941,11 +1941,17 @@ CRITICAL REQUIREMENTS:
       // Count matching words
       const matchingWords = words1.filter(word => words2.includes(word));
       
-      // If at least 70% of words match in either direction, consider similar
+      // Require at least 2 matching words for longer titles
+      if (matchingWords.length < 2 && (words1.length > 2 || words2.length > 2)) {
+        return false;
+      }
+      
+      // Increase threshold to 85% for higher precision
+      // This helps distinguish between titles like "The Duke" and "The Duke of Burgundy"
       const matchRatio1 = matchingWords.length / words1.length;
       const matchRatio2 = matchingWords.length / words2.length;
       
-      if (matchRatio1 >= 0.7 || matchRatio2 >= 0.7) {
+      if (matchRatio1 >= 0.85 || matchRatio2 >= 0.85) {
         return true;
       }
     }

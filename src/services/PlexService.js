@@ -8,6 +8,7 @@ class PlexService {
   constructor() {
     this.token = '';
     this.baseUrl = '';
+    this.selectedUserId = ''; // Add selectedUserId property
     // Load credentials when instantiated
     this.loadCredentials();
   }
@@ -20,6 +21,7 @@ class PlexService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.token = credentials.token || '';
+      this.selectedUserId = credentials.selectedUserId || '';
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
@@ -32,15 +34,18 @@ class PlexService {
    * Configure the Plex service with API details
    * @param {string} baseUrl - The base URL of your Plex instance (e.g., http://localhost:32400)
    * @param {string} token - Your Plex token
+   * @param {string} selectedUserId - The ID of the selected Plex user for watch history
    */
-  async configure(baseUrl, token, recentLimit = null) {
+  async configure(baseUrl, token, selectedUserId = '', recentLimit = null) {
     // Normalize the URL by removing trailing slashes
     this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.token = token;
+    this.selectedUserId = selectedUserId;
     
     const credentials = {
       baseUrl: this.baseUrl,
-      token: this.token
+      token: this.token,
+      selectedUserId: this.selectedUserId
     };
     
     // If recentLimit is provided, store it with the credentials
@@ -91,14 +96,223 @@ class PlexService {
       return false;
     }
   }
+  
+  /**
+   * Get list of all Plex users that have access to the server
+   * @returns {Promise<Array>} - List of Plex users
+   */
+  async getUsers() {
+    if (!this.isConfigured()) {
+      await this.loadCredentials();
+      
+      if (!this.isConfigured()) {
+        throw new Error('Plex service is not configured. Please set baseUrl and token.');
+      }
+    }
+
+    try {
+      // Get the owner/admin account info from the local server
+      const meResponse = await apiService.proxyRequest({
+        url: `${this.baseUrl}/`,
+        method: 'GET',
+        params: { 
+          'X-Plex-Token': this.token 
+        }
+      });
+      
+      let users = [];
+      let serverOwnerUsername = 'Owner';
+      
+      // Process the response to extract the server owner info
+      if (typeof meResponse.data === 'object') {
+        // JSON response
+        if (meResponse.data.MediaContainer) {
+          if (meResponse.data.MediaContainer.MyPlex) {
+            const myPlex = meResponse.data.MediaContainer.MyPlex;
+            serverOwnerUsername = myPlex.username || 'Owner';
+          }
+        }
+      } else if (typeof meResponse.data === 'string') {
+        // XML response
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(meResponse.data, "text/xml");
+        
+        const mediaContainer = xmlDoc.querySelector('MediaContainer');
+        if (mediaContainer) {
+          const myPlex = mediaContainer.querySelector('MyPlex');
+          if (myPlex) {
+            serverOwnerUsername = myPlex.getAttribute('username') || 'Owner';
+          }
+        }
+      }
+      
+      // Add the server owner/admin (special case for accountID=1)
+      users.push({
+        id: '1',
+        username: serverOwnerUsername,
+        name: serverOwnerUsername,
+        isAdmin: true,
+        isOwner: true
+      });
+      
+      // Get users from the accounts endpoint
+      try {
+        const accountsResponse = await apiService.proxyRequest({
+          url: `${this.baseUrl}/accounts`,
+          method: 'GET',
+          params: { 
+            'X-Plex-Token': this.token
+          }
+        });
+        
+        const userMap = new Map();
+        
+        if (typeof accountsResponse.data === 'object') {
+          // JSON response
+          if (accountsResponse.data.MediaContainer && accountsResponse.data.MediaContainer.Account) {
+            const accounts = accountsResponse.data.MediaContainer.Account;
+            
+            // Process each account to extract user information
+            accounts.forEach(account => {
+              if (account.id && !userMap.has(account.id.toString())) {
+                userMap.set(account.id.toString(), {
+                  id: account.id.toString(),
+                  username: account.name || account.title || `User ${account.id}`,
+                  name: account.name || account.title || `User ${account.id}`,
+                  isAdmin: account.roles && account.roles.includes('admin'),
+                  isOwner: false
+                });
+              }
+            });
+          }
+        } else if (typeof accountsResponse.data === 'string') {
+          // XML response
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(accountsResponse.data, "text/xml");
+          
+          const accountNodes = xmlDoc.querySelectorAll('Account');
+          Array.from(accountNodes).forEach(node => {
+            const accountID = node.getAttribute('id');
+            const name = node.getAttribute('name') || node.getAttribute('title');
+            const roles = node.getAttribute('roles') || '';
+            
+            if (accountID && !userMap.has(accountID)) {
+              userMap.set(accountID, {
+                id: accountID,
+                username: name || `User ${accountID}`,
+                name: name || `User ${accountID}`,
+                isAdmin: roles.includes('admin'),
+                isOwner: false
+              });
+            }
+          });
+        }
+        
+        // Add any found users to our users array
+        userMap.forEach(user => {
+          // Skip user ID 1 which we already added as the admin
+          if (user.id !== '1') {
+            users.push(user);
+          }
+        });
+      } catch (error) {
+        console.warn('Could not fetch user information from accounts endpoint:', error);
+        
+        // Fall back to trying to find users from watch history
+        try {
+          // Try to get history for all users which might show user-specific entries
+          const historyResponse = await apiService.proxyRequest({
+            url: `${this.baseUrl}/status/sessions/history/all`,
+            method: 'GET',
+            params: { 
+              'X-Plex-Token': this.token,
+              'sort': 'viewedAt:desc',
+              'limit': 100
+            }
+          });
+          
+          // Parse the history data to extract user information
+          const userMap = new Map();
+          
+          if (typeof historyResponse.data === 'object') {
+            // JSON response
+            if (historyResponse.data.MediaContainer && historyResponse.data.MediaContainer.Metadata) {
+              const entries = historyResponse.data.MediaContainer.Metadata;
+              
+              // Process each history entry to extract user information
+              entries.forEach(entry => {
+                if (entry.accountID && !userMap.has(entry.accountID.toString())) {
+                  userMap.set(entry.accountID.toString(), {
+                    id: entry.accountID.toString(),
+                    username: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
+                    name: entry.Account ? entry.Account.title : `User ${entry.accountID}`,
+                    isAdmin: false,
+                    isOwner: false
+                  });
+                }
+              });
+            }
+          } else if (typeof historyResponse.data === 'string') {
+            // XML response
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(historyResponse.data, "text/xml");
+            
+            const metadataNodes = xmlDoc.querySelectorAll('Metadata');
+            Array.from(metadataNodes).forEach(node => {
+              const accountID = node.getAttribute('accountID');
+              const accountTitle = node.querySelector('Account')?.getAttribute('title');
+              
+              if (accountID && !userMap.has(accountID)) {
+                userMap.set(accountID, {
+                  id: accountID,
+                  username: accountTitle || `User ${accountID}`,
+                  name: accountTitle || `User ${accountID}`,
+                  isAdmin: false,
+                  isOwner: false
+                });
+              }
+            });
+          }
+          
+          // Add any found users to our users array
+          userMap.forEach(user => {
+            // Skip user ID 1 which we already added as the admin
+            if (user.id !== '1') {
+              users.push(user);
+            }
+          });
+        } catch (historyError) {
+          console.warn('Could not fetch user information from watch history:', historyError);
+          // Continue with just the owner user
+        }
+      }
+      
+      // If we still only have the admin user, add a generic "All Users" option
+      if (users.length === 1) {
+        users.push({
+          id: '0',
+          username: 'All Users',
+          name: 'All Users',
+          isAdmin: false,
+          isOwner: false
+        });
+      }
+      
+      return users;
+    } catch (error) {
+      console.error('Error fetching users from Plex:', error);
+      throw error;
+    }
+  }
 
   /**
    * Get recently watched movies from Plex
    * @param {number} limit - Maximum number of items to return
    * @param {number} [daysAgo=0] - Only include movies watched within this many days (0 for all)
+   * @param {string} [userId=''] - User ID to filter history by (defaults to selectedUserId)
    * @returns {Promise<Array>} - List of recently watched movies
    */
-  async getRecentlyWatchedMovies(limit = 100, daysAgo = 0) {
+  async getRecentlyWatchedMovies(limit = 100, daysAgo = 0, userId = '') {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -109,23 +323,20 @@ class PlexService {
     }
 
     try {
+      // Use provided userId or fall back to the selectedUserId
+      const userIdToUse = userId || this.selectedUserId;
+      
       // Build params object
       const params = {
         'X-Plex-Token': this.token,
         'type': 1, // Type 1 is movie
         'sort': 'viewedAt:desc',
-        'limit': limit
+        'limit': limit * 2 // Request more items since we'll filter some out
       };
       
-      // Add viewedAt filter if daysAgo is specified
-      if (daysAgo > 0) {
-        // Calculate timestamp for X days ago (in seconds, Plex API uses seconds not milliseconds)
-        const nowInSeconds = Math.floor(Date.now() / 1000);
-        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
-        const timestampFilter = nowInSeconds - daysAgoInSeconds;
-        
-        // Add filter to only include items watched after this timestamp
-        params['viewedAt>'] = timestampFilter;
+      // If we have a specific user ID, add it to the request
+      if (userIdToUse) {
+        params['accountID'] = userIdToUse;
       }
       
       // Get recently watched from the history endpoint through the proxy server
@@ -231,14 +442,39 @@ class PlexService {
         }
       }
       
-      // Filter out items without titles and remove duplicates
-      const validMovies = movies.filter(movie => movie.title);
+      // Filter out items without titles
+      let validMovies = movies.filter(movie => movie.title);
+      
+      // Apply the daysAgo filter manually
+      if (daysAgo > 0) {
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
+        const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
+        
+        console.log(`Filtering movies watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
+        validMovies = validMovies.filter(movie => {
+          const viewedAtTimestamp = parseInt(movie.viewedAt, 10);
+          const isRecent = viewedAtTimestamp >= cutoffTimestamp;
+          
+          if (!isRecent) {
+            console.log(`Filtering out movie "${movie.title}" watched at ${viewedAtTimestamp} (before cutoff ${cutoffTimestamp})`);
+          }
+          
+          return isRecent;
+        });
+      }
+      
+      // Remove duplicates
       const uniqueMovies = validMovies.filter((movie, index, self) => 
         index === self.findIndex((m) => m.title === movie.title)
       );
       
-      console.log(`Returning ${uniqueMovies.length} unique recently watched movies`);
-      return uniqueMovies;
+      // Apply the limit after filtering
+      const limitedMovies = uniqueMovies.slice(0, limit);
+      
+      console.log(`Returning ${limitedMovies.length} unique recently watched movies`);
+      return limitedMovies;
     } catch (error) {
       console.error('Error fetching recently watched movies from Plex:', error);
       throw error;
@@ -249,36 +485,33 @@ class PlexService {
    * Get recently watched TV shows from Plex
    * @param {number} limit - Maximum number of items to return
    * @param {number} [daysAgo=0] - Only include shows watched within this many days (0 for all)
+   * @param {string} [userId=''] - User ID to filter history by (defaults to selectedUserId)
    * @returns {Promise<Array>} - List of recently watched TV shows
    */
-  async getRecentlyWatchedShows(limit = 100, daysAgo = 0) {
+  async getRecentlyWatchedShows(limit = 100, daysAgo = 0, userId = '') {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
-      
       if (!this.isConfigured()) {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
       }
     }
-
+    
     try {
+      // Use provided userId or fall back to the selectedUserId
+      const userIdToUse = userId || this.selectedUserId;
+      
       // Build params object
       const params = {
         'X-Plex-Token': this.token,
         'type': 4, // Type 4 is TV episode
         'sort': 'viewedAt:desc',
-        'limit': limit
+        'limit': limit * 2 // Request more items since we'll filter some out
       };
       
-      // Add viewedAt filter if daysAgo is specified
-      if (daysAgo > 0) {
-        // Calculate timestamp for X days ago (in seconds, Plex API uses seconds not milliseconds)
-        const nowInSeconds = Math.floor(Date.now() / 1000);
-        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
-        const timestampFilter = nowInSeconds - daysAgoInSeconds;
-        
-        // Add filter to only include items watched after this timestamp
-        params['viewedAt>'] = timestampFilter;
+      // If we have a specific user ID, add it to the request
+      if (userIdToUse) {
+        params['accountID'] = userIdToUse;
       }
       
       // Get recently watched from the history endpoint through the proxy server
@@ -287,12 +520,12 @@ class PlexService {
         method: 'GET',
         params: params
       });
-
+      
       // Log response type and structure for debugging
       console.log('Plex TV response type:', typeof response.data);
       
-      // Store unique shows with a Map
-      const showMap = new Map();
+      // Store episodes with their timestamps for filtering
+      const episodes = [];
       
       if (typeof response.data === 'object') {
         // Handle JSON response
@@ -307,8 +540,8 @@ class PlexService {
             const showTitle = item.grandparentTitle;
             
             // Only proceed if we have a valid show title
-            if (showTitle && !showMap.has(showTitle)) {
-              showMap.set(showTitle, {
+            if (showTitle) {
+              episodes.push({
                 title: showTitle,
                 year: item.parentYear || item.year,
                 viewedAt: item.lastViewedAt || item.viewedAt,
@@ -337,8 +570,8 @@ class PlexService {
               const showTitle = node.getAttribute('grandparentTitle');
               
               // Only proceed if we have a valid show title
-              if (showTitle && !showMap.has(showTitle)) {
-                showMap.set(showTitle, {
+              if (showTitle) {
+                episodes.push({
                   title: showTitle,
                   year: node.getAttribute('parentYear') || node.getAttribute('year'),
                   viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
@@ -354,8 +587,8 @@ class PlexService {
             // Process each video node
             Array.from(videoNodes).forEach(node => {
               const showTitle = node.getAttribute('grandparentTitle');
-              if (showTitle && !showMap.has(showTitle)) {
-                showMap.set(showTitle, {
+              if (showTitle) {
+                episodes.push({
                   title: showTitle,
                   year: node.getAttribute('parentYear') || node.getAttribute('year'),
                   viewedAt: node.getAttribute('lastViewedAt') || node.getAttribute('viewedAt'),
@@ -367,10 +600,43 @@ class PlexService {
         }
       }
       
+      // Apply the daysAgo filter manually
+      let filteredEpisodes = episodes;
+      if (daysAgo > 0) {
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
+        const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
+        
+        console.log(`Filtering TV shows watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
+        filteredEpisodes = episodes.filter(episode => {
+          const viewedAtTimestamp = parseInt(episode.viewedAt, 10);
+          const isRecent = viewedAtTimestamp >= cutoffTimestamp;
+          
+          if (!isRecent) {
+            console.log(`Filtering out episode of "${episode.title}" watched at ${viewedAtTimestamp} (before cutoff ${cutoffTimestamp})`);
+          }
+          
+          return isRecent;
+        });
+      }
+      
+      // Store unique shows with a Map (using the filtered episodes)
+      const showMap = new Map();
+      filteredEpisodes.forEach(episode => {
+        if (!showMap.has(episode.title)) {
+          showMap.set(episode.title, episode);
+        }
+      });
+      
       // Convert the Map to an array
       const shows = Array.from(showMap.values());
-      console.log(`Returning ${shows.length} unique recently watched TV shows`);
-      return shows;
+      
+      // Apply the limit after filtering
+      const limitedShows = shows.slice(0, limit);
+      
+      console.log(`Returning ${limitedShows.length} unique recently watched TV shows`);
+      return limitedShows;
     } catch (error) {
       console.error('Error fetching recently watched shows from Plex:', error);
       throw error;

@@ -333,6 +333,13 @@ export default {
   position: relative;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   border-radius: var(--border-radius-md);
+  z-index: 1; /* Default z-index for desktop */
+}
+
+@media (max-width: 767px) {
+  .navigation {
+    z-index: 2; /* Higher z-index for mobile */
+  }
 }
 
 /* Main Navigation Container */
@@ -603,7 +610,7 @@ body.dark-theme .action-button:hover {
   padding: 8px;
   margin-left: 8px;
   position: relative;
-  z-index: 101;
+  z-index: 4;
   border-radius: 50%;
   transition: all 0.3s ease;
 }
@@ -654,7 +661,7 @@ body.dark-theme .action-button:hover {
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 99;
+  z-index: 4; /* Above content but below modals */
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
   overflow-y: auto;
 }

@@ -173,6 +173,25 @@
                       Clear History
                     </button>
                   </div>
+                  
+                  <!-- <div class="watch-history-section">
+                    <h3 class="info-section-title collapsible-header" @click="toggleWatchHistory">
+                      Watch History
+                      <span class="toggle-icon">{{ watchHistoryExpanded ? '▼' : '▶' }}</span>
+                    </h3>
+                    <div class="watch-history-content" :class="{ 'collapsed': !watchHistoryExpanded }" v-show="watchHistoryExpanded">
+                      <div class="watch-history-info">
+                        <p>View your watch history currently being used for recommendations</p>
+                        <button 
+                          @click="openWatchHistoryModal" 
+                          class="view-history-button"
+                          title="View watch history"
+                        >
+                          View Watch History
+                        </button>
+                      </div>
+                    </div>
+                  </div> -->
                 </div>
                 
                 <div class="count-selector">
@@ -384,15 +403,6 @@
                           >
                           Recent (30 days)
                         </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="plexHistoryMode" 
-                            value="custom"
-                            @change="savePlexHistoryMode"
-                          >
-                          Custom period
-                        </label>
                       </div>
                       
                       <div v-if="plexHistoryMode === 'custom'" class="days-slider-container">
@@ -432,6 +442,14 @@
                         Use only Plex history for recommendations (ignore library)
                       </label>
                     </div>
+                    <br>
+                    <button 
+                      class="action-button plex-user-select-button"
+                      @click="$emit('openPlexUserSelect')"
+                      style="padding: 6px 12px; font-size: 13px; background-color: #E5A00D; color: white;"
+                    >
+                      Change User
+                    </button>
                   </div>
                 </div>
                 
@@ -1049,6 +1067,38 @@
                   </option>
                 </select>
               </div>
+              
+              <div class="setting-item tags-section">
+                <label>Tags:</label>
+                <div class="tags-container">
+                  <div v-for="tag in availableTags.sonarr" :key="tag.id" class="tag-item">
+                    <label class="tag-checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        :value="tag.id" 
+                        v-model="selectedTags.sonarr"
+                      >
+                      {{ tag.label }}
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="new-tag-input">
+                  <input 
+                    type="text" 
+                    v-model="tagInput" 
+                    placeholder="Create new tag..." 
+                    @keyup.enter="createSonarrTag(tagInput).then(() => { tagInput = ''; })"
+                  >
+                  <button 
+                    @click="createSonarrTag(tagInput).then(() => { tagInput = ''; })"
+                    :disabled="!tagInput.trim()"
+                    class="tag-add-button"
+                  >
+                    Add Tag
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1113,6 +1163,38 @@
                   </option>
                 </select>
               </div>
+              
+              <div class="setting-item tags-section">
+                <label>Tags:</label>
+                <div class="tags-container">
+                  <div v-for="tag in availableTags.radarr" :key="tag.id" class="tag-item">
+                    <label class="tag-checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        :value="tag.id" 
+                        v-model="selectedTags.radarr"
+                      >
+                      {{ tag.label }}
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="new-tag-input">
+                  <input 
+                    type="text" 
+                    v-model="tagInput" 
+                    placeholder="Create new tag..." 
+                    @keyup.enter="createRadarrTag(tagInput).then(() => { tagInput = ''; })"
+                  >
+                  <button 
+                    @click="createRadarrTag(tagInput).then(() => { tagInput = ''; })"
+                    :disabled="!tagInput.trim()"
+                    class="tag-add-button"
+                  >
+                    Add Tag
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1129,6 +1211,147 @@
         </div>
       </div>
     </div>
+    
+    <!-- Watch History Modal -->
+    <div v-if="showWatchHistoryModal" class="modal-overlay" @click.self="closeWatchHistoryModal">
+      <div class="modal-container watch-history-modal">
+        <div class="modal-header">
+          <h3>Watch History</h3>
+          <button class="modal-close" @click="closeWatchHistoryModal">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="watch-history-header">
+            <div class="history-title">
+              <h4>Watch History</h4>
+              <p class="item-count">
+                Showing {{ (filteredWatchHistory || []).length }} items
+              </p>
+            </div>
+            
+            <div class="filter-controls">
+              <div class="filter-group">
+                <label for="historySourceFilter">Source:</label>
+                <select id="historySourceFilter" v-model="historySourceFilter">
+                  <option value="all">All Sources</option>
+                  <option value="plex">Plex</option>
+                  <option value="jellyfin">Jellyfin</option>
+                  <option value="tautulli">Tautulli</option>
+                  <option value="trakt">Trakt</option>
+                </select>
+              </div>
+              
+              <div class="filter-group">
+                <label for="historyTypeFilter">Type:</label>
+                <select id="historyTypeFilter" v-model="historyTypeFilter">
+                  <option value="all">All Types</option>
+                  <option value="movie">Movies</option>
+                  <option value="show">TV Shows</option>
+                </select>
+              </div>
+              
+              <div class="filter-group items-per-page">
+                <label for="itemsPerPage">Per page:</label>
+                <select id="itemsPerPage" v-model="historyItemsPerPage">
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div class="search-container">
+            <input 
+              type="text" 
+              v-model="historySearchFilter" 
+              placeholder="Search by title..." 
+              class="history-search"
+            />
+          </div>
+          
+          <!-- Bottom row with pagination -->
+          <div class="pagination-container">
+            <div class="pagination-info">
+              {{ (filteredWatchHistory || []).length }} total items
+            </div>
+            
+            <div class="pagination-buttons">
+              <button 
+                @click="currentHistoryPage = 1" 
+                :disabled="currentHistoryPage === 1"
+                class="pagination-button"
+                title="First page"
+              >
+                &laquo;
+              </button>
+              <button 
+                @click="currentHistoryPage--" 
+                :disabled="currentHistoryPage === 1"
+                class="pagination-button"
+                title="Previous page"
+              >
+                &lt;
+              </button>
+              <span class="current-page">{{ currentHistoryPage }} of {{ maxHistoryPages || 1 }}</span>
+              <button 
+                @click="currentHistoryPage++" 
+                :disabled="currentHistoryPage >= (maxHistoryPages || 1)"
+                class="pagination-button"
+                title="Next page"
+              >
+                &gt;
+              </button>
+              <button 
+                @click="currentHistoryPage = (maxHistoryPages || 1)" 
+                :disabled="currentHistoryPage >= (maxHistoryPages || 1)"
+                class="pagination-button"
+                title="Last page"
+              >
+                &raquo;
+              </button>
+            </div>
+          </div>
+          
+          <div class="history-table-container">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th class="title-column">Title</th>
+                  <th>Type</th>
+                  <th>Source</th>
+                  <th>Last Watched</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Removed test data -->
+                
+                <!-- Now try the actual data with improved property access -->
+                <tr v-for="(item, index) in filteredWatchHistory" :key="index">
+                  <td class="title-column">
+                    {{ findTitle(item) }}
+                  </td>
+                  <td>{{ findType(item) }}</td>
+                  <td>{{ findSource(item) }}</td>
+                  <td>{{ findDate(item) }}</td>
+                </tr>
+                
+                <tr v-if="!filteredWatchHistory || filteredWatchHistory.length === 0">
+                  <td colspan="4" class="no-history">
+                    No data available.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="action-button" @click="closeWatchHistoryModal">Close</button>
+        </div>
+      </div>
+    </div>
   </template>
 
 <script>
@@ -1137,7 +1360,6 @@ import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
-import tmdbService from '../services/TMDBService';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 
 export default {
@@ -1265,11 +1487,22 @@ export default {
     
     // Computed property to get movie watch history from all sources
     allMovieWatchHistory() {
-      return [
+      // First try the standard movie props
+      const standardMovies = [
         ...(this.recentlyWatchedMovies || []),
         ...(this.jellyfinRecentlyWatchedMovies || []),
-        ...(this.tautulliRecentlyWatchedMovies || [])
+        ...(this.tautulliRecentlyWatchedMovies || []),
+        ...(this.traktRecentlyWatchedMovies || [])
       ];
+      
+      // Then check if we have movies in the 'movies' prop
+      const moviesFromProp = (this.movies || []).map(movie => ({
+        ...movie,
+        type: 'movie',
+        source: 'plex'  // Assuming these come from Plex based on format
+      }));
+      
+      return [...standardMovies, ...moviesFromProp];
     },
     
     // Computed property to get TV watch history from all sources
@@ -1371,6 +1604,21 @@ export default {
       selectedRootFolder: null, // Selected root folder for series
       selectedQualityProfile: null, // Selected quality profile for series
       loadingFolders: false, // Loading status for folders
+      
+      // Tags for Radarr and Sonarr
+      availableTags: {
+        radarr: [],
+        sonarr: []
+      },
+      selectedTags: {
+        radarr: [],
+        sonarr: []
+      },
+      tagInput: '',
+      loadingTags: {
+        radarr: false,
+        sonarr: false
+      },
       funLoadingMessages: [
         "Consulting with TV critics from alternate dimensions...",
         "Analyzing your taste in shows (don't worry, we won't judge)...",
@@ -1478,7 +1726,17 @@ export default {
       customVibeExpanded: true, // Vibe/mood section
       jellyfinHistoryExpanded: true, // Jellyfin history subsection
       tautulliHistoryExpanded: true, // Tautulli history subsection
-      traktHistoryExpanded: true // Trakt history subsection
+      traktHistoryExpanded: true, // Trakt history subsection
+      
+      // Watch history modal
+      showWatchHistoryModal: false, // Controls visibility of the watch history modal
+      historyItemsPerPage: 25, // Number of items per page in the history table
+      currentHistoryPage: 1, // Current page in the history pagination
+      historySourceFilter: 'all', // Filter for history source (plex, jellyfin, etc.)
+      historyTypeFilter: 'all', // Filter for content type (movie, show)
+      historySearchFilter: '', // Search filter for history items
+      showRawHistoryData: false, // Controls visibility of raw data debug section
+      rawDataProps: null // Storage for raw data properties
     };
   },
   methods: {
@@ -1499,13 +1757,337 @@ export default {
       this.$forceUpdate();
     },
     
+    // Watch history modal methods
+    async openWatchHistoryModal() {
+      this.showWatchHistoryModal = true;
+      this.currentHistoryPage = 1;
+      this.historySourceFilter = 'all';
+      this.historyTypeFilter = 'all';
+      this.historySearchFilter = '';
+      
+      // Log data directly when modal is opened
+      console.log('MODAL OPENED - DIRECT DATA CHECK:');
+      console.log('Movies data when modal opened:', this.movies);
+      console.log('Shows data when modal opened:', this.recentlyWatchedShows);
+      
+      // Create temporary watch history data for testing
+      // This will be a "global" property that the computed property can access
+      this._watchHistoryData = [];
+      
+      // Add movies from the movies prop
+      if (this.movies && this.movies.length > 0) {
+        this._watchHistoryData = this.movies.map(movie => ({
+          ...movie,
+          title: movie.title,
+          type: 'movie',
+          source: 'plex',
+          // Convert Unix timestamp to readable date if needed
+          watchedDate: movie.viewedAt ? new Date(movie.viewedAt * 1000).toISOString() : new Date().toISOString()
+        }));
+        console.log('Created watch history data with movies:', this._watchHistoryData.length);
+      }
+      
+      // Try accessing data from App component directly
+      if (this.$root) {
+        console.log('Root component data:', this.$root);
+      }
+    },
+    
+    closeWatchHistoryModal() {
+      this.showWatchHistoryModal = false;
+      this.showRawHistoryData = false;
+      
+      // Clean up our temporary data
+      this._watchHistoryData = null;
+      
+      console.log('Watch history modal closed and temporary data cleared');
+    },
+    
+    viewRawHistoryData() {
+      this.showRawHistoryData = !this.showRawHistoryData;
+      
+      // Create a formatted string with all relevant data properties
+      const propsObject = {
+        moviesProps: this.recentlyWatchedMovies ? {
+          type: typeof this.recentlyWatchedMovies,
+          keys: Object.keys(this.recentlyWatchedMovies),
+          isArray: Array.isArray(this.recentlyWatchedMovies),
+          hasMoviesProperty: Object.prototype.hasOwnProperty.call(this.recentlyWatchedMovies, 'movies'),
+          moviesType: this.recentlyWatchedMovies.movies ? typeof this.recentlyWatchedMovies.movies : 'N/A',
+          moviesLength: this.recentlyWatchedMovies.movies ? this.recentlyWatchedMovies.movies.length : 'N/A'
+        } : 'undefined',
+        
+        showsProps: this.recentlyWatchedShows ? {
+          type: typeof this.recentlyWatchedShows,
+          keys: Object.keys(this.recentlyWatchedShows),
+          isArray: Array.isArray(this.recentlyWatchedShows),
+          hasShowsProperty: Object.prototype.hasOwnProperty.call(this.recentlyWatchedShows, 'shows'),
+          showsType: this.recentlyWatchedShows.shows ? typeof this.recentlyWatchedShows.shows : 'N/A',
+          showsLength: this.recentlyWatchedShows.shows ? this.recentlyWatchedShows.shows.length : 'N/A'
+        } : 'undefined',
+        
+        // Include sample data if available
+        moviesSample: this.recentlyWatchedMovies && this.recentlyWatchedMovies.movies && this.recentlyWatchedMovies.movies.length > 0 
+          ? this.recentlyWatchedMovies.movies[0] 
+          : 'No sample',
+          
+        showsSample: this.recentlyWatchedShows && this.recentlyWatchedShows.shows && this.recentlyWatchedShows.shows.length > 0 
+          ? this.recentlyWatchedShows.shows[0] 
+          : 'No sample'
+      };
+      
+      this.rawDataProps = JSON.stringify(propsObject, null, 2);
+    },
+    
+    formatSource(source) {
+      if (!source) return 'Unknown';
+      
+      const sources = {
+        'plex': 'Plex',
+        'jellyfin': 'Jellyfin',
+        'tautulli': 'Tautulli',
+        'trakt': 'Trakt'
+      };
+      
+      return sources[source] || source.charAt(0).toUpperCase() + source.slice(1);
+    },
+    
+    // Helper methods for finding properties in different data formats
+    findTitle(item) {
+      if (!item) return 'Unknown';
+      
+      // Debug the item structure when it's the first item
+      if (this.filteredWatchHistory && this.filteredWatchHistory[0] === item) {
+        console.log('DEBUG: First item structure in findTitle:', JSON.stringify(item));
+      }
+      
+      // Try different possible property names for the title
+      return item.title || item.name || item.showName || item.movieName || 
+             (item.media && item.media.title) || (item.media && item.media.name) || 
+             'Unknown Title';
+    },
+    
+    findType(item) {
+      if (!item) return 'Unknown';
+      
+      // Check explicit type property
+      if (item.type) {
+        if (typeof item.type === 'string') {
+          const type = item.type.toLowerCase();
+          if (type === 'movie') return 'Movie';
+          if (type === 'show' || type === 'series' || type === 'episode') return 'TV Show';
+        }
+      }
+      
+      // Check source property names that might indicate type
+      if (item.movieId || item.movieName || item.isMovie) return 'Movie';
+      if (item.showId || item.showName || item.seriesName || item.isShow) return 'TV Show';
+      
+      // Based on which array it's from
+      if (this.recentlyWatchedMovies && 
+          this.recentlyWatchedMovies.some && 
+          item.ratingKey && 
+          this.recentlyWatchedMovies.some(m => m.ratingKey === item.ratingKey)) {
+        return 'Movie';
+      }
+      
+      if (this.recentlyWatchedShows && 
+          this.recentlyWatchedShows.some && 
+          item.ratingKey && 
+          this.recentlyWatchedShows.some(s => s.ratingKey === item.ratingKey)) {
+        return 'TV Show';
+      }
+      
+      // Guess based on the current mode
+      return this.isMovieMode ? 'Movie' : 'TV Show';
+    },
+    
+    findSource(item) {
+      if (!item) return 'Unknown';
+      
+      // Try to get the source property
+      if (item.source) return item.source.charAt(0).toUpperCase() + item.source.slice(1);
+      
+      // Check for service-specific properties
+      if (item.plexId || item.plexTitle || item.plexLibraryTitle) return 'Plex';
+      if (item.jellyfinId || item.jellyfinTitle) return 'Jellyfin';
+      if (item.tautulliId) return 'Tautulli';
+      if (item.traktId || item.traktTitle) return 'Trakt';
+      
+      // If we can't determine, default to Plex
+      return 'Plex';
+    },
+    
+    findDate(item) {
+      if (!item) return 'Unknown';
+      
+      // Try different date properties
+      const dateValue = item.lastWatched || item.watched || item.viewedAt || 
+                       item.dateWatched || item.watchedAt || item.lastViewedAt;
+      
+      if (!dateValue) return 'Unknown Date';
+      
+      try {
+        // Check if it's a unix timestamp (in seconds), JS timestamp (in milliseconds), or string date
+        let watchDate;
+        if (typeof dateValue === 'number') {
+          // Check if it's a Unix timestamp (seconds) or JS timestamp (milliseconds)
+          // Unix timestamps are typically 10 digits (seconds), JS timestamps are 13 digits (milliseconds)
+          watchDate = dateValue > 9999999999 ? new Date(dateValue) : new Date(dateValue * 1000); 
+        } else {
+          watchDate = new Date(dateValue);
+        }
+        
+        // Check if the date is valid
+        if (isNaN(watchDate.getTime())) {
+          return 'Invalid Date';
+        }
+        
+        // Format the date as 'YYYY-MM-DD'
+        return watchDate.toLocaleDateString();
+      } catch (err) {
+        console.error('Error formatting date:', dateValue, err);
+        return 'Date Error';
+      }
+    },
+    
+    formatWatchDate(date) {
+      if (!date) return 'Unknown';
+      
+      try {
+        // Check if it's a unix timestamp (in seconds), JS timestamp (in milliseconds), or string date
+        let watchDate;
+        if (typeof date === 'number') {
+          // Check if it's a Unix timestamp (seconds) or JS timestamp (milliseconds)
+          // Unix timestamps are typically 10 digits (seconds), JS timestamps are 13 digits (milliseconds)
+          watchDate = date > 9999999999 ? new Date(date) : new Date(date * 1000); 
+        } else {
+          watchDate = new Date(date);
+        }
+        
+        // Check if the date is valid
+        if (isNaN(watchDate.getTime())) {
+          return 'Invalid Date';
+        }
+        
+        // Format the date as 'YYYY-MM-DD'
+        return watchDate.toLocaleDateString();
+      } catch (err) {
+        console.error('Error formatting date:', date, err);
+        return 'Date Error';
+      }
+    },
+    
+    determineContentType(item) {
+      return this.findType(item);
+    },
+    
     // Note: The saveColumnsCount method already exists elsewhere in this file
     
+    
+    // Tag-related methods
+    async loadRadarrTags() {
+      if (!radarrService.isConfigured() || this.loadingTags.radarr) {
+        return;
+      }
+      
+      this.loadingTags.radarr = true;
+      
+      try {
+        const tags = await radarrService.getTags();
+        this.availableTags.radarr = tags || [];
+        console.log('Loaded Radarr tags:', this.availableTags.radarr);
+      } catch (error) {
+        console.error('Error loading Radarr tags:', error);
+      } finally {
+        this.loadingTags.radarr = false;
+      }
+    },
+    
+    async loadSonarrTags() {
+      if (!sonarrService.isConfigured() || this.loadingTags.sonarr) {
+        return;
+      }
+      
+      this.loadingTags.sonarr = true;
+      
+      try {
+        const tags = await sonarrService.getTags();
+        this.availableTags.sonarr = tags || [];
+        console.log('Loaded Sonarr tags:', this.availableTags.sonarr);
+      } catch (error) {
+        console.error('Error loading Sonarr tags:', error);
+      } finally {
+        this.loadingTags.sonarr = false;
+      }
+    },
+    
+    async createRadarrTag(label) {
+      if (!label || !radarrService.isConfigured()) {
+        return null;
+      }
+      
+      try {
+        const newTag = await radarrService.createTag(label);
+        if (newTag && newTag.id) {
+          this.availableTags.radarr = [...this.availableTags.radarr, newTag];
+          return newTag;
+        }
+        return null;
+      } catch (error) {
+        console.error(`Error creating Radarr tag "${label}":`, error);
+        return null;
+      }
+    },
+    
+    async createSonarrTag(label) {
+      if (!label || !sonarrService.isConfigured()) {
+        return null;
+      }
+      
+      try {
+        const newTag = await sonarrService.createTag(label);
+        if (newTag && newTag.id) {
+          this.availableTags.sonarr = [...this.availableTags.sonarr, newTag];
+          return newTag;
+        }
+        return null;
+      } catch (error) {
+        console.error(`Error creating Sonarr tag "${label}":`, error);
+        return null;
+      }
+    },
     
     // Mounted and Destroyed lifecycle hooks
     mounted() {
       // Add window resize event listener for compact mode calculations
       window.addEventListener('resize', this.handleWindowResize);
+      
+      // Load available tags if services are configured
+      if (radarrService.isConfigured()) {
+        this.loadRadarrTags();
+      }
+      
+      if (sonarrService.isConfigured()) {
+        this.loadSonarrTags();
+      }
+      
+      // Debug watch history directly
+      console.log('MOUNTED HOOK - DIRECT INSPECTION:');
+      console.log('recentlyWatchedMovies direct inspection:', this.recentlyWatchedMovies);
+      console.log('recentlyWatchedShows direct inspection:', this.recentlyWatchedShows);
+      
+      // Set up a delayed check to see if data comes in later
+      setTimeout(() => {
+        console.log('DELAYED CHECK (1 second):');
+        console.log('recentlyWatchedMovies delayed check:', this.recentlyWatchedMovies);
+        console.log('recentlyWatchedShows delayed check:', this.recentlyWatchedShows);
+        
+        // Manually try to access data from parent component and store it
+        if (this.$parent && this.$parent.recentlyWatchedMovies) {
+          console.log('Found data in parent component!');
+        }
+      }, 1000);
     },
     
     // This will be called when the component is shown (keep-alive)
@@ -3603,7 +4185,7 @@ export default {
             genreString,
             this.customVibe,
             this.selectedLanguage,
-            this.userMovies,
+            this.localMovies, // Use localMovies same as initial request
             this.likedRecommendations,
             this.dislikedRecommendations
           );
@@ -3615,7 +4197,7 @@ export default {
             genreString,
             this.customVibe,
             this.selectedLanguage,
-            this.userShows,
+            this.series, // Use series same as initial request
             this.likedRecommendations,
             this.dislikedRecommendations
           );
@@ -3910,6 +4492,13 @@ export default {
         if (this.currentSeries.seasons.length > 0) {
           const season1 = this.currentSeries.seasons.find(s => s.seasonNumber === 1);
           this.selectedSeasons = season1 ? [1] : [this.currentSeries.seasons[0].seasonNumber];
+          
+          // Reset tag selection
+          this.selectedTags.sonarr = [];
+          this.tagInput = '';
+          
+          // Reload tags
+          this.loadSonarrTags();
         } else {
           this.selectedSeasons = [];
         }
@@ -3982,15 +4571,8 @@ export default {
      */
     openTMDBDetailModal(recommendation) {
       console.log('Opening TMDB modal for:', recommendation.title);
-      console.log('TMDB available:', this.isTMDBAvailable);
-      console.log('TMDB configured:', tmdbService.isConfigured());
       
-      // Only open if TMDB is available
-      if (!this.isTMDBAvailable || !tmdbService.isConfigured()) {
-        console.log('Cannot open modal: TMDB not available or configured');
-        return;
-      }
-      
+      // Set these values regardless of TMDB configuration
       this.selectedMediaTitle = recommendation.title;
       this.selectedMediaId = null; // We'll search by title
       this.showTMDBModal = true;
@@ -4030,7 +4612,8 @@ export default {
             this.currentSeries.title,
             null, // Null indicates all seasons should be monitored
             this.selectedQualityProfile,
-            this.selectedRootFolder
+            this.selectedRootFolder,
+            this.selectedTags.sonarr
           );
           
           // Store success response
@@ -4045,7 +4628,8 @@ export default {
             this.currentSeries.title, 
             this.selectedSeasons,
             this.selectedQualityProfile,
-            this.selectedRootFolder
+            this.selectedRootFolder,
+            this.selectedTags.sonarr
           );
           
           // Store success response
@@ -4150,6 +4734,13 @@ export default {
           if (qualityProfiles.length > 0) {
             this.selectedMovieQualityProfile = qualityProfiles[0].id;
           }
+          
+          // Reset tag selection
+          this.selectedTags.radarr = [];
+          this.tagInput = '';
+          
+          // Load tags
+          this.loadRadarrTags();
         } finally {
           this.loadingMovieFolders = false;
         }
@@ -4205,7 +4796,8 @@ export default {
         const response = await radarrService.addMovie(
           this.currentMovie.title,
           this.selectedMovieQualityProfile,
-          this.selectedMovieRootFolder
+          this.selectedMovieRootFolder,
+          this.selectedTags.radarr
         );
         
         // Store success response
@@ -4846,13 +5438,277 @@ export default {
     window.removeEventListener('resize', this.handleResize);
     // Clear any running intervals
     this.stopLoadingMessages();
-  }
+  },
+  
+  /* eslint-disable */
+  // Additional computed properties 
+    filteredWatchHistory() {
+      console.log('WATCH HISTORY INSPECTION - DIRECT APPROACH:');
+      
+      // Use the temporary watch history data we created when opening the modal
+      if (this._watchHistoryData && this._watchHistoryData.length > 0) {
+        console.log('Using pre-populated watch history data:', this._watchHistoryData.length, 'items');
+        
+        // Apply type filter if needed
+        if (this.historyTypeFilter !== 'all') {
+          return this._watchHistoryData.filter(item => 
+            item.type === this.historyTypeFilter
+          );
+        }
+        
+        // Otherwise return all data
+        return this._watchHistoryData;
+      }
+      
+      // Initialize collections for all watch history (fallback)
+      let allWatchHistory = [];
+      
+      // If no pre-populated data, try direct access
+      console.log('Fallback: Using direct data access');
+      if (this.movies && this.movies.length > 0) {
+        const moviesWithMetadata = this.movies.map(movie => ({
+          ...movie,
+          title: movie.title,
+          type: 'movie',
+          source: 'plex'
+        }));
+        allWatchHistory = [...allWatchHistory, ...moviesWithMetadata];
+      }
+      
+      // Initialize historyProps to fix reference error
+      const historyProps = {
+        plexShows: this.recentlyWatchedShows,
+        jellyfinShows: this.jellyfinRecentlyWatchedShows,
+        tautulliShows: this.tautulliRecentlyWatchedShows,
+        traktShows: this.traktRecentlyWatchedShows
+      };
+      
+      // Process TV shows if we're showing shows
+      if (this.historyTypeFilter === 'all' || this.historyTypeFilter === 'show') {
+        // Try to process each source's show history
+        
+        // Plex shows
+        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'plex') && 
+            historyProps.plexShows) {
+          let plexData = historyProps.plexShows;
+          
+          // Handle possible structure variations
+          if (Array.isArray(plexData)) {
+            allWatchHistory = [...allWatchHistory, ...plexData.map(item => ({
+              ...item, 
+              source: 'plex', 
+              type: 'show'
+            }))];
+          } else if (plexData.shows && Array.isArray(plexData.shows)) {
+            allWatchHistory = [...allWatchHistory, ...plexData.shows.map(item => ({
+              ...item, 
+              source: 'plex', 
+              type: 'show'
+            }))];
+          }
+        }
+        
+        // Jellyfin shows
+        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'jellyfin') && 
+            historyProps.jellyfinShows) {
+          let jellyfinData = historyProps.jellyfinShows;
+          
+          // Handle possible structure variations
+          if (Array.isArray(jellyfinData)) {
+            allWatchHistory = [...allWatchHistory, ...jellyfinData.map(item => ({
+              ...item, 
+              source: 'jellyfin', 
+              type: 'show'
+            }))];
+          } else if (jellyfinData.shows && Array.isArray(jellyfinData.shows)) {
+            allWatchHistory = [...allWatchHistory, ...jellyfinData.shows.map(item => ({
+              ...item, 
+              source: 'jellyfin', 
+              type: 'show'
+            }))];
+          }
+        }
+        
+        // Tautulli shows
+        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'tautulli') && 
+            historyProps.tautulliShows) {
+          let tautulliData = historyProps.tautulliShows;
+          
+          // Handle possible structure variations
+          if (Array.isArray(tautulliData)) {
+            allWatchHistory = [...allWatchHistory, ...tautulliData.map(item => ({
+              ...item, 
+              source: 'tautulli', 
+              type: 'show'
+            }))];
+          } else if (tautulliData.shows && Array.isArray(tautulliData.shows)) {
+            allWatchHistory = [...allWatchHistory, ...tautulliData.shows.map(item => ({
+              ...item, 
+              source: 'tautulli', 
+              type: 'show'
+            }))];
+          }
+        }
+        
+        // Trakt shows
+        if ((this.historySourceFilter === 'all' || this.historySourceFilter === 'trakt') && 
+            historyProps.traktShows) {
+          let traktData = historyProps.traktShows;
+          
+          // Handle possible structure variations
+          if (Array.isArray(traktData)) {
+            allWatchHistory = [...allWatchHistory, ...traktData.map(item => ({
+              ...item, 
+              source: 'trakt', 
+              type: 'show'
+            }))];
+          } else if (traktData.shows && Array.isArray(traktData.shows)) {
+            allWatchHistory = [...allWatchHistory, ...traktData.shows.map(item => ({
+              ...item, 
+              source: 'trakt', 
+              type: 'show'
+            }))];
+          }
+        }
+      }
+      
+      console.log(`Initial combined data: ${allWatchHistory.length} items`);
+      
+      // Apply text search filter
+      if (this.historySearchFilter && this.historySearchFilter.trim()) {
+        const searchTerm = this.historySearchFilter.toLowerCase().trim();
+        allWatchHistory = allWatchHistory.filter(item => {
+          const title = (item.title || item.name || '').toLowerCase();
+          return title.includes(searchTerm);
+        });
+      }
+      
+      // Sort by most recently watched
+      allWatchHistory.sort((a, b) => {
+        const dateA = a.lastWatched || a.watched || a.viewedAt || 0;
+        const dateB = b.lastWatched || b.watched || b.viewedAt || 0;
+        return dateB - dateA; // Compare directly as timestamps
+      });
+      
+      console.log(`Final filtered watch history: ${allWatchHistory.length} items`);
+      console.log('Movie items:', allWatchHistory.filter(item => item.type === 'movie').length);
+      console.log('TV items:', allWatchHistory.filter(item => item.type === 'show').length);
+      if (allWatchHistory.length > 0) {
+        console.log('Sample items:', allWatchHistory.slice(0, 2));
+        return allWatchHistory;
+      }
+      
+      // Access raw movie data directly without processing
+      if (this.recentlyWatchedMovies) {
+        console.log('Direct movie data inspection:', this.recentlyWatchedMovies);
+        if (Array.isArray(this.recentlyWatchedMovies)) {
+          return this.recentlyWatchedMovies.map(item => ({...item, type: 'movie', source: 'plex'}));
+        }
+      }
+      
+      // Fallback debug data
+      return [
+        { title: 'Debug: Real Data Not Found', source: 'debug', type: 'movie', viewedAt: Date.now() },
+        { title: 'Debug: Check Console Logs', source: 'debug', type: 'show', viewedAt: Date.now() - 86400000 }
+      ];
+    },
+    
+    // Paginated history for the current page
+    paginatedHistory() {
+      // Ensure filteredWatchHistory exists or use empty array
+      const watchHistory = this.filteredWatchHistory || [];
+      const startIndex = (this.currentHistoryPage - 1) * this.historyItemsPerPage;
+      return watchHistory.slice(startIndex, startIndex + this.historyItemsPerPage);
+    },
+    
+    // Maximum number of pages for pagination
+    maxHistoryPages() {
+      // Ensure filteredWatchHistory exists or use empty array
+      const watchHistory = this.filteredWatchHistory || [];
+      return Math.max(1, Math.ceil(watchHistory.length / this.historyItemsPerPage));
+    },
+    
+    // Grid style based on the number of columns
+    gridStyle() {
+      return {
+        display: 'grid',
+        gridTemplateColumns: `repeat(${this.columnsCount}, 1fr)`,
+        gap: '20px'
+      };
+    }
+  /* eslint-enable */
 };
 </script>
 
 <style scoped>
+/* Tags Styling */
+.tags-section {
+  flex-direction: column;
+  width: 100%;
+  margin-top: 15px;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--card-bg-color);
+}
+
+.tag-item {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.tag-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.new-tag-input {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.new-tag-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--input-bg-color);
+  color: var(--text-color);
+}
+
+.tag-add-button {
+  padding: 8px 12px;
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tag-add-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .recommendations {
   padding: 20px;
+  position: relative;
+  z-index: 0; /* Lower than navigation */
 }
 
 .recommendation-header {
@@ -5523,7 +6379,6 @@ body.dark-theme .modern-slider::-moz-range-thumb {
 }
 
 body.dark-theme .genre-tag {
-  background-color: rgba(48, 65, 86, 0.25);
   border: 1px solid rgba(48, 65, 86, 0.3);
 }
 
@@ -5537,7 +6392,7 @@ body.dark-theme .genre-tag:hover {
 }
 
 .genre-tag.selected {
-  background-color: var(--button-primary-bg);
+  background-color: #163860;;
   color: white;
   border-color: var(--button-primary-bg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -6103,7 +6958,7 @@ select:focus {
 
 .recommendation-card.compact-mode:hover {
   transform: translateY(-3px) scale(1.02);
-  z-index: 20; /* Ensure expanded card appears above others */
+  z-index: 2; /* Ensure expanded card appears above others */
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
@@ -6614,7 +7469,7 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 5; /* Above mobile menu */
 }
 
 .modal-container {
@@ -6626,6 +7481,8 @@ select:focus {
   max-height: 90vh;
   overflow-y: auto;
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 5;
 }
 
 .modal-header {
@@ -7303,5 +8160,251 @@ body.dark-theme .toggle-icon {
 
 body.dark-theme .info-section-title.collapsible-header:hover {
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Watch History Modal Styles */
+.watch-history-modal {
+  max-width: 90%;
+  width: 900px;
+  max-height: 90vh;
+  z-index: 5; /* Ensure it's above the mobile menu */
+}
+
+.watch-history-section {
+  margin-top: 15px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.watch-history-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.view-history-button {
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  align-self: flex-start;
+}
+
+.view-history-button:hover {
+  background-color: var(--accent-color-hover);
+}
+
+.history-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.history-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 15px;
+  align-items: flex-end;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 5px;
+}
+
+.items-per-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.items-per-page select {
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  min-width: 70px;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.pagination-button {
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-color);
+  transition: all 0.2s ease;
+}
+
+.pagination-button:hover:not(:disabled) {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.current-page {
+  padding: 0 10px;
+  font-weight: 500;
+  color: var(--accent-color);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--text-color-secondary);
+}
+
+.filter-group select {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  min-width: 110px;
+  max-width: 180px;
+}
+
+.search-row {
+  width: 100%;
+}
+
+.history-search {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-size: 1em;
+}
+
+.history-search:focus {
+  border-color: var(--accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.pagination-info {
+  font-size: 0.9em;
+  color: var(--text-color-secondary);
+}
+
+.history-table-container {
+  overflow-x: auto;
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--background-color);
+  margin-top: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.history-table tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.history-table tr:hover {
+  background-color: rgba(33, 150, 243, 0.05);
+}
+
+.history-table th {
+  background-color: #f5f7fa; /* Light solid color for light theme */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: 0 1px 0 var(--border-color), 0 2px 4px rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+  color: var(--accent-color);
+  padding: 15px 10px;
+}
+
+/* Dark theme support */
+body.dark-theme .history-table th {
+  background-color: #2d3748; /* Dark solid color for dark theme */
+  color: #90caf9; /* Lighter blue for dark theme */
+}
+
+.title-column {
+  max-width: 40%;
+}
+
+.no-history {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-color-secondary);
+}
+
+.watch-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+
+.history-title h4 {
+  margin-top: 0;
+  margin-bottom: 5px;
+  color: var(--accent-color);
+}
+
+.history-title .item-count {
+  font-size: 0.9em;
+  color: var(--text-color-secondary);
+  margin: 0;
+}
+
+.filter-controls {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.search-container {
+  margin-bottom: 15px;
 }
 </style>

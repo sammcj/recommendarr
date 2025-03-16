@@ -2836,7 +2836,7 @@ input[type="password"] {
   border-radius: 8px;
   text-align: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  z-index: 8;
   min-width: 280px;
   max-width: 400px;
   animation: slideUp 0.3s ease, pulse 0.5s ease 1s, fadeOut 0.5s ease 3s forwards;
@@ -3231,7 +3231,7 @@ body.dark-theme .model-warning {
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(2px);
-  z-index: 2000;
+  z-index: 9;
   display: flex;
   align-items: center;
   justify-content: center;

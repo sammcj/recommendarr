@@ -147,6 +147,50 @@
         </div>
       </div>
       
+      <!-- User Selection Modal for Plex -->
+      <div v-if="showPlexUserSelect && plexConnected" class="modal-overlay">
+        <div class="plex-user-modal">
+          <div class="modal-header">
+            <h4>Select Plex User</h4>
+            <button class="close-button" @click="closePlexUserSelect">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="plexUsersLoading" class="loading-users">
+              <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+              </div>
+              <p>Loading users...</p>
+            </div>
+            <div v-else-if="plexUsers.length === 0" class="no-users-found">
+              <p>No users found. Please check your API token permissions.</p>
+            </div>
+            <div v-else class="users-list">
+              <button 
+                v-for="user in plexUsers" 
+                :key="user.id"
+                class="user-item"
+                :class="{ 'selected': user.id === selectedPlexUserId }"
+                @click="selectPlexUser(user)"
+              >
+                <span class="user-name">{{ user.name }}</span>
+                <span v-if="user.isAdmin" class="user-badge admin">Admin</span>
+                <span v-if="user.isOwner" class="user-badge owner">Owner</span>
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="cancel-button" @click="closePlexUserSelect">Cancel</button>
+            <button 
+              class="apply-button" 
+              @click="applyPlexUserSelection"
+              :disabled="!selectedPlexUserId"
+            >
+              Apply Selection
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <SonarrConnection v-if="showSonarrConnect && !sonarrConnected" @connected="handleSonarrConnected" @disconnected="handleSonarrDisconnected" />
       <RadarrConnection v-if="showRadarrConnect && !radarrConnected" @connected="handleRadarrConnected" @disconnected="handleRadarrDisconnected" />
       <PlexConnection v-if="showPlexConnect && !plexConnected" @connected="handlePlexConnected" @disconnected="handlePlexDisconnected" @limitChanged="handlePlexLimitChanged" />
@@ -179,6 +223,7 @@
           @refreshTraktHistory="fetchTraktData"
           @openJellyfinUserSelect="openJellyfinUserSelect"
           @openTautulliUserSelect="openTautulliUserSelect"
+          @openPlexUserSelect="openPlexUserSelect"
         />
         
         <RequestRecommendations 
@@ -212,6 +257,7 @@
           @refreshTraktHistory="fetchTraktData"
           @openJellyfinUserSelect="openJellyfinUserSelect"
           @openTautulliUserSelect="openTautulliUserSelect"
+          @openPlexUserSelect="openPlexUserSelect"
         />
         
         <History
@@ -308,12 +354,16 @@ export default {
       showTraktConnect: false,
       showJellyfinUserSelect: false,
       showTautulliUserSelect: false,
+      showPlexUserSelect: false,
       jellyfinUsers: [],
       jellyfinUsersLoading: false,
       tautulliUsers: [],
       tautulliUsersLoading: false,
+      plexUsers: [],
+      plexUsersLoading: false,
       selectedJellyfinUserId: '',
       selectedTautulliUserId: '',
+      selectedPlexUserId: '',
       activeTab: 'tv-recommendations',
       series: [],
       movies: [],
@@ -362,6 +412,25 @@ export default {
 
         // Load cached watch history from localStorage first
         this.loadCachedWatchHistory();
+        
+        // Sync selectedUserId from services
+        this.selectedPlexUserId = plexService.selectedUserId;
+        
+        // For Jellyfin, try localStorage first, then fall back to service
+        const savedJellyfinUserId = localStorage.getItem('selectedJellyfinUserId');
+        if (savedJellyfinUserId) {
+          this.selectedJellyfinUserId = savedJellyfinUserId;
+          console.log(`Loaded Jellyfin user ID from localStorage: ${savedJellyfinUserId}`);
+        } else {
+          this.selectedJellyfinUserId = jellyfinService.userId;
+        }
+        
+        // For Tautulli, we need to load from localStorage since it's not stored in the service
+        const savedTautulliUserId = localStorage.getItem('selectedTautulliUserId');
+        if (savedTautulliUserId) {
+          this.selectedTautulliUserId = savedTautulliUserId;
+          console.log(`Loaded Tautulli user ID from localStorage: ${savedTautulliUserId}`);
+        }
 
         // After connections are established, fetch and store watch history
         if (this.plexConnected || this.jellyfinConnected || this.tautulliConnected || this.traktConnected) {
@@ -988,22 +1057,42 @@ export default {
             
           case 'plex':
             if (credentials.baseUrl && credentials.token) {
-              await plexService.configure(credentials.baseUrl, credentials.token);
+              // Make sure to include selectedUserId from credentials if it exists
+              await plexService.configure(
+                credentials.baseUrl, 
+                credentials.token,
+                credentials.selectedUserId || ''
+              );
+              
+              // Update the component's state with the user ID from credentials
+              this.selectedPlexUserId = credentials.selectedUserId || '';
+              
               const success = await plexService.testConnection();
               if (success) {
                 this.plexConnected = true;
-                this.fetchPlexData();
+                // Pass the selectedUserId directly to ensure it's used
+                this.fetchPlexData(this.selectedPlexUserId);
               }
             }
             break;
             
           case 'jellyfin':
             if (credentials.baseUrl && credentials.apiKey && credentials.userId) {
+              // Configure jellyfin service with stored credentials
               await jellyfinService.configure(credentials.baseUrl, credentials.apiKey, credentials.userId);
+              
+              // Update the component's state with the user ID from credentials
+              this.selectedJellyfinUserId = credentials.userId || '';
+              
+              // Save the userId to localStorage for extra persistence
+              localStorage.setItem('selectedJellyfinUserId', this.selectedJellyfinUserId);
+              
               const result = await jellyfinService.testConnection();
               if (result.success) {
                 this.jellyfinConnected = true;
-                this.fetchJellyfinData();
+                // Pass the userId explicitly to ensure it's used
+                console.log(`Using Jellyfin user ID from credentials: ${this.selectedJellyfinUserId}`);
+                this.fetchJellyfinData(this.selectedJellyfinUserId);
               }
             }
             break;
@@ -1011,10 +1100,18 @@ export default {
           case 'tautulli':
             if (credentials.baseUrl && credentials.apiKey) {
               await tautulliService.configure(credentials.baseUrl, credentials.apiKey);
+              
+              // Load saved user ID from localStorage if available
+              const savedUserId = localStorage.getItem('selectedTautulliUserId');
+              if (savedUserId) {
+                this.selectedTautulliUserId = savedUserId;
+              }
+              
               const success = await tautulliService.testConnection();
               if (success) {
                 this.tautulliConnected = true;
-                this.fetchTautulliData();
+                // Pass the userId explicitly to ensure it's used
+                this.fetchTautulliData(this.selectedTautulliUserId);
               }
             }
             break;
@@ -1223,7 +1320,16 @@ export default {
       this.showJellyfinUserSelect = true;
       this.jellyfinUsersLoading = true;
       this.jellyfinUsers = [];
-      this.selectedJellyfinUserId = jellyfinService.userId;
+      
+      // Try to load the user ID from localStorage first (for extra persistence)
+      const savedUserId = localStorage.getItem('selectedJellyfinUserId');
+      if (savedUserId) {
+        this.selectedJellyfinUserId = savedUserId;
+        console.log(`Loaded Jellyfin user ID from localStorage: ${savedUserId}`);
+      } else {
+        // Fall back to the service's stored user ID
+        this.selectedJellyfinUserId = jellyfinService.userId;
+      }
       
       try {
         this.jellyfinUsers = await jellyfinService.getUsers();
@@ -1240,33 +1346,46 @@ export default {
     
     selectJellyfinUser(user) {
       this.selectedJellyfinUserId = user.id;
+      // Also store the selection in localStorage for extra safety
+      localStorage.setItem('selectedJellyfinUserId', user.id);
     },
     
     async applyJellyfinUserSelection() {
-      if (!this.selectedJellyfinUserId) return;
+      // Validate the user ID
+      if (!this.selectedJellyfinUserId) {
+        console.error('No Jellyfin user ID selected. Jellyfin requires a user ID for watch history.');
+        return;
+      }
       
       // Save current history limit to ensure it persists across user changes
       localStorage.setItem('jellyfinHistoryLimit', this.jellyfinRecentLimit.toString());
+      // Always persist the user ID selection to localStorage
+      localStorage.setItem('selectedJellyfinUserId', this.selectedJellyfinUserId);
       
       // Update the Jellyfin service with the new user ID
-      jellyfinService.configure(
+      await jellyfinService.configure(
         jellyfinService.baseUrl,
         jellyfinService.apiKey,
-        this.selectedJellyfinUserId
+        this.selectedJellyfinUserId,
+        this.jellyfinRecentLimit
       );
       
       // Close the modal
       this.showJellyfinUserSelect = false;
       
-      // Fetch updated watch history
-      this.fetchJellyfinData();
+      // Fetch updated watch history with the explicitly selected user ID
+      console.log(`Applying Jellyfin user selection: ${this.selectedJellyfinUserId}`);
+      this.fetchJellyfinData(this.selectedJellyfinUserId);
     },
     
     async openTautulliUserSelect() {
       this.showTautulliUserSelect = true;
       this.tautulliUsersLoading = true;
       this.tautulliUsers = [];
-      this.selectedTautulliUserId = '';
+      
+      // Load the previously selected user ID if available
+      const savedUserId = localStorage.getItem('selectedTautulliUserId');
+      this.selectedTautulliUserId = savedUserId || '';
       
       try {
         this.tautulliUsers = await tautulliService.getUsers();
@@ -1283,19 +1402,69 @@ export default {
     
     selectTautulliUser(user) {
       this.selectedTautulliUserId = user.user_id;
+      // Store the selection immediately to ensure it's available on page reload
+      localStorage.setItem('selectedTautulliUserId', user.user_id);
     },
     
     applyTautulliUserSelection() {
-      if (!this.selectedTautulliUserId) return;
-      
       // Save current history limit to ensure it persists
       localStorage.setItem('tautulliRecentLimit', this.tautulliRecentLimit.toString());
+      
+      // Always persist the user ID selection to localStorage
+      localStorage.setItem('selectedTautulliUserId', this.selectedTautulliUserId || '');
       
       // Close the modal
       this.showTautulliUserSelect = false;
       
       // Fetch updated watch history with the new user filter
-      this.fetchTautulliData(this.selectedTautulliUserId);
+      // If selectedTautulliUserId is empty, pass null to indicate "all users"
+      const userId = this.selectedTautulliUserId ? this.selectedTautulliUserId : null;
+      console.log(`Applying Tautulli user selection: ${userId || 'all users'}`);
+      this.fetchTautulliData(userId);
+    },
+    
+    async openPlexUserSelect() {
+      this.showPlexUserSelect = true;
+      this.plexUsersLoading = true;
+      this.plexUsers = [];
+      this.selectedPlexUserId = plexService.selectedUserId;
+      
+      try {
+        this.plexUsers = await plexService.getUsers();
+      } catch (error) {
+        console.error('Error fetching Plex users:', error);
+      } finally {
+        this.plexUsersLoading = false;
+      }
+    },
+    
+    closePlexUserSelect() {
+      this.showPlexUserSelect = false;
+    },
+    
+    selectPlexUser(user) {
+      this.selectedPlexUserId = user.id;
+    },
+    
+    async applyPlexUserSelection() {
+      if (!this.selectedPlexUserId) return;
+      
+      // Save current history limit to ensure it persists across user changes
+      localStorage.setItem('plexRecentLimit', this.plexRecentLimit.toString());
+      
+      // Update the Plex service with the new user ID
+      plexService.configure(
+        plexService.baseUrl,
+        plexService.token,
+        this.selectedPlexUserId,
+        this.plexRecentLimit
+      );
+      
+      // Close the modal
+      this.showPlexUserSelect = false;
+      
+      // Fetch updated watch history
+      this.fetchPlexData();
     },
     
     async checkSonarrConnection() {
@@ -1341,7 +1510,12 @@ export default {
         const success = await plexService.testConnection();
         if (success) {
           this.plexConnected = true;
-          this.fetchPlexData();
+          
+          // Update component state with service's selectedUserId
+          this.selectedPlexUserId = plexService.selectedUserId;
+          
+          // Pass the selectedUserId explicitly to ensure it's used
+          this.fetchPlexData(this.selectedPlexUserId);
         }
       } catch (error) {
         console.error('Failed to connect with stored Plex credentials:', error);
@@ -1353,7 +1527,12 @@ export default {
         const result = await jellyfinService.testConnection();
         if (result.success) {
           this.jellyfinConnected = true;
-          this.fetchJellyfinData();
+          
+          // Update component state with service's userId
+          this.selectedJellyfinUserId = jellyfinService.userId;
+          
+          // Pass the userId explicitly to ensure it's used
+          this.fetchJellyfinData(this.selectedJellyfinUserId);
         }
       } catch (error) {
         console.error('Failed to connect with stored Jellyfin credentials:', error);
@@ -1365,7 +1544,15 @@ export default {
         const success = await tautulliService.testConnection();
         if (success) {
           this.tautulliConnected = true;
-          this.fetchTautulliData();
+          
+          // Load saved user ID from localStorage if available
+          const savedUserId = localStorage.getItem('selectedTautulliUserId');
+          if (savedUserId) {
+            this.selectedTautulliUserId = savedUserId;
+          }
+          
+          // Pass the userId explicitly to ensure it's used
+          this.fetchTautulliData(this.selectedTautulliUserId);
         }
       } catch (error) {
         console.error('Failed to connect with stored Tautulli credentials:', error);
@@ -1577,7 +1764,7 @@ export default {
       }
     },
     
-    async fetchPlexData() {
+    async fetchPlexData(userId = '') {
       if (!plexService.isConfigured()) {
         return;
       }
@@ -1586,16 +1773,27 @@ export default {
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.plexHistoryMode === 'recent' ? 30 : 0;
         
+        // First prioritize the userId passed in directly, then use the component's selectedPlexUserId if it exists,
+        // and finally fall back to plexService.selectedUserId if needed
+        const userIdToUse = userId || this.selectedPlexUserId || plexService.selectedUserId;
+        
+        // Always ensure plexService has the updated selectedUserId for future calls
+        if (userIdToUse && userIdToUse !== plexService.selectedUserId) {
+          console.log(`Updating plexService.selectedUserId to ${userIdToUse}`);
+          await plexService.configure(plexService.baseUrl, plexService.token, userIdToUse, this.plexRecentLimit);
+        }
+        
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([
-          plexService.getRecentlyWatchedMovies(this.plexRecentLimit, daysAgo),
-          plexService.getRecentlyWatchedShows(this.plexRecentLimit, daysAgo)
+          plexService.getRecentlyWatchedMovies(this.plexRecentLimit, daysAgo, userIdToUse),
+          plexService.getRecentlyWatchedShows(this.plexRecentLimit, daysAgo, userIdToUse)
         ]);
         
         this.recentlyWatchedMovies = moviesResponse;
         this.recentlyWatchedShows = showsResponse;
         
         console.log('Fetched Plex watch history:', {
+          userId: userIdToUse || 'none specified',
           movies: this.recentlyWatchedMovies,
           shows: this.recentlyWatchedShows
         });
@@ -1604,7 +1802,7 @@ export default {
       }
     },
     
-    async fetchJellyfinData() {
+    async fetchJellyfinData(userId = '') {
       if (!jellyfinService.isConfigured()) {
         return;
       }
@@ -1612,6 +1810,41 @@ export default {
       try {
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.jellyfinHistoryMode === 'recent' ? 30 : 0;
+        
+        // Use passed userId or component state in that order
+        let userIdToUse = '';
+        
+        // If userId parameter is provided and not empty, use it
+        if (userId !== null && userId !== undefined && userId !== '') {
+          userIdToUse = userId;
+        } 
+        // Otherwise use the component's stored ID if it's not empty
+        else if (this.selectedJellyfinUserId && this.selectedJellyfinUserId !== '') {
+          userIdToUse = this.selectedJellyfinUserId;
+        }
+        // Finally fall back to the service's userId
+        else if (jellyfinService.userId && jellyfinService.userId !== '') {
+          userIdToUse = jellyfinService.userId;
+        }
+        
+        // If we still don't have a valid user ID, log an error
+        if (!userIdToUse) {
+          console.error('No valid Jellyfin user ID found. Jellyfin requires a user ID for watch history.');
+          return;
+        }
+        
+        console.log(`Fetching Jellyfin history with user ID: ${userIdToUse}`);
+        
+        // Always ensure jellyfinService has the updated userId for future calls
+        if (userIdToUse !== jellyfinService.userId) {
+          console.log(`Updating jellyfinService.userId to ${userIdToUse}`);
+          await jellyfinService.configure(
+            jellyfinService.baseUrl,
+            jellyfinService.apiKey,
+            userIdToUse,
+            this.jellyfinRecentLimit
+          );
+        }
         
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([
@@ -1623,8 +1856,9 @@ export default {
         this.jellyfinRecentlyWatchedShows = showsResponse;
         
         console.log('Fetched Jellyfin watch history:', {
-          movies: this.jellyfinRecentlyWatchedMovies,
-          shows: this.jellyfinRecentlyWatchedShows
+          userId: userIdToUse,
+          movies: this.jellyfinRecentlyWatchedMovies.length,
+          shows: this.jellyfinRecentlyWatchedShows.length
         });
       } catch (error) {
         console.error('Failed to fetch Jellyfin watch history:', error);
@@ -1640,10 +1874,31 @@ export default {
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.tautulliHistoryMode === 'recent' ? 30 : 0;
         
+        // Use passed userId or component state in that order
+        // Note: null/undefined/empty string should all mean "no user filter" (all users)
+        let userIdToUse = null;
+        
+        // If userId parameter is provided and not empty, use it
+        if (userId !== null && userId !== undefined && userId !== '') {
+          userIdToUse = userId;
+        } 
+        // Otherwise use the component's stored ID if it's not empty
+        else if (this.selectedTautulliUserId && this.selectedTautulliUserId !== '') {
+          userIdToUse = this.selectedTautulliUserId;
+        }
+        
+        // Store the selected user ID in component state for future use
+        if (userIdToUse && userIdToUse !== this.selectedTautulliUserId) {
+          this.selectedTautulliUserId = userIdToUse;
+          localStorage.setItem('selectedTautulliUserId', userIdToUse);
+        }
+        
+        console.log(`Fetching Tautulli history with user ID: ${userIdToUse || 'all users'}`);
+        
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([
-          tautulliService.getRecentlyWatchedMovies(this.tautulliRecentLimit, daysAgo, userId),
-          tautulliService.getRecentlyWatchedShows(this.tautulliRecentLimit, daysAgo, userId)
+          tautulliService.getRecentlyWatchedMovies(this.tautulliRecentLimit, daysAgo, userIdToUse),
+          tautulliService.getRecentlyWatchedShows(this.tautulliRecentLimit, daysAgo, userIdToUse)
         ]);
         
         this.tautulliRecentlyWatchedMovies = moviesResponse;
@@ -1652,7 +1907,7 @@ export default {
         console.log('Fetched Tautulli watch history:', {
           movies: this.tautulliRecentlyWatchedMovies,
           shows: this.tautulliRecentlyWatchedShows,
-          userId: userId || 'all users' 
+          userId: userIdToUse || 'all users' 
         });
       } catch (error) {
         console.error('Failed to fetch Tautulli watch history:', error);
@@ -2088,14 +2343,17 @@ main {
   background-color: var(--main-bg-color);
   border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to allow proper stacking */
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+  position: relative; /* Added for proper stacking context */
 }
 
 .content {
   min-height: 400px;
   will-change: opacity;
   animation: fade-in 0.2s ease-out;
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes fade-in {
@@ -2246,11 +2504,11 @@ main {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 5;
   backdrop-filter: blur(2px);
 }
 
-.jellyfin-user-modal, .tautulli-user-modal {
+.jellyfin-user-modal, .tautulli-user-modal, .plex-user-modal {
   background-color: var(--card-bg-color);
   border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
@@ -2265,6 +2523,10 @@ main {
 
 .tautulli-user-modal .modal-header {
   border-bottom: 2px solid #7c3aed; /* Tautulli purple color */
+}
+
+.plex-user-modal .modal-header {
+  border-bottom: 2px solid #e5a00d; /* Plex orange color */
 }
 
 .modal-header {
@@ -2339,6 +2601,16 @@ main {
   background-color: rgba(67, 97, 238, 0.08);
 }
 
+.plex-user-modal .user-item:hover {
+  border-color: #e5a00d;
+  background-color: rgba(229, 160, 13, 0.05);
+}
+
+.plex-user-modal .user-item.selected {
+  border-color: #e5a00d;
+  background-color: rgba(229, 160, 13, 0.1);
+}
+
 .user-name {
   font-weight: 500;
   color: var(--text-color);
@@ -2356,12 +2628,30 @@ main {
   color: var(--button-primary-text);
 }
 
+.user-badge.owner {
+  background-color: #e5a00d; /* Plex orange color */
+  color: white;
+}
+
 .modal-footer {
   padding: 15px 20px;
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.plex-user-modal .modal-footer {
+  border-top: 1px solid var(--border-color);
+}
+
+.plex-user-modal .apply-button {
+  background-color: #e5a00d;
+  color: white;
+}
+
+.plex-user-modal .apply-button:hover:not(:disabled) {
+  background-color: #c48b0b;
 }
 
 .config-navigation {

@@ -268,6 +268,33 @@ class SonarrService {
   }
   
   /**
+   * Get all available tags from Sonarr
+   * @returns {Promise<Array>} - List of tags
+   */
+  async getTags() {
+    try {
+      return await this._apiRequest('/api/v3/tag');
+    } catch (error) {
+      console.error('Error fetching tags from Sonarr:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new tag in Sonarr
+   * @param {string} label - The tag label/name
+   * @returns {Promise<Object>} - The created tag object
+   */
+  async createTag(label) {
+    try {
+      return await this._apiRequest('/api/v3/tag', 'POST', { label });
+    } catch (error) {
+      console.error(`Error creating tag "${label}" in Sonarr:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Add a series to Sonarr
    * @param {string} title - The series title to search for
    * @param {Array|null} [selectedSeasons] - Array of season numbers to monitor (optional)
@@ -275,9 +302,10 @@ class SonarrService {
    *                                          If empty array, no seasons will be monitored
    * @param {number} [qualityProfileId] - Quality profile ID to use (optional)
    * @param {string} [rootFolderPath] - Root folder path to use (optional)
+   * @param {Array<number>} [tags] - Array of tag IDs to apply (optional)
    * @returns {Promise<Object>} - The added series object
    */
-  async addSeries(title, selectedSeasons = null, qualityProfileId = null, rootFolderPath = null) {
+  async addSeries(title, selectedSeasons = null, qualityProfileId = null, rootFolderPath = null, tags = []) {
     if (!this.isConfigured()) {
       throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
     }
@@ -345,6 +373,7 @@ class SonarrService {
         monitored: true,
         seasonFolder: true,
         seriesType: 'standard',
+        tags: tags, // Add the tags array
         addOptions: {
           searchForMissingEpisodes: true
         }

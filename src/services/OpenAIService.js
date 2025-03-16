@@ -661,13 +661,13 @@ class OpenAIService {
     try {
       // Only initialize conversation history if it doesn't exist yet
       if (this.tvConversation.length === 0) {
-      
-      // Determine if we should use only watch history or include the library
-      let sourceText;
-      let primarySource = [];
-      let libraryTitles = '';
-      
-      if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+        
+        // Determine if we should use only watch history or include the library
+        let sourceText;
+        let primarySource = [];
+        let libraryTitles = '';
+        
+        if (plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
         // Only use the watch history
         sourceText = "my watch history";
         primarySource = recentlyWatchedShows.map(show => show.title);
@@ -733,28 +733,19 @@ class OpenAIService {
       }
       
       // Add instructions for diverse, high-quality recommendations focusing on the "vibe" and feel
-      userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and aesthetic qualities of my library:
-
-1. AESTHETIC & TONAL QUALITIES:
-   - Consider the overall mood, atmosphere, and emotional experience
-   - Look for shows with similar pacing, visual style, and thematic resonance
-   - Capture the feeling and vibe rather than just statistical similarity
-
-2. CREATIVE VISION:
-   - Recommend shows with distinctive directorial styles and creative approaches
-   - Focus on storytelling methods that might appeal based on my library
-   - Consider writing quality, character development, and thematic depth
-
-3. CULTURAL CONTEXT:
-   - Identify shows with cultural significance that match my interests
-   - Consider shows that inspired or were inspired by my favorites
-   - Include both acclaimed classics and overlooked gems
-
-Prioritize shows that:
-- Have a similar emotional resonance or "feel" to my current library
-- Offer something distinctive while matching my apparent taste
-- Include both popular standouts and lesser-known hidden gems
-- Are complete or ongoing with consistent quality, avoiding shows canceled early`;
+      userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and aesthetic qualities of my library.
+      Okay, so now we're thinking about suggesting some great new TV shows based on what someone already watches, right? Let's think about it like this:
+      First, let's really nail down the vibe of their current TV show collection. What's the overall feeling you get from their shows? Are they into comedies that make you laugh out loud, intense dramas that keep you on the edge of your seat, maybe quirky and lighthearted shows, or something else entirely? We need to think about the emotions these shows evoke and try to find new series that give off a similar feeling. It's about capturing that same overall mood and tone, you know, not just genre matching.
+      Next, let's think about the creative minds behind the TV shows they love. Does their collection seem to favor shows with a really unique and strong creative vision? Maybe we can look for other series that have that same kind of distinctive style and approach to storytelling. Think about how the stories are told across episodes and seasons, the way the characters are developed, the overall narrative structure – all that good TV stuff! We could look for shows that are visually interesting, or maybe ones that are super focused on character development and relationships – whatever seems to fit their taste.
+      And lastly, let's consider the cultural impact of their favorite TV shows. Do they seem drawn to series that are important or influential in the TV landscape? Maybe we should think about shows that feel like they're part of a similar cultural conversation, or explore similar themes and ideas. It would be awesome to suggest both really well-known, critically acclaimed shows that everyone talks about, but also maybe some cool, under-the-radar gems that they might not have discovered yet.
+      So, when you're picking out TV shows, really try to find ones that:
+      Give off the same emotional feeling as the shows they already watch.
+      
+      Are distinctive and interesting in their own way, but still fit with their general taste in TV.
+      
+      Include a good mix of famous, must-watch series and those cool hidden gem type shows that deserve more attention.
+      
+      Come from showrunners, writers, or even TV eras that seem to be in line with what they already enjoy watching.`;
       
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
@@ -765,10 +756,8 @@ Prioritize shows that:
         userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
       }
       
-      // Add previous recommendations to avoid repeating them
-      if (previousRecommendations.length > 0) {
-        userPrompt += ` You also MUST NOT recommend these previously suggested shows: ${previousRecommendations.join(', ')}`;
-      }
+      // We no longer include previous recommendations in the prompt
+      // We'll use verifyRecommendations to filter out duplicates afterward
       
       // Add liked shows as explicit examples to not recommend again
       if (likedRecommendations.length > 0) {
@@ -788,32 +777,42 @@ Prioritize shows that:
       
       userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY show, you MUST verify it's not something I already have or dislike.`;
       
-      // Include detailed formatting instructions if structured output is disabled
-      if (!this.useStructuredOutput) {
-        userPrompt += `
+      // Always include JSON formatting instructions regardless of structured output mode
+      userPrompt += `
 
-⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT JSON FORMAT WITHOUT ANY DEVIATION ⚠️
 
 The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
 
-1. [Show Title]: 
-Description: [brief description] 
-Why you might like it: [short reason based on my current shows] 
-Recommendarr Rating: [score]% - [brief qualitative assessment]
-Available on: [streaming service]
-
-2. [Next Show Title]:
-...and so on.
+\`\`\`json
+{
+  "recommendations": [
+    {
+      "title": "Show Title",
+      "description": "Brief description of the show",
+      "reasoning": "Short reason why I might like it based on my current shows",
+      "rating": "85% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    },
+    {
+      "title": "Another Show Title",
+      "description": "Brief description of the show",
+      "reasoning": "Short reason why I might like it based on my current shows",
+      "rating": "90% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    }
+    // Additional recommendations...
+  ]
+}
+\`\`\`
 
 ⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
-- Follow this output format with ABSOLUTE PRECISION 
-- Do NOT add ANY extra text, headings, introductions, or conclusions
-- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per show
-- Do NOT use Markdown formatting like bold or italics
-- Do NOT deviate from the format structure in ANY way
+- Format must be valid, parseable JSON
+- Response must be ONLY the JSON object with no additional text before or after
+- Each show must include all five properties: title, description, reasoning, rating, and streaming
+- NO Markdown formatting inside the JSON values
 - NEVER recommend any show in my library, liked shows list, or any exclusion list
-- Begin IMMEDIATELY with "1. [Show Title]:" with NO preamble`;
-      }
+- DO NOT include any introductory or concluding text outside the JSON object`;
       
       userPrompt += `
 
@@ -834,10 +833,8 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any show in my library, liked shows list, or any exclusion list
 - For each show, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-      // Initialize conversation with system message with appropriate formatting based on structured output setting
-      const systemContent = this.useStructuredOutput
-        ? "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO extra text, introductions or conclusions\n5. DO NOT use markdown formatting or styling in your outputs\n6. For each show, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
-        : "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Show Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
+      // Use the same JSON-focused system message regardless of the useStructuredOutput setting
+      const systemContent = "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows, or any previously recommended shows\n3. NEVER recommend shows that were already mentioned in the conversation history by either you or the user\n4. Recommend shows matching the emotional and stylistic feel of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
       
       this.tvConversation = [
         {
@@ -903,11 +900,11 @@ CRITICAL REQUIREMENTS:
       customVibe,
       language
     });
-    
+
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
-      
+
       if (!this.isConfigured()) {
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
@@ -917,164 +914,157 @@ CRITICAL REQUIREMENTS:
       // Only initialize conversation history if it doesn't exist yet
       if (this.movieConversation.length === 0) {
         console.log("Initializing new movie conversation");
-      
-      // Determine if we should use only Plex history or include the library
-      let sourceText;
-      let primarySource = [];
-      let libraryTitles = '';
-      
-      if (plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
-        // Only use the Plex watch history
-        sourceText = "my Plex watch history";
-        primarySource = recentlyWatchedMovies.map(movie => movie.title);
-        
-        // Add library titles to exclusions to prevent recommending what user already has
-        if (movies && movies.length > 0) {
+
+        // Determine if we should use only Plex history or include the library
+        let sourceText;
+        let primarySource = [];
+        let libraryTitles = '';
+
+        if (plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
+          // Only use the Plex watch history
+          sourceText = "my Plex watch history";
+          primarySource = recentlyWatchedMovies.map(movie => movie.title);
+
+          // Add library titles to exclusions to prevent recommending what user already has
+          if (movies && movies.length > 0) {
+            const radarrTitles = movies.map(movie => movie.title);
+            previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
+          }
+        } else {
+          // Use the Radarr library as the main library
+          sourceText = "my movie library";
           const radarrTitles = movies.map(movie => movie.title);
-          previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
+          primarySource = [...radarrTitles];
         }
-      } else {
-        // Use the Radarr library as the main library
-        sourceText = "my movie library";
-        const radarrTitles = movies.map(movie => movie.title);
-        primarySource = [...radarrTitles];
+
+        // Determine if we're using the full library or sampled approach
+        if (this.useSampledLibrary) {
+          // Use a sampled approach for efficiency
+          const sampleMovies = this.getSampleItems(primarySource, this.sampleSize);
+          libraryTitles = sampleMovies.join(', ');
+        } else {
+          // Use the full library approach
+          libraryTitles = primarySource.join(', ');
+        }
+
+        // Ensure count is within reasonable bounds
+        const recommendationCount = Math.min(Math.max(count, 1), 50);
+
+        // Base prompt
+        let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} high-quality movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
+
+        // Add genre preference if specified
+        if (genre) {
+          const genreList = genre.includes(',') ? genre : `the ${genre}`;
+          userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
+        }
+
+        // Add custom vibe if specified
+        if (customVibe && customVibe.trim()) {
+          userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
+        }
+
+        // Add language preference if specified
+        if (language) {
+          userPrompt += ` Please ONLY recommend movies in ${language} language.`;
+        }
+
+        // Add instructions for diverse, high-quality recommendations focusing on the "vibe" and feel
+        userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and cinematic qualities of my library:
+
+        Alright, so we're trying to suggest some awesome new movies for someone based on the films they already have, right?  Let's think about it like this:
+
+        First off, let's really get a feel for the *vibe* of their movie collection.  You know, like, what's the overall mood? Are we talking happy and upbeat, dark and mysterious, or maybe something else entirely?  Think about the emotions the movies give you, and try to find new films that create a similar feeling.  It's about capturing that same atmosphere and tone, not just matching genres or actors, you know?
         
-        // We don't add liked recommendations to the primary source anymore,
-        // as they will be filtered later. This ensures liked items won't be
-        // recommended again, even if they're not part of the actual library.
-      }
-      
-      // Create combined exclusion list (everything that shouldn't be recommended)
-      // We're not adding the library titles to the exclusion list to save tokens
-      // For the sampled approach, we're betting on the AI being smart enough to avoid recommending library items
-      // even without an explicit exclusion list
-      
-      // Determine if we're using the full library or sampled approach
-      if (this.useSampledLibrary) {
-        // Use a sampled approach for efficiency
-        const sampleMovies = this.getSampleItems(primarySource, this.sampleSize);
-        libraryTitles = sampleMovies.join(', ');
-      } else {
-        // Use the full library approach
-        libraryTitles = primarySource.join(', ');
-      }
-      
-      // Ensure count is within reasonable bounds
-      const recommendationCount = Math.min(Math.max(count, 1), 50);
-      
-      // Base prompt
-      let userPrompt = `Based on ${sourceText}, recommend ${recommendationCount} high-quality movies I might enjoy. Be brief and direct - no more than 2-3 sentences per section.`;
-      
-      // Add genre preference if specified
-      if (genre) {
-        const genreList = genre.includes(',') ? genre : `the ${genre}`;
-        userPrompt += ` Focus specifically on recommending movies in ${genreList} genre${genre.includes(',') ? 's' : ''}.`;
-      }
-      
-      // Add custom vibe if specified
-      if (customVibe && customVibe.trim()) {
-        userPrompt += ` Try to match this specific vibe/mood: "${customVibe.trim()}".`;
-      }
-      
-      // Add language preference if specified
-      if (language) {
-        userPrompt += ` Please ONLY recommend movies in ${language} language.`;
-      }
-      
-      // Add instructions for diverse, high-quality recommendations focusing on the "vibe" and feel
-      userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and cinematic qualities of my library:
-
-1. AESTHETIC & EMOTIONAL QUALITIES:
-   - Consider the overall mood, tone, and emotional experience
-   - Look for films with similar visual language, pacing, and atmosphere
-   - Capture the feeling and vibe rather than just statistical similarity
-
-2. DIRECTORIAL VISION:
-   - Recommend films with distinctive styles and creative approaches
-   - Focus on storytelling methods and cinematic techniques that align with my taste
-   - Consider both visually striking films and character-driven narratives
-
-3. CULTURAL RESONANCE:
-   - Identify films that occupy a similar cultural space to my favorites
-   - Consider influential works that connect thematically with my library
-   - Include both widely acclaimed films and overlooked gems
-
-Prioritize movies that:
-- Evoke similar emotional responses to films in my current library
-- Offer something distinctive while matching my apparent taste preferences
-- Include both celebrated classics and lesser-known discoveries
-- Come from directors, writers, or eras that align with my viewing patterns`;
-      
-      // Add library information with appropriate context based on mode
-      if (this.useSampledLibrary) {
-        userPrompt += `\n\nHere are some examples from my library (${primarySource.length} movies total) to understand my taste: ${libraryTitles}`;
-        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies that I already have in my library.`;
-      } else {
-        userPrompt += `\n\nMy current movies: ${libraryTitles}`;
-        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
-      }
-      
-      // Add previous recommendations to avoid repeating them
-      if (previousRecommendations.length > 0) {
-        userPrompt += ` You also MUST NOT recommend these previously suggested movies: ${previousRecommendations.join(', ')}`;
-      }
-      
-      // Add liked movies as explicit examples to not recommend again
-      if (likedRecommendations.length > 0) {
-        userPrompt += `\n\nI like these movies, but DO NOT recommend them again as I've already seen them: ${likedRecommendations.join(', ')}`;
-      }
-      
-      // Add disliked movies as explicit negative examples
-      if (dislikedRecommendations.length > 0) {
-        userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
-      }
-      
-      // Add recently watched movies from various services if available and not already using them as the primary source
-      if (!plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
-        // Debug watch history data structure
-        console.log("Watch history data structures sample:", 
-          recentlyWatchedMovies.slice(0, 2).map(movie => typeof movie === 'object' ? 
-            Object.keys(movie) : typeof movie));
+        Next up, let's consider the *filmmakers* behind the movies they love.  Does their collection lean towards directors with a really unique style?  Maybe we can look for other films that have that same kind of creative vision and approach to storytelling.  Think about how the story is told, the way it looks, all that cinematic stuff.  We could look for movies that are visually stunning, or maybe ones that are really focused on the characters and their stories – whatever feels like it fits their taste.
         
-        const recentTitles = recentlyWatchedMovies.map(movie => {
-          // Handle different formats from different services (Plex, Jellyfin, Tautulli, Trakt)
-          if (typeof movie === 'string') return movie;
-          return movie.title || movie.name || (typeof movie === 'object' ? JSON.stringify(movie) : movie);
-        }).join(', ');
+        And lastly, let's think about the *cultural impact* of their favorite movies. Do they seem to be drawn to films that are important or influential in some way?  Maybe we should consider movies that feel like they're part of a similar conversation, or explore similar themes.  It would be awesome to suggest both really well-known classics that everyone should see, but also maybe some cool, lesser-known gems that they might have missed.
         
-        userPrompt += `\n\nI've recently watched these movies, so please consider them for better recommendations: ${recentTitles}`;
-      }
-      
-      userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.`;
-      
-      // Include detailed formatting instructions if structured output is disabled
-      if (!this.useStructuredOutput) {
+        So, when you're picking out movies, really focus on finding ones that:
+        
+        *   Give off the same *emotional feeling* as the movies they already have.
+        *   Are *distinctive and interesting* in their own way, but still fit with their general taste.
+        *   Include a good mix of *famous classics* and those cool *hidden gem* type movies.
+        *   Come from directors, writers, or even time periods that seem to be *in line with what they already enjoy*.`;
+
+        // Add library information with appropriate context based on mode
+        if (this.useSampledLibrary) {
+          userPrompt += `\n\nHere are some examples from my library (${primarySource.length} movies total) to understand my taste: ${libraryTitles}`;
+          userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies that I already have in my library.`;
+        } else {
+          userPrompt += `\n\nMy current movies: ${libraryTitles}`;
+          userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
+        }
+
+        // We no longer include previous recommendations in the prompt
+        // We'll use verifyRecommendations to filter out duplicates afterward
+
+        // Add liked movies as explicit examples to not recommend again
+        if (likedRecommendations.length > 0) {
+          userPrompt += `\n\nI like these movies, but DO NOT recommend them again as I've already seen them: ${likedRecommendations.join(', ')}`;
+        }
+
+        // Add disliked movies as explicit negative examples
+        if (dislikedRecommendations.length > 0) {
+          userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
+        }
+
+        // Add recently watched movies from various services if available and not already using them as the primary source
+        if (!plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
+          // Debug watch history data structure
+          console.log("Watch history data structures sample:",
+            recentlyWatchedMovies.slice(0, 2).map(movie => typeof movie === 'object' ?
+              Object.keys(movie) : typeof movie));
+
+          const recentTitles = recentlyWatchedMovies.map(movie => {
+            // Handle different formats from different services (Plex, Jellyfin, Tautulli, Trakt)
+            if (typeof movie === 'string') return movie;
+            return movie.title || movie.name || (typeof movie === 'object' ? JSON.stringify(movie) : movie);
+          }).join(', ');
+
+          userPrompt += `\n\nI've recently watched these movies, so please consider them for better recommendations: ${recentTitles}`;
+        }
+
+        userPrompt += `\n\nABSOLUTELY CRITICAL: Before suggesting ANY movie, you MUST verify it's not something I already have or dislike.`;
+
+        // Always include JSON formatting instructions regardless of structured output mode
         userPrompt += `
 
-⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT FORMAT WITHOUT ANY DEVIATION ⚠️
+⚠️ FORMATTING REQUIREMENTS: YOU MUST FOLLOW THIS EXACT JSON FORMAT WITHOUT ANY DEVIATION ⚠️
 
 The format below is MANDATORY. Any deviation will COMPLETELY BREAK the application:
 
-1. [Movie Title]: 
-Description: [brief description] 
-Why you might like it: [short reason based on my current movies] 
-Recommendarr Rating: [score]% - [brief qualitative assessment]
-Available on: [streaming service]
-
-2. [Next Movie Title]:
-...and so on.
+\`\`\`json
+{
+  "recommendations": [
+    {
+      "title": "Movie Title",
+      "description": "Brief description of the movie",
+      "reasoning": "Short reason why I might like it based on my current movies",
+      "rating": "85% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    },
+    {
+      "title": "Another Movie Title",
+      "description": "Brief description of the movie",
+      "reasoning": "Short reason why I might like it based on my current movies",
+      "rating": "90% - Brief qualitative assessment",
+      "streaming": "Available streaming service"
+    }
+    // Additional recommendations...
+  ]
+}
+\`\`\`
 
 ⚠️ CRITICAL FORMAT REQUIREMENTS - FOLLOW EXACTLY ⚠️
-- Follow this output format with ABSOLUTE PRECISION 
-- Do NOT add ANY extra text, headings, introductions, or conclusions
-- Each section title (Description, Why you might like it, Recommendarr Rating, Available on) MUST appear EXACTLY ONCE per movie
-- Do NOT use Markdown formatting like bold or italics
-- Do NOT deviate from the format structure in ANY way
+- Format must be valid, parseable JSON
+- Response must be ONLY the JSON object with no additional text before or after
+- Each movie must include all five properties: title, description, reasoning, rating, and streaming
+- NO Markdown formatting inside the JSON values
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list
-- Begin IMMEDIATELY with "1. [Movie Title]:" with NO preamble`;
-      }
-      
-      userPrompt += `
+- DO NOT include any introductory or concluding text outside the JSON object`;
+
+        userPrompt += `
 
 For the Recommendarr Rating in your recommendations, conduct a thorough analysis using multiple methodologies:
 - Statistical analysis: Privately calculate averages, distributions, and trends from rating sources like IMDB, Rotten Tomatoes, Metacritic
@@ -1093,21 +1083,19 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list
 - For each movie, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-      // Initialize conversation with system message with appropriate formatting based on structured output setting
-      const systemContent = this.useStructuredOutput
-        ? "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO extra text, introductions or conclusions\n5. DO NOT use markdown formatting or styling in your outputs\n6. For each movie, provide a title, description, reasoning why they might like it, a rating percentage with brief assessment, and streaming availability"
-        : "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. Follow the EXACT output format specified - this is critical for the application to function correctly. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. NO Markdown formatting\n5. NO extra text, introductions or conclusions\n6. Format recommendations EXACTLY as instructed\n7. Begin IMMEDIATELY with '1. [Movie Title]:' with NO preamble\n8. Use ONLY these section titles: 'Description:', 'Why you might like it:', 'Recommendarr Rating:', and 'Available on:'";
-      
-      this.movieConversation = [
-        {
-          role: "system",
-          content: systemContent
-        },
-        {
-          role: "user",
-          content: userPrompt
-        }
-      ];
+        // Use the same JSON-focused system message regardless of the useStructuredOutput setting
+        const systemContent = "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies, or any previously recommended movies\n3. NEVER recommend movies that were already mentioned in the conversation history by either you or the user\n4. Recommend movies matching the mood, style, and emotional resonance of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
+
+        this.movieConversation = [
+          {
+            role: "system",
+            content: systemContent
+          },
+          {
+            role: "user",
+            content: userPrompt
+          }
+        ];
       } else {
         // If conversation exists, just add a new request message
         this.movieConversation.push({
@@ -1115,14 +1103,14 @@ CRITICAL REQUIREMENTS:
           content: `Based on our previous conversation, please recommend ${count} new movies I might enjoy. ${genre ? `Focus on ${genre} genres.` : ''} ${customVibe ? `Try to match this vibe: "${customVibe}"` : ''} Use the same format as before.`
         });
       }
-      
+
       // Get initial recommendations using the conversation
       console.log("Getting formatted movie recommendations with conversation");
       console.log("Movie conversation length:", this.movieConversation.length);
-      
+
       const recommendations = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
       console.log("Raw recommendations from API:", recommendations);
-      
+
       // Perform final verification to ensure no existing/liked content is returned
       // This is a critical second check even though we instructed the AI to not include these
       console.log("Verifying movie recommendations don't include library, liked, disliked, or previous items");
@@ -1133,7 +1121,7 @@ CRITICAL REQUIREMENTS:
         dislikedRecommendations,  // Disliked items
         previousRecommendations   // Previous recommendations
       );
-      
+
       console.log("Verified recommendations:", verifiedRecommendations);
       return verifiedRecommendations;
     } catch (error) {
@@ -1173,6 +1161,7 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of additional recommended TV shows
    */
   async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
+    console.log(`getAdditionalTVRecommendations called with: ${libraryItems.length} library items, ${likedItems.length} liked items, ${dislikedItems.length} disliked items, ${previousRecommendations.length} previous recommendations`);
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -1191,7 +1180,7 @@ CRITICAL REQUIREMENTS:
       }
       
       // Create a simpler prompt for additional recommendations
-      let userPrompt = `I need ${recommendationCount} more TV shows that match the emotional and stylistic qualities of my library and your previous recommendations.`;
+      let userPrompt = `I need ${recommendationCount} COMPLETELY NEW TV shows that match the emotional and stylistic qualities of my library. CRITICALLY IMPORTANT: Do NOT recommend ANY TV shows that were mentioned in our previous conversation. I need completely new recommendations that haven't been suggested before.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -1209,12 +1198,10 @@ CRITICAL REQUIREMENTS:
         userPrompt += ` ONLY recommend TV shows in ${language} language.`;
       }
       
-      // Add previous recommendations to avoid repeating them
-      if (previousRecommendations.length > 0) {
-        userPrompt += `\n\nDO NOT recommend any of these shows: ${previousRecommendations.join(', ')}`;
-      }
+      // We no longer include previous recommendations in the prompt
+      // We'll use verifyRecommendations to filter out duplicates afterward
       
-      userPrompt += `\n\nUse the EXACT same format as before.`;
+      userPrompt += `\n\nAGAIN: ABSOLUTELY DO NOT recommend ANY shows previously mentioned in our conversation. Check all prior messages to ensure you're not repeating any suggestions.\n\nUse the EXACT same format as before.`;
 
       // Add the new user message to the existing conversation
       this.tvConversation.push({
@@ -1249,6 +1236,7 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of additional recommended movies
    */
   async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
+    console.log(`getAdditionalMovieRecommendations called with: ${libraryItems.length} library items, ${likedItems.length} liked items, ${dislikedItems.length} disliked items, ${previousRecommendations.length} previous recommendations`);
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -1267,7 +1255,7 @@ CRITICAL REQUIREMENTS:
       }
       
       // Create a simpler prompt for additional movie recommendations
-      let userPrompt = `I need ${recommendationCount} more movies that match the emotional and cinematic qualities of my library and your previous recommendations.`;
+      let userPrompt = `I need ${recommendationCount} COMPLETELY NEW movies that match the emotional and cinematic qualities of my library. CRITICALLY IMPORTANT: Do NOT recommend ANY movies that were mentioned in our previous conversation. I need completely new recommendations that haven't been suggested before.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -1285,12 +1273,10 @@ CRITICAL REQUIREMENTS:
         userPrompt += ` ONLY recommend movies in ${language} language.`;
       }
       
-      // Add previous recommendations to avoid repeating them
-      if (previousRecommendations.length > 0) {
-        userPrompt += `\n\nDO NOT recommend any of these movies: ${previousRecommendations.join(', ')}`;
-      }
+      // We no longer include previous recommendations in the prompt
+      // We'll use verifyRecommendations to filter out duplicates afterward
       
-      userPrompt += `\n\nUse the EXACT same format as before.`;
+      userPrompt += `\n\nAGAIN: ABSOLUTELY DO NOT recommend ANY movies previously mentioned in our conversation. Check all prior messages to ensure you're not repeating any suggestions.\n\nUse the EXACT same format as before.`;
 
       // Add the new user message to the existing conversation
       this.movieConversation.push({
@@ -1892,70 +1878,165 @@ CRITICAL REQUIREMENTS:
    * @param {Array} previousRecommendations - List of previously recommended items
    * @returns {Array} - Filtered list of recommendations
    */
+  /**
+   * Helper function to normalize titles for comparison
+   * @param {string} title - The title to normalize
+   * @returns {string} - Normalized title
+   */
+  normalizeTitleForComparison(title) {
+    if (!title) return '';
+    
+    // Convert to lowercase and trim
+    let normalized = title.toLowerCase().trim();
+    
+    // Remove common prefixes like "the ", "a ", "an "
+    normalized = normalized.replace(/^(the|a|an) /, '');
+    
+    // Remove special characters and extra spaces
+    normalized = normalized.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Remove year patterns like (2021) or [2021]
+    normalized = normalized.replace(/[([]?(19|20)\d{2}[)\]]?/g, '').trim();
+    
+    // Remove common suffixes or subtitles
+    const commonSplitters = [': ', ' - ', ' – '];
+    for (const splitter of commonSplitters) {
+      if (normalized.includes(splitter)) {
+        // Only take the main title part if it's reasonably long
+        const mainPart = normalized.split(splitter)[0].trim();
+        if (mainPart.length >= 3) {
+          normalized = mainPart;
+        }
+      }
+    }
+    
+    return normalized;
+  }
+
+  /**
+   * Helper function to check if two titles are similar
+   * @param {string} title1 - First title
+   * @param {string} title2 - Second title
+   * @returns {boolean} - True if titles are similar
+   */
+  areTitlesSimilar(title1, title2) {
+    // Get normalized versions
+    const normalized1 = this.normalizeTitleForComparison(title1);
+    const normalized2 = this.normalizeTitleForComparison(title2);
+    
+    // Check for exact match after normalization
+    if (normalized1 === normalized2) {
+      return true;
+    }
+    
+    // Check for suffix/prefix relationship with improved handling for distinct titles
+    // Example: "Star Wars: A New Hope" and "Star Wars" should match
+    // But "The Duke" and "The Duke of Burgundy" should NOT match
+    if (normalized1.length > 4 && normalized2.length > 4) {
+      // Check if one is a prefix of the other, but add boundary check to avoid partial word matches
+      // For example: "The Duke" should not match with "The Duke of Burgundy"
+      const shorterStr = normalized1.length < normalized2.length ? normalized1 : normalized2;
+      const longerStr = normalized1.length < normalized2.length ? normalized2 : normalized1;
+      
+      // Only consider exact prefix matches followed by separators (space, colon, etc.)
+      // This handles franchise titles like "Star Wars" and "Star Wars: A New Hope"
+      if (longerStr.startsWith(shorterStr) && 
+          (longerStr.length === shorterStr.length || // Exact match
+           longerStr[shorterStr.length] === ' ' ||   // Space after prefix
+           longerStr[shorterStr.length] === ':' ||   // Colon after prefix
+           longerStr[shorterStr.length] === '-')) {  // Dash after prefix
+        // For cases like "Star Wars" vs "Star Wars: The Force Awakens"
+        return true;
+      }
+    }
+    
+    // Check for word-level similarity with stricter criteria
+    const words1 = normalized1.split(' ').filter(word => word.length >= 3);
+    const words2 = normalized2.split(' ').filter(word => word.length >= 3);
+    
+    // If both titles have significant words
+    if (words1.length > 0 && words2.length > 0) {
+      // Count matching words
+      const matchingWords = words1.filter(word => words2.includes(word));
+      
+      // Require at least 2 matching words for longer titles
+      if (matchingWords.length < 2 && (words1.length > 2 || words2.length > 2)) {
+        return false;
+      }
+      
+      // Increase threshold to 85% for higher precision
+      // This helps distinguish between titles like "The Duke" and "The Duke of Burgundy"
+      const matchRatio1 = matchingWords.length / words1.length;
+      const matchRatio2 = matchingWords.length / words2.length;
+      
+      if (matchRatio1 >= 0.85 || matchRatio2 >= 0.85) {
+        return true;
+      }
+    }
+    
+    // Check for article transposition
+    // "Matrix, The" vs "The Matrix"
+    const articlesRegex = /(^the |^a |^an |, the$|, a$|, an$)/;
+    const withoutArticles1 = normalized1.replace(articlesRegex, '');
+    const withoutArticles2 = normalized2.replace(articlesRegex, '');
+    
+    if (withoutArticles1 === withoutArticles2) {
+      return true;
+    }
+    
+    return false;
+  }
+
   verifyRecommendations(recommendations, libraryItems = [], likedItems = [], dislikedItems = [], previousRecommendations = []) {
     if (!recommendations || !recommendations.length) {
       return [];
     }
 
-    // Create normalized sets for faster lookups
-    const librarySet = new Set(libraryItems.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
+    // Prepare library items for comparison
+    const libraryTitles = libraryItems.map(item => typeof item === 'string' ? item : item.title);
+    const likedTitles = likedItems.map(item => typeof item === 'string' ? item : item.title);
+    const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title);
+    const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title);
     
-    const likedSet = new Set(likedItems.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
-    
-    const dislikedSet = new Set(dislikedItems.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
-    
-    const previousRecsSet = new Set(previousRecommendations.map(item => typeof item === 'string' ? 
-      item.toLowerCase() : item.title.toLowerCase()));
+    // All titles to check against
+    const allExistingTitles = [...libraryTitles, ...likedTitles, ...dislikedTitles, ...previousRecTitles];
 
     // Filter out any recommendations that match existing items
     const filteredRecommendations = recommendations.filter(rec => {
-      const normalizedTitle = rec.title.toLowerCase().trim();
+      const title = rec.title;
       
-      // Check for exact matches
-      if (librarySet.has(normalizedTitle) ||
-          likedSet.has(normalizedTitle) ||
-          dislikedSet.has(normalizedTitle) ||
-          previousRecsSet.has(normalizedTitle)) {
-        return false;
-      }
+      // Enhanced debugging of the recommendation being checked
+      console.log(`Verifying recommendation: "${title}" against ${libraryTitles.length} library items, ${allExistingTitles.length} total items`);
       
-      // Check for title contained within library items (handles substring matches)
-      // This helps with variations like "The Matrix" vs "Matrix" or "Star Wars: A New Hope" vs "Star Wars"
-      for (const libraryTitle of librarySet) {
-        if (normalizedTitle.length > 4 && libraryTitle.length > 4) {
-          if (normalizedTitle.includes(libraryTitle) || libraryTitle.includes(normalizedTitle)) {
-            return false;
-          }
+      // First check library items (priority and most important)
+      for (const existingTitle of libraryTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - LIBRARY MATCH to "${existingTitle}"`);
+          return false;
         }
       }
       
-      // Also check against liked items using the same approach
-      for (const likedTitle of likedSet) {
-        if (normalizedTitle.length > 4 && likedTitle.length > 4) {
-          if (normalizedTitle.includes(likedTitle) || likedTitle.includes(normalizedTitle)) {
-            return false;
-          }
+      // Then check liked items specifically (these should be excluded)
+      for (const existingTitle of likedTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - matches LIKED item "${existingTitle}"`);
+          return false;
         }
       }
       
-      // Also check against disliked items using the same approach
-      for (const dislikedTitle of dislikedSet) {
-        if (normalizedTitle.length > 4 && dislikedTitle.length > 4) {
-          if (normalizedTitle.includes(dislikedTitle) || dislikedTitle.includes(normalizedTitle)) {
-            return false;
-          }
+      // Then check disliked items
+      for (const existingTitle of dislikedTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - matches DISLIKED item "${existingTitle}"`);
+          return false;
         }
       }
       
-      // Also check against previous recommendations using the same approach
-      for (const prevRecTitle of previousRecsSet) {
-        if (normalizedTitle.length > 4 && prevRecTitle.length > 4) {
-          if (normalizedTitle.includes(prevRecTitle) || prevRecTitle.includes(normalizedTitle)) {
-            return false;
-          }
+      // Finally check previous recommendations
+      for (const existingTitle of previousRecTitles) {
+        if (this.areTitlesSimilar(title, existingTitle)) {
+          console.log(`Recommendation "${title}" filtered out - matches PREVIOUS rec "${existingTitle}"`);
+          return false;
         }
       }
       
@@ -2057,6 +2138,20 @@ CRITICAL REQUIREMENTS:
             if (possibleTitle.length > 0 && possibleTitle.length < 50 && 
                 !possibleTitle.toLowerCase().includes("here are")) {
               title = possibleTitle;
+            }
+          }
+        }
+        
+        // Properly extract movie/show title from formatted labels
+        // Handle the specific case where title is "Movie Title" or "TV Show" label
+        if (title.toLowerCase() === "movie title" || title.toLowerCase() === "tv show") {
+          // Try to extract the actual title from the beginning of the details
+          const firstLineBreak = details.indexOf('\n');
+          if (firstLineBreak > 0) {
+            const actualTitle = details.substring(0, firstLineBreak).trim();
+            if (actualTitle.length > 0 && actualTitle.length < 100) {
+              title = actualTitle;
+              details = details.substring(firstLineBreak + 1).trim();
             }
           }
         }

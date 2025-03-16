@@ -361,7 +361,7 @@ body.dark-theme .login-logo {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 7;
   backdrop-filter: blur(2px);
 }
 

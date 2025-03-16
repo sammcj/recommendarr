@@ -834,7 +834,7 @@ CRITICAL REQUIREMENTS:
 - For each show, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
       // Use the same JSON-focused system message regardless of the useStructuredOutput setting
-      const systemContent = "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows or any previously recommended shows\n3. Recommend shows matching the emotional and stylistic feel of the user's library\n4. ALWAYS respond using the exact JSON structure specified\n5. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n6. NO extra text, introductions or conclusions outside the JSON structure\n7. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
+      const systemContent = "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows, or any previously recommended shows\n3. NEVER recommend shows that were already mentioned in the conversation history by either you or the user\n4. Recommend shows matching the emotional and stylistic feel of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
       
       this.tvConversation = [
         {
@@ -1084,7 +1084,7 @@ CRITICAL REQUIREMENTS:
 - For each movie, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
         // Use the same JSON-focused system message regardless of the useStructuredOutput setting
-        const systemContent = "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies or any previously recommended movies\n3. Recommend movies matching the mood, style, and emotional resonance of the user's library\n4. ALWAYS respond using the exact JSON structure specified\n5. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n6. NO extra text, introductions or conclusions outside the JSON structure\n7. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
+        const systemContent = "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies, or any previously recommended movies\n3. NEVER recommend movies that were already mentioned in the conversation history by either you or the user\n4. Recommend movies matching the mood, style, and emotional resonance of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
 
         this.movieConversation = [
           {
@@ -1179,7 +1179,7 @@ CRITICAL REQUIREMENTS:
       }
       
       // Create a simpler prompt for additional recommendations
-      let userPrompt = `I need ${recommendationCount} DIFFERENT TV shows that match the emotional and stylistic qualities of my library.`;
+      let userPrompt = `I need ${recommendationCount} COMPLETELY NEW TV shows that match the emotional and stylistic qualities of my library. CRITICALLY IMPORTANT: Do NOT recommend ANY TV shows that were mentioned in our previous conversation. I need completely new recommendations that haven't been suggested before.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -1200,7 +1200,7 @@ CRITICAL REQUIREMENTS:
       // We no longer include previous recommendations in the prompt
       // We'll use verifyRecommendations to filter out duplicates afterward
       
-      userPrompt += `\n\nUse the EXACT same format as before.`;
+      userPrompt += `\n\nAGAIN: ABSOLUTELY DO NOT recommend ANY shows previously mentioned in our conversation. Check all prior messages to ensure you're not repeating any suggestions.\n\nUse the EXACT same format as before.`;
 
       // Add the new user message to the existing conversation
       this.tvConversation.push({
@@ -1253,7 +1253,7 @@ CRITICAL REQUIREMENTS:
       }
       
       // Create a simpler prompt for additional movie recommendations
-      let userPrompt = `I need ${recommendationCount} DIFFERENT movies that match the emotional and cinematic qualities of my library.`;
+      let userPrompt = `I need ${recommendationCount} COMPLETELY NEW movies that match the emotional and cinematic qualities of my library. CRITICALLY IMPORTANT: Do NOT recommend ANY movies that were mentioned in our previous conversation. I need completely new recommendations that haven't been suggested before.`;
       
       // Add genre preference if specified
       if (genre) {
@@ -1274,7 +1274,7 @@ CRITICAL REQUIREMENTS:
       // We no longer include previous recommendations in the prompt
       // We'll use verifyRecommendations to filter out duplicates afterward
       
-      userPrompt += `\n\nUse the EXACT same format as before.`;
+      userPrompt += `\n\nAGAIN: ABSOLUTELY DO NOT recommend ANY movies previously mentioned in our conversation. Check all prior messages to ensure you're not repeating any suggestions.\n\nUse the EXACT same format as before.`;
 
       // Add the new user message to the existing conversation
       this.movieConversation.push({

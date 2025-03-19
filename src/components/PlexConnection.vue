@@ -42,27 +42,6 @@
     </div>
 
     <div v-if="connectionStatus === 'success'" class="recently-watched-options">
-      <h3>Recently Watched Options</h3>
-      
-      
-      <div class="form-group">
-        <label for="recentLimit">Number of recently watched items to include:</label>
-        <div class="limit-control">
-          <input 
-            id="recentLimit" 
-            v-model.number="recentLimit" 
-            type="number" 
-            min="1" 
-            max="2000" 
-            @change="saveRecentLimit"
-          />
-          <div class="limit-buttons">
-            <button type="button" @click="decreaseLimit" class="limit-btn">-</button>
-            <button type="button" @click="increaseLimit" class="limit-btn">+</button>
-          </div>
-        </div>
-      </div>
-      
       <div class="disconnection-section">
         <button type="button" @click="disconnect" class="disconnect-btn">
           Disconnect Plex

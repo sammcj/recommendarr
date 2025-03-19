@@ -36,61 +36,18 @@
       </div>
       
       <div class="form-group">
-        <label for="jellyfinUser">User:</label>
-        
-        <div v-if="userSelectMode" class="user-selection">
-          <div v-if="loadingUsers" class="loading-users">
-            <div class="spinner"></div>
-            <span>Loading users...</span>
-          </div>
-          
-          <div v-else-if="users.length === 0" class="no-users-warning">
-            No users found. Please check your API key permissions.
-          </div>
-          
-          <div v-else class="users-list">
-            <button 
-              v-for="user in users" 
-              :key="user.id"
-              class="user-item"
-              :class="{ selected: user.id === jellyfinUserId }"
-              @click="selectUser(user)"
-              type="button"
-            >
-              <span class="user-name">{{ user.name }}</span>
-              <div class="user-badges">
-                <span v-if="user.id === jellyfinUserId" class="badge selected-badge">Selected</span>
-                <span v-if="user.isAdministrator" class="badge admin-badge">Admin</span>
-              </div>
-            </button>
-          </div>
-          
-          <button type="button" class="secondary-button" @click="userSelectMode = false">
-            Enter ID Manually
-          </button>
-        </div>
-        
-        <div v-else class="manual-user-entry">
-          <input
-            id="jellyfinUserId"
-            v-model="jellyfinUserId"
-            type="text"
-            placeholder="Your Jellyfin User ID"
-            :disabled="loading"
-            required
-          />
-          <p class="help-text">
-            Your User ID can be found in your profile settings under "Profile Information"
-          </p>
-          <button 
-            type="button" 
-            class="secondary-button" 
-            @click="fetchUsers" 
-            :disabled="!canFetchUsers || loading"
-          >
-            Select User
-          </button>
-        </div>
+        <label for="jellyfinUserId">User ID:</label>
+        <input
+          id="jellyfinUserId"
+          v-model="jellyfinUserId"
+          type="text"
+          placeholder="Your Jellyfin User ID"
+          :disabled="loading"
+          required
+        />
+        <p class="help-text">
+          Your User ID can be found in your profile settings under "Profile Information"
+        </p>
       </div>
       
       <div class="form-group">
@@ -159,10 +116,7 @@ export default {
       loading: false,
       message: '',
       messageSuccess: false,
-      jellyfinConnected: this.connected,
-      users: [],
-      loadingUsers: false,
-      userSelectMode: false
+      jellyfinConnected: this.connected
     };
   },
   async created() {
@@ -187,11 +141,6 @@ export default {
       }
     }
   },
-  computed: {
-    canFetchUsers() {
-      return this.jellyfinUrl && this.jellyfinApiKey;
-    }
-  },
   watch: {
     connected(newVal) {
       this.jellyfinConnected = newVal;
@@ -210,34 +159,6 @@ export default {
       }
     },
     
-    async fetchUsers() {
-      if (!this.canFetchUsers) return;
-      
-      this.loadingUsers = true;
-      this.userSelectMode = true;
-      
-      try {
-        // Temporarily configure the service for the API call
-        JellyfinService.configure(
-          this.jellyfinUrl,
-          this.jellyfinApiKey,
-          ''
-        );
-        
-        this.users = await JellyfinService.getUsers();
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        this.message = 'Failed to fetch users. Please check your API key permissions.';
-        this.messageSuccess = false;
-      } finally {
-        this.loadingUsers = false;
-      }
-    },
-    
-    selectUser(user) {
-      this.jellyfinUserId = user.id;
-      this.userSelectMode = false;
-    },
     
     async saveSettings() {
       this.loading = true;

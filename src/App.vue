@@ -950,6 +950,24 @@ export default {
       if (savedTautulliOnlyMode) {
         this.tautulliOnlyMode = savedTautulliOnlyMode === 'true';
       }
+      
+      // Load Trakt recent limit from localStorage if available
+      const savedTraktLimit = localStorage.getItem('traktRecentLimit');
+      if (savedTraktLimit) {
+        this.traktRecentLimit = parseInt(savedTraktLimit, 10);
+      }
+      
+      // Load Trakt history mode from localStorage if available
+      const savedTraktHistoryMode = localStorage.getItem('traktHistoryMode');
+      if (savedTraktHistoryMode) {
+        this.traktHistoryMode = savedTraktHistoryMode;
+      }
+      
+      // Load Trakt only mode from localStorage if available
+      const savedTraktOnlyMode = localStorage.getItem('traktOnlyMode');
+      if (savedTraktOnlyMode) {
+        this.traktOnlyMode = savedTraktOnlyMode === 'true';
+      }
     },
     
     // Check if we have credentials stored server-side

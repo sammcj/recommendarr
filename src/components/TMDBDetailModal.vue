@@ -659,18 +659,26 @@ export default {
 
 .error-button {
   padding: 10px 20px;
-  border: none;
+  border: 1px solid rgba(0, 0, 0, 0.2);
   border-radius: var(--border-radius);
   background-color: var(--primary-color);
   color: white;
   cursor: pointer;
   font-weight: 500;
   transition: var(--transition);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .error-button:hover {
   background-color: var(--primary-dark);
   transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  .error-button {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
 }
 
 .modal-content {
@@ -841,12 +849,14 @@ export default {
   color: white;
   font-size: 13px;
   transition: var(--transition);
-  /* removed backdrop-filter blur */
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); /* Improve text readability */
 }
 
 .genre-tag:hover {
   background-color: rgba(255, 255, 255, 0.3);
   transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .media-details {
@@ -878,6 +888,10 @@ export default {
   transition: var(--transition);
 }
 
+.tab-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
 .tab-button.active {
   color: var(--primary-color);
 }
@@ -896,6 +910,10 @@ export default {
 @media (prefers-color-scheme: dark) {
   .tab-button {
     color: var(--text-light);
+  }
+  
+  .tab-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -1185,20 +1203,22 @@ export default {
   display: inline-flex;
   align-items: center;
   padding: 10px 20px;
-  background-color: var(--primary-color);
-  color: white;
+  background-color: #01b4e4; /* TMDB's blue color */
+  color: white !important; /* Ensure text is always white */
   text-decoration: none;
   border-radius: var(--border-radius);
   font-size: 15px;
   font-weight: 600;
   transition: var(--transition);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.2); /* Add stronger border for better visibility */
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3); /* Add text shadow for better contrast */
 }
 
 .tmdb-link:hover {
-  background-color: var(--primary-dark);
+  background-color: #0099c9; /* Darker TMDB blue for hover state */
   transform: translateY(-3px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
 }
 
 .link-icon {

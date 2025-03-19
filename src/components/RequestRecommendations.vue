@@ -2463,6 +2463,44 @@ export default {
       return '??';
     },
     
+    // Extract a numeric value from rating text for sorting
+    extractScoreValue(ratingText) {
+      if (!ratingText || ratingText === 'N/A') {
+        return 0; // Default to 0 for sorting purposes
+      }
+      
+      // Use the same extraction logic as extractScore but return a number instead of string
+      // First try to match a standard percentage pattern like "85%"
+      let scoreMatch = ratingText.match(/(\d+)%/);
+      
+      // If that doesn't work, try to match a pattern like "85/100"
+      if (!scoreMatch) {
+        scoreMatch = ratingText.match(/(\d+)\s*\/\s*100/);
+      }
+      
+      // If that doesn't work, try to match a pattern like "8.5/10" and convert to percentage
+      if (!scoreMatch) {
+        const decimalMatch = ratingText.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
+        if (decimalMatch) {
+          const decimal = parseFloat(decimalMatch[1]);
+          return Math.round(decimal * 10);
+        }
+      }
+      
+      // If that doesn't work, look for just a number followed by any text
+      if (!scoreMatch) {
+        scoreMatch = ratingText.match(/(\d+)/);
+      }
+      
+      // If we find any match, return the first capture group as a number
+      if (scoreMatch) {
+        return parseInt(scoreMatch[1], 10);
+      }
+      
+      // If no pattern matches, return 0
+      return 0;
+    },
+    
     // This method has been removed as we no longer display rating details
     // The extractScore method is still used to get the percentage value
     
@@ -4114,6 +4152,20 @@ export default {
           await this.getAdditionalRecommendations(this.numRecommendations - this.recommendations.length, genreString);
         }
         
+        // Sort recommendations by recommendarr rating from highest to lowest
+        if (this.recommendations.length > 0) {
+          this.recommendations.sort((a, b) => {
+            // Extract numerical values from rating strings
+            const scoreA = a.rating ? this.extractScoreValue(a.rating) : 0;
+            const scoreB = b.rating ? this.extractScoreValue(b.rating) : 0;
+            
+            // Sort in descending order (highest first)
+            return scoreB - scoreA;
+          });
+          
+          console.log("Recommendations sorted by recommendarr rating (highest first)");
+        }
+        
         // Add new recommendations to history
         this.addToRecommendationHistory(this.recommendations);
         
@@ -4211,6 +4263,20 @@ export default {
         
         // Combine with existing recommendations
         this.recommendations = [...this.recommendations, ...filteredAdditional];
+        
+        // Sort recommendations by recommendarr rating from highest to lowest
+        if (this.recommendations.length > 0) {
+          this.recommendations.sort((a, b) => {
+            // Extract numerical values from rating strings
+            const scoreA = a.rating ? this.extractScoreValue(a.rating) : 0;
+            const scoreB = b.rating ? this.extractScoreValue(b.rating) : 0;
+            
+            // Sort in descending order (highest first)
+            return scoreB - scoreA;
+          });
+          
+          console.log("Additional recommendations sorted by recommendarr rating (highest first)");
+        }
         
         // If we still don't have enough, try again with incremented recursion depth
         // Even if no additional results were found, we should still try again

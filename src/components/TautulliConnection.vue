@@ -104,11 +104,6 @@
         </div>
       </div>
       
-      <div class="user-selection">
-        <button class="select-user-button" @click="$emit('openTautulliUserSelect')">
-          Change Tautulli User
-        </button>
-      </div>
       
       <div class="actions">
         <button @click="disconnectTautulli" class="disconnect-button">

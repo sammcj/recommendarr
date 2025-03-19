@@ -44,56 +44,6 @@
     <div v-if="connectionStatus === 'success'" class="recently-watched-options">
       <h3>Recently Watched Options</h3>
       
-      <div class="form-group">
-        <label for="plexUser">User:</label>
-        
-        <div v-if="userSelectMode" class="user-selection">
-          <div v-if="loadingUsers" class="loading-users">
-            <div class="spinner"></div>
-            <span>Loading users...</span>
-          </div>
-          
-          <div v-else-if="users.length === 0" class="no-users-warning">
-            No users found. Please check your API token permissions.
-          </div>
-          
-          <div v-else class="users-list">
-            <button 
-              v-for="user in users" 
-              :key="user.id"
-              class="user-item"
-              :class="{ selected: user.id === selectedUserId }"
-              @click="selectUser(user)"
-              type="button"
-            >
-              <span class="user-name">{{ user.name }}</span>
-              <div class="user-badges">
-                <span v-if="user.id === selectedUserId" class="badge selected-badge">Selected</span>
-                <span v-if="user.isAdmin" class="badge admin-badge">Admin</span>
-                <span v-if="user.isOwner" class="badge owner-badge">Owner</span>
-              </div>
-            </button>
-          </div>
-          
-          <button type="button" class="secondary-button" @click="userSelectMode = false">
-            Cancel
-          </button>
-        </div>
-        
-        <div v-else class="manual-user-entry">
-          <div v-if="selectedUserName" class="selected-user-info">
-            <span>Current User: <strong>{{ selectedUserName }}</strong></span>
-          </div>
-          <button 
-            type="button" 
-            class="secondary-button" 
-            @click="fetchUsers" 
-            :disabled="loading"
-          >
-            Select User
-          </button>
-        </div>
-      </div>
       
       <div class="form-group">
         <label for="recentLimit">Number of recently watched items to include:</label>
@@ -141,12 +91,7 @@ export default {
       connectionStatus: null,
       connecting: false,
       recentLimit: 50, // Default limit for recently watched items
-      users: [],
-      selectedUserId: '',
-      selectedUserName: '',
-      loading: false,
-      loadingUsers: false,
-      userSelectMode: false
+      loading: false
     };
   },
   async created() {
@@ -159,12 +104,6 @@ export default {
       // Load current values from service
       this.baseUrl = plexService.baseUrl;
       this.token = plexService.token;
-      this.selectedUserId = plexService.selectedUserId;
-      
-      // If there's a selected user ID but no name, try to find the name
-      if (this.selectedUserId && !this.selectedUserName) {
-        this.fetchUsers(true);
-      }
     }
     
     // Try to load credentials from server
@@ -174,7 +113,6 @@ export default {
         if (credentials && credentials.baseUrl && credentials.token) {
           this.baseUrl = credentials.baseUrl;
           this.token = credentials.token;
-          this.selectedUserId = credentials.selectedUserId || '';
           
           // Try to automatically connect with loaded credentials
           if (!this.connected) {
@@ -209,7 +147,7 @@ export default {
         }
         
         // Configure the service with saved details
-        await plexService.configure(this.baseUrl, this.token, this.selectedUserId);
+        await plexService.configure(this.baseUrl, this.token);
         
         // Test the connection
         const success = await plexService.testConnection();
@@ -218,11 +156,6 @@ export default {
         if (success) {
           this.connectionStatus = 'success';
           this.$emit('connected');
-          
-          // If we have a selected user ID but no name, try to find the name
-          if (this.selectedUserId && !this.selectedUserName) {
-            this.fetchUsers(true);
-          }
         } else {
           // Clear invalid credentials
           await this.clearStoredCredentials();
@@ -247,7 +180,7 @@ export default {
         }
         
         // Configure the service with provided details
-        await plexService.configure(this.baseUrl, this.token, this.selectedUserId);
+        await plexService.configure(this.baseUrl, this.token);
         
         // Test the connection
         const success = await plexService.testConnection();
@@ -258,11 +191,6 @@ export default {
         // If successful, emit event
         if (success) {
           this.$emit('connected');
-          
-          // If we have a selected user ID but no name, try to find the name
-          if (this.selectedUserId && !this.selectedUserName) {
-            this.fetchUsers(true);
-          }
         }
       } catch (error) {
         console.error('Error connecting to Plex:', error);
@@ -309,9 +237,6 @@ export default {
       this.connectionStatus = null;
       this.baseUrl = '';
       this.token = '';
-      this.selectedUserId = '';
-      this.selectedUserName = '';
-      this.users = [];
       
       // Notify parent components
       this.$emit('disconnected');
@@ -337,41 +262,6 @@ export default {
       this.$emit('limitChanged', this.recentLimit);
     },
     
-    async fetchUsers(skipToggle = false) {
-      if (!skipToggle) {
-        this.userSelectMode = true;
-      }
-      this.loadingUsers = true;
-      
-      try {
-        this.users = await plexService.getUsers();
-        
-        // If we have a selected user ID, find the corresponding name
-        if (this.selectedUserId) {
-          const selectedUser = this.users.find(user => user.id === this.selectedUserId);
-          if (selectedUser) {
-            this.selectedUserName = selectedUser.name;
-          }
-        }
-        
-      } catch (error) {
-        console.error('Error fetching Plex users:', error);
-      } finally {
-        this.loadingUsers = false;
-      }
-    },
-    
-    async selectUser(user) {
-      this.selectedUserId = user.id;
-      this.selectedUserName = user.name;
-      this.userSelectMode = false;
-      
-      // Update the service with the selected user
-      await plexService.configure(this.baseUrl, this.token, this.selectedUserId, this.recentLimit);
-      
-      // Notify parent that a user was selected
-      this.$emit('userSelected', user.id);
-    }
   }
 };
 </script>

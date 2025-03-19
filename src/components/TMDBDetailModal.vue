@@ -188,6 +188,49 @@
                 </div>
               </div>
             </div>
+            
+            <!-- Videos Tab -->
+            <div v-if="activeTab === 'videos'" class="videos-tab">
+              <div v-if="trailers && trailers.length" class="trailers-section">
+                <h3 class="section-title">Trailers & Videos</h3>
+                <div class="videos-grid">
+                  <div 
+                    v-for="video in trailers" 
+                    :key="video.id" 
+                    class="video-item"
+                  >
+                    <div class="video-container">
+                      <iframe
+                        :src="getVideoEmbedUrl(video)"
+                        :title="video.name"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                      ></iframe>
+                    </div>
+                    <div class="video-info">
+                      <div class="video-title">{{ video.name }}</div>
+                      <div class="video-type">{{ video.type }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="no-videos">
+                <div class="empty-state">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                    <line x1="7" y1="2" x2="7" y2="22"></line>
+                    <line x1="17" y1="2" x2="17" y2="22"></line>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <line x1="2" y1="7" x2="7" y2="7"></line>
+                    <line x1="2" y1="17" x2="7" y2="17"></line>
+                    <line x1="17" y1="17" x2="22" y2="17"></line>
+                    <line x1="17" y1="7" x2="22" y2="7"></line>
+                  </svg>
+                  <p>No trailers or videos available</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -239,12 +282,14 @@ export default {
       error: null,
       mediaDetails: null,
       cast: [],
+      trailers: [],
       posterUrl: null,
       backdropUrl: null,
       activeTab: 'overview',
       tabs: [
         { id: 'overview', label: 'Overview' },
-        { id: 'cast', label: 'Cast' }
+        { id: 'cast', label: 'Cast' },
+        { id: 'videos', label: 'Videos' }
       ]
     };
   },
@@ -355,8 +400,11 @@ export default {
         console.log('Details retrieved successfully:', details.title || details.name);
         this.mediaDetails = details;
         
-        // Load cast if available
-        await this.loadCast();
+        // Load cast and trailers if available
+        await Promise.all([
+          this.loadCast(),
+          this.loadTrailers()
+        ]);
         
         // Get poster URL
         if (details.poster_path) {
@@ -454,6 +502,54 @@ export default {
       }
     },
     
+    async loadTrailers() {
+      if (!this.mediaDetails || !this.mediaDetails.id) return;
+      
+      try {
+        const videosEndpoint = this.mediaType === 'tv'
+          ? `/tv/${this.mediaDetails.id}/videos`
+          : `/movie/${this.mediaDetails.id}/videos`;
+        
+        const videosResponse = await tmdbService._apiRequest(videosEndpoint);
+        
+        if (videosResponse && videosResponse.results) {
+          // Filter for trailers only, prioritize official trailers in English
+          const allVideos = videosResponse.results;
+          
+          // First, try to find official trailers
+          let officialTrailers = allVideos.filter(video => 
+            (video.type === 'Trailer' || video.type === 'Teaser') && 
+            video.official === true &&
+            (video.site === 'YouTube' || video.site === 'Vimeo') &&
+            video.iso_639_1 === 'en'
+          );
+          
+          // If no official English trailers, look for any trailers
+          if (!officialTrailers.length) {
+            officialTrailers = allVideos.filter(video => 
+              (video.type === 'Trailer' || video.type === 'Teaser') &&
+              (video.site === 'YouTube' || video.site === 'Vimeo')
+            );
+          }
+          
+          // Sort trailers by popularity (if available) or by name
+          this.trailers = officialTrailers.sort((a, b) => {
+            // If popularity data exists, use it
+            if (a.popularity && b.popularity) {
+              return b.popularity - a.popularity;
+            }
+            // Otherwise sort by published date (newest first)
+            return new Date(b.published_at || 0) - new Date(a.published_at || 0);
+          });
+          
+          console.log(`Found ${this.trailers.length} trailers for ${this.mediaDetails.title || this.mediaDetails.name}`);
+        }
+      } catch (error) {
+        console.error('Error loading trailer information:', error);
+        this.trailers = [];
+      }
+    },
+    
     getActorImageUrl(path) {
       return tmdbService.getFullImageUrl(path);
     },
@@ -509,6 +605,31 @@ export default {
     
     getInitials(name) {
       return imageService.getInitials(name);
+    },
+    
+    getVideoEmbedUrl(video) {
+      if (!video || !video.key) return null;
+      
+      // Format based on the site (YouTube or Vimeo)
+      if (video.site === 'YouTube') {
+        return `https://www.youtube.com/embed/${video.key}`;
+      } else if (video.site === 'Vimeo') {
+        return `https://player.vimeo.com/video/${video.key}`;
+      }
+      
+      return null;
+    },
+    
+    getThumbnailUrl(video) {
+      if (!video || !video.key) return null;
+      
+      // Get thumbnail based on provider
+      if (video.site === 'YouTube') {
+        return `https://img.youtube.com/vi/${video.key}/maxresdefault.jpg`;
+      }
+      
+      // For other providers, we can't easily get thumbnails
+      return null;
     },
     
     close() {
@@ -1288,6 +1409,119 @@ export default {
   }
 }
 
+/* Videos tab styles */
+.videos-tab {
+  margin-bottom: 20px;
+}
+
+.videos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.video-item {
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #f0f0f0;
+  transition: var(--transition);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid #dddddd;
+}
+
+.video-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  border-color: #cccccc;
+}
+
+@media (prefers-color-scheme: dark) {
+  .video-item {
+    background-color: #1e1e1e;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid #333333;
+  }
+  
+  .video-item:hover {
+    border-color: #444444;
+  }
+}
+
+.video-container {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  overflow: hidden;
+}
+
+.video-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.video-info {
+  padding: 12px;
+}
+
+.video-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: var(--text-dark);
+  line-height: 1.3;
+}
+
+.video-type {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.7);
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+  .video-title {
+    color: var(--text-light);
+  }
+  
+  .video-type {
+    color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+.no-videos .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: rgba(0, 0, 0, 0.5);
+  background-color: #f8f8f8;
+  border-radius: 12px;
+  border: 1px dashed #ccc;
+  margin-bottom: 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .no-videos .empty-state {
+    color: rgba(255, 255, 255, 0.5);
+    background-color: #252525;
+    border: 1px dashed #444;
+  }
+}
+
+.empty-state svg {
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 16px;
+}
+
 @media (max-width: 640px) {
   .header-content {
     flex-direction: column;
@@ -1301,6 +1535,10 @@ export default {
   
   .cast-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .videos-grid {
+    grid-template-columns: 1fr;
   }
   
   .media-meta {

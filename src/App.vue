@@ -2263,11 +2263,12 @@ body {
 }
 
 .app-container {
-  max-width: 1600px;
+  max-width: var(--app-max-width, 1600px);
   width: 100%;
   margin: 0 auto;
   padding: 10px;
   box-sizing: border-box;
+  transition: max-width 0.3s ease;
 }
 
 @media (min-width: 480px) {

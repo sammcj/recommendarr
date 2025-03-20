@@ -1,5 +1,5 @@
 <template>
-  <div class="recommendations">
+  <div class="recommendations" :class="{ 'widescreen': widescreenMode }">
     <div class="recommendation-header">
       <h2>{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h2>
       <div class="content-type-selector">
@@ -253,6 +253,25 @@
                       <div class="slider-range-labels">
                         <span>1</span>
                         <span>10</span>
+                      </div>
+                    </div>
+                    
+                    <div class="widescreen-toggle">
+                      <label class="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          v-model="widescreenMode" 
+                          @change="saveWidescreenMode"
+                        >
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Widescreen mode</span>
+                      </label>
+                      <div class="setting-tip">
+                        <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
+                          <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <span>Use 80% screen width for better viewing on larger screens</span>
                       </div>
                     </div>
                   </div>
@@ -1461,7 +1480,7 @@ export default {
     },
     
     gridStyle() {
-      // Use a different column count for mobile screens
+      // Standard responsive grid layout (widescreen mode is handled at component level now)
       const isMobile = window.innerWidth <= 600;
       
       // Apply a safety limit to column count for very narrow screens
@@ -1573,6 +1592,7 @@ export default {
       loadingPosters: new Map(), // Track which posters are being loaded
       numRecommendations: 5, // Default number of recommendations to request
       columnsCount: 2, // Default number of posters per row
+      widescreenMode: false, // Toggle for widescreen display mode
       isMovieMode: this.initialMovieMode || false, // Toggle between TV shows (false) and movies (true)
       selectedGenres: [], // Multiple genre selections
       customVibe: '', // Custom vibe/mood input from user
@@ -2548,6 +2568,31 @@ export default {
     },
     
     // Save columns count to server
+    async saveWidescreenMode() {
+      try {
+        console.log('Saving widescreenMode to server:', this.widescreenMode);
+        await apiService.saveSettings({ widescreenMode: this.widescreenMode });
+        
+        // Also save to localStorage as a backup
+        localStorage.setItem('widescreenMode', JSON.stringify(this.widescreenMode));
+        
+        // Clear expanded cards when display mode changes
+        this.expandedCards.clear();
+        
+        // Apply widescreen mode to the entire app by setting a CSS variable
+        document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
+        
+        this.$forceUpdate();
+      } catch (error) {
+        console.error('Error saving widescreen mode to server:', error);
+        // Fallback to localStorage only
+        localStorage.setItem('widescreenMode', JSON.stringify(this.widescreenMode));
+        
+        // Still apply the widescreen setting even if saving fails
+        document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
+      }
+    },
+    
     async saveColumnsCount() {
       try {
         console.log('Saving columnsCount to server:', this.columnsCount);
@@ -4933,6 +4978,15 @@ export default {
           }
         }
         
+        // Load widescreen mode setting
+        if (settings.widescreenMode !== undefined) {
+          this.widescreenMode = !!settings.widescreenMode;
+          console.log('Setting widescreenMode from server:', this.widescreenMode);
+          
+          // Apply widescreen mode to the entire app
+          document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
+        }
+        
         // Temperature setting
         if (settings.aiTemperature !== undefined) {
           const temp = parseFloat(settings.aiTemperature);
@@ -5168,6 +5222,16 @@ export default {
       this.useStructuredOutput = useStructured;
       openAIService.useStructuredOutput = useStructured;
       console.log('Setting useStructuredOutput from localStorage:', useStructured);
+    }
+    
+    // Check for widescreen mode in localStorage if we didn't get it from server
+    const savedWidescreenMode = localStorage.getItem('widescreenMode');
+    if (savedWidescreenMode !== null) {
+      this.widescreenMode = savedWidescreenMode === 'true';
+      console.log('Setting widescreenMode from localStorage:', this.widescreenMode);
+      
+      // Apply widescreen mode to the entire app
+      document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
     }
     
     if (this.columnsCount === 2) { // 2 is the default - if it's still default, check localStorage
@@ -5505,6 +5569,9 @@ export default {
     window.removeEventListener('resize', this.handleResize);
     // Clear any running intervals
     this.stopLoadingMessages();
+    
+    // We don't reset the app max-width to default here, as it should persist across different views
+    // The setting is stored in localStorage and will be reapplied when the user returns
   },
   
   /* eslint-disable */
@@ -6992,6 +7059,11 @@ select:focus {
   gap: 20px;
   margin-top: 20px;
   grid-template-columns: 1fr;
+  transition: max-width 0.3s ease, margin 0.3s ease;
+}
+
+.recommendations {
+  transition: width 0.3s ease, margin 0.3s ease;
 }
 
 @media (min-width: 768px) {
@@ -7003,6 +7075,11 @@ select:focus {
     gap: 15px;
     padding: 0 5px;
   }
+}
+
+/* Widescreen mode styles for recommendation cards */
+.recommendation-card {
+  transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed), width 0.3s ease;
 }
 
 .recommendation-card {
@@ -8203,6 +8280,21 @@ body.dark-theme .toggle-icon {
 .config-content, .vibe-content, .settings-content {
   will-change: max-height, opacity, transform;
   box-sizing: border-box;
+}
+
+/* Widescreen toggle styling */
+.widescreen-toggle {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color-light);
+}
+
+.widescreen-toggle .setting-tip {
+  margin-top: 10px;
+  padding-left: 25px;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  opacity: 0.8;
 }
 
 /* Prevent scroll jumping during animations */

@@ -1462,16 +1462,22 @@ export default {
       if (type === 'tv') {
         // Add to hidden TV shows
         this.hiddenTVShows.add(normalizedTitle);
+        // Create a copy for Vue reactivity
+        this.hiddenTVShows = new Set(this.hiddenTVShows);
       } else if (type === 'movie') {
         // Add to hidden movies
         this.hiddenMovies.add(normalizedTitle);
+        // Create a copy for Vue reactivity
+        this.hiddenMovies = new Set(this.hiddenMovies);
       }
       
-      // Save the updated hidden items
-      this.saveFilterPreferences();
-      
-      // Apply filters to immediately hide the item since hideHiddenContent is true by default
+      // Apply filters first to update the UI
       this.applyFilters();
+      
+      // Save the updated hidden items asynchronously without blocking the UI
+      this.$nextTick(() => {
+        this.saveFilterPreferences();
+      });
       
       // Show notification instead of alert
       this.showNotification(
@@ -1489,13 +1495,19 @@ export default {
       if (type === 'tv') {
         // Remove from hidden TV shows
         this.hiddenTVShows.delete(normalizedTitle);
+        // Create a copy for Vue reactivity
+        this.hiddenTVShows = new Set(this.hiddenTVShows);
       } else if (type === 'movie') {
         // Remove from hidden movies
         this.hiddenMovies.delete(normalizedTitle);
+        // Create a copy for Vue reactivity
+        this.hiddenMovies = new Set(this.hiddenMovies);
       }
       
-      // Save the updated hidden items
-      this.saveFilterPreferences();
+      // Save the updated hidden items asynchronously without blocking the UI
+      this.$nextTick(() => {
+        this.saveFilterPreferences();
+      });
       
       // Show notification instead of alert
       this.showNotification("Item is now visible in history.", "success");
@@ -1693,31 +1705,41 @@ export default {
       this.saveFilterPreferences();
     },
     
-    saveFilterPreferences() {
+    async saveFilterPreferences() {
       // Save filter preferences to localStorage
-      localStorage.setItem('hideExistingContent', this.hideExistingContent);
-      localStorage.setItem('hideLikedContent', this.hideLikedContent);
-      localStorage.setItem('hideDislikedContent', this.hideDislikedContent);
-      localStorage.setItem('hideHiddenContent', this.hideHiddenContent);
+      localStorage.setItem('hideExistingContent', String(this.hideExistingContent));
+      localStorage.setItem('hideLikedContent', String(this.hideLikedContent));
+      localStorage.setItem('hideDislikedContent', String(this.hideDislikedContent));
+      localStorage.setItem('hideHiddenContent', String(this.hideHiddenContent));
+      
+      // Convert Sets to arrays for storage
+      const hiddenTVArray = Array.from(this.hiddenTVShows);
+      const hiddenMoviesArray = Array.from(this.hiddenMovies);
       
       // Save hidden items to localStorage
-      localStorage.setItem('hiddenTVShows', JSON.stringify(Array.from(this.hiddenTVShows)));
-      localStorage.setItem('hiddenMovies', JSON.stringify(Array.from(this.hiddenMovies)));
+      localStorage.setItem('hiddenTVShows', JSON.stringify(hiddenTVArray));
+      localStorage.setItem('hiddenMovies', JSON.stringify(hiddenMoviesArray));
       
       // Also save to server if possible
       try {
-        apiService.saveSettings({
-          hideExistingContent: this.hideExistingContent,
-          hideLikedContent: this.hideLikedContent,
-          hideDislikedContent: this.hideDislikedContent,
-          hideHiddenContent: this.hideHiddenContent
+        // Save settings to server
+        await apiService.saveSettings({
+          historyHideExisting: this.hideExistingContent,
+          historyHideLiked: this.hideLikedContent,
+          historyHideDisliked: this.hideDislikedContent,
+          historyHideHidden: this.hideHiddenContent
         });
         
-        // Save hidden items to server
-        apiService.savePreferences('tv', 'hidden', Array.from(this.hiddenTVShows));
-        apiService.savePreferences('movie', 'hidden', Array.from(this.hiddenMovies));
+        // Save hidden items to server - use Promise.all to run in parallel
+        await Promise.all([
+          apiService.savePreferences('tv', 'hidden', hiddenTVArray),
+          apiService.savePreferences('movie', 'hidden', hiddenMoviesArray)
+        ]);
+        
+        console.log('Successfully saved filter preferences to server');
       } catch (error) {
         console.error('Error saving filter preferences to server:', error);
+        // Continue execution - localStorage is our fallback
       }
     },
     

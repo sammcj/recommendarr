@@ -454,6 +454,15 @@ class PlexService {
         console.log(`Filtering movies watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
         
         validMovies = validMovies.filter(movie => {
+          // Enhanced logging to debug viewedAt issues
+          console.log(`Movie "${movie.title}" has viewedAt: ${movie.viewedAt}`);
+          
+          if (!movie.viewedAt) {
+            console.warn(`Movie "${movie.title}" missing viewedAt timestamp, using current time`);
+            // If viewedAt is missing, assume it's recent to avoid filtering out content
+            return true;
+          }
+          
           const viewedAtTimestamp = parseInt(movie.viewedAt, 10);
           const isRecent = viewedAtTimestamp >= cutoffTimestamp;
           
@@ -610,6 +619,15 @@ class PlexService {
         console.log(`Filtering TV shows watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
         
         filteredEpisodes = episodes.filter(episode => {
+          // Enhanced logging to debug viewedAt issues
+          console.log(`Episode/Show "${episode.title}" has viewedAt: ${episode.viewedAt}`);
+          
+          if (!episode.viewedAt) {
+            console.warn(`Episode/Show "${episode.title}" missing viewedAt timestamp, using current time`);
+            // If viewedAt is missing, assume it's recent to avoid filtering out content
+            return true;
+          }
+          
           const viewedAtTimestamp = parseInt(episode.viewedAt, 10);
           const isRecent = viewedAtTimestamp >= cutoffTimestamp;
           

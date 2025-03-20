@@ -3747,14 +3747,34 @@ export default {
         if (!item) return false;
         
         // Handle different property names for watched date (compatibility with different sources)
-        const watchDateStr = item.lastWatched || item.watched;
+        // Look for watch date in different properties depending on service
+        // Plex uses viewedAt, others may use lastWatched or watched
+        const watchDateStr = item.lastWatched || item.watched || item.viewedAt;
         if (!watchDateStr) {
           console.log(`${service} item missing watch date:`, item);
           return false;
         }
         
-        const watchDate = new Date(watchDateStr);
+        // Handle both date strings and unix timestamps
+        let watchDate;
+        if (typeof watchDateStr === 'number' || (typeof watchDateStr === 'string' && !isNaN(parseInt(watchDateStr, 10)))) {
+          // Handle Unix timestamps (seconds since epoch)
+          const timestamp = parseInt(watchDateStr, 10);
+          // Check if timestamp is in seconds (Plex) or milliseconds
+          watchDate = timestamp > 9999999999 
+            ? new Date(timestamp) // Already in milliseconds
+            : new Date(timestamp * 1000); // Convert seconds to milliseconds
+        } else {
+          // Handle regular date strings
+          watchDate = new Date(watchDateStr);
+        }
+        
         const shouldInclude = watchDate >= cutoffDate;
+        
+        // Debug output if filtering out item
+        if (!shouldInclude) {
+          console.log(`Filtering out ${service} item "${item.title}" with date ${watchDate.toISOString()} before cutoff ${cutoffDate.toISOString()}`);
+        }
         
         if (service === 'trakt' && !shouldInclude) {
           console.log(`Filtering out Trakt item with date ${watchDate.toISOString()} before cutoff ${cutoffDate.toISOString()}`);

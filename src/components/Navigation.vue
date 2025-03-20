@@ -69,6 +69,20 @@
       
       <!-- Right side actions -->
       <div class="nav-right">
+        <!-- Version display -->
+        <div class="version-display">v{{ appVersion }}</div>
+        
+        <!-- Buy Me a Coffee link -->
+        <a href="https://buymeacoffee.com/fingerthief" target="_blank" class="bmc-link" title="Support this project">
+          <svg class="bmc-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7.5 10.5H16.5V11.25C16.5 12.9069 15.1569 14.25 13.5 14.25H10.5C8.84315 14.25 7.5 12.9069 7.5 11.25V10.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16.8265 3.75C17.0346 3.75 17.2253 3.86959 17.3186 4.05647L17.9685 5.35647C18.0153 5.45022 18.0261 5.5555 18.0001 5.65643L17.0001 9.65643C16.957 9.82894 16.8039 9.96635 16.6211 10H8.23258C7.8751 10 7.53687 9.8329 7.30653 9.54877L5.25 7L6.75 5.5L8.77921 7.99877C8.8444 8.07822 8.9419 8.125 9.04546 8.125H15.0147C15.1054 8.125 15.1937 8.08846 15.2583 8.02381C15.323 7.95916 15.3591 7.87117 15.3585 7.78047L15.3474 7.06217C15.3463 6.88142 15.2163 6.72534 15.0377 6.6885L7.36443 5.13445C7.13189 5.08543 7.0023 4.85112 7.05133 4.61859L7.24995 3.72214C7.29897 3.4896 7.53328 3.36002 7.76582 3.40904L16.8265 3.75Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 14.25V15.75C9 16.9926 9.75736 18 10.5 18H13.5C14.2426 18 15 16.9926 15 15.75V14.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M19.5 10.5C19.5 15.4706 15.4706 19.5 10.5 19.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="bmc-text">Support</span>
+        </a>
+        
         <!-- Theme toggle with animation -->
         <div class="theme-toggle-wrapper" :title="isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'">
           <button @click="toggleTheme" class="theme-toggle-button">
@@ -143,6 +157,19 @@
     <!-- Mobile Navigation Menu with improved interaction -->
     <div class="mobile-menu" :class="{ 'open': mobileMenuOpen }">
       <div class="mobile-menu-container">
+        <div class="mobile-version-display">v{{ appVersion }}</div>
+        
+        <!-- Mobile Buy Me a Coffee link -->
+        <a href="https://buymeacoffee.com/fingerthief" target="_blank" class="mobile-bmc-link">
+          <svg class="mobile-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7.5 10.5H16.5V11.25C16.5 12.9069 15.1569 14.25 13.5 14.25H10.5C8.84315 14.25 7.5 12.9069 7.5 11.25V10.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16.8265 3.75C17.0346 3.75 17.2253 3.86959 17.3186 4.05647L17.9685 5.35647C18.0153 5.45022 18.0261 5.5555 18.0001 5.65643L17.0001 9.65643C16.957 9.82894 16.8039 9.96635 16.6211 10H8.23258C7.8751 10 7.53687 9.8329 7.30653 9.54877L5.25 7L6.75 5.5L8.77921 7.99877C8.8444 8.07822 8.9419 8.125 9.04546 8.125H15.0147C15.1054 8.125 15.1937 8.08846 15.2583 8.02381C15.323 7.95916 15.3591 7.87117 15.3585 7.78047L15.3474 7.06217C15.3463 6.88142 15.2163 6.72534 15.0377 6.6885L7.36443 5.13445C7.13189 5.08543 7.0023 4.85112 7.05133 4.61859L7.24995 3.72214C7.29897 3.4896 7.53328 3.36002 7.76582 3.40904L16.8265 3.75Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 14.25V15.75C9 16.9926 9.75736 18 10.5 18H13.5C14.2426 18 15 16.9926 15 15.75V14.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M19.5 10.5C19.5 15.4706 15.4706 19.5 10.5 19.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Support this project</span>
+        </a>
+        
         <button 
           @click="navigateMobile('tv-recommendations')" 
           :class="{ active: activeTab === 'tv-recommendations' || activeTab === 'movie-recommendations' }"
@@ -248,7 +275,8 @@ export default {
   data() {
     return {
       isDarkTheme: false,
-      mobileMenuOpen: false
+      mobileMenuOpen: false,
+      appVersion: process.env.VUE_APP_VERSION || '1.3.0'
     };
   },
   created() {
@@ -786,6 +814,110 @@ body.dark-theme .action-button:hover {
 
 .mobile-action.logout-button:hover {
   background-color: rgba(239, 68, 68, 0.15);
+}
+
+/* Version display */
+.version-display {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 500;
+}
+
+body.dark-theme .version-display {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.mobile-version-display {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  padding: 8px 16px;
+  text-align: center;
+  font-weight: 500;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--border-radius-sm);
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body.dark-theme .mobile-version-display {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* Buy Me A Coffee styling */
+.bmc-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFDD00;
+  border-radius: var(--border-radius-md);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+body.dark-theme .bmc-link {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.bmc-link:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+body.dark-theme .bmc-link:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.bmc-icon {
+  color: #FFDD00;
+}
+
+.bmc-text {
+  color: var(--nav-text-color);
+}
+
+/* Mobile Buy Me A Coffee */
+.mobile-bmc-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: var(--nav-text-color);
+  text-align: left;
+  font-size: 16px;
+  border-radius: var(--border-radius-md);
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+body.dark-theme .mobile-bmc-link {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.mobile-bmc-link .mobile-icon {
+  color: #FFDD00;
+}
+
+.mobile-bmc-link:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+body.dark-theme .mobile-bmc-link:hover {
+  background-color: rgba(0, 0, 0, 0.25);
 }
 
 /* Prevent body scroll when menu is open */

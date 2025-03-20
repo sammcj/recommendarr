@@ -858,6 +858,11 @@
                   </svg>
                 </button>
               </div>
+              
+              <div v-if="rec.rating" class="rating-badge" 
+                :class="getScoreClass(rec.rating)"
+                :data-rating="extractScore(rec.rating) + '%'">
+              </div>
             </div>
             
             <div class="details-container">
@@ -886,7 +891,7 @@
                   </div>
                   <button 
                     @click.stop="requestSeries(rec.title)" 
-                    class="request-button compact"
+                    class="request-button"
                     :class="{'loading': requestingSeries === rec.title, 'requested': requestStatus[rec.title]?.success}"
                     :disabled="requestingSeries || requestStatus[rec.title]?.success"
                     :title="isMovieMode ? 'Add to Radarr' : 'Add to Sonarr'">
@@ -905,31 +910,27 @@
               
               <div class="content-container">
                 <div v-if="rec.description" class="description">
-                  <span class="label">Description:</span>
                   <p>{{ rec.description }}</p>
                 </div>
                 
                 <div v-if="rec.reasoning" class="reasoning">
-                  <span class="label">Why you might like it:</span>
-                  <p>{{ rec.reasoning }}</p>
+                  <div class="reasoning-header">
+                    <div class="reasoning-icon">✨</div>
+                    <span class="reasoning-label">Why you might like it</span>
+                  </div>
+                  <div class="reasoning-content">
+                    <p>{{ rec.reasoning }}</p>
+                  </div>
                 </div>
                 
-                <div v-if="rec.rating" class="rating">
-                  <div class="rating-header">
-                    <span class="label">
-                      Recommendarr Rating:
-                      <span class="info-tooltip" title="This is an experimental AI-generated rating based on various sources and not an official score.">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="12" y1="16" x2="12" y2="12"></line>
-                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                        </svg>
-                      </span>
-                    </span>
-                    <div class="rating-score" :class="getScoreClass(rec.rating)">
-                      {{ extractScore(rec.rating) }}%
-                    </div>
-                  </div>
+                <div v-if="rec.rating" class="rating-info">
+                  <span class="info-tooltip" title="This is an experimental AI-generated rating based on various sources and not an official score.">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  </span>
                 </div>
                 
                 
@@ -8472,5 +8473,610 @@ body.dark-theme .history-table th {
 
 .search-container {
   margin-bottom: 15px;
+}
+
+/* Modern card redesign */
+.recommendation-list {
+  display: grid;
+  gap: 24px;
+  margin-top: 24px;
+  grid-auto-flow: dense; /* Fill gaps when some items span multiple rows */
+  grid-auto-rows: min-content;
+}
+
+.recommendation-card {
+  background-color: var(--card-bg-color);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  border: none;
+  backdrop-filter: blur(5px);
+  transform-origin: center bottom;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+}
+
+.card-content {
+  display: flex;
+  flex-direction: row;
+}
+
+.card-content.compact-layout {
+  flex-direction: column;
+}
+
+.poster-container {
+  position: relative;
+  flex: 0 0 150px;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.poster {
+  width: 100%;
+  height: 210px;
+  background-size: cover;
+  background-position: center top;
+  transition: transform 0.5s cubic-bezier(0.33, 1, 0.68, 1);
+  filter: saturate(1.1) contrast(1.05);
+  position: relative;
+}
+
+.poster::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, 
+    rgba(0,0,0,0) 60%,
+    rgba(0,0,0,0.6) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.recommendation-card:hover .poster {
+  transform: scale(1.08);
+}
+
+.recommendation-card:hover .poster::after {
+  opacity: 1;
+}
+
+.rating-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  color: white;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  transform: translateZ(0);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+
+.rating-badge::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.85;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.recommendation-card:hover .rating-badge::before {
+  opacity: 0.95;
+}
+
+.rating-badge::after {
+  content: '★ ' attr(data-rating);
+  position: relative;
+  z-index: 1;
+}
+
+.rating-badge.high::before {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95));
+}
+
+.rating-badge.medium::before {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 0.95));
+}
+
+.rating-badge.low::before {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
+}
+
+.details-container {
+  flex: 1;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+.details-container:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(180deg, rgba(var(--card-bg-rgb, 255, 255, 255), 0.08) 0%, rgba(var(--card-bg-rgb, 255, 255, 255), 0) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.recommendation-card:hover .details-container:before {
+  opacity: 1;
+}
+
+.card-header {
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.recommendation-card h3 {
+  margin: 0 0 5px 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--header-color);
+  position: relative;
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.card-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: 8px;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 50%;
+  color: var(--text-color);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: currentColor;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s ease;
+  z-index: -1;
+}
+
+.action-btn:hover {
+  transform: translateY(-3px) scale(1.15);
+  color: white;
+}
+
+.action-btn:hover:before {
+  opacity: 0.15;
+  transform: scale(1);
+}
+
+.like-btn.active {
+  color: #10b981;
+  transform: scale(1.1);
+}
+
+.dislike-btn.active {
+  color: #ef4444;
+  transform: scale(1.1);
+}
+
+.request-button {
+  background-color: var(--primary-color, #0072e5);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Add specific styles for light mode to ensure visibility */
+body:not(.dark-theme) .request-button {
+  background-color: #0072e5;
+  color: white;
+  box-shadow: 0 2px 5px rgba(0, 114, 229, 0.25);
+}
+
+.request-button:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.request-button:hover:not(:disabled):before {
+  transform: translateX(100%);
+}
+
+.request-button:hover:not(:disabled) {
+  background-color: var(--primary-color-dark, #005bb8);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.request-button.requested {
+  background-color: #10b981;
+}
+
+.content-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+/* Ensure expanded content doesn't disrupt the grid layout */
+.recommendation-card.expanded .content-container {
+  min-height: fit-content;
+  isolation: isolate; /* Create a new stacking context */
+}
+
+.description, .reasoning, .full-text {
+  position: relative;
+  transition: transform 0.3s ease;
+}
+
+.recommendation-card:hover .description, 
+.recommendation-card:hover .reasoning,
+.recommendation-card:hover .full-text {
+  transform: translateY(-3px);
+}
+
+.description p, .reasoning p, .full-text p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-color);
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.description {
+  position: relative;
+  padding: 0 0 0 16px;
+  border-left: 3px solid rgba(var(--primary-color-rgb, 0, 114, 229), 0.3);
+  border-radius: 2px;
+  margin-bottom: 6px;
+}
+
+.description p {
+  font-style: italic;
+  opacity: 0.9;
+  font-size: 15px;
+  line-height: 1.6;
+  transition: color 0.3s ease;
+}
+
+.recommendation-card:hover .description p {
+  color: var(--header-color);
+  opacity: 1;
+}
+
+.reasoning {
+  position: relative;
+  padding: 12px 16px;
+  background-color: var(--card-bg-color, white);
+  border-radius: 12px;
+  transition: all 0.25s ease;
+  margin-top: 6px;
+  border-left: 3px solid var(--primary-color, #0072e5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Dark mode support */
+body.dark-theme .reasoning {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  background-color: rgba(35, 35, 40, 0.4);
+  backdrop-filter: blur(5px);
+}
+
+.recommendation-card:hover .reasoning {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+body.dark-theme .recommendation-card:hover .reasoning {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 1;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(var(--primary-color-rgb, 0, 114, 229), 0.1);
+}
+
+.reasoning-icon {
+  font-size: 14px;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.1);
+  color: var(--primary-color, #0072e5);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+body.dark-theme .reasoning-icon {
+  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.15);
+}
+
+.reasoning-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--primary-color, #0072e5);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.2px;
+}
+
+.reasoning-content {
+  position: relative;
+  z-index: 1;
+}
+
+.reasoning-content {
+  position: relative;
+  padding: 4px 0;
+}
+
+.reasoning-content p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-color);
+  font-weight: 400;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  position: relative;
+  margin: 0;
+}
+
+.reasoning-content p::first-letter {
+  color: var(--primary-color, #0072e5);
+  font-weight: 500;
+}
+
+.rating-info {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 14px;
+  color: var(--text-color-light);
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.rating-info:hover {
+  opacity: 1;
+}
+
+.info-tooltip {
+  display: inline-flex;
+  cursor: help;
+  color: var(--text-color-light);
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.info-tooltip:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: scale(1.1);
+}
+
+.full-width-expand-button {
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin-top: 10px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-color-light);
+  font-size: 14px;
+  font-weight: 500;
+  position: relative;
+  overflow: hidden;
+}
+
+.full-width-expand-button:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, transparent 0%, rgba(var(--primary-color-rgb, 0, 114, 229), 0.05) 50%, transparent 100%);
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
+}
+
+.full-width-expand-button:hover:before {
+  transform: translateX(100%);
+}
+
+.full-width-expand-button:hover {
+  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.03);
+  color: var(--primary-color);
+}
+
+.full-width-expand-button.expanded {
+  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.04);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* Compact mode adjustments */
+.recommendation-card.compact-mode {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+.recommendation-card.compact-mode:not(.expanded) .description,
+.recommendation-card.compact-mode:not(.expanded) .reasoning {
+  display: none;
+}
+
+.recommendation-card.compact-mode.expanded {
+  height: auto;
+  grid-row: auto / span 2; /* Take up more vertical space without affecting other cards */
+  z-index: 2; /* Ensure expanded card appears above others */
+}
+
+/* Add a gradient border effect to the cards */
+.recommendation-card:after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, 
+    rgba(var(--primary-color-rgb, 0, 114, 229), 0.1) 0%, 
+    rgba(var(--primary-color-rgb, 0, 114, 229), 0.01) 50%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.recommendation-card:hover:after {
+  opacity: 1;
+}
+
+/* Subtle card hover lift animation */
+@keyframes card-lift {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-8px) scale(1.02); }
+}
+
+.recommendation-card:hover {
+  animation: card-lift 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@media (max-width: 600px) {
+  .recommendation-list {
+    gap: 20px;
+  }
+  
+  .card-content {
+    flex-direction: column;
+  }
+  
+  .poster-container {
+    width: 100%;
+    flex: initial;
+    height: 200px;
+    overflow: hidden;
+    border-radius: 12px 12px 0 0;
+  }
+  
+  .poster {
+    height: 200px;
+    width: 100%;
+  }
+  
+  .card-header {
+    flex-direction: column;
+  }
+  
+  .card-actions {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .recommendation-card {
+    transform: none !important;
+    animation: none !important;
+  }
+  
+  .recommendation-card:hover {
+    transform: translateY(-5px) !important;
+  }
+  
+  .recommendation-card:hover .description, 
+  .recommendation-card:hover .reasoning,
+  .recommendation-card:hover .full-text {
+    transform: none;
+  }
 }
 </style>

@@ -1442,24 +1442,41 @@ export default {
   },
   computed: {
     shouldUseCompactMode() {
-      // More targeted compact mode detection - only activate when truly needed
+      // Improved compact mode detection that works better on all screen sizes
       
       // Already responsive on mobile with single column
       if (window.innerWidth <= 600) return false;
       
-      // Calculate available width, accounting for gaps between cards too
+      // Get the current app container width based on responsive design
+      let containerWidth;
+      if (window.innerWidth >= 2560) {
+        // Very large screens (4K, etc)
+        containerWidth = Math.min(window.innerWidth * 0.8, 3000);
+      } else if (window.innerWidth >= 1920) {
+        // Large screens
+        containerWidth = Math.min(window.innerWidth * 0.85, 2400);
+      } else {
+        // Standard screens
+        containerWidth = Math.min(window.innerWidth * 0.95, 1600);
+      }
+      
+      // Account for container padding and card gaps
       const containerPadding = 40; // Container padding (20px on each side)
       const cardGap = 20; // Gap between cards (from CSS)
-      const availableWidth = window.innerWidth - containerPadding;
+      const availableWidth = containerWidth - containerPadding;
       
       // Calculate the width each card would have, accounting for gaps
-      // Subtract the total gap space and divide by number of columns
       const gapSpace = (this.columnsCount - 1) * cardGap;
       const cardWidth = (availableWidth - gapSpace) / this.columnsCount;
       
       // Use compact mode if cards would be narrower than 340px
-      // This provides a balanced threshold that prevents cards from becoming too cramped
-      return cardWidth < 340;
+      // For larger screens with more columns, we might want a slightly different threshold
+      const compactThreshold = (this.columnsCount >= 6) ? 300 : 340;
+      
+      // Debug message to help troubleshoot
+      console.log(`Card width calculation: ${cardWidth}px with ${this.columnsCount} columns, threshold: ${compactThreshold}px`);
+      
+      return cardWidth < compactThreshold;
     },
     
     gridStyle() {
@@ -4912,9 +4929,27 @@ export default {
      * Handle window resize events to update the grid layout
      */
     handleResize() {
-      // Force a re-computation of the gridStyle computed property
-      // This ensures the layout adapts properly to screen size changes
+      // Force a re-computation of computed properties affected by screen size:
+      // - gridStyle for layout
+      // - shouldUseCompactMode for card display mode
+      // This ensures both the layout and card presentation adapt properly to changes
       this.$forceUpdate();
+      
+      // If we have many posters per row, periodically check if compact mode
+      // should be activated as the user adjusts settings
+      if (this.columnsCount > 5) {
+        // Check for compact mode applicability with a small delay
+        setTimeout(() => {
+          // Log current status to help with troubleshooting
+          const isCompact = this.shouldUseCompactMode;
+          console.log(`Compact mode status after resize: ${isCompact ? 'active' : 'inactive'}`);
+          
+          // Force update again if needed
+          if (isCompact) {
+            this.$forceUpdate();
+          }
+        }, 50);
+      }
     },
     
     /**

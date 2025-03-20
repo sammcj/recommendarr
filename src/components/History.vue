@@ -1,5 +1,11 @@
 <template>
   <div class="history-container">
+    <!-- Notification message -->
+    <div v-if="notification" class="notification" :class="notification.type">
+      <span class="notification-message">{{ notification.message }}</span>
+      <button class="notification-close" @click="dismissNotification">×</button>
+    </div>
+    
     <h2>Recommendation History</h2>
     
     <div class="history-controls">
@@ -119,6 +125,15 @@
             >
             Hide disliked items
           </label>
+          
+          <label class="filter-label">
+            <input 
+              type="checkbox" 
+              v-model="hideHiddenContent" 
+              @change="applyFilters"
+            >
+            Hide hidden items
+          </label>
         </div>
       </div>
     </div>
@@ -174,8 +189,9 @@
                   {{ tvShowDetails[show].year }}
                 </div>
               </div>
-              <div v-if="sonarrConfigured" class="item-actions">
+              <div class="item-actions">
                 <button 
+                  v-if="sonarrConfigured"
                   @click="addToSonarr(show)" 
                   :disabled="checkingShowExistence[show] || addingSeries[show]"
                   class="add-button"
@@ -183,6 +199,26 @@
                   <span v-if="addingSeries[show]" class="adding-icon">⏳</span>
                   <span v-else-if="checkingShowExistence[show]" class="checking-icon">🔍</span>
                   <span v-else>Add to Sonarr</span>
+                </button>
+                
+                <button 
+                  v-if="!isHidden(show, 'tv')"
+                  @click="hideItem(show, 'tv')" 
+                  class="hide-button"
+                  title="Hide this show from history view"
+                >
+                  <span class="hide-icon">🙈</span>
+                  <span>Hide</span>
+                </button>
+                
+                <button 
+                  v-else
+                  @click="unhideItem(show, 'tv')" 
+                  class="unhide-button"
+                  title="Show this item in history view again"
+                >
+                  <span class="unhide-icon">👁️</span>
+                  <span>Unhide</span>
                 </button>
               </div>
             </div>
@@ -235,8 +271,9 @@
                   {{ movieDetails[movie].year }}
                 </div>
               </div>
-              <div v-if="radarrConfigured" class="item-actions">
+              <div class="item-actions">
                 <button 
+                  v-if="radarrConfigured"
                   @click="addToRadarr(movie)" 
                   :disabled="checkingMovieExistence[movie] || addingMovie[movie]"
                   class="add-button"
@@ -244,6 +281,26 @@
                   <span v-if="addingMovie[movie]" class="adding-icon">⏳</span>
                   <span v-else-if="checkingMovieExistence[movie]" class="checking-icon">🔍</span>
                   <span v-else>Add to Radarr</span>
+                </button>
+                
+                <button 
+                  v-if="!isHidden(movie, 'movie')"
+                  @click="hideItem(movie, 'movie')" 
+                  class="hide-button"
+                  title="Hide this movie from history view"
+                >
+                  <span class="hide-icon">🙈</span>
+                  <span>Hide</span>
+                </button>
+                
+                <button 
+                  v-else
+                  @click="unhideItem(movie, 'movie')" 
+                  class="unhide-button"
+                  title="Show this item in history view again"
+                >
+                  <span class="unhide-icon">👁️</span>
+                  <span>Unhide</span>
                 </button>
               </div>
             </div>
@@ -542,6 +599,9 @@ export default {
       hideExistingContent: true,
       hideLikedContent: true,
       hideDislikedContent: true,
+      hiddenTVShows: new Set(),
+      hiddenMovies: new Set(),
+      hideHiddenContent: true, // Default to hiding hidden items
       
       // Tags
       availableTags: {
@@ -605,7 +665,11 @@ export default {
       selectedMovieRootFolder: null,
       
       // For aborting in-flight requests when component is unmounted
-      abortController: null
+      abortController: null,
+      
+      // Notification system
+      notification: null,
+      notificationTimeout: null
     };
   },
   computed: {
@@ -1116,6 +1180,68 @@ export default {
             }
           }
         }
+        
+        // Load hide hidden content preference
+        if (settings && settings.historyHideHidden !== undefined) {
+          console.log('Loaded historyHideHidden from server:', settings.historyHideHidden);
+          this.hideHiddenContent = settings.historyHideHidden;
+          // Update localStorage
+          localStorage.setItem('historyHideHidden', settings.historyHideHidden.toString());
+        } else {
+          // Fall back to localStorage or default to true
+          const hideHidden = localStorage.getItem('historyHideHidden');
+          if (hideHidden !== null) {
+            this.hideHiddenContent = hideHidden === 'true';
+          } else {
+            // Set default to true if no setting exists anywhere
+            this.hideHiddenContent = true;
+            localStorage.setItem('historyHideHidden', 'true');
+          }
+          
+          // Save to server for future use
+          if (settings) {
+            settings.historyHideHidden = this.hideHiddenContent;
+            await apiService.saveSettings(settings);
+          }
+        }
+        
+        // Load hidden TV shows
+        const hiddenTVFromServer = await apiService.getPreferences('tv', 'hidden');
+        if (hiddenTVFromServer && hiddenTVFromServer.length > 0) {
+          console.log('Loaded hidden TV shows from server:', hiddenTVFromServer.length);
+          this.hiddenTVShows = new Set(hiddenTVFromServer.map(show => show.toLowerCase()));
+          // Update localStorage
+          localStorage.setItem('hiddenTVShows', JSON.stringify(hiddenTVFromServer));
+        } else {
+          // Fall back to localStorage
+          const hiddenTV = localStorage.getItem('hiddenTVShows');
+          if (hiddenTV) {
+            const parsed = JSON.parse(hiddenTV);
+            this.hiddenTVShows = new Set(parsed.map(show => show.toLowerCase()));
+            console.log('Loaded hidden TV shows from localStorage:', parsed.length);
+            // Save to server for future use
+            apiService.savePreferences('tv', 'hidden', parsed);
+          }
+        }
+        
+        // Load hidden movies
+        const hiddenMoviesFromServer = await apiService.getPreferences('movie', 'hidden');
+        if (hiddenMoviesFromServer && hiddenMoviesFromServer.length > 0) {
+          console.log('Loaded hidden movies from server:', hiddenMoviesFromServer.length);
+          this.hiddenMovies = new Set(hiddenMoviesFromServer.map(movie => movie.toLowerCase()));
+          // Update localStorage
+          localStorage.setItem('hiddenMovies', JSON.stringify(hiddenMoviesFromServer));
+        } else {
+          // Fall back to localStorage
+          const hiddenMovies = localStorage.getItem('hiddenMovies');
+          if (hiddenMovies) {
+            const parsed = JSON.parse(hiddenMovies);
+            this.hiddenMovies = new Set(parsed.map(movie => movie.toLowerCase()));
+            console.log('Loaded hidden movies from localStorage:', parsed.length);
+            // Save to server for future use
+            apiService.savePreferences('movie', 'hidden', parsed);
+          }
+        }
       } catch (error) {
         console.error('Error loading filter preferences from server:', error);
         
@@ -1137,7 +1263,32 @@ export default {
         if (hideDisliked !== null) {
           this.hideDislikedContent = hideDisliked === 'true';
         }
+        
+        // Load hidden content preference (default to true if not found)
+        const hideHidden = localStorage.getItem('historyHideHidden');
+        if (hideHidden !== null) {
+          this.hideHiddenContent = hideHidden === 'true';
+        } else {
+          // If no setting exists, default to true (hide hidden items)
+          this.hideHiddenContent = true;
+          localStorage.setItem('historyHideHidden', 'true');
+        }
+        
+        // Load hidden TV shows
+        const hiddenTV = localStorage.getItem('hiddenTVShows');
+        if (hiddenTV) {
+          this.hiddenTVShows = new Set(JSON.parse(hiddenTV).map(show => show.toLowerCase()));
+        }
+        
+        // Load hidden movies
+        const hiddenMovies = localStorage.getItem('hiddenMovies');
+        if (hiddenMovies) {
+          this.hiddenMovies = new Set(JSON.parse(hiddenMovies).map(movie => movie.toLowerCase()));
+        }
       }
+      
+      // Apply filters after loading preferences
+      this.applyFilters();
     },
     
     async loadLikedDislikedContent() {
@@ -1255,6 +1406,99 @@ export default {
     
     toggleHideDisliked() {
       this.hideDislikedContent = !this.hideDislikedContent;
+    },
+    
+    toggleHideHidden() {
+      this.hideHiddenContent = !this.hideHiddenContent;
+      this.applyFilters();
+    },
+    
+    // Check if an item is hidden
+    isHidden(title, type) {
+      if (!title) return false;
+      
+      const normalizedTitle = typeof title === 'string' ? title.toLowerCase() : String(title).toLowerCase();
+      
+      if (type === 'tv') {
+        return this.hiddenTVShows.has(normalizedTitle);
+      } else if (type === 'movie') {
+        return this.hiddenMovies.has(normalizedTitle);
+      }
+      
+      return false;
+    },
+    
+    // Method to show a notification
+    showNotification(message, type = 'info', duration = 3000) {
+      // Clear any existing notification timeout
+      if (this.notificationTimeout) {
+        clearTimeout(this.notificationTimeout);
+      }
+      
+      // Set the notification
+      this.notification = { message, type };
+      
+      // Auto-dismiss after duration
+      this.notificationTimeout = setTimeout(() => {
+        this.dismissNotification();
+      }, duration);
+    },
+    
+    // Dismiss the notification
+    dismissNotification() {
+      this.notification = null;
+      if (this.notificationTimeout) {
+        clearTimeout(this.notificationTimeout);
+        this.notificationTimeout = null;
+      }
+    },
+    
+    // Hide an item from the recommendation history
+    hideItem(title, type) {
+      if (!title) return;
+      
+      const normalizedTitle = typeof title === 'string' ? title.toLowerCase() : String(title).toLowerCase();
+      
+      if (type === 'tv') {
+        // Add to hidden TV shows
+        this.hiddenTVShows.add(normalizedTitle);
+      } else if (type === 'movie') {
+        // Add to hidden movies
+        this.hiddenMovies.add(normalizedTitle);
+      }
+      
+      // Save the updated hidden items
+      this.saveFilterPreferences();
+      
+      // Apply filters to immediately hide the item since hideHiddenContent is true by default
+      this.applyFilters();
+      
+      // Show notification instead of alert
+      this.showNotification(
+        "Item hidden from history. Use the filter controls to show/hide hidden items.",
+        "success"
+      );
+    },
+    
+    // Unhide an item from the recommendation history
+    unhideItem(title, type) {
+      if (!title) return;
+      
+      const normalizedTitle = typeof title === 'string' ? title.toLowerCase() : String(title).toLowerCase();
+      
+      if (type === 'tv') {
+        // Remove from hidden TV shows
+        this.hiddenTVShows.delete(normalizedTitle);
+      } else if (type === 'movie') {
+        // Remove from hidden movies
+        this.hiddenMovies.delete(normalizedTitle);
+      }
+      
+      // Save the updated hidden items
+      this.saveFilterPreferences();
+      
+      // Show notification instead of alert
+      this.showNotification("Item is now visible in history.", "success");
     },
     
     async loadLibraryContent() {
@@ -1393,6 +1637,15 @@ export default {
         });
       }
       
+      // Apply hidden filter
+      if (this.hideHiddenContent && this.hiddenTVShows.size > 0) {
+        filteredTV = filteredTV.filter(show => {
+          if (show === null || show === undefined) return true; // Skip null/undefined
+          const showStr = typeof show === 'string' ? show : String(show);
+          return !this.hiddenTVShows.has(showStr.toLowerCase());
+        });
+      }
+      
       this.filteredTVRecommendations = filteredTV;
       
       // Filter movie recommendations
@@ -1425,7 +1678,47 @@ export default {
         });
       }
       
+      // Apply hidden filter
+      if (this.hideHiddenContent && this.hiddenMovies.size > 0) {
+        filteredMovies = filteredMovies.filter(movie => {
+          if (movie === null || movie === undefined) return true; // Skip null/undefined
+          const movieStr = typeof movie === 'string' ? movie : String(movie);
+          return !this.hiddenMovies.has(movieStr.toLowerCase());
+        });
+      }
+      
       this.filteredMovieRecommendations = filteredMovies;
+      
+      // Save filter preferences
+      this.saveFilterPreferences();
+    },
+    
+    saveFilterPreferences() {
+      // Save filter preferences to localStorage
+      localStorage.setItem('hideExistingContent', this.hideExistingContent);
+      localStorage.setItem('hideLikedContent', this.hideLikedContent);
+      localStorage.setItem('hideDislikedContent', this.hideDislikedContent);
+      localStorage.setItem('hideHiddenContent', this.hideHiddenContent);
+      
+      // Save hidden items to localStorage
+      localStorage.setItem('hiddenTVShows', JSON.stringify(Array.from(this.hiddenTVShows)));
+      localStorage.setItem('hiddenMovies', JSON.stringify(Array.from(this.hiddenMovies)));
+      
+      // Also save to server if possible
+      try {
+        apiService.saveSettings({
+          hideExistingContent: this.hideExistingContent,
+          hideLikedContent: this.hideLikedContent,
+          hideDislikedContent: this.hideDislikedContent,
+          hideHiddenContent: this.hideHiddenContent
+        });
+        
+        // Save hidden items to server
+        apiService.savePreferences('tv', 'hidden', Array.from(this.hiddenTVShows));
+        apiService.savePreferences('movie', 'hidden', Array.from(this.hiddenMovies));
+      } catch (error) {
+        console.error('Error saving filter preferences to server:', error);
+      }
     },
     
     // Reset pagination and reinitialize displayed items
@@ -2844,10 +3137,12 @@ h2 {
   justify-content: center;
   height: 50px; /* Fixed height for button area */
   align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
 .add-button {
-  width: 100%;
+  flex: 1;
   background-color: var(--button-primary-bg);
   color: white;
   border: none;
@@ -2856,6 +3151,37 @@ h2 {
   font-size: 11px;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  min-width: 80px;
+}
+
+.hide-button, .unhide-button {
+  background-color: var(--button-secondary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 70px;
+  transition: all 0.2s;
+}
+
+.hide-button:hover {
+  background-color: rgba(240, 55, 40, 0.1);
+  border-color: rgba(240, 55, 40, 0.5);
+}
+
+.unhide-button:hover {
+  background-color: rgba(55, 160, 55, 0.1);
+  border-color: rgba(55, 160, 55, 0.5);
+}
+
+.hide-icon, .unhide-icon {
+  font-size: 12px;
 }
 
 .add-button:hover:not(:disabled) {
@@ -3098,6 +3424,70 @@ h2 {
 .add-modal-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Notification styling */
+.notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  border-radius: 6px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 90%;
+  width: 400px;
+  z-index: 1000;
+  font-size: 14px;
+  animation: notification-fade-in 0.3s ease;
+}
+
+.notification.success {
+  background-color: rgba(76, 175, 80, 0.9);
+  color: white;
+}
+
+.notification.error {
+  background-color: rgba(244, 67, 54, 0.9);
+  color: white;
+}
+
+.notification.info {
+  background-color: rgba(33, 150, 243, 0.9);
+  color: white;
+}
+
+.notification-message {
+  flex: 1;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.notification-close:hover {
+  opacity: 1;
+}
+
+@keyframes notification-fade-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 /* Mobile responsiveness */

@@ -37,8 +37,10 @@ let userData = {
   movieRecommendations: [],
   likedTV: [],
   dislikedTV: [],
+  hiddenTV: [],
   likedMovies: [],
   dislikedMovies: [],
+  hiddenMovies: [],
   watchHistory: {
     movies: [],
     shows: []
@@ -50,6 +52,7 @@ let userData = {
     historyHideExisting: true,
     historyHideLiked: false,
     historyHideDisliked: false,
+    historyHideHidden: true,
     contentTypePreference: 'tv',
     isMovieMode: false,
     tvGenrePreferences: [],
@@ -161,8 +164,17 @@ async function saveUserData() {
     // Ensure required properties exist
     if (!Array.isArray(userData.tvRecommendations)) userData.tvRecommendations = [];
     if (!Array.isArray(userData.movieRecommendations)) userData.movieRecommendations = [];
+    if (!Array.isArray(userData.likedTV)) userData.likedTV = [];
+    if (!Array.isArray(userData.dislikedTV)) userData.dislikedTV = [];
+    if (!Array.isArray(userData.hiddenTV)) userData.hiddenTV = [];
+    if (!Array.isArray(userData.likedMovies)) userData.likedMovies = [];
+    if (!Array.isArray(userData.dislikedMovies)) userData.dislikedMovies = [];
+    if (!Array.isArray(userData.hiddenMovies)) userData.hiddenMovies = [];
     if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
     if (!userData.settings) userData.settings = {};
+    
+    // Ensure historyHideHidden setting exists
+    if (userData.settings.historyHideHidden === undefined) userData.settings.historyHideHidden = true;
     
     console.log(`Saving userData (${userData.tvRecommendations.length} TV recommendations, ${userData.movieRecommendations.length} movie recommendations)`);
     
@@ -866,7 +878,7 @@ app.post('/api/recommendations/:type', async (req, res) => {
   }
 });
 
-// Get liked/disliked items
+// Get liked/disliked/hidden items
 app.get('/api/preferences/:type/:preference', (req, res) => {
   const { type, preference } = req.params;
   
@@ -874,28 +886,40 @@ app.get('/api/preferences/:type/:preference', (req, res) => {
     res.json(userData.likedTV || []);
   } else if (type === 'tv' && preference === 'disliked') {
     res.json(userData.dislikedTV || []);
+  } else if (type === 'tv' && preference === 'hidden') {
+    res.json(userData.hiddenTV || []);
   } else if (type === 'movie' && preference === 'liked') {
     res.json(userData.likedMovies || []);
   } else if (type === 'movie' && preference === 'disliked') {
     res.json(userData.dislikedMovies || []);
+  } else if (type === 'movie' && preference === 'hidden') {
+    res.json(userData.hiddenMovies || []);
   } else {
     res.status(400).json({ error: 'Invalid parameters' });
   }
 });
 
-// Save liked/disliked items
+// Save liked/disliked/hidden items
 app.post('/api/preferences/:type/:preference', async (req, res) => {
   const { type, preference } = req.params;
   const items = req.body;
+  
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: 'Preferences must be an array' });
+  }
   
   if (type === 'tv' && preference === 'liked') {
     userData.likedTV = items;
   } else if (type === 'tv' && preference === 'disliked') {
     userData.dislikedTV = items;
+  } else if (type === 'tv' && preference === 'hidden') {
+    userData.hiddenTV = items;
   } else if (type === 'movie' && preference === 'liked') {
     userData.likedMovies = items;
   } else if (type === 'movie' && preference === 'disliked') {
     userData.dislikedMovies = items;
+  } else if (type === 'movie' && preference === 'hidden') {
+    userData.hiddenMovies = items;
   } else {
     return res.status(400).json({ error: 'Invalid parameters' });
   }
@@ -1091,8 +1115,10 @@ app.post('/api/reset', async (req, res) => {
       movieRecommendations: [],
       likedTV: [],
       dislikedTV: [],
+      hiddenTV: [],
       likedMovies: [],
       dislikedMovies: [],
+      hiddenMovies: [],
       watchHistory: {
         movies: [],
         shows: []
@@ -1104,6 +1130,7 @@ app.post('/api/reset', async (req, res) => {
         historyHideExisting: true,
         historyHideLiked: false,
         historyHideDisliked: false,
+        historyHideHidden: true,
         contentTypePreference: 'tv',
         isMovieMode: false,
         tvGenrePreferences: [],

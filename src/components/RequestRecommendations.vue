@@ -294,7 +294,7 @@
                 
                 <div class="vibe-selector">
                   <div class="section-header collapsible-header" @click="toggleCustomVibe">
-                    <label for="customVibe">Vibe/mood or custom prompt</label>
+                    <label for="customVibe">Recommendation Style</label>
                     <div class="header-right">
                       <button 
                         v-if="customVibe" 
@@ -308,7 +308,52 @@
                     </div>
                   </div>
                   <div class="vibe-content" :class="{ 'collapsed': !customVibeExpanded }" v-show="customVibeExpanded">
+                    <div class="prompt-style-selector">
+                      <label for="promptStyle">Prompt Style:</label>
+                      <div class="select-container">
+                        <select 
+                          id="promptStyle" 
+                          v-model="promptStyle"
+                          @change="savePromptStyle"
+                          class="prompt-style-select"
+                        >
+                          <option value="vibe">Vibe-Based (Casual, Emotional)</option>
+                          <option value="analytical">Analytical (Technical, Detailed)</option>
+                          <option value="creative">Creative (Imaginative, Unique)</option>
+                          <option value="technical">Technical (Production Focus)</option>
+                        </select>
+                        <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </div>
+                      
+                      <!-- Prompt Style Help Text -->
+                      <div class="prompt-style-help">
+                        <div v-if="promptStyle === 'vibe'" class="prompt-style-info">
+                          <h4>Vibe-Based Style</h4>
+                          <p>Focuses on the emotional atmosphere and sensory experience of content in your library. Recommendations prioritize matching the <em>feeling</em> and mood of your favorite shows/movies rather than just genre or plot similarities.</p>
+                          <p>Best for: Finding content that <em>feels</em> similar to what you love, capturing specific tones and atmospheres.</p>
+                        </div>
+                        <div v-if="promptStyle === 'analytical'" class="prompt-style-info">
+                          <h4>Analytical Style</h4>
+                          <p>Performs a detailed examination of narrative structures, thematic patterns, and formal techniques. Recommendations are based on substantive analysis of cinematic/television elements that connect works on a deeper level.</p>
+                          <p>Best for: Intellectual exploration and discovering content with similar artistic approaches or thematic depth.</p>
+                        </div>
+                        <div v-if="promptStyle === 'creative'" class="prompt-style-info">
+                          <h4>Creative Style</h4>
+                          <p>Looks beyond conventional categorizations to find unexpected connections between works. Prioritizes emotional journeys, artistic vision, and creative storytelling approaches.</p>
+                          <p>Best for: Discovering surprising recommendations that might not seem related at first glance but share creative DNA.</p>
+                        </div>
+                        <div v-if="promptStyle === 'technical'" class="prompt-style-info">
+                          <h4>Technical Style</h4>
+                          <p>Focuses on production craft, filmmaking/television techniques, and technical execution. Analyzes directorial methods, cinematography, editing styles, and production elements.</p>
+                          <p>Best for: Appreciation of craft elements and finding content with similar production quality or technical innovation.</p>
+                        </div>
+                      </div>
+                    </div>
+                    
                     <div class="vibe-input-container">
+                      <label for="customVibe">Additional Keywords/Themes:</label>
                       <textarea 
                         id="customVibe" 
                         v-model="customVibe"
@@ -324,7 +369,7 @@
                         <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
                         <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                       </svg>
-                      <span>Guide the AI with specific themes, styles, or preferences</span>
+                      <span>Choose a prompt style and add specific themes or preferences</span>
                     </div>
                   </div>
                 </div>
@@ -1601,6 +1646,7 @@ export default {
       isMovieMode: this.initialMovieMode || false, // Toggle between TV shows (false) and movies (true)
       selectedGenres: [], // Multiple genre selections
       customVibe: '', // Custom vibe/mood input from user
+      promptStyle: 'vibe', // Style of prompt to use for recommendations: 'vibe', 'analytical', 'creative', 'technical'
       plexHistoryMode: 'all', // 'all', 'recent', or 'custom'
       plexOnlyMode: false, // Whether to use only Plex history for recommendations
       plexUseHistory: true, // Whether to include Plex watch history at all
@@ -2097,6 +2143,9 @@ export default {
       if (sonarrService.isConfigured()) {
         this.loadSonarrTags();
       }
+      
+      // Load the prompt style from localStorage or server
+      this.loadPromptStyle();
       
       // Debug watch history directly
       console.log('MOUNTED HOOK - DIRECT INSPECTION:');
@@ -2672,6 +2721,60 @@ export default {
       this.customVibe = '';
       this.saveCustomVibe();
       // Reset OpenAI conversation is handled in saveCustomVibe
+    },
+    
+    // Save prompt style preference
+    async savePromptStyle() {
+      try {
+        // Set the promptStyle in OpenAIService
+        openAIService.setPromptStyle(this.promptStyle);
+        
+        // Save to server
+        await apiService.saveSettings({ promptStyle: this.promptStyle });
+        
+        // Reset OpenAI conversation context when prompt style changes
+        openAIService.resetConversation();
+        console.log('Prompt style updated to:', this.promptStyle, 'conversation history cleared');
+        
+        // Reset recommendations when changing prompt style
+        this.recommendationsRequested = false;
+      } catch (error) {
+        console.error('Error saving prompt style to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('promptStyle', this.promptStyle);
+        // Still reset conversation even if server save fails
+        openAIService.resetConversation();
+      }
+    },
+    
+    // Load prompt style from server or localStorage
+    async loadPromptStyle() {
+      try {
+        // First try to get the prompt style from server settings
+        const settings = await apiService.getSettings();
+        if (settings && settings.promptStyle) {
+          this.promptStyle = settings.promptStyle;
+          console.log('Loaded prompt style from server:', this.promptStyle);
+        } else {
+          // If not available from server, try localStorage
+          const localPromptStyle = localStorage.getItem('promptStyle');
+          if (localPromptStyle) {
+            this.promptStyle = localPromptStyle;
+            console.log('Loaded prompt style from localStorage:', this.promptStyle);
+          }
+        }
+        
+        // Set the promptStyle in OpenAIService
+        openAIService.setPromptStyle(this.promptStyle);
+      } catch (error) {
+        console.error('Error loading prompt style:', error);
+        // If error loading from server, try localStorage
+        const localPromptStyle = localStorage.getItem('promptStyle');
+        if (localPromptStyle) {
+          this.promptStyle = localPromptStyle;
+          openAIService.setPromptStyle(this.promptStyle);
+        }
+      }
     },
     
     // Save language preference to server
@@ -4094,7 +4197,8 @@ export default {
               watchHistory,  // This includes Trakt history if traktUseHistory is true
               this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode || this.traktOnlyMode,
               this.customVibe,
-              this.selectedLanguage
+              this.selectedLanguage,
+              this.promptStyle
             );
             
             // Log what watch history was actually used
@@ -4152,7 +4256,8 @@ export default {
             watchHistory,
             this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode || this.traktOnlyMode,
             this.customVibe,
-            this.selectedLanguage
+            this.selectedLanguage,
+            this.promptStyle
           );
         }
         
@@ -8146,6 +8251,56 @@ select:focus {
   color: #9ca3af;
 }
 
+/* Prompt Style Selector Styles */
+.prompt-style-selector {
+  margin-bottom: 15px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.prompt-style-selector label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.prompt-style-select {
+  width: 100%;
+  padding: 10px 15px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.prompt-style-select:focus {
+  outline: none;
+  border-color: var(--button-primary-bg);
+  box-shadow: 0 0 0 1px var(--primary-color-shadow);
+}
+
+.select-container {
+  position: relative;
+  width: 100%;
+}
+
+.select-container .select-arrow-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
 .clear-prompt-button {
   background-color: transparent;
   border: 1px solid rgba(244, 67, 54, 0.3);
@@ -9219,5 +9374,42 @@ body.dark-theme .reasoning-icon {
   .recommendation-card:hover .full-text {
     transform: none;
   }
+}
+
+/* Prompt Style Help Styles */
+.prompt-style-help {
+  margin-top: 12px;
+  border-radius: 6px;
+  background-color: rgba(0, 0, 0, 0.04);
+  padding: 12px 15px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  transition: all 0.3s ease;
+}
+
+.dark-theme .prompt-style-help {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.prompt-style-info h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.prompt-style-info p {
+  margin: 0 0 8px;
+}
+
+.prompt-style-info p:last-child {
+  margin-bottom: 0;
+  font-style: italic;
+}
+
+.prompt-style-info em {
+  font-style: italic;
+  font-weight: 500;
 }
 </style>

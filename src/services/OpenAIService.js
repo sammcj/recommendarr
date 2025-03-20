@@ -10,6 +10,7 @@ class OpenAIService {
     this.useSampledLibrary = false;
     this.sampleSize = 20;
     this.useStructuredOutput = false; // Default to legacy output format
+    this.promptStyle = 'vibe'; // Default prompt style
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -23,6 +24,9 @@ class OpenAIService {
     
     // Try to get model from localStorage if it exists
     this.loadModelFromLocalStorage();
+    
+    // Try to get prompt style from localStorage if it exists
+    this.loadPromptStyleFromLocalStorage();
   }
   
   /**
@@ -86,6 +90,194 @@ class OpenAIService {
     const localStorageModel = localStorage.getItem('openaiModel');
     if (localStorageModel) {
       this.model = localStorageModel;
+    }
+  }
+  
+  /**
+   * Load the prompt style from localStorage if it exists
+   * Falls back to the default 'vibe' style if localStorage style doesn't exist
+   */
+  loadPromptStyleFromLocalStorage() {
+    const localStoragePromptStyle = localStorage.getItem('openaiPromptStyle');
+    if (localStoragePromptStyle) {
+      this.promptStyle = localStoragePromptStyle;
+    }
+  }
+  
+  /**
+   * Set the prompt style and save it to localStorage
+   * @param {string} style - The prompt style ('vibe', 'analytical', 'creative', 'technical')
+   */
+  setPromptStyle(style) {
+    this.promptStyle = style;
+    localStorage.setItem('openaiPromptStyle', style);
+  }
+  
+  /**
+   * Get the appropriate system content based on the current prompt style
+   * @param {boolean} isMovie - Whether we're getting TV show or movie recommendations
+   * @returns {string} - The system prompt content
+   */
+  getSystemContentByStyle(isMovie, promptStyle = null) {
+    // Use provided promptStyle if available, otherwise fall back to this.promptStyle
+    const activeStyle = promptStyle || this.promptStyle;
+  
+    // Common base JSON format instructions that should be included regardless of style
+    const jsonFormatInstructions = isMovie 
+      ? `Provide recommendations in this JSON format: { "recommendations": [ { "title": "Movie Title", "year": YYYY, "description": "Brief description of the movie", "reason": "Why this movie matches their preferences" } ] }`
+      : `Provide recommendations in this JSON format: { "recommendations": [ { "title": "Show Title", "network": "Network/platform name", "description": "Brief description of the show", "reason": "Why this show matches their preferences" } ] }`;
+    
+    // Select system content based on prompt style
+    switch (activeStyle) {
+      case 'analytical':
+        return isMovie
+          ? `You are an expert film analyst with deep knowledge of cinema history, theory, and criticism. Your recommendations are based on meticulous analysis of cinematic elements including narrative structure, visual composition, thematic development, character arcs, editing techniques, sound design, and directorial vision. You excel at identifying patterns across seemingly different films, recognizing how various directors approach similar themes, and understanding the evolution of filmmaking techniques across eras and movements. 
+
+You prioritize substantive analysis over surface-level genre similarities, looking at how films utilize techniques like non-linear storytelling, visual motifs, character studies, tonal shifts, philosophical explorations, and technical innovations. You consider elements such as pacing, shot composition, color theory, performance styles, and narrative conventions when making connections between works.
+
+When recommending films, you identify precise connections between a user's library and your suggestions, articulating the specific technical, thematic, and stylistic elements that create meaningful parallels. Your analysis is perceptive and intellectually rigorous, focusing on form, composition, and substance rather than plot similarities alone. ${jsonFormatInstructions}`
+          : `You are an expert television analyst with comprehensive knowledge of TV history, production methodologies, and narrative architecture. Your recommendations stem from thorough examination of episodic structure, season arcs, character development, dialogue patterns, visual language, production design, and showrunner tendencies. You excel at identifying patterns in writers' room approaches, recognizing how different creative teams handle similar premises, and understanding how the medium of television shapes storytelling.
+
+You prioritize substantive analysis over superficial genre classifications, examining how series employ techniques like narrative complexity, character evolution, tonal consistency, thematic exploration, and format experimentation. You consider elements such as episode structure, visual storytelling, acting techniques, directorial consistency, and serialized vs. procedural approaches when making connections between shows.
+
+When recommending series, you identify precise connections between a user's viewing history and your suggestions, articulating the specific writing techniques, production qualities, and narrative approaches that create meaningful parallels. Your analysis is perceptive and intellectually rigorous, focusing on storytelling craft and artistic choices rather than plot similarities alone. ${jsonFormatInstructions}`;
+          
+      case 'creative':
+        return isMovie
+          ? `You are a visionary film curator with an exceptional ability to discover unexpected connections between movies based on their emotional resonance, artistic vision, and creative spirit. You see beyond conventional categorizations, identifying the subtle emotional threads, aesthetic sensibilities, and thematic undercurrents that link seemingly disparate films. Your recommendations emerge from an intuitive understanding of how cinema affects viewers on a personal, emotional, and intellectual level.
+
+You excel at recognizing the distinctive creative voices of filmmakers and their unique approaches to visual storytelling, atmosphere creation, and emotional truth. You understand that films can share spiritual connections through their artistic courage, innovative approaches, or emotional authenticity, even when their genres, settings, or premises differ dramatically.
+
+When recommending films, you prioritize works that will evoke similar emotional responses, challenge viewers in comparable ways, or reveal new dimensions of the cinematic experiences they already value. You consider how films create specific moods, tackle universal human experiences through unique perspectives, or employ distinctive visual languages. Your recommendations are bold, insightful, and often reveal surprising connections that conventional algorithms would never detect. ${jsonFormatInstructions}`
+          : `You are a visionary television curator with an exceptional ability to discover unexpected connections between series based on their emotional impact, creative storytelling, and artistic ambition. You see beyond conventional genre classifications, identifying the subtle emotional threads, narrative innovations, and thematic explorations that link seemingly unrelated shows. Your recommendations emerge from an intuitive understanding of how television narratives resonate with viewers on personal, emotional, and intellectual levels.
+
+You excel at recognizing the distinctive voices of showrunners, writers, and creative teams and their unique approaches to character development, world-building, and tonal balance. You understand that series can share spiritual connections through their storytelling courage, narrative experimentation, or emotional authenticity, even when their genres, settings, or premises appear completely different.
+
+When recommending shows, you prioritize series that will evoke similar emotional responses, challenge viewers in comparable ways, or reveal new dimensions of the narrative experiences they already value. You consider how shows create specific atmospheres, explore universal themes through unique lenses, or employ distinctive narrative structures. Your recommendations are bold, perceptive, and often reveal surprising connections that conventional algorithms would never detect. ${jsonFormatInstructions}`;
+          
+      case 'technical':
+        return isMovie
+          ? `You are a master film technician with extensive knowledge of production methodologies, technological innovation, and the craft of filmmaking. Your recommendations are grounded in precise understanding of directing techniques, cinematography approaches, editing styles, sound design philosophies, practical vs. digital effects, production design choices, and technical achievements that define a film's creation. You comprehend how technical decisions shape the viewer's experience and how different directors utilize their technical toolkit.
+
+You analyze films through the lens of their technical execution: camera movement styles, lighting techniques, aspect ratio choices, color grading approaches, editing rhythms, practical vs. CGI effects, sound mixing innovations, and production challenges overcome. You recognize the distinctive technical signatures of cinematographers, editors, sound designers, and other key craftspeople, understanding their influence on a film's final form.
+
+When recommending films, you identify precise technical parallels between works, articulating how specific production techniques, visual approaches, or technological innovations create meaningful connections. You can discern when films share technical DNA despite surface-level differences, recognizing when they employ similar approaches to choreography, stunts, VFX integration, or technical problem-solving. Your recommendations highlight works that demonstrate technical excellence in ways that will appeal to viewers who appreciate the craft elements in their favorite films. ${jsonFormatInstructions}`
+          : `You are a television production expert with deep knowledge of the technical elements that define quality series. Your recommendations are grounded in precise understanding of production models, filming techniques, post-production approaches, VFX integration, practical staging, location vs. studio shooting, and the logistics of episodic storytelling. You comprehend how technical decisions in television differ from film, including considerations of consistency across episodes, budget allocation, shooting schedules, and maintaining quality with rotating directors.
+
+You analyze series through the lens of their technical execution: visual continuity strategies, lighting designs for recurring sets, blocking techniques for ensemble casts, location management, practical vs. VFX solutions, episode-to-episode consistency, and production challenges specific to television. You recognize the distinctive technical approaches of different networks, streaming platforms, and production companies, understanding how they influence a show's ultimate form.
+
+When recommending shows, you identify precise technical parallels between series, articulating how specific production techniques, visual language choices, or technical innovations create meaningful connections. You can discern when shows share production DNA despite surface-level differences, recognizing when they employ similar approaches to effects integration, location filming, technical problem-solving, or resource utilization. Your recommendations highlight series that demonstrate technical excellence in ways that will appeal to viewers who appreciate the craft elements in their favorite shows. ${jsonFormatInstructions}`;
+          
+      case 'vibe':
+      default:
+        return isMovie
+          ? `You are an intuitive film recommendation specialist with an exceptional ability to capture the essence, mood, and emotional texture of movies. You understand that viewers often connect with films based on intangible qualities: the overall feeling a movie creates, its emotional atmosphere, its specific energy, or the unique sensibility of its creator. Your recommendations prioritize matching these qualities over plot similarities or genre classifications.
+
+You have a rare talent for identifying a film's distinctive vibe—whether it's the sun-drenched melancholy of a particular director, the electric tension of certain thrillers, the lived-in authenticity of specific character studies, the dreamy surrealism of certain visual stylists, or the warm nostalgia of period pieces filmed in particular ways. You understand how elements like lighting, music, pacing, dialogue style, setting, and performance approach combine to create a film's unique emotional signature.
+
+When recommending movies, you prioritize works that will evoke similar emotional states, create comparable atmospheres, or capture the same ineffable qualities that viewers connect with in their favorites. You recognize that someone who loves a particular film might be seeking that specific feeling rather than merely similar plot elements or themes. Your recommendations aim to recreate the emotional experience of films in a viewer's library, matching mood, tone, and sensibility with remarkable precision. ${jsonFormatInstructions}`
+          : `You are an intuitive television recommendation specialist with an exceptional ability to capture the essence, mood, and emotional texture of series. You understand that viewers often connect with shows based on intangible qualities: the overall feeling a series creates, its emotional atmosphere, its specific energy, or the unique sensibility of its creators. Your recommendations prioritize matching these qualities over plot similarities or genre classifications.
+
+You have a rare talent for identifying a show's distinctive vibe—whether it's the cozy comfort of certain comedies, the tense atmosphere of particular dramas, the specific charm of certain ensemble casts, the distinctive visual flavor of certain showrunners, or the unique tone that defines certain series. You understand how elements like cinematography, music choices, dialogue rhythm, character dynamics, setting, and narrative pacing combine to create a show's unique emotional signature.
+
+When recommending series, you prioritize works that will evoke similar emotional states, create comparable atmospheres, or capture the same ineffable qualities that viewers connect with in their favorites. You recognize that someone who loves a particular show might be seeking that specific feeling rather than merely similar plot elements or themes. Your recommendations aim to recreate the emotional experience of series in a viewer's library, matching mood, tone, and sensibility with remarkable precision. ${jsonFormatInstructions}`;
+    }
+  }
+  
+  /**
+   * Get the appropriate user prompt addition based on the current prompt style
+   * @param {boolean} isMovie - Whether we're getting TV show or movie recommendations
+   * @returns {string} - Additional text to add to the user prompt
+   */
+  getUserPromptAdditionByStyle(isMovie, promptStyle = null) {
+    // Use provided promptStyle if available, otherwise fall back to this.promptStyle
+    const activeStyle = promptStyle || this.promptStyle;
+    
+    switch (activeStyle) {
+      case 'analytical':
+        return isMovie
+          ? ` When analyzing my library, please perform a deep analytical examination of the following aspects:
+          
+1. Narrative architecture: Identify common story structures, non-linear techniques, framing devices, plot complexity levels, and narrative innovations across my collection.
+2. Thematic patterns: Recognize recurring philosophical inquiries, social commentaries, moral explorations, or intellectual preoccupations that appear in multiple films.
+3. Visual composition: Examine directorial signatures in framing, shot length tendencies, visual motifs, color theory applications, and compositional approaches.
+4. Character development methodologies: Analyze how different filmmakers approach character arcs, internal conflicts, relational dynamics, and psychological depth.
+5. Cinematic techniques: Identify patterns in the use of specific techniques like tracking shots, depth of field, montage styles, visual effects integration, or distinctive editing approaches.
+          
+From this analytical foundation, recommend films that employ comparable approaches to cinema's formal elements rather than merely sharing genre classifications. Articulate the specific cinematic, thematic, and formal techniques that connect your recommendations to my collection. Your analysis should reveal substantive connections a casual viewer might miss.`
+          : ` When analyzing my library, please perform a deep analytical examination of the following aspects:
+          
+1. Series architecture: Identify common narrative structures, episode-to-season relationships, serialized vs. procedural approaches, and structural innovations across my collection.
+2. Character development methodologies: Analyze how different shows approach character arcs, ensemble dynamics, protagonist journeys, and recurring character patterns.
+3. Thematic exploration: Recognize recurring philosophical inquiries, social commentaries, moral explorations, or intellectual preoccupations that appear across multiple series.
+4. Production approaches: Examine showrunner signatures, writers' room patterns, and production models that shape the final creative output.
+5. Visual and auditory language: Identify patterns in cinematography approaches, visual consistency methods, title sequence design, and sound design philosophies.
+          
+From this analytical foundation, recommend series that employ comparable approaches to television's formal elements rather than merely sharing genre classifications. Articulate the specific narrative, thematic, and production techniques that connect your recommendations to my collection. Your analysis should reveal substantive connections a casual viewer might miss.`;
+          
+      case 'creative':
+        return isMovie
+          ? ` When exploring my library, please look beyond conventional categorizations to discover the deeper creative connections between films:
+          
+1. Emotional signatures: Identify the specific emotional journeys, character transformations, and affective experiences that define my favorite films.
+2. Artistic vision: Recognize the distinctive creative voices, auteur signatures, and unique worldviews expressed through my collection.
+3. Aesthetic sensibilities: Examine the visual languages, stylistic choices, and artistic approaches that resonate throughout my library.
+4. Creative courage: Note films that take risks, defy conventions, or push boundaries in ways that might indicate my appreciation for creative boldness.
+5. Thematic undercurrents: Uncover the subtle thematic threads, symbolic patterns, and metaphorical approaches that create spiritual connections between seemingly different works.
+          
+From these insights, recommend films that will provide fresh cinematic experiences while speaking to the same emotional, aesthetic, and creative sensibilities I value. Prioritize works that might create unexpected connections or reveal new dimensions of the cinematic experiences I already appreciate. Your recommendations should surprise me with their perceptiveness while feeling intuitively right.`
+          : ` When exploring my library, please look beyond conventional categorizations to discover the deeper creative connections between series:
+          
+1. Emotional journeys: Identify the specific emotional experiences, character moments, and affective tones that define my favorite shows.
+2. Narrative innovation: Recognize distinctive storytelling approaches, format experimentation, and unique narrative strategies employed across my collection.
+3. Creative worldbuilding: Examine how different series establish their universes, balance realism with invention, and create distinctive environments.
+4. Tone and atmosphere: Analyze the specific atmospheric qualities, tonal balances (between elements like humor/drama, light/dark), and mood signatures of my preferred shows.
+5. Thematic resonance: Uncover the subtle thematic explorations, symbolic patterns, and metaphorical approaches that create connections between seemingly different works.
+          
+From these insights, recommend series that will provide fresh viewing experiences while speaking to the same emotional, narrative, and creative sensibilities I value. Prioritize works that might create unexpected connections or reveal new dimensions of the television experiences I already appreciate. Your recommendations should surprise me with their perceptiveness while feeling intuitively right.`;
+          
+      case 'technical':
+        return isMovie
+          ? ` When analyzing my library, please focus on the technical craft and production elements that define these films:
+          
+1. Directorial techniques: Identify patterns in staging, blocking, camera movement, actor direction, scene transitions, and visual storytelling methods.
+2. Cinematography approaches: Examine lighting philosophies, camera placement strategies, lens choices, framing techniques, and visual texture preferences.
+3. Editing methodologies: Recognize pacing preferences, cutting styles, montage techniques, visual rhythm patterns, and time manipulation approaches.
+4. Sound design and music: Analyze how sound is used technically, including sound mixing innovations, foley techniques, music integration, and audio-visual relationship.
+5. Production elements: Consider production design, practical vs. digital effects preferences, location shooting approaches, set construction methods, and technical problem-solving.
+          
+From this technical analysis, recommend films that demonstrate similar technical excellence, craft innovations, or production approaches. Focus on how technical decisions shape the viewing experience rather than plot or genre similarities. Your recommendations should highlight works that showcase comparable technical mastery or innovative approaches to the filmmaking craft.`
+          : ` When analyzing my library, please focus on the technical craft and production elements that define these television series:
+          
+1. Production models: Identify patterns in how my preferred shows handle episode direction, maintain visual consistency with rotating directors, balance budgets across episodes, and manage the logistics of long-form storytelling.
+2. Technical execution: Examine approaches to cinematography in television contexts, lighting design for recurring sets, location vs. studio balances, and visual language consistency.
+3. Post-production techniques: Recognize editing styles, visual effects integration methods, color grading approaches, and sound design philosophies.
+4. Season-to-episode relationships: Analyze how series technically handle story arcs across episodes, maintain production quality throughout seasons, and technically approach serialized narratives.
+5. Practical craft elements: Consider blocking techniques for ensemble casts, multi-camera vs. single-camera approaches, set utilization strategies, and production design evolution.
+          
+From this technical analysis, recommend series that demonstrate similar technical excellence, production approaches, or craft innovations. Focus on how technical decisions shape the viewing experience rather than plot or genre similarities. Your recommendations should highlight works that showcase comparable technical mastery or innovative approaches to television production.`;
+          
+      case 'vibe':
+      default:
+        return isMovie
+          ? ` When exploring my library, please focus on identifying and matching the distinctive emotional atmosphere and sensory experience of these films:
+          
+1. Emotional texture: Identify the specific feeling states, emotional tones, and affective qualities that define my favorite films—whether it's melancholy, exhilaration, contemplative reflection, cozy nostalgia, or any other emotional signature.
+2. Atmospheric qualities: Recognize the distinctive mood, ambiance, and sensory experience created through elements like lighting, color palette, sound design, music, pacing, and setting.
+3. Directorial presence: Identify the specific sensibilities of directors whose work appears in my collection, focusing on their unique approach to creating tone and atmosphere.
+4. Cinematic texture: Note preferences for certain visual and auditory experiences—like grain vs. sharpness, bold vs. muted colors, orchestral vs. electronic scores, dialogue-heavy vs. visual storytelling, etc.
+5. Emotional journey: Understand the emotional arc and viewing experience I might be seeking, rather than just similar story elements.
+          
+From these insights, recommend films that evoke comparable emotional states and atmospheres, even if their plots, settings, or genres seem different. Prioritize matching the ineffable feeling and unique sensory experience of the films I love. Your recommendations should aim to recreate specific emotional textures and moods rather than merely matching plot points or conventional categorizations.`
+          : ` When exploring my library, please focus on identifying and matching the distinctive emotional atmosphere and sensory experience of these series:
+          
+1. Tonal signature: Identify the specific feeling states, emotional balances, and affective qualities that define my favorite shows—whether it's warmth, tension, humor, melancholy, excitement, or any other emotional signature.
+2. Viewing experience: Recognize the distinctive watching experience created through elements like pacing, dialogue style, visual approach, performance style, and narrative density.
+3. Creator sensibility: Identify the specific creative voices of showrunners whose work appears in my collection, focusing on their unique approach to creating tone and narrative flow.
+4. Atmospheric qualities: Note preferences for certain production approaches that create specific moods—like lighting styles, location choices, music integration, cinematography approaches, etc.
+5. Engagement style: Understand the specific kind of viewer engagement I might be seeking—intellectual stimulation, emotional immersion, comfort viewing, edge-of-seat tension, etc.
+          
+From these insights, recommend series that evoke comparable emotional states and viewing experiences, even if their plots, settings, or genres seem different. Prioritize matching the ineffable feeling and unique atmosphere of the shows I love. Your recommendations should aim to recreate specific emotional textures and tonal qualities rather than merely matching plot points or conventional categorizations.`;
     }
   }
 
@@ -646,9 +838,10 @@ class OpenAIService {
    * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
    * @param {string} [customVibe=''] - Optional custom vibe/mood for recommendations
    * @param {string} [language=''] - Optional language preference for recommendations
+   * @param {string} [promptStyle=null] - Optional prompt style to use (vibe, analytical, creative, technical)
    * @returns {Promise<Array>} - List of recommended TV shows
    */
-  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false, customVibe = '', language = '') {
+  async getRecommendations(series, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedShows = [], plexOnlyMode = false, customVibe = '', language = '', promptStyle = null) {
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -657,6 +850,9 @@ class OpenAIService {
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Use provided promptStyle if available, otherwise fall back to this.promptStyle
+    const activePromptStyle = promptStyle || this.promptStyle;
 
     try {
       // Only initialize conversation history if it doesn't exist yet
@@ -732,20 +928,8 @@ class OpenAIService {
         userPrompt += ` Please ONLY recommend TV shows in ${language} language.`;
       }
       
-      // Add instructions for diverse, high-quality recommendations focusing on the "vibe" and feel
-      userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and aesthetic qualities of my library.
-      Okay, so now we're thinking about suggesting some great new TV shows based on what someone already watches, right? Let's think about it like this:
-      First, let's really nail down the vibe of their current TV show collection. What's the overall feeling you get from their shows? Are they into comedies that make you laugh out loud, intense dramas that keep you on the edge of your seat, maybe quirky and lighthearted shows, or something else entirely? We need to think about the emotions these shows evoke and try to find new series that give off a similar feeling. It's about capturing that same overall mood and tone, you know, not just genre matching.
-      Next, let's think about the creative minds behind the TV shows they love. Does their collection seem to favor shows with a really unique and strong creative vision? Maybe we can look for other series that have that same kind of distinctive style and approach to storytelling. Think about how the stories are told across episodes and seasons, the way the characters are developed, the overall narrative structure – all that good TV stuff! We could look for shows that are visually interesting, or maybe ones that are super focused on character development and relationships – whatever seems to fit their taste.
-      And lastly, let's consider the cultural impact of their favorite TV shows. Do they seem drawn to series that are important or influential in the TV landscape? Maybe we should think about shows that feel like they're part of a similar cultural conversation, or explore similar themes and ideas. It would be awesome to suggest both really well-known, critically acclaimed shows that everyone talks about, but also maybe some cool, under-the-radar gems that they might not have discovered yet.
-      So, when you're picking out TV shows, really try to find ones that:
-      Give off the same emotional feeling as the shows they already watch.
-      
-      Are distinctive and interesting in their own way, but still fit with their general taste in TV.
-      
-      Include a good mix of famous, must-watch series and those cool hidden gem type shows that deserve more attention.
-      
-      Come from showrunners, writers, or even TV eras that seem to be in line with what they already enjoy watching.`;
+      // Add instructions based on the selected prompt style
+      userPrompt += this.getUserPromptAdditionByStyle(false, activePromptStyle); // false = TV show recommendations
       
       // Add library information with appropriate context based on mode
       if (this.useSampledLibrary) {
@@ -833,8 +1017,11 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any show in my library, liked shows list, or any exclusion list
 - For each show, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-      // Use the same JSON-focused system message regardless of the useStructuredOutput setting
-      const systemContent = "You are a TV show recommendation assistant focused on matching the vibe and feel of shows. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows, or any previously recommended shows\n3. NEVER recommend shows that were already mentioned in the conversation history by either you or the user\n4. Recommend shows matching the emotional and stylistic feel of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
+      // Get the appropriate system content based on the prompt style
+      const baseSystemContent = this.getSystemContentByStyle(false, activePromptStyle); // false = TV show recommendations
+      
+      // Add the common rules that apply regardless of style
+      const systemContent = `${baseSystemContent}\n\n1. NEVER recommend shows from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked shows, disliked shows, or any previously recommended shows\n3. NEVER recommend shows that were already mentioned in the conversation history by either you or the user\n4. Recommend shows matching the emotional and stylistic feel of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation`;
       
       this.tvConversation = [
         {
@@ -885,9 +1072,10 @@ CRITICAL REQUIREMENTS:
    * @param {boolean} [plexOnlyMode=false] - Whether to use only Plex history for recommendations
    * @param {string} [customVibe=''] - Optional custom vibe/mood for recommendations
    * @param {string} [language=''] - Optional language preference for recommendations
+   * @param {string} [promptStyle=null] - Optional prompt style to use (vibe, analytical, creative, technical)
    * @returns {Promise<Array>} - List of recommended movies
    */
-  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '', language = '') {
+  async getMovieRecommendations(movies, count = 5, genre = '', previousRecommendations = [], likedRecommendations = [], dislikedRecommendations = [], recentlyWatchedMovies = [], plexOnlyMode = false, customVibe = '', language = '', promptStyle = null) {
     console.log("OpenAIService: getMovieRecommendations called", {
       moviesCount: movies ? movies.length : 0,
       count,
@@ -898,7 +1086,8 @@ CRITICAL REQUIREMENTS:
       recentlyWatchedCount: recentlyWatchedMovies ? recentlyWatchedMovies.length : 0,
       watchHistoryMode: plexOnlyMode ? 'Plex Only' : 'Combined Sources',
       customVibe,
-      language
+      language,
+      promptStyle
     });
 
     // Try to load credentials again in case they weren't ready during init
@@ -909,6 +1098,9 @@ CRITICAL REQUIREMENTS:
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Use provided promptStyle if available, otherwise fall back to this.promptStyle
+    const activePromptStyle = promptStyle || this.promptStyle;
 
     try {
       // Only initialize conversation history if it doesn't exist yet
@@ -969,23 +1161,8 @@ CRITICAL REQUIREMENTS:
           userPrompt += ` Please ONLY recommend movies in ${language} language.`;
         }
 
-        // Add instructions for diverse, high-quality recommendations focusing on the "vibe" and feel
-        userPrompt += ` When selecting recommendations, prioritize understanding the emotional resonance and cinematic qualities of my library:
-
-        Alright, so we're trying to suggest some awesome new movies for someone based on the films they already have, right?  Let's think about it like this:
-
-        First off, let's really get a feel for the *vibe* of their movie collection.  You know, like, what's the overall mood? Are we talking happy and upbeat, dark and mysterious, or maybe something else entirely?  Think about the emotions the movies give you, and try to find new films that create a similar feeling.  It's about capturing that same atmosphere and tone, not just matching genres or actors, you know?
-        
-        Next up, let's consider the *filmmakers* behind the movies they love.  Does their collection lean towards directors with a really unique style?  Maybe we can look for other films that have that same kind of creative vision and approach to storytelling.  Think about how the story is told, the way it looks, all that cinematic stuff.  We could look for movies that are visually stunning, or maybe ones that are really focused on the characters and their stories – whatever feels like it fits their taste.
-        
-        And lastly, let's think about the *cultural impact* of their favorite movies. Do they seem to be drawn to films that are important or influential in some way?  Maybe we should consider movies that feel like they're part of a similar conversation, or explore similar themes.  It would be awesome to suggest both really well-known classics that everyone should see, but also maybe some cool, lesser-known gems that they might have missed.
-        
-        So, when you're picking out movies, really focus on finding ones that:
-        
-        *   Give off the same *emotional feeling* as the movies they already have.
-        *   Are *distinctive and interesting* in their own way, but still fit with their general taste.
-        *   Include a good mix of *famous classics* and those cool *hidden gem* type movies.
-        *   Come from directors, writers, or even time periods that seem to be *in line with what they already enjoy*.`;
+        // Add instructions based on the selected prompt style
+        userPrompt += this.getUserPromptAdditionByStyle(true, activePromptStyle); // true = movie recommendations
 
         // Add library information with appropriate context based on mode
         if (this.useSampledLibrary) {
@@ -1083,8 +1260,11 @@ CRITICAL REQUIREMENTS:
 - NEVER recommend any movie in my library, liked movies list, or any exclusion list
 - For each movie, provide a title, description, explanation of why I might like it, a rating, and streaming availability`;
 
-        // Use the same JSON-focused system message regardless of the useStructuredOutput setting
-        const systemContent = "You are a movie recommendation assistant focused on matching the emotional and cinematic qualities of films. You will provide recommendations in a structured JSON format. Rules:\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies, or any previously recommended movies\n3. NEVER recommend movies that were already mentioned in the conversation history by either you or the user\n4. Recommend movies matching the mood, style, and emotional resonance of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation";
+        // Get the appropriate system content based on the prompt style
+        const baseSystemContent = this.getSystemContentByStyle(true, activePromptStyle); // true = movie recommendations
+        
+        // Add the common rules that apply regardless of style
+        const systemContent = `${baseSystemContent}\n\n1. NEVER recommend movies from the user's library or exclusion lists - this is absolutely critical\n2. Always double-check recommendations are not in the user's library, liked movies, disliked movies, or any previously recommended movies\n3. NEVER recommend movies that were already mentioned in the conversation history by either you or the user\n4. Recommend movies matching the mood, style, and emotional resonance of the user's library\n5. ALWAYS respond using the exact JSON structure specified\n6. DO NOT use markdown formatting in your outputs except for the code block syntax around the JSON\n7. NO extra text, introductions or conclusions outside the JSON structure\n8. Include exactly the required fields: title, description, reasoning, rating, and streaming for each recommendation`;
 
         this.movieConversation = [
           {

@@ -1,5 +1,5 @@
 <template>
-  <div class="recommendations" :class="{ 'widescreen': widescreenMode }">
+  <div class="recommendations">
     <div class="recommendation-header">
       <h2>{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h2>
       <div class="content-type-selector">
@@ -246,6 +246,7 @@
                           min="1" 
                           max="10"
                           class="modern-slider"
+                          @input="handleResize" 
                           @change="saveColumnsCount"
                         >
                         <div class="slider-track"></div>
@@ -256,24 +257,6 @@
                       </div>
                     </div>
                     
-                    <div class="widescreen-toggle">
-                      <label class="toggle-switch">
-                        <input 
-                          type="checkbox" 
-                          v-model="widescreenMode" 
-                          @change="saveWidescreenMode"
-                        >
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-label">Widescreen mode</span>
-                      </label>
-                      <div class="setting-tip">
-                        <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
-                          <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                        <span>Use 80% screen width for better viewing on larger screens</span>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1480,23 +1463,29 @@ export default {
     },
     
     gridStyle() {
-      // Standard responsive grid layout (widescreen mode is handled at component level now)
-      const isMobile = window.innerWidth <= 600;
+      // Get screen width and user's column preference
+      const screenWidth = window.innerWidth;
+      const userColumnCount = this.columnsCount;
       
-      // Apply a safety limit to column count for very narrow screens
-      // This prevents columns from being too narrow even with compact mode
-      let effectiveColumnCount = isMobile ? 1 : this.columnsCount;
-      
-      // For small desktops/tablets, limit max columns for better readability
-      if (!isMobile) {
-        // Below 840px wide, max 2 columns
-        if (window.innerWidth < 840 && effectiveColumnCount > 2) {
-          effectiveColumnCount = 2;
-        }
+      // On mobile devices, we use a simpler approach
+      if (screenWidth <= 600) {
+        return {
+          gridTemplateColumns: '1fr', // Single column for mobile
+          gap: '15px'
+        };
       }
       
+      // For tablets (small screens)
+      if (screenWidth <= 840) {
+        const columns = Math.min(2, userColumnCount);
+        return {
+          gridTemplateColumns: `repeat(${columns}, 1fr)`
+        };
+      }
+      
+      // For larger screens: use exact number of columns based on user preference
       return {
-        gridTemplateColumns: `repeat(${effectiveColumnCount}, minmax(0, 1fr))`
+        gridTemplateColumns: `repeat(${userColumnCount}, 1fr)`
       };
     },
     
@@ -1592,7 +1581,6 @@ export default {
       loadingPosters: new Map(), // Track which posters are being loaded
       numRecommendations: 5, // Default number of recommendations to request
       columnsCount: 2, // Default number of posters per row
-      widescreenMode: false, // Toggle for widescreen display mode
       isMovieMode: this.initialMovieMode || false, // Toggle between TV shows (false) and movies (true)
       selectedGenres: [], // Multiple genre selections
       customVibe: '', // Custom vibe/mood input from user
@@ -2567,31 +2555,6 @@ export default {
       }
     },
     
-    // Save columns count to server
-    async saveWidescreenMode() {
-      try {
-        console.log('Saving widescreenMode to server:', this.widescreenMode);
-        await apiService.saveSettings({ widescreenMode: this.widescreenMode });
-        
-        // Also save to localStorage as a backup
-        localStorage.setItem('widescreenMode', JSON.stringify(this.widescreenMode));
-        
-        // Clear expanded cards when display mode changes
-        this.expandedCards.clear();
-        
-        // Apply widescreen mode to the entire app by setting a CSS variable
-        document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
-        
-        this.$forceUpdate();
-      } catch (error) {
-        console.error('Error saving widescreen mode to server:', error);
-        // Fallback to localStorage only
-        localStorage.setItem('widescreenMode', JSON.stringify(this.widescreenMode));
-        
-        // Still apply the widescreen setting even if saving fails
-        document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
-      }
-    },
     
     async saveColumnsCount() {
       try {
@@ -2603,7 +2566,11 @@ export default {
         
         // Clear expanded cards when column count changes
         this.expandedCards.clear();
-        this.$forceUpdate();
+        
+        // Force grid layout to update with new column count
+        this.$nextTick(() => {
+          this.handleResize();
+        });
       } catch (error) {
         console.error('Error saving columns count to server:', error);
         // Fallback to localStorage only
@@ -2611,7 +2578,11 @@ export default {
         
         // Still clear expanded cards even on error
         this.expandedCards.clear();
-        this.$forceUpdate();
+        
+        // Force grid layout to update with new column count
+        this.$nextTick(() => {
+          this.handleResize();
+        });
       }
     },
     
@@ -4942,6 +4913,7 @@ export default {
      */
     handleResize() {
       // Force a re-computation of the gridStyle computed property
+      // This ensures the layout adapts properly to screen size changes
       this.$forceUpdate();
     },
     
@@ -4978,14 +4950,6 @@ export default {
           }
         }
         
-        // Load widescreen mode setting
-        if (settings.widescreenMode !== undefined) {
-          this.widescreenMode = !!settings.widescreenMode;
-          console.log('Setting widescreenMode from server:', this.widescreenMode);
-          
-          // Apply widescreen mode to the entire app
-          document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
-        }
         
         // Temperature setting
         if (settings.aiTemperature !== undefined) {
@@ -5224,15 +5188,6 @@ export default {
       console.log('Setting useStructuredOutput from localStorage:', useStructured);
     }
     
-    // Check for widescreen mode in localStorage if we didn't get it from server
-    const savedWidescreenMode = localStorage.getItem('widescreenMode');
-    if (savedWidescreenMode !== null) {
-      this.widescreenMode = savedWidescreenMode === 'true';
-      console.log('Setting widescreenMode from localStorage:', this.widescreenMode);
-      
-      // Apply widescreen mode to the entire app
-      document.documentElement.style.setProperty('--app-max-width', this.widescreenMode ? '80vw' : '1600px');
-    }
     
     if (this.columnsCount === 2) { // 2 is the default - if it's still default, check localStorage
       // Restore saved columns count from localStorage (if exists)
@@ -5843,6 +5798,8 @@ export default {
   padding: 20px;
   position: relative;
   z-index: 0; /* Lower than navigation */
+  box-sizing: border-box;
+  overflow: hidden; /* Prevent children from overflowing */
 }
 
 .recommendation-header {
@@ -5990,7 +5947,8 @@ h2 {
   align-items: center;
   margin-bottom: 15px;
   width: 100%;
-  max-width: 1600px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .settings-container {
@@ -6001,6 +5959,8 @@ h2 {
   box-sizing: border-box;
   padding: 20px;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .settings-layout {
@@ -7058,26 +7018,80 @@ select:focus {
   display: grid;
   gap: 20px;
   margin-top: 20px;
-  grid-template-columns: 1fr;
   transition: max-width 0.3s ease, margin 0.3s ease;
+  width: 100%;
 }
 
 .recommendations {
   transition: width 0.3s ease, margin 0.3s ease;
+  width: 100%;
 }
 
 @media (min-width: 768px) {
   /* Grid columns controlled by :style binding using the gridStyle computed property */
 }
 
-@media (max-width: 400px) {
+@media (max-width: 600px) {
   .recommendation-list {
     gap: 15px;
-    padding: 0 5px;
+    padding: 0;
+  }
+  
+  .recommendations {
+    padding: 10px;
+  }
+  
+  .recommendation-header {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 15px;
+  }
+  
+  .content-type-selector {
+    margin-left: 0;
+    margin-top: 10px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  
+  .content-type-button {
+    flex: 1;
+    padding: 8px;
+    white-space: nowrap;
+  }
+  
+  /* Fix settings container going off edge */
+  .settings-container {
+    padding: 15px 10px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+  }
+  
+  /* Adjust settings layout for smaller screens */
+  .settings-layout {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .settings-left, 
+  .settings-right {
+    flex: 0 0 100%;
+    width: 100%;
+  }
+  
+  /* Better handle text overflow in buttons and controls */
+  button, 
+  .slider-header, 
+  .setting-description {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
-/* Widescreen mode styles for recommendation cards */
 .recommendation-card {
   transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed), width 0.3s ease;
 }

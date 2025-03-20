@@ -2263,12 +2263,28 @@ body {
 }
 
 .app-container {
-  max-width: var(--app-max-width, 1600px);
   width: 100%;
   margin: 0 auto;
   padding: 10px;
   box-sizing: border-box;
   transition: max-width 0.3s ease;
+  
+  /* Responsive max-width based on screen size */
+  max-width: min(95vw, 1600px); /* Default: 95% width but not exceeding 1600px */
+}
+
+/* Larger screens get more width */
+@media (min-width: 1920px) {
+  .app-container {
+    max-width: min(85vw, 2400px);
+  }
+}
+
+/* Very large screens get even more width */
+@media (min-width: 2560px) {
+  .app-container {
+    max-width: min(80vw, 3000px);
+  }
 }
 
 @media (min-width: 480px) {

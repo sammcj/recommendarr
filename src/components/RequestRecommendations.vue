@@ -317,10 +317,10 @@
                           @change="savePromptStyle"
                           class="prompt-style-select"
                         >
-                          <option value="vibe">Vibe-Based (Casual, Emotional)</option>
-                          <option value="analytical">Analytical (Technical, Detailed)</option>
-                          <option value="creative">Creative (Imaginative, Unique)</option>
-                          <option value="technical">Technical (Production Focus)</option>
+                          <option value="vibe">Vibe-Based</option>
+                          <option value="analytical">Analytical</option>
+                          <option value="creative">Creative</option>
+                          <option value="technical">Technical</option>
                         </select>
                         <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -5116,6 +5116,14 @@ export default {
           this.useStructuredOutput = settings.useStructuredOutput === true || settings.useStructuredOutput === 'true';
           // Also set it in the OpenAIService
           openAIService.useStructuredOutput = this.useStructuredOutput;
+        }
+        
+        // Load prompt style setting
+        if (settings.promptStyle) {
+          this.promptStyle = settings.promptStyle;
+          console.log('Setting promptStyle from server:', this.promptStyle);
+          // Set in the OpenAIService
+          openAIService.setPromptStyle(this.promptStyle);
         }
         
         // Plex settings

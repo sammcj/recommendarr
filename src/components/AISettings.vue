@@ -633,6 +633,7 @@
               min="1" 
               max="2000" 
               step="1" 
+              @change="savePlexLimit"
             />
             <span class="slider-value">{{ plexSettings.recentLimit }}</span>
           </div>
@@ -1895,11 +1896,15 @@ export default {
     
     async savePlexLimit() {
       try {
+        // Store the limit in localStorage first
+        localStorage.setItem('plexRecentLimit', this.plexSettings.recentLimit.toString());
+        
         // Update the server with the new limit
         await plexService.configure(
           plexService.baseUrl,
           plexService.token,
-          this.plexSettings.recentLimit
+          '', // selectedUserId (empty string)
+          this.plexSettings.recentLimit // explicitly pass the limit
         );
         
         // Fetch and cache watch history with new limit

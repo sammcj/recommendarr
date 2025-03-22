@@ -30,7 +30,7 @@ COPY server ./server
 COPY --from=build-stage /app/dist ./dist
 
 # Set environment variables
-ENV DOCKER_ENV=true
+ENV DOCKER_ENV=false
 ENV PORT=3000
 # We no longer need a separate API URL - it's always /api
 

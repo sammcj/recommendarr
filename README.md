@@ -250,11 +250,11 @@ services:
     ports:
       - "3000:3000"
     # This allows accessing services on the host machine
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # extra_hosts:
+    #  - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
-      - DOCKER_ENV=true
+      - DOCKER_ENV=false
       - PORT=3000
       - PUBLIC_URL=https://recommendarr.yourdomain.com
       # Enable secure cookies when behind HTTPS reverse proxy

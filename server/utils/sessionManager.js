@@ -21,10 +21,12 @@ class SessionManager {
     
     // Store session data
     this.sessions[token] = {
+      userId: user.userId,
       username: user.username,
       isAdmin: user.isAdmin,
       createdAt: createdAt.toISOString(),
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
+      authProvider: user.authProvider || 'local'
     };
     
     console.log('Session created with expiry:', expiresAt);
@@ -84,6 +86,33 @@ class SessionManager {
         delete this.sessions[token];
       }
     });
+  }
+  
+  // Get all sessions for a specific user
+  getUserSessions(userId) {
+    const userSessions = {};
+    
+    Object.entries(this.sessions).forEach(([token, session]) => {
+      if (session.userId === userId) {
+        userSessions[token] = session;
+      }
+    });
+    
+    return userSessions;
+  }
+  
+  // Delete all sessions for a user
+  deleteUserSessions(userId) {
+    let deletedCount = 0;
+    
+    Object.entries(this.sessions).forEach(([token, session]) => {
+      if (session.userId === userId) {
+        delete this.sessions[token];
+        deletedCount++;
+      }
+    });
+    
+    return deletedCount;
   }
 }
 

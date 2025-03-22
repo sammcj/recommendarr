@@ -10,8 +10,30 @@
       <div v-if="error" class="login-error">
         {{ error }}
       </div>
+
+      <!-- OAuth providers -->
+      <div v-if="providers.length > 0" class="oauth-providers">
+        <button 
+          v-for="provider in providers" 
+          :key="provider"
+          :class="`oauth-button oauth-${provider}`"
+          @click="handleOAuthLogin(provider)"
+          :disabled="loading"
+        >
+          <span class="oauth-icon">
+            <i v-if="provider === 'google'" class="fab fa-google"></i>
+            <i v-else-if="provider === 'github'" class="fab fa-github"></i>
+            <i v-else class="fas fa-user"></i>
+          </span>
+          <span>Continue with {{ capitalizeProvider(provider) }}</span>
+        </button>
+      </div>
+
+      <div v-if="providers.length > 0 && localAuth" class="divider">
+        <span>or</span>
+      </div>
       
-      <form @submit.prevent="handleLogin" class="login-form">
+      <form v-if="localAuth" @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
           <label for="username">Username</label>
           <input 
@@ -48,6 +70,13 @@
           </button>
         </div>
       </form>
+
+      <div class="register-section">
+        <p>Don't have an account?</p>
+        <button class="register-link" @click="showRegister = true" :disabled="registerLoading">
+          Create Account
+        </button>
+      </div>
     </div>
     
     <!-- Registration Modal -->
@@ -150,8 +179,29 @@ export default {
       confirmPassword: '',
       registerLoading: false,
       registerError: null,
-      registerSuccess: null
+      registerSuccess: null,
+      providers: [],
+      localAuth: true
     };
+  },
+  async created() {
+    // Check for authentication error in URL query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error');
+    if (errorParam === 'auth-failed') {
+      this.error = 'Authentication failed. Please try another method.';
+    }
+
+    // Get enabled authentication providers
+    try {
+      const providersData = await AuthService.getEnabledProviders();
+      this.providers = providersData.providers || [];
+      this.localAuth = providersData.localAuth !== false;
+    } catch (err) {
+      console.error('Error fetching auth providers:', err);
+      this.providers = [];
+      this.localAuth = true;
+    }
   },
   methods: {
     async handleLogin() {
@@ -196,6 +246,23 @@ export default {
       } finally {
         this.registerLoading = false;
       }
+    },
+
+    handleOAuthLogin(provider) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        // Redirect to OAuth provider
+        AuthService.oauthLogin(provider);
+      } catch (error) {
+        this.error = error || 'OAuth login failed. Please try again.';
+        this.loading = false;
+      }
+    },
+
+    capitalizeProvider(provider) {
+      return provider.charAt(0).toUpperCase() + provider.slice(1);
     }
   }
 };
@@ -330,6 +397,18 @@ body.dark-theme .login-logo {
 .login-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.register-section {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.register-section p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--text-color);
+  opacity: 0.8;
 }
 
 .register-link {
@@ -489,5 +568,80 @@ body.dark-theme .login-logo {
 
 .login-now:hover {
   filter: brightness(1.1);
+}
+
+/* OAuth Styles */
+.oauth-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.oauth-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.oauth-button:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.oauth-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.oauth-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 18px;
+}
+
+.oauth-google {
+  border-color: #4285F4;
+  color: #4285F4;
+}
+
+.oauth-github {
+  border-color: #24292E;
+  color: #24292E;
+}
+
+body.dark-theme .oauth-github {
+  border-color: #f5f5f5;
+  color: #f5f5f5;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: var(--text-color);
+  opacity: 0.5;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.divider span {
+  padding: 0 10px;
+  font-size: 14px;
 }
 </style>

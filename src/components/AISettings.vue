@@ -1468,6 +1468,20 @@ export default {
           this.jellyfinSettings.apiKey = jellyfinService.apiKey;
           this.jellyfinSettings.userId = jellyfinService.userId;
           this.jellyfinSettings.recentLimit = parseInt(localStorage.getItem('jellyfinRecentLimit') || '10');
+          
+          // Try to look up the username for the current userId
+          if (this.jellyfinSettings.userId) {
+            try {
+              const users = await jellyfinService.getUsers();
+              const user = users.find(u => u.id === this.jellyfinSettings.userId);
+              if (user) {
+                this.jellyfinSettings.username = user.name;
+              }
+            } catch (error) {
+              console.error('Error retrieving username for current user ID:', error);
+            }
+          }
+          
           return;
         }
         
@@ -1478,6 +1492,27 @@ export default {
           this.jellyfinSettings.apiKey = credentials.apiKey || '';
           this.jellyfinSettings.userId = credentials.userId || '';
           this.jellyfinSettings.recentLimit = parseInt(localStorage.getItem('jellyfinRecentLimit') || '10');
+          
+          // If we have credentials but no service configured yet, configure it temporarily to look up username
+          if (this.jellyfinSettings.baseUrl && this.jellyfinSettings.apiKey && this.jellyfinSettings.userId) {
+            try {
+              // Temporarily configure service
+              await jellyfinService.configure(
+                this.jellyfinSettings.baseUrl,
+                this.jellyfinSettings.apiKey,
+                this.jellyfinSettings.userId
+              );
+              
+              // Look up the username
+              const users = await jellyfinService.getUsers();
+              const user = users.find(u => u.id === this.jellyfinSettings.userId);
+              if (user) {
+                this.jellyfinSettings.username = user.name;
+              }
+            } catch (error) {
+              console.error('Error retrieving username for stored user ID:', error);
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading Jellyfin settings:', error);

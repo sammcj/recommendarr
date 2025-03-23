@@ -12,6 +12,14 @@
         Account
       </button>
       <button 
+        v-if="isAdmin"
+        @click="activeTab = 'users'" 
+        :class="{ active: activeTab === 'users' }" 
+        class="tab-button admin-tab"
+      >
+        User Management
+      </button>
+      <button 
         @click="activeTab = 'ai'" 
         :class="{ active: activeTab === 'ai' }" 
         class="tab-button"
@@ -234,6 +242,15 @@
         </div>
       </div>
     </teleport>
+    
+    <!-- User Management Tab (Admin Only) -->
+    <div v-if="activeTab === 'users' && isAdmin" class="settings-section">
+      <div class="settings-intro">
+        <p>Manage user accounts and permissions for Recommendarr.</p>
+      </div>
+      
+      <UserManagement />
+    </div>
     
     <!-- Account Settings Tab -->
     <div v-if="activeTab === 'account'" class="settings-section">
@@ -968,6 +985,7 @@ import SonarrConnection from './SonarrConnection.vue';
 import RadarrConnection from './RadarrConnection.vue';
 import TraktConnection from './TraktConnection.vue';
 import TMDBConnection from './TMDBConnection.vue';
+import UserManagement from './UserManagement.vue';
 
 export default {
   name: 'AIServiceSettings',
@@ -978,7 +996,8 @@ export default {
     SonarrConnection,
     RadarrConnection,
     TraktConnection,
-    TMDBConnection
+    TMDBConnection,
+    UserManagement
   },
   props: {
     sonarrConnected: {
@@ -1127,6 +1146,9 @@ export default {
       return this.models.filter(model => 
         model.id.toLowerCase().includes(search)
       );
+    },
+    isAdmin() {
+      return authService.isAdmin();
     }
   },
   created() {
@@ -2418,6 +2440,18 @@ h2 {
   color: var(--button-primary-bg);
   border-bottom: 3px solid var(--button-primary-bg);
   transition: color var(--transition-speed), border-color var(--transition-speed);
+}
+
+.tab-button.admin-tab {
+  background-color: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+  border-left: 3px solid #4CAF50;
+}
+
+.tab-button.admin-tab.active {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #2E7D32;
+  border-bottom: 3px solid #2E7D32;
 }
 
 /* Common Settings Section Styling */

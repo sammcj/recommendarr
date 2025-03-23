@@ -361,7 +361,7 @@ export default {
           this.success = `User ${this.editingUser.username} updated successfully`;
         } else {
           // Create new user
-          const result = await AuthService.createUser(
+          await AuthService.createUser(
             this.newUser.username, 
             this.newUser.password, 
             this.newUser.isAdmin

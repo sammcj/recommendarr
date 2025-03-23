@@ -184,7 +184,33 @@ You can connect to any combination of these services based on your needs.
    - **Parameters**: Adjust max tokens and temperature as needed
 4. Click "Save Settings"
 
-### 3. Get Recommendations
+### 3. Set Up OAuth Login (Optional)
+
+Recommendarr supports social login via Google and GitHub. To enable:
+
+1. Create OAuth applications:
+   - **For Google**: Visit [Google Developer Console](https://console.developers.google.com/), create a project, and set up OAuth credentials
+   - **For GitHub**: Visit [GitHub Developer Settings](https://github.com/settings/developers), create a new OAuth App
+   
+2. Configure the redirect URIs:
+   - For both providers, set the callback URL to: `https://your-recommendarr-url/api/auth/[provider]/callback`
+   - Where `[provider]` is either `google` or `github`
+
+3. Set environment variables:
+   ```
+   GOOGLE_CLIENT_ID=your-google-client-id
+   GOOGLE_CLIENT_SECRET=your-google-client-secret
+   GITHUB_CLIENT_ID=your-github-client-id
+   GITHUB_CLIENT_SECRET=your-github-client-secret
+   SESSION_SECRET=some-random-secure-string
+   ```
+
+4. Restart the application
+5. OAuth login options will now appear on the login page
+
+> **Note**: By default, OAuth users are created with regular (non-admin) privileges. Admin users can promote them via the User Management page in Settings.
+
+### 4. Get Recommendations
 
 1. Navigate to TV Recommendations or Movie Recommendations page
 2. Adjust the number of recommendations you'd like to receive using the slider
@@ -277,6 +303,11 @@ volumes:
 | `FORCE_SECURE_COOKIES` | Force secure cookies even on HTTP (for HTTPS reverse proxies) | false |
 | `NODE_ENV` | Node.js environment | production |
 | `DOCKER_ENV` | Flag to enable Docker-specific features | true |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID for social login | |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret for social login | |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID for social login | |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret for social login | |
+| `SESSION_SECRET` | Secret for session encryption (highly recommended to set this) | random string |
 
 ## 🖥️ Compatible AI Services
 

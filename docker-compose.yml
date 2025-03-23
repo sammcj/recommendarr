@@ -26,6 +26,12 @@ services:
       - PUBLIC_URL=${PUBLIC_URL:-http://localhost:${PORT:-3000}}
       # Uncomment to force secure cookies even over HTTP (only use if behind HTTPS reverse proxy)
       #- FORCE_SECURE_COOKIES=true
+      # OAuth configuration (optional)
+      #- GOOGLE_CLIENT_ID=your-google-client-id
+      #- GOOGLE_CLIENT_SECRET=your-google-client-secret
+      #- GITHUB_CLIENT_ID=your-github-client-id
+      #- GITHUB_CLIENT_SECRET=your-github-client-secret
+      #- SESSION_SECRET=some-random-secure-string
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped

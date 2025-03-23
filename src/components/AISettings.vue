@@ -703,15 +703,18 @@
         </div>
         
         <div class="form-group">
-          <label for="jellyfinUserId">User ID:</label>
-          <input 
-            id="jellyfinUserId" 
-            v-model="jellyfinSettings.userId" 
-            type="text" 
-            placeholder="Your Jellyfin user ID"
+          <label for="jellyfinUsername">Username:</label>
+          <input
+            id="jellyfinUsername"
+            v-model="jellyfinSettings.username"
+            type="text"
+            placeholder="Your Jellyfin Username"
+            :disabled="testingJellyfin"
             required
           />
-          <div class="field-hint">Found in your profile settings under "Profile Information"</div>
+          <div class="field-hint">
+            Enter your Jellyfin username (the name you use to log in)
+          </div>
         </div>
         
         <div class="form-group">
@@ -1083,6 +1086,7 @@ export default {
         baseUrl: '',
         apiKey: '',
         userId: '',
+        username: '',
         recentLimit: 10
       },
       showJellyfinApiKey: false,
@@ -1464,6 +1468,20 @@ export default {
           this.jellyfinSettings.apiKey = jellyfinService.apiKey;
           this.jellyfinSettings.userId = jellyfinService.userId;
           this.jellyfinSettings.recentLimit = parseInt(localStorage.getItem('jellyfinRecentLimit') || '10');
+          
+          // Try to look up the username for the current userId
+          if (this.jellyfinSettings.userId) {
+            try {
+              const users = await jellyfinService.getUsers();
+              const user = users.find(u => u.id === this.jellyfinSettings.userId);
+              if (user) {
+                this.jellyfinSettings.username = user.name;
+              }
+            } catch (error) {
+              console.error('Error retrieving username for current user ID:', error);
+            }
+          }
+          
           return;
         }
         
@@ -1474,6 +1492,27 @@ export default {
           this.jellyfinSettings.apiKey = credentials.apiKey || '';
           this.jellyfinSettings.userId = credentials.userId || '';
           this.jellyfinSettings.recentLimit = parseInt(localStorage.getItem('jellyfinRecentLimit') || '10');
+          
+          // If we have credentials but no service configured yet, configure it temporarily to look up username
+          if (this.jellyfinSettings.baseUrl && this.jellyfinSettings.apiKey && this.jellyfinSettings.userId) {
+            try {
+              // Temporarily configure service
+              await jellyfinService.configure(
+                this.jellyfinSettings.baseUrl,
+                this.jellyfinSettings.apiKey,
+                this.jellyfinSettings.userId
+              );
+              
+              // Look up the username
+              const users = await jellyfinService.getUsers();
+              const user = users.find(u => u.id === this.jellyfinSettings.userId);
+              if (user) {
+                this.jellyfinSettings.username = user.name;
+              }
+            } catch (error) {
+              console.error('Error retrieving username for stored user ID:', error);
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading Jellyfin settings:', error);
@@ -1569,7 +1608,11 @@ export default {
           this.aiSettings.selectedModel || 'gpt-3.5-turbo',
           this.aiSettings.apiUrl,
           this.aiSettings.maxTokens,
-          this.aiSettings.temperature
+          this.aiSettings.temperature,
+          null,
+          null,
+          null,
+          null
         );
         
         // Use the service to fetch models (which uses direct or proxy request based on API URL)
@@ -1657,7 +1700,11 @@ export default {
           this.aiSettings.selectedModel,
           this.aiSettings.apiUrl,
           this.aiSettings.maxTokens,
-          this.aiSettings.temperature
+          this.aiSettings.temperature,
+          null,
+          null,
+          null,
+          null
         );
         
         this.saveSuccess = true;
@@ -1937,9 +1984,10 @@ export default {
     
     // Jellyfin Service Methods
     async testJellyfinConnection() {
-      if (!this.jellyfinSettings.baseUrl || !this.jellyfinSettings.apiKey || !this.jellyfinSettings.userId) {
+      // Validate input
+      if (!this.jellyfinSettings.baseUrl || !this.jellyfinSettings.apiKey || !this.jellyfinSettings.username) {
         this.jellyfinConnectionStatus = false;
-        this.jellyfinConnectionMessage = 'URL, API key, and User ID are required';
+        this.jellyfinConnectionMessage = 'URL, API key, and Username are required';
         return;
       }
       
@@ -1947,11 +1995,40 @@ export default {
       this.jellyfinConnectionMessage = '';
       
       try {
-        // Configure the service with provided details
+        let userId;
+
+        try {
+          // First configure with just the URL and API key to be able to call getUserIdByUsername
+          await jellyfinService.configure(
+            this.jellyfinSettings.baseUrl,
+            this.jellyfinSettings.apiKey,
+            '' // Temporarily empty userId
+          );
+
+          // Try to look up the user ID from the username
+          userId = await jellyfinService.getUserIdByUsername(this.jellyfinSettings.username);
+          
+          if (!userId) {
+            this.jellyfinConnectionStatus = false;
+            this.jellyfinConnectionMessage = `Could not find a user with the username "${this.jellyfinSettings.username}"`;
+            this.testingJellyfin = false;
+            return;
+          }
+          
+          // Save the looked-up userId
+          this.jellyfinSettings.userId = userId;
+        } catch (error) {
+          this.jellyfinConnectionStatus = false;
+          this.jellyfinConnectionMessage = `Error looking up username: ${error.message || 'Unknown error occurred'}`;
+          this.testingJellyfin = false;
+          return;
+        }
+        
+        // Configure the service with the looked-up userId
         await jellyfinService.configure(
           this.jellyfinSettings.baseUrl, 
           this.jellyfinSettings.apiKey,
-          this.jellyfinSettings.userId
+          userId
         );
         
         // Store the recent limit in localStorage (server doesn't need this)
@@ -1980,18 +2057,48 @@ export default {
     
     async saveJellyfinSettings() {
       try {
-        if (!this.jellyfinSettings.baseUrl || !this.jellyfinSettings.apiKey || !this.jellyfinSettings.userId) {
+        // Validate input
+        if (!this.jellyfinSettings.baseUrl || !this.jellyfinSettings.apiKey || !this.jellyfinSettings.username) {
           this.saveSuccess = false;
-          this.saveMessage = 'Jellyfin URL, API key, and User ID are required';
+          this.saveMessage = 'Jellyfin URL, API key, and Username are required';
+          this.clearSaveMessage();
+          return;
+        }
+
+        let userId;
+
+        try {
+          // First configure with just the URL and API key to be able to call getUserIdByUsername
+          await jellyfinService.configure(
+            this.jellyfinSettings.baseUrl,
+            this.jellyfinSettings.apiKey,
+            '' // Temporarily empty userId
+          );
+
+          // Try to look up the user ID from the username
+          userId = await jellyfinService.getUserIdByUsername(this.jellyfinSettings.username);
+          
+          if (!userId) {
+            this.saveSuccess = false;
+            this.saveMessage = `Could not find a user with the username "${this.jellyfinSettings.username}"`;
+            this.clearSaveMessage();
+            return;
+          }
+          
+          // Save the looked-up userId
+          this.jellyfinSettings.userId = userId;
+        } catch (error) {
+          this.saveSuccess = false;
+          this.saveMessage = `Error looking up username: ${error.message || 'Unknown error occurred'}`;
           this.clearSaveMessage();
           return;
         }
         
-        // Configure the service with the recent limit
+        // Configure the service with the looked-up userId and recent limit
         await jellyfinService.configure(
           this.jellyfinSettings.baseUrl, 
           this.jellyfinSettings.apiKey,
-          this.jellyfinSettings.userId,
+          userId,
           this.jellyfinSettings.recentLimit
         );
         

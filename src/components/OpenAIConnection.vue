@@ -81,7 +81,17 @@ export default {
     async autoConnect() {
       try {
         // Configure the service with saved details
-        await openAIService.configure(this.apiKey, this.model);
+        await openAIService.configure(
+          this.apiKey, 
+          this.model, 
+          null, 
+          null, 
+          null, 
+          null, 
+          null, 
+          null, 
+          null
+        );
         
         // Emit event for successful configuration
         this.$emit('configured');
@@ -98,7 +108,17 @@ export default {
       
       try {
         // Configure the service with provided details (stores credentials server-side)
-        await openAIService.configure(this.apiKey, this.model);
+        await openAIService.configure(
+          this.apiKey, 
+          this.model, 
+          null, 
+          null, 
+          null, 
+          null, 
+          null, 
+          null, 
+          null
+        );
         
         // Test the API key with a models request
         try {

@@ -9,6 +9,7 @@ class OpenAIService {
     this.temperature = 0.8;
     this.useSampledLibrary = false;
     this.sampleSize = 20;
+    this.useCustomPromptOnly = false; // Whether to only use custom prompt for recommendations
     this.useStructuredOutput = false; // Default to legacy output format
     this.promptStyle = 'vibe'; // Default prompt style
     
@@ -60,6 +61,7 @@ class OpenAIService {
         if (credentials.useSampledLibrary !== undefined) this.useSampledLibrary = credentials.useSampledLibrary === true;
         if (credentials.sampleSize) this.sampleSize = parseInt(credentials.sampleSize);
         if (credentials.useStructuredOutput !== undefined) this.useStructuredOutput = credentials.useStructuredOutput === true;
+        if (credentials.useCustomPromptOnly !== undefined) this.useCustomPromptOnly = credentials.useCustomPromptOnly === true;
         
         // Update API URL if baseUrl changed
         this.apiUrl = this.getCompletionsUrl();
@@ -755,8 +757,9 @@ From these insights, recommend series that evoke comparable emotional states and
    * @param {boolean} useSampledLibrary - Whether to use sampled library for recommendations
    * @param {number} sampleSize - Sample size to use when sampling the library
    * @param {boolean} useStructuredOutput - Whether to use structured output in API requests
+   * @param {boolean} useCustomPromptOnly - Whether to only use custom prompt for recommendations
    */
-  async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null, useStructuredOutput = null) {
+  async configure(apiKey, model = 'gpt-3.5-turbo', baseUrl = null, maxTokens = null, temperature = null, useSampledLibrary = null, sampleSize = null, useStructuredOutput = null, useCustomPromptOnly = null) {
     // Trim the API key to remove any accidental whitespace
     this.apiKey = apiKey ? apiKey.trim() : '';
     
@@ -792,6 +795,10 @@ From these insights, recommend series that evoke comparable emotional states and
       this.useStructuredOutput = useStructuredOutput;
     }
     
+    if (useCustomPromptOnly !== null) {
+      this.useCustomPromptOnly = useCustomPromptOnly;
+    }
+    
     // Store credentials server-side (including model selection as backup)
     await credentialsService.storeCredentials('openai', {
       apiKey: this.apiKey,
@@ -801,7 +808,8 @@ From these insights, recommend series that evoke comparable emotional states and
       temperature: this.temperature,
       useSampledLibrary: this.useSampledLibrary,
       sampleSize: this.sampleSize,
-      useStructuredOutput: this.useStructuredOutput
+      useStructuredOutput: this.useStructuredOutput,
+      useCustomPromptOnly: this.useCustomPromptOnly
     });
   }
 
@@ -931,13 +939,19 @@ From these insights, recommend series that evoke comparable emotional states and
       // Add instructions based on the selected prompt style
       userPrompt += this.getUserPromptAdditionByStyle(false, activePromptStyle); // false = TV show recommendations
       
-      // Add library information with appropriate context based on mode
-      if (this.useSampledLibrary) {
-        userPrompt += `\n\nHere are some examples from my library (${primarySource.length} shows total) to understand my taste: ${libraryTitles}`;
-        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows that I already have in my library.`;
+      // If not using custom prompt only mode, add library information to the prompt
+      if (!this.useCustomPromptOnly) {
+        // Add library information with appropriate context based on mode
+        if (this.useSampledLibrary) {
+          userPrompt += `\n\nHere are some examples from my library (${primarySource.length} shows total) to understand my taste: ${libraryTitles}`;
+          userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows that I already have in my library.`;
+        } else {
+          userPrompt += `\n\nMy current shows: ${libraryTitles}`;
+          userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
+        }
       } else {
-        userPrompt += `\n\nMy current shows: ${libraryTitles}`;
-        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows from the list above as I already have them in my library.`;
+        // When using custom prompt only mode, just add a critical instruction about not recommending shows in library
+        userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any shows that I already have in my library.`;
       }
       
       // We no longer include previous recommendations in the prompt
@@ -953,8 +967,8 @@ From these insights, recommend series that evoke comparable emotional states and
         userPrompt += `\n\nI specifically dislike these shows, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
       }
       
-      // Add recently watched shows from Plex if available and not already using them as the primary source
-      if (!plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
+      // Add recently watched shows only if not using custom prompt only mode
+      if (!this.useCustomPromptOnly && !plexOnlyMode && recentlyWatchedShows && recentlyWatchedShows.length > 0) {
         const recentTitles = recentlyWatchedShows.map(show => show.title).join(', ');
         userPrompt += `\n\nI've recently watched these shows, so please consider them for better recommendations: ${recentTitles}`;
       }
@@ -1164,13 +1178,19 @@ CRITICAL REQUIREMENTS:
         // Add instructions based on the selected prompt style
         userPrompt += this.getUserPromptAdditionByStyle(true, activePromptStyle); // true = movie recommendations
 
-        // Add library information with appropriate context based on mode
-        if (this.useSampledLibrary) {
-          userPrompt += `\n\nHere are some examples from my library (${primarySource.length} movies total) to understand my taste: ${libraryTitles}`;
-          userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies that I already have in my library.`;
+        // If not using custom prompt only mode, add library information to the prompt
+        if (!this.useCustomPromptOnly) {
+          // Add library information with appropriate context based on mode
+          if (this.useSampledLibrary) {
+            userPrompt += `\n\nHere are some examples from my library (${primarySource.length} movies total) to understand my taste: ${libraryTitles}`;
+            userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies that I already have in my library.`;
+          } else {
+            userPrompt += `\n\nMy current movies: ${libraryTitles}`;
+            userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
+          }
         } else {
-          userPrompt += `\n\nMy current movies: ${libraryTitles}`;
-          userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies from the list above as I already have them in my library.`;
+          // When using custom prompt only mode, just add a critical instruction about not recommending movies in library
+          userPrompt += `\n\nCRITICAL INSTRUCTION: You MUST NOT recommend any movies that I already have in my library.`;
         }
 
         // We no longer include previous recommendations in the prompt
@@ -1186,8 +1206,8 @@ CRITICAL REQUIREMENTS:
           userPrompt += `\n\nI specifically dislike these movies, so don't recommend anything too similar: ${dislikedRecommendations.join(', ')}`;
         }
 
-        // Add recently watched movies from various services if available and not already using them as the primary source
-        if (!plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
+        // Add recently watched movies only if not using custom prompt only mode
+        if (!this.useCustomPromptOnly && !plexOnlyMode && recentlyWatchedMovies && recentlyWatchedMovies.length > 0) {
           // Debug watch history data structure
           console.log("Watch history data structures sample:",
             recentlyWatchedMovies.slice(0, 2).map(movie => typeof movie === 'object' ?

@@ -119,8 +119,9 @@
                       <div class="setting-description">
                         Samples a subset of your library to reduce token usage while still providing relevant recommendations.
                       </div>
-                      
-                      <div v-if="useSampledLibrary" class="sample-size-control">
+                    </div>
+                    
+                    <div v-if="useSampledLibrary" class="sample-size-control">
                         <div class="slider-header">
                           <label for="sampleSizeSlider">Sample size</label>
                           <span class="slider-value">{{ sampleSize }}</span>
@@ -161,7 +162,73 @@
                         </div>
                       </div>
                     </div>
+                  
+                    <div class="config-section">
+                      <div class="section-label">Display Options:</div>
+                      
+                      <div class="config-item">
+                        <div class="slider-header">
+                          <label for="recommendationsSlider">Number of recommendations</label>
+                          <div class="header-right">
+                            <span class="slider-value">{{ numRecommendations }}</span>
+                            <span class="toggle-icon" @click.stop="toggleRecNumber">{{ recNumberExpanded ? '▼' : '▶' }}</span>
+                          </div>
+                        </div>
+                        <div class="rec-number-content" :class="{ 'collapsed': !recNumberExpanded }" v-show="recNumberExpanded">
+                          <div class="modern-slider-container">
+                            <div class="slider-track-container">
+                              <input 
+                                type="range" 
+                                id="recommendationsSlider"
+                                v-model.number="numRecommendations"
+                                min="1" 
+                                max="50"
+                                class="modern-slider"
+                                @change="saveRecommendationCount"
+                              >
+                              <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
+                            </div>
+                            <div class="slider-range-labels">
+                              <span>1</span>
+                              <span>50</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div class="config-item">
+                        <div class="slider-header">
+                          <label for="columnsSlider">Posters per row</label>
+                          <div class="header-right">
+                            <span class="slider-value">{{ columnsCount }}</span>
+                            <span class="toggle-icon" @click.stop="togglePostersPerRow">{{ postersPerRowExpanded ? '▼' : '▶' }}</span>
+                          </div>
+                        </div>
+                        <div class="posters-row-content" :class="{ 'collapsed': !postersPerRowExpanded }" v-show="postersPerRowExpanded">
+                          <div class="modern-slider-container">
+                            <div class="slider-track-container">
+                              <input 
+                                type="range" 
+                                id="columnsSlider"
+                                v-model.number="columnsCount"
+                                min="1" 
+                                max="10"
+                                class="modern-slider"
+                                @input="handleResize" 
+                                @change="saveColumnsCount"
+                              >
+                              <div class="slider-track"></div>
+                            </div>
+                            <div class="slider-range-labels">
+                              <span>1</span>
+                              <span>10</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                  
                   <div class="history-info">
                     <span>{{ previousRecommendations.length }} {{ isMovieMode ? 'movies' : 'shows' }} in history</span>
                     <button 
@@ -192,72 +259,6 @@
                       </div>
                     </div>
                   </div> -->
-                </div>
-                
-                <div class="count-selector">
-                  <div class="collapsible-header" @click="toggleRecNumber">
-                    <div class="slider-header">
-                      <label for="recommendationsSlider">Number of recommendations</label>
-                      <div class="header-right">
-                        <span class="slider-value">{{ numRecommendations }}</span>
-                        <span class="toggle-icon">{{ recNumberExpanded ? '▼' : '▶' }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="rec-number-content" :class="{ 'collapsed': !recNumberExpanded }" v-show="recNumberExpanded">
-                    <div class="modern-slider-container">
-                      <div class="slider-track-container">
-                        <input 
-                          type="range" 
-                          id="recommendationsSlider"
-                          v-model.number="numRecommendations"
-                          min="1" 
-                          max="50"
-                          class="modern-slider"
-                          @change="saveRecommendationCount"
-                        >
-                        <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
-                      </div>
-                      <div class="slider-range-labels">
-                        <span>1</span>
-                        <span>50</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="count-selector">
-                  <div class="collapsible-header" @click="togglePostersPerRow">
-                    <div class="slider-header">
-                      <label for="columnsSlider">Posters per row</label>
-                      <div class="header-right">
-                        <span class="slider-value">{{ columnsCount }}</span>
-                        <span class="toggle-icon">{{ postersPerRowExpanded ? '▼' : '▶' }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="posters-row-content" :class="{ 'collapsed': !postersPerRowExpanded }" v-show="postersPerRowExpanded">
-                    <div class="modern-slider-container">
-                      <div class="slider-track-container">
-                        <input 
-                          type="range" 
-                          id="columnsSlider"
-                          v-model.number="columnsCount"
-                          min="1" 
-                          max="10"
-                          class="modern-slider"
-                          @input="handleResize" 
-                          @change="saveColumnsCount"
-                        >
-                        <div class="slider-track"></div>
-                      </div>
-                      <div class="slider-range-labels">
-                        <span>1</span>
-                        <span>10</span>
-                      </div>
-                    </div>
-                    
-                  </div>
                 </div>
               </div>
               
@@ -325,6 +326,23 @@
                         <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
+                      </div>
+                      
+                      <div class="prompt-option-toggle">
+                        <div class="toggle-header">
+                          <span class="toggle-label">Only base results on custom prompt</span>
+                          <label class="switch">
+                            <input 
+                              type="checkbox" 
+                              v-model="useCustomPromptOnly" 
+                              @change="saveCustomPromptOnlyPreference"
+                            >
+                            <span class="slider round"></span>
+                          </label>
+                        </div>
+                        <div class="setting-description">
+                          Recommendations will be based solely on the "Additional Keywords/Themes" field. Library and watch history will not be included in the prompt.
+                        </div>
                       </div>
                       
                       <!-- Prompt Style Help Text -->
@@ -1019,7 +1037,7 @@
         </div>
       </div>
     </div>
-  </div>
+    
     <!-- Season Selection Modal for TV Shows -->
     <div v-if="showSeasonModal && currentSeries" class="modal-overlay">
       <div class="modal-container">
@@ -1662,6 +1680,7 @@ export default {
       localMovies: [], // Local copy of movies prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
+      useCustomPromptOnly: false, // Whether to base recommendations solely on custom prompt
       useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
       rootFolders: [], // Available Sonarr root folders
       qualityProfiles: [], // Available Sonarr quality profiles
@@ -3431,7 +3450,9 @@ export default {
             openAIService.maxTokens,
             openAIService.temperature,
             openAIService.useSampledLibrary,
-            openAIService.sampleSize
+            openAIService.sampleSize,
+            openAIService.useStructuredOutput,
+            openAIService.useCustomPromptOnly
           );
         } catch (error) {
           console.error('Error saving model settings:', error);
@@ -3460,7 +3481,9 @@ export default {
             openAIService.maxTokens,
             openAIService.temperature,
             openAIService.useSampledLibrary,
-            openAIService.sampleSize
+            openAIService.sampleSize,
+            openAIService.useStructuredOutput,
+            openAIService.useCustomPromptOnly
           );
         } catch (error) {
           console.error('Error saving custom model settings:', error);
@@ -3500,6 +3523,19 @@ export default {
         // Fallback to localStorage
         localStorage.setItem('useSampledLibrary', this.useSampledLibrary.toString());
         openAIService.useSampledLibrary = this.useSampledLibrary;
+      }
+    },
+    
+    // Save custom prompt only mode preference to server
+    async saveCustomPromptOnlyPreference() {
+      try {
+        await apiService.saveSettings({ useCustomPromptOnly: this.useCustomPromptOnly });
+        openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+      } catch (error) {
+        console.error('Error saving custom prompt only mode preference to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('useCustomPromptOnly', this.useCustomPromptOnly.toString());
+        openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
       }
     },
     
@@ -5123,6 +5159,13 @@ export default {
           }
         }
         
+        // Custom prompt only mode
+        if (settings.useCustomPromptOnly !== undefined) {
+          this.useCustomPromptOnly = settings.useCustomPromptOnly === true || settings.useCustomPromptOnly === 'true';
+          // Also set it in the OpenAIService
+          openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+        }
+        
         // Structured output setting
         if (settings.useStructuredOutput !== undefined) {
           this.useStructuredOutput = settings.useStructuredOutput === true || settings.useStructuredOutput === 'true';
@@ -5297,6 +5340,7 @@ export default {
     // Initialize library mode preferences from service
     this.useSampledLibrary = openAIService.useSampledLibrary;
     this.sampleSize = openAIService.sampleSize;
+    this.useCustomPromptOnly = openAIService.useCustomPromptOnly || false;
     
     // If there are already recommendations, collapse the settings by default
     if (this.recommendations.length > 0) {
@@ -6681,7 +6725,7 @@ body.dark-theme .genre-tag:hover {
   width: 100%;
   box-sizing: border-box;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
-  padding: 15px;
+  padding: 10px;
   background-color: var(--card-bg-color);
   border-radius: var(--border-radius-md);
   box-shadow: var(--card-shadow);
@@ -6690,7 +6734,8 @@ body.dark-theme .genre-tag:hover {
 
 .count-selector {
   margin-bottom: 14px;
-  padding: 10px;
+  max-height: none;
+  overflow: visible;
 }
 
 .select-container {
@@ -9431,5 +9476,102 @@ body.dark-theme .reasoning-icon {
 .prompt-style-info em {
   font-style: italic;
   font-weight: 500;
+}
+
+.config-section {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.section-label {
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--accent-color);
+  font-size: 14px;
+}
+
+.config-item {
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: var(--background-color);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+/* Toggle Switch Styles */
+.prompt-option-toggle {
+  margin: 15px 0;
+}
+
+.toggle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.toggle-label {
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+/* The switch - the box around the slider */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+}
+
+/* Hide default HTML checkbox */
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* The slider */
+.switch .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-color);
+  transition: 0.3s;
+}
+
+.switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+}
+
+input:checked + .slider {
+  background-color: var(--accent-color);
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px var(--accent-color);
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+/* Rounded sliders */
+.slider.round {
+  border-radius: 12px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
 }
 </style>

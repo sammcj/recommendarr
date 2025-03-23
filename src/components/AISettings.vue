@@ -1569,7 +1569,11 @@ export default {
           this.aiSettings.selectedModel || 'gpt-3.5-turbo',
           this.aiSettings.apiUrl,
           this.aiSettings.maxTokens,
-          this.aiSettings.temperature
+          this.aiSettings.temperature,
+          null,
+          null,
+          null,
+          null
         );
         
         // Use the service to fetch models (which uses direct or proxy request based on API URL)
@@ -1657,7 +1661,11 @@ export default {
           this.aiSettings.selectedModel,
           this.aiSettings.apiUrl,
           this.aiSettings.maxTokens,
-          this.aiSettings.temperature
+          this.aiSettings.temperature,
+          null,
+          null,
+          null,
+          null
         );
         
         this.saveSuccess = true;

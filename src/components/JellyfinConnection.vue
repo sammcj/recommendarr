@@ -36,17 +36,17 @@
       </div>
       
       <div class="form-group">
-        <label for="jellyfinUserId">User ID:</label>
+        <label for="jellyfinUsername">Username:</label>
         <input
-          id="jellyfinUserId"
-          v-model="jellyfinUserId"
+          id="jellyfinUsername"
+          v-model="jellyfinUsername"
           type="text"
-          placeholder="Your Jellyfin User ID"
+          placeholder="Your Jellyfin Username"
           :disabled="loading"
           required
         />
         <p class="help-text">
-          Your User ID can be found in your profile settings under "Profile Information"
+          Enter your Jellyfin username (the name you use to log in)
         </p>
       </div>
       
@@ -112,6 +112,7 @@ export default {
       jellyfinUrl: '',
       jellyfinApiKey: '',
       jellyfinUserId: '',
+      jellyfinUsername: '',
       jellyfinHistoryLimit: parseInt(localStorage.getItem('jellyfinHistoryLimit') || '50'),
       loading: false,
       message: '',
@@ -125,6 +126,19 @@ export default {
       this.jellyfinUrl = JellyfinService.baseUrl;
       this.jellyfinApiKey = JellyfinService.apiKey;
       this.jellyfinUserId = JellyfinService.userId;
+      
+      // Try to get the username for the current userId
+      if (this.jellyfinUserId) {
+        try {
+          const users = await JellyfinService.getUsers();
+          const user = users.find(u => u.id === this.jellyfinUserId);
+          if (user) {
+            this.jellyfinUsername = user.name;
+          }
+        } catch (error) {
+          console.error('Error retrieving username for current user ID:', error);
+        }
+      }
     }
     
     // Try to load credentials from server if not set
@@ -135,6 +149,26 @@ export default {
           this.jellyfinUrl = credentials.baseUrl || '';
           this.jellyfinApiKey = credentials.apiKey || '';
           this.jellyfinUserId = credentials.userId || '';
+          
+          // Try to get the username for the saved userId
+          if (this.jellyfinUserId && this.jellyfinUrl && this.jellyfinApiKey) {
+            try {
+              // We need to configure the service first
+              await JellyfinService.configure(
+                this.jellyfinUrl,
+                this.jellyfinApiKey,
+                this.jellyfinUserId
+              );
+              
+              const users = await JellyfinService.getUsers();
+              const user = users.find(u => u.id === this.jellyfinUserId);
+              if (user) {
+                this.jellyfinUsername = user.name;
+              }
+            } catch (error) {
+              console.error('Error retrieving username for loaded user ID:', error);
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading saved Jellyfin credentials:', error);
@@ -165,7 +199,7 @@ export default {
       this.message = '';
 
       // Validate input
-      if (!this.jellyfinUrl || !this.jellyfinApiKey || !this.jellyfinUserId) {
+      if (!this.jellyfinUrl || !this.jellyfinApiKey || !this.jellyfinUsername) {
         this.message = 'Please enter all required fields';
         this.messageSuccess = false;
         this.loading = false;
@@ -176,12 +210,39 @@ export default {
       localStorage.setItem('jellyfinHistoryLimit', this.jellyfinHistoryLimit.toString());
       this.$emit('limitChanged', this.jellyfinHistoryLimit);
 
-      // Configure the Jellyfin service
-      await JellyfinService.configure(
-        this.jellyfinUrl,
-        this.jellyfinApiKey,
-        this.jellyfinUserId
-      );
+      try {
+        // First configure just the URL and API key to be able to call getUserIdByUsername
+        await JellyfinService.configure(
+          this.jellyfinUrl,
+          this.jellyfinApiKey,
+          '' // Temporarily empty userId
+        );
+
+        // Try to look up the user ID from the username
+        const userId = await JellyfinService.getUserIdByUsername(this.jellyfinUsername);
+        
+        if (!userId) {
+          this.message = `Could not find a user with the username "${this.jellyfinUsername}"`;
+          this.messageSuccess = false;
+          this.loading = false;
+          return;
+        }
+        
+        // Save the found userId for future reference
+        this.jellyfinUserId = userId;
+
+        // Configure the Jellyfin service with the looked-up userId
+        await JellyfinService.configure(
+          this.jellyfinUrl,
+          this.jellyfinApiKey,
+          userId
+        );
+      } catch (error) {
+        this.message = `Error looking up username: ${error.message || 'Unknown error occurred'}`;
+        this.messageSuccess = false;
+        this.loading = false;
+        return;
+      }
 
       // Test the connection
       try {
@@ -218,6 +279,7 @@ export default {
       this.jellyfinUrl = '';
       this.jellyfinApiKey = '';
       this.jellyfinUserId = '';
+      this.jellyfinUsername = '';
       this.jellyfinConnected = false;
       this.message = 'Disconnected from Jellyfin.';
       this.messageSuccess = true;
@@ -481,4 +543,5 @@ button:disabled {
   background-color: #d32f2f;
   filter: brightness(1.1);
 }
+
 </style>

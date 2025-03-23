@@ -6,7 +6,8 @@
       <button class="notification-close" @click="dismissNotification">×</button>
     </div>
     
-    <h2>Recommendation History</h2>
+    <h2>Your Recommendation History</h2>
+    <p class="history-user-info" v-if="username">Viewing history for user: {{ username }}</p>
     
     <div class="history-controls">
       <div class="view-toggle">
@@ -549,6 +550,7 @@ import radarrService from '../services/RadarrService.js';
 import tmdbService from '../services/TMDBService.js';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 import apiService from '../services/ApiService.js';
+import authService from '../services/AuthService.js';
 import axios from 'axios';
 
 // Debug services availability
@@ -575,6 +577,7 @@ export default {
   },
   data() {
     return {
+      username: authService.getUser()?.username || '',
       activeView: 'combined',
       tvRecommendations: [],
       movieRecommendations: [],
@@ -968,11 +971,13 @@ export default {
           // Normalize recommendations to ensure they're all strings
           this.tvRecommendations = this.normalizeArray(tvRecommendations);
           console.log('Normalized TV recommendations:', this.tvRecommendations);
-          // Update localStorage with server data
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.tvRecommendations));
+          // Update localStorage with server data - include user ID in the key
+          const userId = authService.getUser()?.userId || 'guest';
+          localStorage.setItem(`user_${userId}_previousTVRecommendations`, JSON.stringify(this.tvRecommendations));
         } else if (!signal.aborted) {
-          // Fallback to localStorage if server returns empty
-          const tvHistory = localStorage.getItem('previousTVRecommendations');
+          // Fallback to localStorage if server returns empty - use user-specific key
+          const userId = authService.getUser()?.userId || 'guest';
+          const tvHistory = localStorage.getItem(`user_${userId}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
           if (tvHistory) {
             const parsed = JSON.parse(tvHistory);
             this.tvRecommendations = this.normalizeArray(parsed);
@@ -994,11 +999,13 @@ export default {
             // Normalize recommendations to ensure they're all strings
             this.movieRecommendations = this.normalizeArray(movieRecommendations);
             console.log('Normalized movie recommendations:', this.movieRecommendations);
-            // Update localStorage with server data
-            localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.movieRecommendations));
+            // Update localStorage with server data - include user ID in the key
+            const userId = authService.getUser()?.userId || 'guest';
+            localStorage.setItem(`user_${userId}_previousMovieRecommendations`, JSON.stringify(this.movieRecommendations));
           } else if (!signal.aborted) {
-            // Fallback to localStorage if server returns empty
-            const movieHistory = localStorage.getItem('previousMovieRecommendations');
+            // Fallback to localStorage if server returns empty - use user-specific key
+            const userId = authService.getUser()?.userId || 'guest';
+            const movieHistory = localStorage.getItem(`user_${userId}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
             if (movieHistory) {
               const parsed = JSON.parse(movieHistory);
               this.movieRecommendations = this.normalizeArray(parsed);
@@ -1012,15 +1019,19 @@ export default {
         if (!signal.aborted) {
           console.error('Error loading recommendations from server:', error);
           
-          // Fallback to localStorage on error
-          const tvHistory = localStorage.getItem('previousTVRecommendations');
+          // Fallback to localStorage on error - use user-specific keys
+          const userId = authService.getUser()?.userId || 'guest';
+          
+          // Try user-specific TV history first, then fall back to legacy key
+          const tvHistory = localStorage.getItem(`user_${userId}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
           if (tvHistory) {
             const parsed = JSON.parse(tvHistory);
             this.tvRecommendations = this.normalizeArray(parsed);
             console.log('Loaded TV recommendations from localStorage (after server error)');
           }
           
-          const movieHistory = localStorage.getItem('previousMovieRecommendations');
+          // Try user-specific movie history first, then fall back to legacy key
+          const movieHistory = localStorage.getItem(`user_${userId}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
           if (movieHistory) {
             const parsed = JSON.parse(movieHistory);
             this.movieRecommendations = this.normalizeArray(parsed);
@@ -1993,8 +2004,10 @@ export default {
     
     async clearTVHistory() {
       if (confirm('Are you sure you want to clear your TV show recommendation history?')) {
-        // Clear from localStorage
-        localStorage.removeItem('previousTVRecommendations');
+        // Clear from localStorage - both user-specific and legacy keys
+        const userId = authService.getUser()?.userId || 'guest';
+        localStorage.removeItem(`user_${userId}_previousTVRecommendations`);
+        localStorage.removeItem('previousTVRecommendations'); // Also remove legacy key
         this.tvRecommendations = [];
         
         // Clear from server
@@ -2009,8 +2022,10 @@ export default {
     
     async clearMovieHistory() {
       if (confirm('Are you sure you want to clear your movie recommendation history?')) {
-        // Clear from localStorage
-        localStorage.removeItem('previousMovieRecommendations');
+        // Clear from localStorage - both user-specific and legacy keys
+        const userId = authService.getUser()?.userId || 'guest';
+        localStorage.removeItem(`user_${userId}_previousMovieRecommendations`);
+        localStorage.removeItem('previousMovieRecommendations'); // Also remove legacy key
         this.movieRecommendations = [];
         
         // Clear from server
@@ -2727,10 +2742,19 @@ export default {
 }
 
 h2 {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   color: var(--header-color);
   font-size: 24px;
   text-align: center;
+}
+
+.history-user-info {
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 14px;
+  margin-bottom: 20px;
+  font-style: italic;
 }
 
 .history-controls {

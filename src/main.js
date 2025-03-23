@@ -2,6 +2,8 @@ import { createApp } from 'vue'
 import App from './App.vue'
 // Import Font Awesome
 import '@fortawesome/fontawesome-free/css/all.css'
+// Import migration utilities
+import { runFullMigration } from './utils/MigrationUtils'
 
 // PWA registration
 if ('serviceWorker' in navigator) {
@@ -16,4 +18,22 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-createApp(App).mount('#app')
+// Initialize the application
+async function initApp() {
+  try {
+    // Run localStorage migration for multi-user support
+    await runFullMigration().catch(err => {
+      console.error('Storage migration error:', err);
+      // Continue even if migration fails
+    });
+  } catch (error) {
+    console.error('Error during initialization:', error);
+    // Continue even if there are initialization errors
+  }
+  
+  // Create and mount the Vue application
+  createApp(App).mount('#app');
+}
+
+// Start the application
+initApp();

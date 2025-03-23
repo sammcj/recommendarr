@@ -2,6 +2,7 @@
   <div class="recommendations">
     <div class="recommendation-header">
       <h2>{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h2>
+      <p class="user-recommendation-info" v-if="username">Personalized for user: {{ username }}</p>
       <div class="content-type-selector">
         <button 
           class="content-type-button" 
@@ -1400,6 +1401,7 @@ import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
+import authService from '../services/AuthService';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 
 export default {
@@ -1625,6 +1627,7 @@ export default {
   },
   data() {
     return {
+      username: authService.getUser()?.username || '',
       openaiConfigured: openAIService.isConfigured(), // Initialize with current configuration state
       recommendations: [],
       expandedCards: new Set(), // Track which cards are in expanded view
@@ -5890,6 +5893,15 @@ export default {
 </script>
 
 <style scoped>
+.user-recommendation-info {
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 14px;
+  margin: 0 0 10px;
+  font-style: italic;
+}
+
 /* Tags Styling */
 .tags-section {
   flex-direction: column;

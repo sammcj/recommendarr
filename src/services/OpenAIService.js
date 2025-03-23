@@ -28,6 +28,9 @@ class OpenAIService {
     
     // Try to get prompt style from localStorage if it exists
     this.loadPromptStyleFromLocalStorage();
+    
+    // Try to get custom prompt only preference from localStorage if it exists
+    this.loadCustomPromptOnlyFromLocalStorage();
   }
   
   /**
@@ -107,12 +110,34 @@ class OpenAIService {
   }
   
   /**
+   * Load the useCustomPromptOnly setting from localStorage if it exists
+   * Falls back to false if setting doesn't exist in localStorage
+   */
+  loadCustomPromptOnlyFromLocalStorage() {
+    const storedValue = localStorage.getItem('useCustomPromptOnly');
+    if (storedValue !== null) {
+      this.useCustomPromptOnly = storedValue === 'true';
+      console.log(`OpenAIService: Loaded useCustomPromptOnly from localStorage: ${this.useCustomPromptOnly}`);
+    }
+  }
+  
+  /**
    * Set the prompt style and save it to localStorage
    * @param {string} style - The prompt style ('vibe', 'analytical', 'creative', 'technical')
    */
   setPromptStyle(style) {
     this.promptStyle = style;
     localStorage.setItem('openaiPromptStyle', style);
+  }
+  
+  /**
+   * Set the useCustomPromptOnly flag and save it to localStorage
+   * @param {boolean} value - Whether to use only the custom prompt for recommendations
+   */
+  setUseCustomPromptOnly(value) {
+    this.useCustomPromptOnly = value === true;
+    localStorage.setItem('useCustomPromptOnly', this.useCustomPromptOnly.toString());
+    console.log(`OpenAIService: useCustomPromptOnly set to ${this.useCustomPromptOnly}`);
   }
   
   /**

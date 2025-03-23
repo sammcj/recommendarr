@@ -366,15 +366,14 @@
                     </div>
                     
                     <div class="prompt-option-toggle">
-                      <div class="toggle-header">
-                        <span class="toggle-label">Only base results on custom prompt</span>
-                        <label class="toggle-switch toggle-only">
-                          <input 
+                      <div class="checkbox-header">
+                        <input 
                             type="checkbox" 
                             v-model="useCustomPromptOnly" 
                             @change="saveCustomPromptOnlyPreference"
                           >
-                          <span class="toggle-slider"></span>
+                        <span class="checkbox-label">Only base results on custom prompt</span>
+                        <label class="checkbox">
                         </label>
                       </div>
                       <div class="setting-description">

@@ -188,27 +188,78 @@ You can connect to any combination of these services based on your needs.
 
 Recommendarr supports social login via Google and GitHub. To enable:
 
-1. Create OAuth applications:
-   - **For Google**: Visit [Google Developer Console](https://console.developers.google.com/), create a project, and set up OAuth credentials
-   - **For GitHub**: Visit [GitHub Developer Settings](https://github.com/settings/developers), create a new OAuth App
-   
-2. Configure the redirect URIs:
-   - For both providers, set the callback URL to: `https://your-recommendarr-url/api/auth/[provider]/callback`
-   - Where `[provider]` is either `google` or `github`
+#### Generating a Secure SESSION_SECRET
+The SESSION_SECRET is used to encrypt session cookies and should be:
+- At least 32 characters long
+- Randomly generated
+- Kept secret
 
-3. Set environment variables:
+Generate one using:
+```bash
+# On Linux/macOS:
+openssl rand -hex 32
+```
+
+#### Setting Up OAuth Providers
+
+1. **Create OAuth Applications**:
+   - **Google**:
+     1. Go to [Google Developer Console](https://console.developers.google.com/)
+     2. Create a new project
+     3. Navigate to "Credentials" → "Create Credentials" → "OAuth client ID"
+     4. Select "Web application" type
+     5. Add authorized JavaScript origins and redirect URIs (see below)
+   
+   - **GitHub**:
+     1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+     2. Click "New OAuth App"
+     3. Fill in application details
+     4. Set callback URL (see below)
+
+2. **Configure Callback URLs**:
+   The callback URL must match exactly with what you configure in the OAuth provider:
    ```
-   GOOGLE_CLIENT_ID=your-google-client-id
-   GOOGLE_CLIENT_SECRET=your-google-client-secret
+   {PUBLIC_URL}/api/auth/{provider}/callback
+   ```
+   Where:
+   - `{PUBLIC_URL}` is your Recommendarr's public URL (e.g., `http://localhost:3000` or `https://recommendarr.yourdomain.com`)
+   - `{provider}` is either `google` or `github`
+
+   Example callback URLs:
+   - Development: `http://localhost:3000/api/auth/google/callback`
+   - Production: `https://recommendarr.yourdomain.com/api/auth/github/callback`
+
+3. **Set Environment Variables**:
+   Add these to your docker-compose.yml or .env file:
+   ```bash
+   # Required for all OAuth providers
+   SESSION_SECRET=your-generated-secret-here
+
+   # Google OAuth
+   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=your-client-secret
+
+   # GitHub OAuth
    GITHUB_CLIENT_ID=your-github-client-id
    GITHUB_CLIENT_SECRET=your-github-client-secret
-   SESSION_SECRET=some-random-secure-string
+
+   # Public URL (must match callback URL domain)
+   PUBLIC_URL=http://localhost:3000  # Or your production domain
    ```
 
-4. Restart the application
-5. OAuth login options will now appear on the login page
+4. **Restart the Application**:
+   After setting the environment variables, restart Recommendarr for changes to take effect.
 
-> **Note**: By default, OAuth users are created with regular (non-admin) privileges. Admin users can promote them via the User Management page in Settings.
+5. **Verify OAuth Login**:
+   - Visit the login page - you should see Google/GitHub login buttons
+   - Test the login flow with each provider
+   - Check server logs for any authentication errors
+
+> **Important Notes**:
+> - The SESSION_SECRET should remain the same across restarts or users will be logged out
+> - For production, set `FORCE_SECURE_COOKIES=true` when using HTTPS
+> - OAuth users are created with regular privileges by default (admins can promote them)
+> - If changing PUBLIC_URL, you must update the callback URLs in your OAuth provider settings
 
 ### 4. Get Recommendations
 
@@ -302,7 +353,7 @@ volumes:
 | `BASE_URL` | Base path for the application (for sub-path deployment) | / |
 | `FORCE_SECURE_COOKIES` | Force secure cookies even on HTTP (for HTTPS reverse proxies) | false |
 | `NODE_ENV` | Node.js environment | production |
-| `DOCKER_ENV` | Flag to enable Docker-specific features | true |
+| `DOCKER_ENV` | Flag to enable Docker-specific features | false |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID for social login | |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret for social login | |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID for social login | |

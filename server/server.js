@@ -905,9 +905,10 @@ app.post('/api/credentials/:service', async (req, res) => {
 app.get('/api/credentials/:service', (req, res) => {
   const { service } = req.params;
   
-  // Only admin users can access global credentials
-  if (!req.user.isAdmin) {
-    return res.status(403).json({ error: 'Admin privileges required' });
+  // For non-admin users, only allow access to shared services (all except trakt)
+  // Trakt should be user-specific, while other services are shared among all users
+  if (!req.user.isAdmin && service === 'trakt') {
+    return res.status(403).json({ error: 'Admin privileges required for Trakt credentials' });
   }
   
   // Return empty response for app-config as it's been removed

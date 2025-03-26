@@ -961,7 +961,7 @@ export default {
         // First try to load TV recommendations from server with abort signal
         // Use readonly method to avoid overwriting server data
         const tvRecommendations = await this.fetchWithAbort(
-          () => apiService.getRecommendationsReadOnly('tv'),
+          () => apiService.getRecommendationsReadOnly('tv', this.username),
           signal,
           'Loading TV recommendations (readonly)'
         );
@@ -972,12 +972,10 @@ export default {
           this.tvRecommendations = this.normalizeArray(tvRecommendations);
           console.log('Normalized TV recommendations:', this.tvRecommendations);
           // Update localStorage with server data - include user ID in the key
-          const userId = authService.getUser()?.userId || 'guest';
-          localStorage.setItem(`user_${userId}_previousTVRecommendations`, JSON.stringify(this.tvRecommendations));
+          localStorage.setItem(`user_${this.username}_previousTVRecommendations`, JSON.stringify(this.tvRecommendations));
         } else if (!signal.aborted) {
           // Fallback to localStorage if server returns empty - use user-specific key
-          const userId = authService.getUser()?.userId || 'guest';
-          const tvHistory = localStorage.getItem(`user_${userId}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
+          const tvHistory = localStorage.getItem(`user_${this.username}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
           if (tvHistory) {
             const parsed = JSON.parse(tvHistory);
             this.tvRecommendations = this.normalizeArray(parsed);
@@ -989,7 +987,7 @@ export default {
         // Then try to load movie recommendations from server with abort signal
         if (!signal.aborted) {
           const movieRecommendations = await this.fetchWithAbort(
-            () => apiService.getRecommendationsReadOnly('movie'),
+            () => apiService.getRecommendationsReadOnly('movie', this.username),
             signal,
             'Loading movie recommendations (readonly)'
           );
@@ -1000,8 +998,7 @@ export default {
             this.movieRecommendations = this.normalizeArray(movieRecommendations);
             console.log('Normalized movie recommendations:', this.movieRecommendations);
             // Update localStorage with server data - include user ID in the key
-            const userId = authService.getUser()?.userId || 'guest';
-            localStorage.setItem(`user_${userId}_previousMovieRecommendations`, JSON.stringify(this.movieRecommendations));
+            localStorage.setItem(`user_${this.username}_previousMovieRecommendations`, JSON.stringify(this.movieRecommendations));
           } else if (!signal.aborted) {
             // Fallback to localStorage if server returns empty - use user-specific key
             const userId = authService.getUser()?.userId || 'guest';
@@ -1019,11 +1016,8 @@ export default {
         if (!signal.aborted) {
           console.error('Error loading recommendations from server:', error);
           
-          // Fallback to localStorage on error - use user-specific keys
-          const userId = authService.getUser()?.userId || 'guest';
-          
           // Try user-specific TV history first, then fall back to legacy key
-          const tvHistory = localStorage.getItem(`user_${userId}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
+          const tvHistory = localStorage.getItem(`user_${this.username}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
           if (tvHistory) {
             const parsed = JSON.parse(tvHistory);
             this.tvRecommendations = this.normalizeArray(parsed);
@@ -1031,7 +1025,7 @@ export default {
           }
           
           // Try user-specific movie history first, then fall back to legacy key
-          const movieHistory = localStorage.getItem(`user_${userId}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
+          const movieHistory = localStorage.getItem(`user_${this.username}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
           if (movieHistory) {
             const parsed = JSON.parse(movieHistory);
             this.movieRecommendations = this.normalizeArray(parsed);

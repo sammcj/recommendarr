@@ -88,6 +88,24 @@ class JellyfinService {
       return [];
     }
   }
+  
+  /**
+   * Find a user ID by username
+   * @param {string} username - The username to search for
+   * @returns {Promise<string|null>} - The user ID if found, null otherwise
+   */
+  async getUserIdByUsername(username) {
+    if (!username) return null;
+    
+    try {
+      const users = await this.getUsers();
+      const user = users.find(u => u.name.toLowerCase() === username.toLowerCase());
+      return user ? user.id : null;
+    } catch (error) {
+      console.error('Error finding user by username:', error);
+      return null;
+    }
+  }
 
   async testConnection() {
     // Try to load credentials again in case they weren't ready during init

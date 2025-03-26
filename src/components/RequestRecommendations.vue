@@ -365,6 +365,23 @@
                         rows="2"
                       ></textarea>
                     </div>
+                    
+                    <div class="prompt-option-toggle">
+                      <div class="checkbox-header">
+                        <input 
+                            type="checkbox" 
+                            v-model="useCustomPromptOnly" 
+                            @change="saveCustomPromptOnlyPreference"
+                          >
+                        <span class="checkbox-label">Only base results on custom prompt</span>
+                        <label class="checkbox">
+                        </label>
+                      </div>
+                      <div class="setting-description">
+                        Recommendations will be based solely on the "Additional Keywords/Themes" field. Library and watch history will not be included in the prompt.
+                      </div>
+                    </div>
+                    
                     <div class="setting-tip">
                       <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
@@ -1666,6 +1683,7 @@ export default {
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
+      useCustomPromptOnly: false, // Whether to use only custom prompt for recommendations
       rootFolders: [], // Available Sonarr root folders
       qualityProfiles: [], // Available Sonarr quality profiles
       selectedRootFolder: null, // Selected root folder for series
@@ -2742,6 +2760,40 @@ export default {
       }
     },
     
+    // Save custom prompt only preference
+    async saveCustomPromptOnlyPreference() {
+      try {
+        // Save to server
+        await apiService.saveSettings({ useCustomPromptOnly: this.useCustomPromptOnly });
+        
+        // Set in the OpenAIService
+        if (typeof openAIService.setUseCustomPromptOnly === 'function') {
+          openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
+        } else {
+          // If method doesn't exist, add the property directly
+          openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+        }
+        
+        // Reset OpenAI conversation context when preference changes
+        openAIService.resetConversation();
+        console.log('Custom prompt only preference updated to:', this.useCustomPromptOnly, 'conversation history cleared');
+        
+        // Reset recommendations when changing prompt settings
+        this.recommendationsRequested = false;
+      } catch (error) {
+        console.error('Error saving custom prompt only preference to server:', error);
+        // Fallback to localStorage
+        localStorage.setItem('useCustomPromptOnly', this.useCustomPromptOnly.toString());
+        
+        // Still set in OpenAIService in case of server error
+        if (typeof openAIService.setUseCustomPromptOnly === 'function') {
+          openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
+        } else {
+          openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+        }
+      }
+    },
+    
     // Load prompt style from server or localStorage
     async loadPromptStyle() {
       try {
@@ -2750,12 +2802,25 @@ export default {
         if (settings && settings.promptStyle) {
           this.promptStyle = settings.promptStyle;
           console.log('Loaded prompt style from server:', this.promptStyle);
+          
+          // Also load useCustomPromptOnly if it exists in settings
+          if (Object.prototype.hasOwnProperty.call(settings, 'useCustomPromptOnly')) {
+            this.useCustomPromptOnly = settings.useCustomPromptOnly === true;
+            console.log('Loaded useCustomPromptOnly from server:', this.useCustomPromptOnly);
+          }
         } else {
           // If not available from server, try localStorage
           const localPromptStyle = localStorage.getItem('promptStyle');
           if (localPromptStyle) {
             this.promptStyle = localPromptStyle;
             console.log('Loaded prompt style from localStorage:', this.promptStyle);
+          }
+          
+          // Try to load useCustomPromptOnly from localStorage
+          const localCustomPromptOnly = localStorage.getItem('useCustomPromptOnly');
+          if (localCustomPromptOnly) {
+            this.useCustomPromptOnly = localCustomPromptOnly === 'true';
+            console.log('Loaded useCustomPromptOnly from localStorage:', this.useCustomPromptOnly);
           }
         }
         
@@ -2768,6 +2833,12 @@ export default {
         if (localPromptStyle) {
           this.promptStyle = localPromptStyle;
           openAIService.setPromptStyle(this.promptStyle);
+        }
+        
+        // Try to load useCustomPromptOnly from localStorage
+        const localCustomPromptOnly = localStorage.getItem('useCustomPromptOnly');
+        if (localCustomPromptOnly) {
+          this.useCustomPromptOnly = localCustomPromptOnly === 'true';
         }
       }
     },
@@ -4213,7 +4284,8 @@ export default {
               this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode || this.traktOnlyMode,
               this.customVibe,
               this.selectedLanguage,
-              this.promptStyle
+              this.promptStyle,
+              this.useCustomPromptOnly
             );
             
             // Log what watch history was actually used
@@ -4272,7 +4344,8 @@ export default {
             this.plexOnlyMode || this.jellyfinOnlyMode || this.tautulliOnlyMode || this.traktOnlyMode,
             this.customVibe,
             this.selectedLanguage,
-            this.promptStyle
+            this.promptStyle,
+            this.useCustomPromptOnly
           );
         }
         
@@ -5131,6 +5204,19 @@ export default {
           this.useStructuredOutput = settings.useStructuredOutput === true || settings.useStructuredOutput === 'true';
           // Also set it in the OpenAIService
           openAIService.useStructuredOutput = this.useStructuredOutput;
+        }
+        
+        // Load custom prompt only setting
+        if (Object.prototype.hasOwnProperty.call(settings, 'useCustomPromptOnly')) {
+          this.useCustomPromptOnly = settings.useCustomPromptOnly === true || settings.useCustomPromptOnly === 'true';
+          console.log('Setting useCustomPromptOnly from server:', this.useCustomPromptOnly);
+          // Set in the OpenAIService if needed
+          if (typeof openAIService.setUseCustomPromptOnly === 'function') {
+            openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
+          } else {
+            // If method doesn't exist, add the property directly
+            openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+          }
         }
         
         // Load prompt style setting

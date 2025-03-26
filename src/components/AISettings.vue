@@ -20,6 +20,7 @@
         User Management
       </button>
       <button 
+        v-if="isAdmin"
         @click="activeTab = 'ai'" 
         :class="{ active: activeTab === 'ai' }" 
         class="tab-button"
@@ -27,6 +28,7 @@
         AI Service
       </button>
       <button 
+        v-if="isAdmin"
         @click="activeTab = 'sonarr'" 
         :class="{ active: activeTab === 'sonarr' }" 
         class="tab-button"
@@ -34,6 +36,7 @@
         Sonarr
       </button>
       <button 
+        v-if="isAdmin"
         @click="activeTab = 'radarr'" 
         :class="{ active: activeTab === 'radarr' }" 
         class="tab-button"
@@ -41,6 +44,7 @@
         Radarr
       </button>
       <button 
+        v-if="isAdmin"
         @click="activeTab = 'plex'" 
         :class="{ active: activeTab === 'plex' }" 
         class="tab-button"
@@ -48,6 +52,7 @@
         Plex
       </button>
       <button 
+        v-if="isAdmin"
         @click="activeTab = 'jellyfin'" 
         :class="{ active: activeTab === 'jellyfin' }" 
         class="tab-button"
@@ -55,6 +60,7 @@
         Jellyfin
       </button>
       <button 
+        v-if="isAdmin"
         @click="activeTab = 'tautulli'" 
         :class="{ active: activeTab === 'tautulli' }" 
         class="tab-button"
@@ -69,6 +75,7 @@
         Trakt
       </button>
       <button 
+        v-if="isAdmin"
         @click="activeTab = 'tmdb'" 
         :class="{ active: activeTab === 'tmdb' }" 
         class="tab-button"
@@ -78,16 +85,9 @@
     </div>
     
     <!-- Connected Services Section -->
-    <div v-if="sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected" class="section-card connected-services-wrapper">
+    <div v-if="isAdmin && (sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected)" class="section-card connected-services-wrapper">
       <div class="collapsible-header" @click="toggleConnectionsPanel">
         <h3>Manage Connected Services</h3>
-        <button class="collapse-toggle">
-          <svg :class="{ 'rotate': showConnectionsPanel }" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-      </div>
-      <div v-if="showConnectionsPanel" class="collapsible-content">
         <p class="section-description">You can disconnect any service you no longer want to use.</p>
         <div class="connected-services">
           <button v-if="plexConnected" class="connection-button plex-button" @click="showPlexConnectModal">

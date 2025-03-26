@@ -2008,6 +2008,9 @@ export default {
         try {
           await apiService.saveRecommendations('tv', []);
           console.log('Cleared TV recommendations from server');
+          
+          // Force reload from server to ensure cache is cleared
+          await this.loadRecommendationHistory();
         } catch (error) {
           console.error('Failed to clear TV recommendations from server:', error);
         }
@@ -2026,6 +2029,9 @@ export default {
         try {
           await apiService.saveRecommendations('movie', []);
           console.log('Cleared movie recommendations from server');
+          
+          // Force reload from server to ensure cache is cleared
+          await this.loadRecommendationHistory();
         } catch (error) {
           console.error('Failed to clear movie recommendations from server:', error);
         }

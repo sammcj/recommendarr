@@ -206,16 +206,24 @@ class UserDataManager {
       const userData = await this.getUserData(userId);
       
       // Transfer recommendations and preferences
+      // Only merge recommendations if user data is not explicitly empty
+      // This respects when a user has cleared their history
       if (legacyData.tvRecommendations && legacyData.tvRecommendations.length > 0) {
-        userData.tvRecommendations = [
-          ...new Set([...userData.tvRecommendations, ...legacyData.tvRecommendations])
-        ];
+        // Only merge if user hasn't explicitly cleared their history (empty array)
+        if (userData.tvRecommendations.length > 0 || userData.tvRecommendations === undefined) {
+          userData.tvRecommendations = [
+            ...new Set([...userData.tvRecommendations, ...legacyData.tvRecommendations])
+          ];
+        }
       }
       
       if (legacyData.movieRecommendations && legacyData.movieRecommendations.length > 0) {
-        userData.movieRecommendations = [
-          ...new Set([...userData.movieRecommendations, ...legacyData.movieRecommendations])
-        ];
+        // Only merge if user hasn't explicitly cleared their history (empty array)
+        if (userData.movieRecommendations.length > 0 || userData.movieRecommendations === undefined) {
+          userData.movieRecommendations = [
+            ...new Set([...userData.movieRecommendations, ...legacyData.movieRecommendations])
+          ];
+        }
       }
       
       if (legacyData.likedTV && legacyData.likedTV.length > 0) {

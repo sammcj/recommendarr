@@ -15,7 +15,7 @@
         v-if="isAdmin"
         @click="activeTab = 'users'" 
         :class="{ active: activeTab === 'users' }" 
-        class="tab-button admin-tab"
+        class="tab-button"
       >
         User Management
       </button>
@@ -82,14 +82,35 @@
       >
         TMDB
       </button>
+      <button 
+        v-if="isAdmin && (sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected)"
+        @click="activeTab = 'connections'" 
+        :class="{ active: activeTab === 'connections' }" 
+        class="tab-button"
+      >
+        Connections
+      </button>
     </div>
-    
-    <!-- Connected Services Section -->
-    <div v-if="isAdmin && (sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected)" class="section-card connected-services-wrapper">
-      <div class="collapsible-header" @click="toggleConnectionsPanel">
-        <h3>Manage Connected Services</h3>
-        <p class="section-description">You can disconnect any service you no longer want to use.</p>
-        <div class="connected-services">
+    <!-- Connections Tab -->
+    <div v-if="activeTab === 'connections' && isAdmin" class="settings-section">
+      <div class="settings-intro">
+        <p>Manage your connected services. You can disconnect any service you no longer want to use.</p>
+      </div>
+      
+      <div class="connected-services-wrapper section-card">
+        <div class="collapsible-header" @click="toggleConnectionsPanel">
+          <div class="header-content">
+            <h3>Manage Connected Services</h3>
+            <p class="section-description">You can disconnect any service you no longer want to use.</p>
+          </div>
+          <button class="collapse-toggle" @click.stop="toggleConnectionsPanel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ rotate: !connectionsCollapsed }">
+              <path d="M6 9l6 6 6-6"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="collapsible-content" v-show="!connectionsCollapsed">
+          <div class="connected-services">
           <button v-if="plexConnected" class="connection-button plex-button" @click="showPlexConnectModal">
             <span class="connection-name">Plex</span>
             <span class="connection-action">Manage Connection</span>
@@ -114,11 +135,12 @@
             <span class="connection-name">Trakt</span>
             <span class="connection-action">Manage Connection</span>
           </button>
+          </div>
         </div>
       </div>
     </div>
     
-    <!-- Connection Management Modals - These are fixed position overlays -->
+    <!-- Connection Management Modals - These remain fixed position overlays -->
     <teleport to="body">
       <!-- Plex Connection Management Modal -->
       <div v-if="showPlexConnect" class="connection-modal-overlay" @click.self="closePlexModal">
@@ -1032,11 +1054,11 @@ export default {
       default: 'account'
     }
   },
-  data() {
-    return {
-      activeTab: this.defaultActiveTab,
-      showConnectionsPanel: false,
-      showSonarrConnect: false,
+    data() {
+      return {
+        activeTab: this.defaultActiveTab,
+        connectionsCollapsed: false,
+        showSonarrConnect: false,
       showRadarrConnect: false,
       showPlexConnect: false,
       showJellyfinConnect: false,
@@ -1209,10 +1231,11 @@ export default {
   },
   methods: {
     // Collapsible Panel Methods
+    // Collapsible Panel Methods
     toggleConnectionsPanel() {
-      this.showConnectionsPanel = !this.showConnectionsPanel;
+      this.connectionsCollapsed = !this.connectionsCollapsed;
     },
-    
+
     // Modal Show/Hide Methods
     showPlexConnectModal() {
       this.showPlexConnect = true;
@@ -1473,7 +1496,6 @@ export default {
         // If not configured, try to get from server-side storage
         const credentials = await credentialsService.getCredentials('plex');
         if (credentials) {
-          this.plexSettings.baseUrl = credentials.baseUrl || '';
           this.plexSettings.token = credentials.token || '';
           this.plexSettings.recentLimit = parseInt(localStorage.getItem('plexRecentLimit') || '10');
         }
@@ -3221,9 +3243,14 @@ body.dark-theme .model-warning {
 .collapsible-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   cursor: pointer;
   padding-bottom: 8px;
+  gap: 10px;
+}
+
+.collapsible-header .header-content {
+  flex: 1;
 }
 
 .collapsible-header:hover h3 {
@@ -3261,6 +3288,7 @@ body.dark-theme .model-warning {
   animation: slideDown 0.3s ease-out;
   transform-origin: top;
   overflow: hidden;
+  padding-top: 8px;
 }
 
 @keyframes slideDown {

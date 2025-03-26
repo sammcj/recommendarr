@@ -974,13 +974,23 @@ export default {
           // Update localStorage with server data - include user ID in the key
           localStorage.setItem(`user_${this.username}_previousTVRecommendations`, JSON.stringify(this.tvRecommendations));
         } else if (!signal.aborted) {
-          // Fallback to localStorage if server returns empty - use user-specific key
-          const tvHistory = localStorage.getItem(`user_${this.username}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
-          if (tvHistory) {
-            const parsed = JSON.parse(tvHistory);
-            this.tvRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
-            // Don't save to server - server was empty by design (likely after a reset)
+          // If server returns empty, check if we recently cleared history
+          const recentlyClearedTV = localStorage.getItem('recentlyClearedTVHistory');
+          
+          if (recentlyClearedTV) {
+            console.log('Recently cleared TV history detected, using empty array');
+            this.tvRecommendations = [];
+          } else {
+            // Only fallback to localStorage if we haven't recently cleared
+            const tvHistory = localStorage.getItem(`user_${this.username}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
+            if (tvHistory) {
+              const parsed = JSON.parse(tvHistory);
+              this.tvRecommendations = this.normalizeArray(parsed);
+              console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
+              // Don't save to server - server was empty by design (likely after a reset)
+            } else {
+              this.tvRecommendations = [];
+            }
           }
         }
         
@@ -1000,14 +1010,24 @@ export default {
             // Update localStorage with server data - include user ID in the key
             localStorage.setItem(`user_${this.username}_previousMovieRecommendations`, JSON.stringify(this.movieRecommendations));
           } else if (!signal.aborted) {
-            // Fallback to localStorage if server returns empty - use user-specific key
-            const userId = authService.getUser()?.userId || 'guest';
-            const movieHistory = localStorage.getItem(`user_${userId}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
-            if (movieHistory) {
-              const parsed = JSON.parse(movieHistory);
-              this.movieRecommendations = this.normalizeArray(parsed);
-              console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
-              // Don't save to server - server was empty by design (likely after a reset)
+            // If server returns empty, check if we recently cleared history
+            const recentlyClearedMovies = localStorage.getItem('recentlyClearedMovieHistory');
+            
+            if (recentlyClearedMovies) {
+              console.log('Recently cleared movie history detected, using empty array');
+              this.movieRecommendations = [];
+            } else {
+              // Only fallback to localStorage if we haven't recently cleared
+              const userId = authService.getUser()?.userId || 'guest';
+              const movieHistory = localStorage.getItem(`user_${userId}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
+              if (movieHistory) {
+                const parsed = JSON.parse(movieHistory);
+                this.movieRecommendations = this.normalizeArray(parsed);
+                console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
+                // Don't save to server - server was empty by design (likely after a reset)
+              } else {
+                this.movieRecommendations = [];
+              }
             }
           }
         }
@@ -1016,21 +1036,43 @@ export default {
         if (!signal.aborted) {
           console.error('Error loading recommendations from server:', error);
           
-          // Try user-specific TV history first, then fall back to legacy key
-          const tvHistory = localStorage.getItem(`user_${this.username}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
-          if (tvHistory) {
-            const parsed = JSON.parse(tvHistory);
-            this.tvRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded TV recommendations from localStorage (after server error)');
+          // Check if we have any data already loaded
+          if (this.tvRecommendations.length === 0) {
+            // Only try localStorage if we haven't cleared history recently
+            const recentlyClearedTV = localStorage.getItem('recentlyClearedTVHistory');
+            
+            if (!recentlyClearedTV) {
+              // Try user-specific TV history first, then fall back to legacy key
+              const tvHistory = localStorage.getItem(`user_${this.username}_previousTVRecommendations`) || localStorage.getItem('previousTVRecommendations');
+              if (tvHistory) {
+                const parsed = JSON.parse(tvHistory);
+                this.tvRecommendations = this.normalizeArray(parsed);
+                console.log('Loaded TV recommendations from localStorage (after server error)');
+              }
+            } else {
+              console.log('Recently cleared TV history, not loading from localStorage');
+            }
           }
           
-          // Try user-specific movie history first, then fall back to legacy key
-          const movieHistory = localStorage.getItem(`user_${this.username}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
-          if (movieHistory) {
-            const parsed = JSON.parse(movieHistory);
-            this.movieRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded movie recommendations from localStorage (after server error)');
+          if (this.movieRecommendations.length === 0) {
+            // Only try localStorage if we haven't cleared history recently
+            const recentlyClearedMovies = localStorage.getItem('recentlyClearedMovieHistory');
+            
+            if (!recentlyClearedMovies) {
+              // Try user-specific movie history first, then fall back to legacy key
+              const movieHistory = localStorage.getItem(`user_${this.username}_previousMovieRecommendations`) || localStorage.getItem('previousMovieRecommendations');
+              if (movieHistory) {
+                const parsed = JSON.parse(movieHistory);
+                this.movieRecommendations = this.normalizeArray(parsed);
+                console.log('Loaded movie recommendations from localStorage (after server error)');
+              }
+            } else {
+              console.log('Recently cleared movie history, not loading from localStorage');
+            }
           }
+          
+          // Show error notification
+          this.showNotification('Error loading recommendations from server. Some data may be missing.', 'error');
         } else {
           console.log('Request was aborted, skipping error handling');
         }
@@ -1998,42 +2040,82 @@ export default {
     
     async clearTVHistory() {
       if (confirm('Are you sure you want to clear your TV show recommendation history?')) {
-        // Clear from localStorage - both user-specific and legacy keys
-        const userId = authService.getUser()?.userId || 'guest';
-        localStorage.removeItem(`user_${userId}_previousTVRecommendations`);
-        localStorage.removeItem('previousTVRecommendations'); // Also remove legacy key
-        this.tvRecommendations = [];
-        
-        // Clear from server
         try {
+          // Clear from localStorage - both user-specific and legacy keys
+          const userId = authService.getUser()?.userId || 'guest';
+          const username = this.username || 'guest';
+          
+          // Clear all possible localStorage keys
+          localStorage.removeItem(`user_${userId}_previousTVRecommendations`);
+          localStorage.removeItem(`user_${username}_previousTVRecommendations`);
+          localStorage.removeItem('previousTVRecommendations'); // Legacy key
+          
+          // Clear from server
           await apiService.saveRecommendations('tv', []);
           console.log('Cleared TV recommendations from server');
           
-          // Force reload from server to ensure cache is cleared
-          await this.loadRecommendationHistory();
+          // Clear local data
+          this.tvRecommendations = [];
+          this.filteredTVRecommendations = [];
+          this.displayedTVShows = [];
+          
+          // Set a flag to prevent reloading from localStorage
+          localStorage.setItem('recentlyClearedTVHistory', 'true');
+          
+          // Clear this flag after 1 minute
+          setTimeout(() => {
+            localStorage.removeItem('recentlyClearedTVHistory');
+          }, 60000);
+          
+          // Show success notification
+          this.showNotification('TV show history has been cleared successfully', 'success');
+          
+          // Reset pagination
+          this.tvCurrentPage = 1;
         } catch (error) {
-          console.error('Failed to clear TV recommendations from server:', error);
+          console.error('Failed to clear TV recommendations:', error);
+          this.showNotification('Failed to clear TV history. Please try again.', 'error');
         }
       }
     },
     
     async clearMovieHistory() {
       if (confirm('Are you sure you want to clear your movie recommendation history?')) {
-        // Clear from localStorage - both user-specific and legacy keys
-        const userId = authService.getUser()?.userId || 'guest';
-        localStorage.removeItem(`user_${userId}_previousMovieRecommendations`);
-        localStorage.removeItem('previousMovieRecommendations'); // Also remove legacy key
-        this.movieRecommendations = [];
-        
-        // Clear from server
         try {
+          // Clear from localStorage - both user-specific and legacy keys
+          const userId = authService.getUser()?.userId || 'guest';
+          const username = this.username || 'guest';
+          
+          // Clear all possible localStorage keys
+          localStorage.removeItem(`user_${userId}_previousMovieRecommendations`);
+          localStorage.removeItem(`user_${username}_previousMovieRecommendations`);
+          localStorage.removeItem('previousMovieRecommendations'); // Legacy key
+          
+          // Clear from server
           await apiService.saveRecommendations('movie', []);
           console.log('Cleared movie recommendations from server');
           
-          // Force reload from server to ensure cache is cleared
-          await this.loadRecommendationHistory();
+          // Clear local data
+          this.movieRecommendations = [];
+          this.filteredMovieRecommendations = [];
+          this.displayedMovies = [];
+          
+          // Set a flag to prevent reloading from localStorage
+          localStorage.setItem('recentlyClearedMovieHistory', 'true');
+          
+          // Clear this flag after 1 minute
+          setTimeout(() => {
+            localStorage.removeItem('recentlyClearedMovieHistory');
+          }, 60000);
+          
+          // Show success notification
+          this.showNotification('Movie history has been cleared successfully', 'success');
+          
+          // Reset pagination
+          this.movieCurrentPage = 1;
         } catch (error) {
-          console.error('Failed to clear movie recommendations from server:', error);
+          console.error('Failed to clear movie recommendations:', error);
+          this.showNotification('Failed to clear movie history. Please try again.', 'error');
         }
       }
     },

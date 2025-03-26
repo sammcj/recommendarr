@@ -2167,14 +2167,14 @@ export default {
       try {
         // Reload recommendations based on current mode
         if (this.isMovieMode) {
-          const movieRecsResponse = await apiService.getRecommendationsReadOnly('movie') || [];
+          const movieRecsResponse = await apiService.getRecommendationsReadOnly('movie', this.username) || [];
           if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
             console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server on activation (read-only)`);
             this.previousMovieRecommendations = movieRecsResponse;
             this.previousRecommendations = [...this.previousMovieRecommendations];
           }
         } else {
-          const tvRecsResponse = await apiService.getRecommendationsReadOnly('tv') || [];
+          const tvRecsResponse = await apiService.getRecommendationsReadOnly('tv', this.username) || [];
           if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
             console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server on activation (read-only)`);
             this.previousShowRecommendations = tvRecsResponse;
@@ -2213,7 +2213,7 @@ export default {
           console.log("Content type changed, reloading recommendations from server...");
           if (isMovie) {
             // Switching to movie mode - reload movie recommendations
-            const movieRecsResponse = await apiService.getRecommendations('movie') || [];
+            const movieRecsResponse = await apiService.getRecommendations('movie', this.username) || [];
             if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
               console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server after content type change`);
               this.previousMovieRecommendations = movieRecsResponse;
@@ -2221,7 +2221,7 @@ export default {
             }
           } else {
             // Switching to TV mode - reload TV recommendations
-            const tvRecsResponse = await apiService.getRecommendations('tv') || [];
+            const tvRecsResponse = await apiService.getRecommendations('tv', this.username) || [];
             if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
               console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server after content type change`);
               this.previousShowRecommendations = tvRecsResponse;
@@ -3239,18 +3239,18 @@ export default {
         if (this.isMovieMode) {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
-            await apiService.saveRecommendations('movie', this.recommendations);
+            await apiService.saveRecommendations('movie', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
-            await apiService.saveRecommendations('movie', this.previousMovieRecommendations);
+            await apiService.saveRecommendations('movie', this.previousMovieRecommendations, this.username);
           }
         } else {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
-            await apiService.saveRecommendations('tv', this.recommendations);
+            await apiService.saveRecommendations('tv', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
-            await apiService.saveRecommendations('tv', this.previousShowRecommendations);
+            await apiService.saveRecommendations('tv', this.previousShowRecommendations, this.username);
           }
         }
       } catch (error) {
@@ -3318,7 +3318,7 @@ export default {
       try {
         if (this.isMovieMode) {
           // Save only the titles array to the server
-          await apiService.saveRecommendations('movie', this.previousMovieRecommendations);
+          await apiService.saveRecommendations('movie', this.previousMovieRecommendations, this.username);
           
           // Store in localStorage for backup only after successfully saving to server
           localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
@@ -3329,7 +3329,7 @@ export default {
           const sanitizedRecommendations = this.previousShowRecommendations
             .filter(item => item !== null && item !== undefined)
             .map(item => String(item));
-          await apiService.saveRecommendations('tv', sanitizedRecommendations);
+          await apiService.saveRecommendations('tv', sanitizedRecommendations, this.username);
           
           // Store in localStorage for backup only after successfully saving to server
           localStorage.setItem('previousTVRecommendations', JSON.stringify(sanitizedRecommendations));
@@ -3382,7 +3382,7 @@ export default {
           
           // Clear from server
           try {
-            await apiService.saveRecommendations('movie', []);
+            await apiService.saveRecommendations('movie', [], this.username);
             console.log('Successfully cleared movie history from server');
           } catch (error) {
             console.error('Failed to clear movie history from server:', error);
@@ -3397,7 +3397,7 @@ export default {
           
           // Clear from server
           try {
-            await apiService.saveRecommendations('tv', []);
+            await apiService.saveRecommendations('tv', [], this.username);
             console.log('Successfully cleared TV history from server');
           } catch (error) {
             console.error('Failed to clear TV history from server:', error);
@@ -5437,8 +5437,8 @@ export default {
       console.log("Loading recommendations from server...");
       
       // Try to load recommendations from server first
-      const tvRecsResponse = await apiService.getRecommendations('tv') || [];
-      const movieRecsResponse = await apiService.getRecommendations('movie') || [];
+      const tvRecsResponse = await apiService.getRecommendations('tv', this.username) || [];
+      const movieRecsResponse = await apiService.getRecommendations('movie', this.username) || [];
       
       // When the tvRecsResponse or movieRecsResponse are empty arrays,
       // this means the server cleared the data or doesn't have any data.

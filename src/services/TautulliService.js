@@ -265,6 +265,26 @@ class TautulliService {
       return [];
     }
   }
+
+  async disconnect() {
+    try {
+      // Clear local credentials
+      this.baseUrl = '';
+      this.apiKey = '';
+      this.configured = false;
+      
+      // Remove credentials from storage
+      await credentialsService.deleteCredentials('tautulli');
+      
+      // Remove recent limit from localStorage
+      localStorage.removeItem('tautulliRecentLimit');
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to disconnect Tautulli:', error);
+      return false;
+    }
+  }
 }
 
 export default new TautulliService();

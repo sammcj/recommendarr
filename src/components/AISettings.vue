@@ -1363,8 +1363,17 @@ export default {
       this.tautulliSettings.baseUrl = '';
       this.tautulliSettings.apiKey = '';
       this.tautulliSettings.recentLimit = 50;
-      this.$emit('tautulli-settings-updated');
+      
+      // Close the modal
       this.closeTautulliModal();
+      
+      // Notify parent components
+      this.$emit('tautulli-disconnected');
+      this.$emit('tautulli-settings-updated');
+      
+      this.saveSuccess = true;
+      this.saveMessage = 'Disconnected from Tautulli successfully';
+      this.clearSaveMessage();
     },
     
     handleTraktConnected() {

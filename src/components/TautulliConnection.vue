@@ -197,6 +197,7 @@ export default {
     
     async disconnectTautulli() {
       if (confirm('Are you sure you want to disconnect from Tautulli?')) {
+        await tautulliService.disconnect();
         this.$emit('disconnected');
       }
     },

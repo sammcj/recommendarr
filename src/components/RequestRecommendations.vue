@@ -3632,7 +3632,7 @@ export default {
       } catch (error) {
         console.error('Error saving structured output preference to server:', error);
         // Fallback to localStorage only
-        localStorage.setItem('useStructuredOutput', this.useStructuredOutput.toString());
+        storageUtils.set('useStructuredOutput', this.useStructuredOutput);
         openAIService.useStructuredOutput = this.useStructuredOutput;
         
         // Still reset the conversation even if there was an error saving
@@ -5368,8 +5368,8 @@ export default {
     // Check if OpenAI is configured after loading credentials
     this.openaiConfigured = openAIService.isConfigured();
     
-    // Initialize model selection
-    const currentModel = openAIService.model || 'gpt-3.5-turbo';
+    // Initialize model selection from user-specific storage
+    const currentModel = storageUtils.get('openaiModel') || openAIService.model || 'gpt-3.5-turbo';
     
     // Set to custom by default, we'll update once models are fetched
     this.customModel = currentModel;
@@ -5445,13 +5445,12 @@ export default {
       }
     }
     
-    // Check for structured output setting in localStorage if we didn't get it from server
-    const savedStructuredOutput = localStorage.getItem('useStructuredOutput');
+    // Check for structured output setting in user-specific storage if we didn't get it from server
+    const savedStructuredOutput = storageUtils.get('useStructuredOutput');
     if (savedStructuredOutput !== null) {
-      const useStructured = savedStructuredOutput === 'true';
-      this.useStructuredOutput = useStructured;
-      openAIService.useStructuredOutput = useStructured;
-      console.log('Setting useStructuredOutput from localStorage:', useStructured);
+      this.useStructuredOutput = savedStructuredOutput === true || savedStructuredOutput === 'true';
+      openAIService.useStructuredOutput = this.useStructuredOutput;
+      console.log('Setting useStructuredOutput from user storage:', this.useStructuredOutput);
     }
     
     
@@ -6018,6 +6017,7 @@ export default {
   overflow-y: auto;
   padding: 10px;
   border: 1px solid var(--border-color);
+  border-radius: 6px;
   border-radius: 6px;
   background-color: var(--card-bg-color);
 }

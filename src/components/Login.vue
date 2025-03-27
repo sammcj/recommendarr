@@ -190,6 +190,43 @@ export default {
     const errorParam = urlParams.get('error');
     if (errorParam === 'auth-failed') {
       this.error = 'Authentication failed. Please try another method.';
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // Check for successful OAuth login
+    try {
+      // First verify session immediately
+      let isAuthenticated = await AuthService.verifySession();
+      if (isAuthenticated) {
+        this.$emit('authenticated');
+        return;
+      }
+
+      // If we're returning from OAuth callback (has code param but no error)
+      const codeParam = urlParams.get('code');
+      if (codeParam && !errorParam) {
+        // Show loading state
+        this.loading = true;
+        
+        // Verify session again after short delay to ensure cookie is set
+        await new Promise(resolve => setTimeout(resolve, 500));
+        isAuthenticated = await AuthService.verifySession();
+        
+        if (isAuthenticated) {
+          // Clean up URL and emit authenticated event
+          window.history.replaceState({}, document.title, window.location.pathname);
+          this.$emit('authenticated');
+          return;
+        } else {
+          this.error = 'OAuth login failed. Please try again.';
+        }
+      }
+    } catch (error) {
+      console.error('Error verifying session:', error);
+      this.error = 'Failed to verify authentication. Please try again.';
+    } finally {
+      this.loading = false;
     }
 
     // Get enabled authentication providers

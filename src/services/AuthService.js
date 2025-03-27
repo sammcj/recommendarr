@@ -65,6 +65,23 @@ class AuthService {
     }
   }
   
+  // Verify current session (useful after OAuth redirect)
+  async verifySession() {
+    try {
+      const response = await ApiService.get('/auth/verify');
+      if (response.data && response.data.user) {
+        this.user = response.data.user;
+        this.token = "cookie-auth";
+        localStorage.setItem('auth_user', JSON.stringify(this.user));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Session verification failed:', error);
+      return false;
+    }
+  }
+
   // Get enabled authentication providers
   async getEnabledProviders() {
     try {

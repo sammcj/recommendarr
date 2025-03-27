@@ -1419,6 +1419,7 @@ import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
 import authService from '../services/AuthService';
+import storageUtils from '../utils/StorageUtils';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 
 export default {
@@ -2262,8 +2263,8 @@ export default {
       } catch (error) {
         console.error('Error saving content type preference to server:', error);
         // Fallback to localStorage
-        localStorage.setItem('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
-        localStorage.setItem('isMovieMode', this.isMovieMode.toString());
+        storageUtils.set('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
+        storageUtils.set('isMovieMode', this.isMovieMode);
       }
       
       // Update the current recommendations list based on mode
@@ -3526,7 +3527,7 @@ export default {
         } catch (error) {
           console.error('Error saving model settings:', error);
           // Fallback to localStorage
-          localStorage.setItem('openaiModel', this.selectedModel);
+          storageUtils.set('openaiModel', this.selectedModel);
           openAIService.model = this.selectedModel;
         }
       }
@@ -3555,7 +3556,7 @@ export default {
         } catch (error) {
           console.error('Error saving custom model settings:', error);
           // Fallback to localStorage
-          localStorage.setItem('openaiModel', this.customModel);
+          storageUtils.set('openaiModel', this.customModel);
           openAIService.model = this.customModel;
         }
       }
@@ -3613,7 +3614,7 @@ export default {
         await apiService.saveSettings({ useStructuredOutput: this.useStructuredOutput });
         
         // Also save to localStorage as a backup
-        localStorage.setItem('useStructuredOutput', this.useStructuredOutput.toString());
+        storageUtils.set('useStructuredOutput', this.useStructuredOutput);
         
         // Set the useStructuredOutput property on the OpenAIService
         openAIService.useStructuredOutput = this.useStructuredOutput;
@@ -3999,12 +4000,12 @@ export default {
             });
           }
         } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
-          await sonarrService.loadCredentials();
-          if (!sonarrService.isConfigured() && !hasWatchHistoryProvider) {
-            this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
-            return;
+            await sonarrService.loadCredentials();
+            if (!sonarrService.isConfigured() && !hasWatchHistoryProvider) {
+              this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
+              return;
+            }
           }
-        }
       }
       
       // Check if the library is empty
@@ -5472,10 +5473,7 @@ export default {
       this.isMovieMode = true;
     } else {
       // Restore saved content type preference (movie/TV toggle)
-      const savedMovieMode = localStorage.getItem('isMovieMode');
-      if (savedMovieMode) {
-        this.isMovieMode = savedMovieMode === 'true';
-      }
+      this.isMovieMode = storageUtils.get('isMovieMode', this.isMovieMode);
     }
     
     // Restore saved genre preferences if they exist
@@ -6823,6 +6821,9 @@ select {
   font-size: 14px;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s, background-color var(--transition-speed), color var(--transition-speed);
+}
+
+select:hover {
 }
 
 select:hover {

@@ -21,7 +21,7 @@
                   title="Refresh models from API"
                 >
                   <span v-if="fetchingModels" class="loading-icon">⟳</span>
-                  <span v-else>⟳</span>
+                  <span v-else>⟳</span>The 
                 </button>
               </div>
               <div class="model-select-container">
@@ -51,12 +51,12 @@
                       type="range" 
                       id="temperature-slider"
                       :value="temperature"
-                      @input="$emit('update:temperature', Number($event.target.value))"
+                      @input="$emit('update:temperature', Number($event.target.value)); updateTemperature($event.target.value)"
                       min="0" 
                       max="1"
                       step="0.1"
                       class="modern-slider"
-                      @change="updateTemperature($event.target.value)"
+                      @change="$emit('update:temperature', Number($event.target.value)); updateTemperature($event.target.value)"
                     />
                     <div class="slider-track" :style="{ width: `${temperature * 100}%` }"></div>
                   </div>
@@ -87,11 +87,11 @@
                       type="range" 
                       id="sampleSizeSlider"
                       :value="sampleSize"
-                      @input="$emit('update:sampleSize', Number($event.target.value))"
+                      @input="$emit('update:sampleSize', Number($event.target.value)); saveSampleSize($event.target.value)"
                       min="5" 
                       max="1000"
                       class="modern-slider"
-                      @change="saveSampleSize"
+                      @change="$emit('update:sampleSize', Number($event.target.value)); saveSampleSize($event.target.value)"
                     >
                     <div class="slider-track"></div>
                   </div>
@@ -149,11 +149,11 @@
                   type="range" 
                   id="recommendationsSlider"
                     :value="numRecommendations"
-                    @input="$emit('update:numRecommendations', Number($event.target.value))"
+                    @input="$emit('update:numRecommendations', Number($event.target.value)); saveRecommendationCount($event.target.value)"
                   min="1" 
                   max="50"
                   class="modern-slider"
-                  @change="saveRecommendationCount"
+                  @change="$emit('update:numRecommendations', Number($event.target.value)); saveRecommendationCount($event.target.value)"
                 >
                 <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
               </div>
@@ -182,11 +182,11 @@
                   type="range" 
                   id="columnsSlider"
                     :value="columnsCount"
-                    @input="$emit('update:columnsCount', Number($event.target.value)); handleResize()"
+                    @input="$emit('update:columnsCount', Number($event.target.value)); handleResize(); saveColumnsCount($event.target.value)"
   min="1" 
   max="10"
   class="modern-slider"
-    @change="saveColumnsCount()"
+    @change="$emit('update:columnsCount', Number($event.target.value)); saveColumnsCount($event.target.value)"
                 >
                 <div class="slider-track"></div>
               </div>
@@ -252,7 +252,7 @@
                 <select 
                   id="promptStyle" 
                       :value="promptStyle"
-                      @change="$emit('update:promptStyle', $event.target.value); savePromptStyle()"
+                      @change="$emit('update:promptStyle', $event.target.value); savePromptStyle($event.target.value)"
                   class="prompt-style-select"
                 >
                   <option value="vibe">Vibe-Based</option>
@@ -296,7 +296,7 @@
                 id="customVibe" 
                   :value="customVibe"
                   @input="$emit('update:customVibe', $event.target.value); this.recommendationsRequested = false"
-                @change="saveCustomVibe()"
+                @change="$emit('update:customVibe', $event.target.value); saveCustomVibe($event.target.value)"
                 placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
                 class="vibe-input"
                 rows="2"
@@ -308,7 +308,7 @@
                 <input 
                     type="checkbox" 
                         :checked="useCustomPromptOnly"
-                        @change="$emit('update:useCustomPromptOnly', $event.target.checked); saveCustomPromptOnlyPreference()"
+                        @change="$emit('update:useCustomPromptOnly', $event.target.checked); saveCustomPromptOnlyPreference($event.target.checked)"
                   >
                 <span class="checkbox-label">Only base results on custom prompt</span>
                 <label class="checkbox">
@@ -342,7 +342,7 @@
               <select 
                 id="languageSelect" 
                     :value="selectedLanguage"
-                    @change="$emit('update:selectedLanguage', $event.target.value); saveLanguagePreference()"
+                    @change="$emit('update:selectedLanguage', $event.target.value); saveLanguagePreference($event.target.value)"
                 class="language-select"
               >
                 <option value="">Any language</option>
@@ -373,7 +373,7 @@
                   <input 
                     type="checkbox" 
                     :checked="plexUseHistory"
-                    @change="$emit('update:plexUseHistory', $event.target.checked)"
+                    @change="$emit('update:plexUseHistory', $event.target.checked); savePlexUseHistory($event.target.checked)"
                     @click.stop
                   >
                   <span class="toggle-slider"></span>
@@ -391,7 +391,7 @@
                   <input 
                     type="radio" 
                       :checked="plexHistoryMode === 'all'"
-                        @change="$emit('update:plexHistoryMode', 'all'); savePlexHistoryMode()"
+                        @change="$emit('update:plexHistoryMode', 'all'); savePlexHistoryMode('all')"
                       value="all"
                   >
                   All watch history
@@ -400,7 +400,7 @@
                   <input 
                     type="radio" 
                       :checked="plexHistoryMode === 'recent'"
-                        @change="$emit('update:plexHistoryMode', 'recent'); savePlexHistoryMode()"
+                        @change="$emit('update:plexHistoryMode', 'recent'); savePlexHistoryMode('recent')"
                       value="recent"
                   >
                   Recent (30 days)
@@ -422,7 +422,7 @@
                       min="1" 
                       max="365"
                       class="modern-slider"
-                      @change="savePlexCustomHistoryDays"
+                      @change="$emit('update:plexCustomHistoryDays', Number($event.target.value)); savePlexCustomHistoryDays($event.target.value)"
                     >
                     <div class="slider-track" :style="{ width: `${(plexCustomHistoryDays - 1) / 364 * 100}%` }"></div>
                   </div>
@@ -439,7 +439,7 @@
                 <input 
                   type="checkbox" 
                       :checked="plexOnlyMode"
-                      @change="$emit('update:plexOnlyMode', $event.target.checked); savePlexOnlyMode()"
+                      @change="$emit('update:plexOnlyMode', $event.target.checked); savePlexOnlyMode($event.target.checked)"
                   :disabled="!plexUseHistory"
                 >
                 Use only Plex history for recommendations (ignore library)
@@ -465,7 +465,7 @@
                   <input 
                     type="checkbox" 
                         :checked="jellyfinUseHistory"
-                        @change="$emit('update:jellyfinUseHistory', $event.target.checked); saveJellyfinUseHistory()"
+                        @change="$emit('update:jellyfinUseHistory', $event.target.checked); saveJellyfinUseHistory($event.target.checked)"
                     @click.stop
                   >
                   <span class="toggle-slider"></span>
@@ -483,7 +483,7 @@
                   <input 
                     type="radio" 
                       :checked="jellyfinHistoryMode === 'all'"
-                        @change="$emit('update:jellyfinHistoryMode', 'all'); saveJellyfinHistoryMode()"
+                        @change="$emit('update:jellyfinHistoryMode', 'all'); saveJellyfinHistoryMode('all')"
                       value="all"
                   >
                   All watch history
@@ -492,7 +492,7 @@
                   <input 
                     type="radio" 
                       :checked="jellyfinHistoryMode === 'recent'"
-                        @change="$emit('update:jellyfinHistoryMode', 'recent'); saveJellyfinHistoryMode()"
+                        @change="$emit('update:jellyfinHistoryMode', 'recent'); saveJellyfinHistoryMode('recent')"
                       value="recent"
                   >
                   Recent (30 days)
@@ -501,7 +501,7 @@
                   <input 
                     type="radio" 
                       :checked="jellyfinHistoryMode === 'custom'"
-                        @change="$emit('update:jellyfinHistoryMode', 'custom'); saveJellyfinHistoryMode()"
+                        @change="$emit('update:jellyfinHistoryMode', 'custom'); saveJellyfinHistoryMode('custom')"
                       value="custom"
                   >
                   Custom period
@@ -523,7 +523,7 @@
                       min="1" 
                       max="365"
                       class="modern-slider"
-                      @change="saveJellyfinCustomHistoryDays"
+                      @change="$emit('update:jellyfinCustomHistoryDays', Number($event.target.value)); saveJellyfinCustomHistoryDays($event.target.value)"
                     >
                     <div class="slider-track" :style="{ width: `${(jellyfinCustomHistoryDays - 1) / 364 * 100}%` }"></div>
                   </div>
@@ -540,7 +540,7 @@
                 <input 
                   type="checkbox" 
                       :checked="jellyfinOnlyMode"
-                      @change="$emit('update:jellyfinOnlyMode', $event.target.checked); saveJellyfinOnlyMode()"
+                        @change="$emit('update:jellyfinOnlyMode', $event.target.checked); saveJellyfinOnlyMode($event.target.checked)"
                   :disabled="!jellyfinUseHistory"
                 >
                 Use only Jellyfin history for recommendations (ignore library)
@@ -566,7 +566,7 @@
                   <input 
                     type="checkbox" 
                         :checked="tautulliUseHistory"
-                        @change="$emit('update:tautulliUseHistory', $event.target.checked); saveTautulliUseHistory()"
+                        @change="$emit('update:tautulliUseHistory', $event.target.checked); saveTautulliUseHistory($event.target.checked)"
                     @click.stop
                   >
                   <span class="toggle-slider"></span>
@@ -584,7 +584,7 @@
                   <input 
                     type="radio" 
                       :checked="tautulliHistoryMode === 'all'"
-                        @change="$emit('update:tautulliHistoryMode', 'all'); saveTautulliHistoryMode()"
+                        @change="$emit('update:tautulliHistoryMode', 'all'); saveTautulliHistoryMode('all')"
                       value="all"
                   >
                   All watch history
@@ -593,7 +593,7 @@
                   <input 
                     type="radio" 
                       :checked="tautulliHistoryMode === 'recent'"
-                        @change="$emit('update:tautulliHistoryMode', 'recent'); saveTautulliHistoryMode()"
+                        @change="$emit('update:tautulliHistoryMode', 'recent'); saveTautulliHistoryMode('recent')"
                       value="recent"
                   >
                   Recent (30 days)
@@ -602,7 +602,7 @@
                   <input 
                     type="radio" 
                       :checked="tautulliHistoryMode === 'custom'"
-                        @change="$emit('update:tautulliHistoryMode', 'custom'); saveTautulliHistoryMode()"
+                        @change="$emit('update:tautulliHistoryMode', 'custom'); saveTautulliHistoryMode('custom')"
                       value="custom"
                   >
                   Custom period
@@ -624,7 +624,7 @@
                       min="1" 
                       max="365"
                       class="modern-slider"
-                      @change="saveTautulliCustomHistoryDays"
+                      @change="$emit('update:tautulliCustomHistoryDays', Number($event.target.value)); saveTautulliCustomHistoryDays($event.target.value)"
                     >
                     <div class="slider-track" :style="{ width: `${(tautulliCustomHistoryDays - 1) / 364 * 100}%` }"></div>
                   </div>
@@ -641,7 +641,7 @@
                 <input 
                   type="checkbox" 
                       :checked="tautulliOnlyMode"
-                      @change="$emit('update:tautulliOnlyMode', $event.target.checked); saveTautulliOnlyMode()"
+                        @change="$emit('update:tautulliOnlyMode', $event.target.checked); saveTautulliOnlyMode($event.target.checked)"
                   :disabled="!tautulliUseHistory"
                 >
                 Use only Tautulli history for recommendations (ignore library)
@@ -667,7 +667,7 @@
                   <input 
                     type="checkbox" 
                         :checked="traktUseHistory"
-                        @change="$emit('update:traktUseHistory', $event.target.checked); saveTraktUseHistory()"
+                        @change="$emit('update:traktUseHistory', $event.target.checked); saveTraktUseHistory($event.target.checked)"
                     @click.stop
                   >
                   <span class="toggle-slider"></span>
@@ -685,7 +685,7 @@
                   <input 
                     type="radio" 
                       :checked="traktHistoryMode === 'all'"
-                        @change="$emit('update:traktHistoryMode', 'all'); saveTraktHistoryMode()"
+                        @change="$emit('update:traktHistoryMode', 'all'); saveTraktHistoryMode('all')"
                       value="all"
                   >
                   All watch history
@@ -694,7 +694,7 @@
                   <input 
                     type="radio" 
                       :checked="traktHistoryMode === 'recent'"
-                        @change="$emit('update:traktHistoryMode', 'recent'); saveTraktHistoryMode()"
+                        @change="$emit('update:traktHistoryMode', 'recent'); saveTraktHistoryMode('recent')"
                       value="recent"
                   >
                   Recent (30 days)
@@ -703,7 +703,7 @@
                   <input 
                     type="radio" 
                       :checked="traktHistoryMode === 'custom'"
-                        @change="$emit('update:traktHistoryMode', 'custom'); saveTraktHistoryMode()"
+                        @change="$emit('update:traktHistoryMode', 'custom'); saveTraktHistoryMode('custom')"
                       value="custom"
                   >
                   Custom period
@@ -725,7 +725,7 @@
                       min="1" 
                       max="365"
                       class="modern-slider"
-                      @change="saveTraktCustomHistoryDays"
+                      @change="$emit('update:traktCustomHistoryDays', Number($event.target.value)); saveTraktCustomHistoryDays($event.target.value)"
                     >
                     <div class="slider-track" :style="{ width: `${(traktCustomHistoryDays - 1) / 364 * 100}%` }"></div>
                   </div>
@@ -742,7 +742,7 @@
                 <input 
                   type="checkbox" 
                       :checked="traktOnlyMode"
-                      @change="$emit('update:traktOnlyMode', $event.target.checked); saveTraktOnlyMode()"
+                        @change="$emit('update:traktOnlyMode', $event.target.checked); saveTraktOnlyMode($event.target.checked)"
                   :disabled="!traktUseHistory"
                 >
                 Use only Trakt history for recommendations (ignore library)
@@ -1017,8 +1017,8 @@ export default {
     updateModel(value) {
       this.$emit('update-model', value);
     },
-    updateCustomModel() {
-      this.$emit('update-custom-model', this.customModel);
+    updateCustomModel(value) {
+      this.$emit('update-custom-model', value);
     },
     updateTemperature(value) {
       this.$emit('update-temperature', Number(value));
@@ -1035,11 +1035,11 @@ export default {
     clearRecommendationHistory() {
       this.$emit('clear-recommendation-history');
     },
-    saveRecommendationCount() {
-      this.$emit('save-recommendation-count', this.numRecommendations);
+    saveRecommendationCount(value) {
+      this.$emit('save-recommendation-count', Number(value));
     },
-    saveColumnsCount() {
-      this.$emit('save-columns-count', this.columnsCount);
+    saveColumnsCount(value) {
+      this.$emit('save-columns-count', Number(value));
     },
     handleResize() {
       this.$emit('handle-resize');
@@ -1050,65 +1050,65 @@ export default {
     clearGenres() {
       this.$emit('clear-genres');
     },
-    savePromptStyle() {
-      this.$emit('save-prompt-style', this.promptStyle);
+    savePromptStyle(value) {
+      this.$emit('save-prompt-style', value);
     },
-    saveCustomVibe() {
-      this.$emit('save-custom-vibe', this.customVibe);
+    saveCustomVibe(value) {
+      this.$emit('save-custom-vibe', value);
     },
     clearCustomVibe() {
       this.$emit('clear-custom-vibe');
     },
-    saveCustomPromptOnlyPreference() {
-      this.$emit('save-custom-prompt-only-preference', this.useCustomPromptOnly);
+    saveCustomPromptOnlyPreference(value) {
+      this.$emit('save-custom-prompt-only-preference', value);
     },
-    saveLanguagePreference() {
-      this.$emit('save-language-preference', this.selectedLanguage);
+    saveLanguagePreference(value) {
+      this.$emit('save-language-preference', value);
     },
-    savePlexUseHistory() {
-      this.$emit('save-plex-use-history', this.plexUseHistory);
+    savePlexUseHistory(value) {
+      this.$emit('save-plex-use-history', value);
     },
-    savePlexHistoryMode() {
-      this.$emit('save-plex-history-mode', this.plexHistoryMode);
+    savePlexHistoryMode(value) {
+      this.$emit('save-plex-history-mode', value);
     },
-    savePlexCustomHistoryDays() {
-      this.$emit('save-plex-custom-history-days', this.plexCustomHistoryDays);
+    savePlexCustomHistoryDays(value) {
+      this.$emit('save-plex-custom-history-days', Number(value));
     },
-    saveJellyfinUseHistory() {
-      this.$emit('save-jellyfin-use-history', this.jellyfinUseHistory);
+    saveJellyfinUseHistory(value) {
+      this.$emit('save-jellyfin-use-history', value);
     },
-    saveJellyfinHistoryMode() {
-      this.$emit('save-jellyfin-history-mode', this.jellyfinHistoryMode);
+    saveJellyfinHistoryMode(value) {
+      this.$emit('save-jellyfin-history-mode', value);
     },
-    saveJellyfinCustomHistoryDays() {
-      this.$emit('save-jellyfin-custom-history-days', this.jellyfinCustomHistoryDays);
+    saveJellyfinCustomHistoryDays(value) {
+      this.$emit('save-jellyfin-custom-history-days', Number(value));
     },
-    saveJellyfinOnlyMode() {
-      this.$emit('save-jellyfin-only-mode', this.jellyfinOnlyMode);
+    saveJellyfinOnlyMode(value) {
+      this.$emit('save-jellyfin-only-mode', value);
     },
-    saveTautulliUseHistory() {
-      this.$emit('save-tautulli-use-history', this.tautulliUseHistory);
+    saveTautulliUseHistory(value) {
+      this.$emit('save-tautulli-use-history', value);
     },
-    saveTautulliHistoryMode() {
-      this.$emit('save-tautulli-history-mode', this.tautulliHistoryMode);
+    saveTautulliHistoryMode(value) {
+      this.$emit('save-tautulli-history-mode', value);
     },
-    saveTautulliCustomHistoryDays() {
-      this.$emit('save-tautulli-custom-history-days', this.tautulliCustomHistoryDays);
+    saveTautulliCustomHistoryDays(value) {
+      this.$emit('save-tautulli-custom-history-days', Number(value));
     },
-    saveTautulliOnlyMode() {
-      this.$emit('save-tautulli-only-mode', this.tautulliOnlyMode);
+    saveTautulliOnlyMode(value) {
+      this.$emit('save-tautulli-only-mode', value);
     },
-    saveTraktUseHistory() {
-      this.$emit('save-trakt-use-history', this.traktUseHistory);
+    saveTraktUseHistory(value) {
+      this.$emit('save-trakt-use-history', value);
     },
-    saveTraktHistoryMode() {
-      this.$emit('save-trakt-history-mode', this.traktHistoryMode);
+    saveTraktHistoryMode(value) {
+      this.$emit('save-trakt-history-mode', value);
     },
-    saveTraktCustomHistoryDays() {
-      this.$emit('save-trakt-custom-history-days', this.traktCustomHistoryDays);
+    saveTraktCustomHistoryDays(value) {
+      this.$emit('save-trakt-custom-history-days', Number(value));
     },
-    saveTraktOnlyMode() {
-      this.$emit('save-trakt-only-mode', this.traktOnlyMode);
+    saveTraktOnlyMode(value) {
+      this.$emit('save-trakt-only-mode', value);
     },
     getLanguageName(code) {
       const lang = this.availableLanguages.find(l => l.code === code);

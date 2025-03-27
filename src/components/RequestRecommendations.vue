@@ -3451,6 +3451,14 @@ export default {
           // Clear from localStorage
           localStorage.removeItem('previousMovieRecommendations');
           
+          // Set a flag to prevent reloading from localStorage
+          localStorage.setItem('recentlyClearedMovieHistory', 'true');
+          
+          // Clear this flag after 1 minute
+          setTimeout(() => {
+            localStorage.removeItem('recentlyClearedMovieHistory');
+          }, 60000);
+          
           // Clear from server
           try {
             await apiService.saveRecommendations('movie', [], this.username);
@@ -3465,6 +3473,14 @@ export default {
           
           // Clear from localStorage
           localStorage.removeItem('previousTVRecommendations');
+          
+          // Set a flag to prevent reloading from localStorage
+          localStorage.setItem('recentlyClearedTVHistory', 'true');
+          
+          // Clear this flag after 1 minute
+          setTimeout(() => {
+            localStorage.removeItem('recentlyClearedTVHistory');
+          }, 60000);
           
           // Clear from server
           try {

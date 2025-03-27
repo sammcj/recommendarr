@@ -25,7 +25,10 @@
                 </button>
               </div>
               <div class="model-select-container">
-                  <select :value="selectedModel" @change="updateModel" class="model-select">
+                  <select 
+                    :value="selectedModel" 
+                    @change="$emit('update:selectedModel', $event.target.value)" 
+                    class="model-select">
                   <option value="" disabled>{{ modelOptions.length === 0 ? 'No models available' : 'Select a model' }}</option>
                   <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
                   <option value="custom">Custom/Other...</option>
@@ -64,7 +67,7 @@
                       max="1"
                       step="0.1"
                       class="modern-slider"
-                      @change="updateTemperature"
+                      @change="updateTemperature($event.target.value)"
                     />
                     <div class="slider-track" :style="{ width: `${temperature * 100}%` }"></div>
                   </div>
@@ -76,7 +79,7 @@
                   <input 
                     type="checkbox" 
                       :checked="useSampledLibrary"
-                      @change="$emit('update:useSampledLibrary', $event.target.checked); saveLibraryModePreference()"
+                      @change="$emit('update:useSampledLibrary', $event.target.checked); saveLibraryModePreference($event.target.checked)"
                   >
                   Use Sampled Library Mode
                 </label>
@@ -115,7 +118,7 @@
                   <input 
                     type="checkbox" 
                       :checked="useStructuredOutput"
-                      @change="$emit('update:useStructuredOutput', $event.target.checked); saveStructuredOutputPreference()"
+                      @change="$emit('update:useStructuredOutput', $event.target.checked); saveStructuredOutputPreference($event.target.checked)"
                   >
                   Use Structured Output (Experimental)
                 </label>
@@ -776,58 +779,214 @@
 export default {
   name: 'RecommendationSettings',
   props: {
-    settingsExpanded: Boolean,
-    configurationExpanded: Boolean,
-    recNumberExpanded: Boolean,
-    postersPerRowExpanded: Boolean,
-    genrePreferencesExpanded: Boolean,
-    customVibeExpanded: Boolean,
-    contentLanguageExpanded: Boolean,
-    plexHistoryExpanded: Boolean,
-    jellyfinHistoryExpanded: Boolean,
-    tautulliHistoryExpanded: Boolean,
-    traktHistoryExpanded: Boolean,
-    isMovieMode: Boolean,
-    modelOptions: Array,
-    selectedModel: String,
-    customModel: String,
-    isCustomModel: Boolean,
-    fetchingModels: Boolean,
-    fetchError: String,
-    temperature: Number,
-    useSampledLibrary: Boolean,
-    sampleSize: Number,
-    useStructuredOutput: Boolean,
-    previousRecommendations: Array,
-    numRecommendations: Number,
-    columnsCount: Number,
-    availableGenres: Array,
-    selectedGenres: Array,
-    promptStyle: String,
-    customVibe: String,
-    useCustomPromptOnly: Boolean,
-    availableLanguages: Array,
-    selectedLanguage: String,
-    plexConfigured: Boolean,
-    plexUseHistory: Boolean,
-    plexHistoryMode: String,
-    plexCustomHistoryDays: Number,
-    plexOnlyMode: Boolean,
-    jellyfinConfigured: Boolean,
-    jellyfinUseHistory: Boolean,
-    jellyfinHistoryMode: String,
-    jellyfinCustomHistoryDays: Number,
-    jellyfinOnlyMode: Boolean,
-    tautulliConfigured: Boolean,
-    tautulliUseHistory: Boolean,
-    tautulliHistoryMode: String,
-    tautulliCustomHistoryDays: Number,
-    tautulliOnlyMode: Boolean,
-    traktConfigured: Boolean,
-    traktUseHistory: Boolean,
-    traktHistoryMode: String,
-    traktCustomHistoryDays: Number,
-    traktOnlyMode: Boolean
+    settingsExpanded: {
+      type: Boolean,
+      default: false
+    },
+    configurationExpanded: {
+      type: Boolean,
+      default: false
+    },
+    recNumberExpanded: {
+      type: Boolean,
+      default: false
+    },
+    postersPerRowExpanded: {
+      type: Boolean,
+      default: false
+    },
+    genrePreferencesExpanded: {
+      type: Boolean,
+      default: false
+    },
+    customVibeExpanded: {
+      type: Boolean,
+      default: false
+    },
+    contentLanguageExpanded: {
+      type: Boolean,
+      default: false
+    },
+    plexHistoryExpanded: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinHistoryExpanded: {
+      type: Boolean,
+      default: false
+    },
+    tautulliHistoryExpanded: {
+      type: Boolean,
+      default: false
+    },
+    traktHistoryExpanded: {
+      type: Boolean,
+      default: false
+    },
+    isMovieMode: {
+      type: Boolean,
+      default: false
+    },
+    modelOptions: {
+      type: Array,
+      default: () => []
+    },
+    selectedModel: {
+      type: String,
+      default: ''
+    },
+    customModel: {
+      type: String,
+      default: ''
+    },
+    isCustomModel: {
+      type: Boolean,
+      default: false
+    },
+    fetchingModels: {
+      type: Boolean,
+      default: false
+    },
+    fetchError: {
+      type: String,
+      default: ''
+    },
+    temperature: {
+      type: Number,
+      default: 0.7
+    },
+    useSampledLibrary: {
+      type: Boolean,
+      default: false
+    },
+    sampleSize: {
+      type: Number,
+      default: 100
+    },
+    useStructuredOutput: {
+      type: Boolean,
+      default: false
+    },
+    previousRecommendations: {
+      type: Array,
+      default: () => []
+    },
+    numRecommendations: {
+      type: Number,
+      default: 10
+    },
+    columnsCount: {
+      type: Number,
+      default: 5
+    },
+    availableGenres: {
+      type: Array,
+      default: () => []
+    },
+    selectedGenres: {
+      type: Array,
+      default: () => []
+    },
+    promptStyle: {
+      type: String,
+      default: 'vibe'
+    },
+    customVibe: {
+      type: String,
+      default: ''
+    },
+    useCustomPromptOnly: {
+      type: Boolean,
+      default: false
+    },
+    availableLanguages: {
+      type: Array,
+      default: () => []
+    },
+    selectedLanguage: {
+      type: String,
+      default: ''
+    },
+    plexConfigured: {
+      type: Boolean,
+      default: false
+    },
+    plexUseHistory: {
+      type: Boolean,
+      default: false
+    },
+    plexHistoryMode: {
+      type: String,
+      default: 'all'
+    },
+    plexCustomHistoryDays: {
+      type: Number,
+      default: 30
+    },
+    plexOnlyMode: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinConfigured: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinUseHistory: {
+      type: Boolean,
+      default: false
+    },
+    jellyfinHistoryMode: {
+      type: String,
+      default: 'all'
+    },
+    jellyfinCustomHistoryDays: {
+      type: Number,
+      default: 30
+    },
+    jellyfinOnlyMode: {
+      type: Boolean,
+      default: false
+    },
+    tautulliConfigured: {
+      type: Boolean,
+      default: false
+    },
+    tautulliUseHistory: {
+      type: Boolean,
+      default: false
+    },
+    tautulliHistoryMode: {
+      type: String,
+      default: 'all'
+    },
+    tautulliCustomHistoryDays: {
+      type: Number,
+      default: 30
+    },
+    tautulliOnlyMode: {
+      type: Boolean,
+      default: false
+    },
+    traktConfigured: {
+      type: Boolean,
+      default: false
+    },
+    traktUseHistory: {
+      type: Boolean,
+      default: false
+    },
+    traktHistoryMode: {
+      type: String,
+      default: 'all'
+    },
+    traktCustomHistoryDays: {
+      type: Number,
+      default: 30
+    },
+    traktOnlyMode: {
+      type: Boolean,
+      default: false
+    }
   },
   methods: {
     toggleSettings() {
@@ -872,8 +1031,8 @@ export default {
     updateCustomModel() {
       this.$emit('update-custom-model', this.customModel);
     },
-    updateTemperature() {
-      this.$emit('update-temperature', this.temperature);
+    updateTemperature(value) {
+      this.$emit('update-temperature', Number(value));
     },
     saveLibraryModePreference() {
       this.$emit('save-library-mode-preference', this.useSampledLibrary);
@@ -2064,7 +2223,7 @@ body.dark-theme .info-section-title.collapsible-header:hover {
 }
 
 .prompt-style-info p {
-  margin: 0 0 8px;
+  margin-bottom: 1em;
 }
 
 .prompt-style-info p:last-child {

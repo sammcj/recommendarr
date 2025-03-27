@@ -209,16 +209,22 @@ export default {
         // Show loading state
         this.loading = true;
         
-        // Verify session again after short delay to ensure cookie is set
-        await new Promise(resolve => setTimeout(resolve, 500));
-        isAuthenticated = await AuthService.verifySession();
+        // Verify session with increasing delays to account for cookie setting
+        let isAuthenticated = false;
+        for (let i = 0; i < 3; i++) {
+          await new Promise(resolve => setTimeout(resolve, 300 * (i + 1)));
+          isAuthenticated = await AuthService.verifySession();
+          if (isAuthenticated) break;
+        }
         
         if (isAuthenticated) {
+          console.log('OAuth login successful');
           // Clean up URL and emit authenticated event
           window.history.replaceState({}, document.title, window.location.pathname);
           this.$emit('authenticated');
           return;
         } else {
+          console.log('OAuth login failed after multiple attempts');
           this.error = 'OAuth login failed. Please try again.';
         }
       }

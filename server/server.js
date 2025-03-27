@@ -343,6 +343,43 @@ const { passport, getEnabledProviders } = setupPassport(app);
 // Parse JSON request body
 app.use(express.json());
 
+// Verify session endpoint
+app.get('/api/auth/verify', async (req, res) => {
+  // Check for auth token in cookies
+  const authToken = req.cookies.auth_token;
+  
+  if (!authToken) {
+    return res.status(401).json({ error: 'No session token found' });
+  }
+
+  // Validate the session
+  const session = sessionManager.validateSession(authToken);
+  
+  if (!session) {
+    return res.status(401).json({ error: 'Invalid session' });
+  }
+
+  // Get user data
+  try {
+    const user = await authService.getUserById(session.userId);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    return res.json({ 
+      user: {
+        id: user.userId,
+        username: user.username,
+        isAdmin: user.isAdmin,
+        authProvider: user.authProvider
+      }
+    });
+  } catch (error) {
+    console.error('Error verifying session:', error);
+    return res.status(500).json({ error: 'Error verifying session' });
+  }
+});
+
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
   console.log(`Authentication check for path: ${req.path}`);
@@ -657,6 +694,32 @@ app.post('/api/auth/logout', (req, res) => {
   
   console.log('Auth cookie cleared during logout');
   res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Verify session endpoint (used after OAuth redirect)
+app.get('/api/auth/verify', async (req, res) => {
+  // Get auth token from cookie
+  const authToken = req.cookies.auth_token;
+  
+  if (!authToken) {
+    return res.status(401).json({ error: 'No session token found' });
+  }
+
+  // Validate the session
+  const session = sessionManager.validateSession(authToken);
+  
+  if (!session) {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+
+  res.json({
+    user: {
+      userId: session.userId,
+      username: session.username,
+      isAdmin: session.isAdmin,
+      authProvider: session.authProvider || 'local'
+    }
+  });
 });
 
 // Get current user info

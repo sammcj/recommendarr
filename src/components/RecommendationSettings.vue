@@ -27,24 +27,13 @@
               <div class="model-select-container">
                   <select 
                     :value="selectedModel" 
-                    @change="$emit('update:selectedModel', $event.target.value)" 
+                    @change="$emit('update:selectedModel', $event.target.value); updateModel($event.target.value);" 
                     class="model-select">
                   <option value="" disabled>{{ modelOptions.length === 0 ? 'No models available' : 'Select a model' }}</option>
                   <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
                   <option value="custom">Custom/Other...</option>
                 </select>
                 <div v-if="fetchError" class="fetch-error" @click="goToSettings">{{ fetchError }} <span class="error-link">Click to configure API settings</span></div>
-                <div class="model-select-custom" v-if="isCustomModel">
-                    <input 
-                      type="text" 
-                      :value="customModel" 
-                      placeholder="Enter model name" 
-                      class="custom-model-input"
-                      @input="$emit('update:customModel', $event.target.value)"
-                      @blur="updateCustomModel"
-                      @keyup.enter="updateCustomModel"
-                    />
-                </div>
               </div>
               
               <div class="temperature-control">
@@ -118,7 +107,7 @@
                   <input 
                     type="checkbox" 
                       :checked="useStructuredOutput"
-                      @change="$emit('update:useStructuredOutput', $event.target.checked); saveStructuredOutputPreference($event.target.checked)"
+                      @change="$emit('update:useStructuredOutput', $event.target.checked); saveStructuredOutputPreference($event.target.checked);"
                   >
                   Use Structured Output (Experimental)
                 </label>
@@ -383,8 +372,8 @@
                 <label class="toggle-switch">
                   <input 
                     type="checkbox" 
-                        :checked="plexUseHistory"
-                        @change="$emit('update:plexUseHistory', $event.target.checked); savePlexUseHistory()"
+                    :checked="plexUseHistory"
+                    @change="$emit('update:plexUseHistory', $event.target.checked)"
                     @click.stop
                   >
                   <span class="toggle-slider"></span>
@@ -1025,8 +1014,8 @@ export default {
     fetchModels() {
       this.$emit('fetch-models');
     },
-    updateModel() {
-      this.$emit('update-model', this.selectedModel);
+    updateModel(value) {
+      this.$emit('update-model', value);
     },
     updateCustomModel() {
       this.$emit('update-custom-model', this.customModel);
@@ -1034,14 +1023,14 @@ export default {
     updateTemperature(value) {
       this.$emit('update-temperature', Number(value));
     },
-    saveLibraryModePreference() {
-      this.$emit('save-library-mode-preference', this.useSampledLibrary);
+    saveLibraryModePreference(value) {
+      this.$emit('save-library-mode-preference', value);
     },
-    saveSampleSize() {
-      this.$emit('save-sample-size', this.sampleSize);
+    saveSampleSize(value) {
+      this.$emit('save-sample-size', Number(value));
     },
-    saveStructuredOutputPreference() {
-      this.$emit('save-structured-output-preference', this.useStructuredOutput);
+    saveStructuredOutputPreference(value) {
+      this.$emit('save-structured-output-preference', value);
     },
     clearRecommendationHistory() {
       this.$emit('clear-recommendation-history');
@@ -1084,9 +1073,6 @@ export default {
     },
     savePlexCustomHistoryDays() {
       this.$emit('save-plex-custom-history-days', this.plexCustomHistoryDays);
-    },
-    savePlexOnlyMode() {
-      this.$emit('save-plex-only-mode', this.plexOnlyMode);
     },
     saveJellyfinUseHistory() {
       this.$emit('save-jellyfin-use-history', this.jellyfinUseHistory);

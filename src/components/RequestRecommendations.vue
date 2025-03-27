@@ -2559,7 +2559,9 @@ export default {
     },
     
     // Update the model selection
-    async updateModel() {
+    async updateModel(updatedModel) {
+      this.selectedModel = updatedModel;
+
       if (this.selectedModel === 'custom') {
         this.isCustomModel = true;
         // If we already have a custom model set, use that as the initial value
@@ -2573,6 +2575,7 @@ export default {
           // Save model setting to server
           await apiService.saveSettings({ openaiModel: this.selectedModel });
           
+          console.log(this.selectedModel);
           // Update service
           openAIService.model = this.selectedModel;
           
@@ -2663,7 +2666,8 @@ export default {
     },
     
     // Save sample size to server
-    async saveSampleSize() {
+    async saveSampleSize(newSampleSize) {
+      this.sampleSize = newSampleSize;
       try {
         await apiService.saveSettings({ librarySampleSize: this.sampleSize });
         openAIService.sampleSize = this.sampleSize;

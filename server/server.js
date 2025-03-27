@@ -1005,6 +1005,34 @@ app.delete('/api/credentials/:service', async (req, res) => {
   res.json({ success: true, message: `Credentials for ${service} deleted` });
 });
 
+// Service user selection endpoints
+app.post('/api/user-services/:serviceName/selected-user', async (req, res) => {
+  const { serviceName } = req.params;
+  const { userId } = req.user;
+  const selectedUserId = req.body.userId;
+
+  try {
+    await userDataManager.setUserServiceSelection(userId, serviceName, selectedUserId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`Error saving ${serviceName} user selection:`, error);
+    res.status(500).json({ error: 'Failed to save user selection' });
+  }
+});
+
+app.get('/api/user-services/:serviceName/selected-user', async (req, res) => {
+  const { serviceName } = req.params;
+  const { userId } = req.user;
+
+  try {
+    const selectedUserId = await userDataManager.getUserServiceSelection(userId, serviceName);
+    res.json({ userId: selectedUserId });
+  } catch (error) {
+    console.error(`Error getting ${serviceName} user selection:`, error);
+    res.status(500).json({ error: 'Failed to get user selection' });
+  }
+});
+
 // User data endpoints
 // Get all recommendations
 // Add a special endpoint for read-only recommendations

@@ -510,58 +510,30 @@ export default {
   display: grid;
   width: 100%;
   margin: 20px 0;
-  gap: 30px;
+  gap: 24px; /* Slightly reduced gap */
 }
 
-/* Modern card redesign */
+/* Card base styles */
 .recommendation-card {
   background-color: var(--card-bg-color);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Lighter shadow */
+  transition: all 0.25s ease;
   position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.05); /* Subtle border */
 }
 
+/* Hover effects */
 .recommendation-card:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px); /* More subtle lift */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
-.recommendation-card:hover .poster {
-  transform: scale(1.08);
-}
-
-.recommendation-card:hover .poster::after {
-  opacity: 1;
-}
-
-.recommendation-card:hover .rating-badge::before {
-  opacity: 0.95;
-}
-
-.recommendation-card:hover .details-container:before {
-  opacity: 1;
-}
-
-.recommendation-card h3 {
-  margin: 0 0 5px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--header-color);
-  line-height: 1.3;
-}
-
-.recommendation-card p {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--text-color);
-}
-
+/* Card content */
 .card-content {
   display: flex;
   flex-direction: column;
@@ -573,32 +545,12 @@ export default {
   cursor: pointer;
 }
 
+/* Poster container - KEEPING SMALLER SIZE */
 .poster-container {
   position: relative;
-  height: 200px;
+  height: 160px; /* Reduced height */
   overflow: hidden;
-}
-
-.clickable-poster {
-  cursor: pointer;
-}
-
-.clickable-poster::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.1);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.clickable-poster:hover::before {
-  opacity: 1;
+  background-color: #f0f0f0; /* Fallback color */
 }
 
 .poster {
@@ -606,12 +558,12 @@ export default {
   height: 100%;
   background-size: cover;
   background-position: center;
-  transition: transform 0.5s ease;
+  transition: transform 0.3s ease;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2; /* Ensure the poster is above other elements */
+  z-index: 2;
 }
 
 .poster::after {
@@ -621,18 +573,18 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(to bottom, rgba(0,0,0,0) 50%, rgba(0,0,0,0.7) 100%);
-  opacity: 0.7;
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 60%, rgba(0,0,0,0.7) 100%);
+  opacity: 0.8;
   transition: opacity 0.3s ease;
 }
 
-/* Card and poster are clickable when TMDB is available */
-.clickable {
-  cursor: pointer !important;
+.recommendation-card:hover .poster {
+  transform: scale(1.05); /* Reduced scale effect */
 }
 
+/* Clickable poster styles */
 .clickable-poster {
-  cursor: pointer !important;
+  cursor: pointer;
   position: relative;
 }
 
@@ -647,14 +599,16 @@ export default {
   z-index: 1;
 }
 
+/* Title fallback for missing posters */
 .title-fallback {
-  font-size: 36px;
-  font-weight: bold;
+  font-size: 28px; /* Smaller size */
+  font-weight: 600;
   color: var(--header-color);
 }
 
+/* Details container */
 .details-container {
-  padding: 15px;
+  padding: 14px; /* Slightly reduced padding */
   flex-grow: 1;
   display: flex;
   flex-direction: column;
@@ -668,12 +622,17 @@ export default {
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 2px; /* Thinner line */
   background: linear-gradient(to right, var(--primary-color), var(--accent-color));
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
+.recommendation-card:hover .details-container:before {
+  opacity: 1;
+}
+
+/* Card header with title and actions */
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -681,26 +640,51 @@ export default {
   margin-bottom: 10px;
 }
 
+.recommendation-card h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px; /* Smaller font */
+  font-weight: 600;
+  color: var(--header-color);
+  line-height: 1.3;
+}
+
+.recommendation-card p {
+  margin: 0;
+  font-size: 14px; /* Smaller font */
+  line-height: 1.5;
+  color: var(--text-color);
+}
+
+/* Action buttons container */
 .card-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px; /* Reduced gap */
   align-items: center;
 }
 
+/* IMPROVED LIKE/DISLIKE BUTTONS */
 .like-dislike-buttons {
   display: flex;
-  gap: 4px;
+  gap: 2px; /* Minimal gap */
+  background-color: rgba(0, 0, 0, 0.03); /* Very subtle background */
+  border-radius: 4px;
+  padding: 2px;
 }
 
 .action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 5px;
+  padding: 4px;
   border-radius: 4px;
   color: var(--text-color);
-  opacity: 0.6;
+  opacity: 0.7;
   transition: all 0.2s ease;
+  height: 24px;
+  width: 24px;
 }
 
 .action-btn:hover {
@@ -709,32 +693,37 @@ export default {
 }
 
 .action-btn.active {
+  background-color: rgba(var(--primary-color-rgb), 0.15);
   opacity: 1;
   color: var(--primary-color);
 }
 
+/* REDESIGNED ADD BUTTON */
 .request-button {
   background-color: var(--primary-color);
   color: white;
   border: none;
   border-radius: 4px;
-  padding: 5px 10px;
-  font-size: 14px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 60px;
-  height: 28px;
+  min-width: 52px;
+  height: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.request-button:hover {
+.request-button:hover:not(:disabled) {
   background-color: var(--primary-color-dark);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
 }
 
 .request-button:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -742,65 +731,69 @@ export default {
   background-color: var(--success-color);
 }
 
+/* Content sections */
 .content-container {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px; /* Reduced gap */
 }
 
 .description {
-  margin-bottom: 10px;
-  transition: transform 0.3s ease;
+  margin-bottom: 8px;
+  transition: transform 0.2s ease;
 }
 
 .reasoning {
   background-color: rgba(var(--primary-color-rgb), 0.05);
-  border-radius: 8px;
-  padding: 12px;
-  margin-top: 5px;
-  transition: all 0.3s ease, transform 0.3s ease;
+  border-radius: 6px; /* Smaller radius */
+  padding: 10px; /* Reduced padding */
+  margin-top: 4px;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(var(--primary-color-rgb), 0.08);
 }
 
 .reasoning-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px; /* Reduced gap */
+  margin-bottom: 6px;
 }
 
 .reasoning-icon {
-  font-size: 16px;
+  font-size: 14px; /* Smaller icon */
 }
 
 .reasoning-label {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px; /* Smaller font */
   color: var(--primary-color);
 }
 
 .reasoning-content p {
-  font-size: 15px;
+  font-size: 13px; /* Smaller font */
   line-height: 1.4;
 }
 
 .full-text {
-  transition: transform 0.3s ease;
+  transition: transform 0.2s ease;
 }
 
+/* Rating badge */
 .rating-badge {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
+  top: 8px;
+  right: 8px;
+  width: 36px; /* Smaller badge */
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
   color: white;
-  z-index: 2;
+  z-index: 3;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .rating-badge::before {
@@ -814,7 +807,7 @@ export default {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 13px; /* Smaller font */
   opacity: 0.9;
   transition: opacity 0.3s ease;
 }
@@ -835,26 +828,28 @@ export default {
   background-color: #9E9E9E;
 }
 
+/* Retry poster button */
 .retry-poster-button {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background-color: rgba(0, 0, 0, 0.6);
+  bottom: 8px;
+  right: 8px;
+  background-color: rgba(0, 0, 0, 0.7);
   color: white;
   border: none;
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 28px; /* Smaller button */
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 3;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .retry-poster-button:hover {
   background-color: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
 }
 
 .retry-poster-button.loading {
@@ -862,9 +857,15 @@ export default {
   opacity: 0.7;
 }
 
-.small-spinner {
+.retry-poster-button svg {
   width: 16px;
   height: 16px;
+}
+
+/* Spinner */
+.small-spinner {
+  width: 14px; /* Smaller spinner */
+  height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   border-top-color: white;
@@ -875,52 +876,22 @@ export default {
   to { transform: rotate(360deg); }
 }
 
-/* Add a gradient border effect to the cards */
-.recommendation-card:after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 12px;
-  padding: 2px;
-  background: linear-gradient(to bottom right, var(--primary-color), var(--accent-color));
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.recommendation-card:hover:after {
-  opacity: 1;
-}
-
-.recommendation-card:hover {
-  animation: card-lift 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-}
-
-@keyframes card-lift {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-8px); }
-}
-
-/* Compact mode adjustments */
+/* Compact mode */
 .recommendation-card.compact-mode {
   display: flex;
   flex-direction: column;
 }
 
 .recommendation-card.compact-mode .poster-container {
-  height: 150px;
+  height: 120px; /* Even smaller in compact mode */
 }
 
 .recommendation-card.compact-mode .details-container {
-  padding: 12px;
+  padding: 10px; /* Smaller padding in compact mode */
 }
 
 .recommendation-card.compact-mode h3 {
-  font-size: 16px;
+  font-size: 14px; /* Smaller title in compact mode */
 }
 
 .recommendation-card.compact-mode:not(.expanded) .description,
@@ -932,25 +903,27 @@ export default {
   height: auto;
 }
 
+/* Expand/collapse button */
 .full-width-expand-button {
   width: 100%;
   background: none;
   border: none;
   border-top: 1px solid var(--border-color);
   padding: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   color: var(--text-color);
   opacity: 0.8;
+  font-size: 13px;
   transition: all 0.2s ease;
 }
 
 .full-width-expand-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.03);
   opacity: 1;
 }
 
@@ -958,51 +931,92 @@ export default {
   background-color: rgba(var(--primary-color-rgb), 0.05);
 }
 
-/* Ensure expanded content doesn't disrupt the grid layout */
-.recommendation-card.expanded .content-container {
-  min-height: fit-content;
+/* Smooth transition for expanded content */
+.recommendation-card.compact-mode .content-container {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
 }
 
-.recommendation-card:hover .description,
-.recommendation-card:hover .reasoning,
-.recommendation-card:hover .full-text {
-  transform: translateY(-3px);
-}
-
-.recommendation-card:hover .description p {
-  color: var(--header-color);
-}
-
-.recommendation-card:hover .reasoning {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-}
-
-body.dark-theme .recommendation-card:hover .reasoning {
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+.recommendation-card.compact-mode.expanded .content-container {
+  max-height: 500px; /* Adjust as needed */
+  transition: max-height 0.3s ease-in;
 }
 
 /* Responsive adjustments */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .recommendation-list {
     gap: 20px;
   }
+}
+
+@media (max-width: 600px) {
+  .recommendation-list {
+    gap: 16px;
+  }
   
   .recommendation-card p {
-    font-size: 15px;
+    font-size: 13px;
   }
   
   .recommendation-card {
-    transform: none !important;
+    border-radius: 8px;
   }
   
   .recommendation-card:hover {
-    transform: translateY(-5px) !important;
+    transform: translateY(-2px);
   }
   
-  .recommendation-card:hover .description,
-  .recommendation-card:hover .reasoning,
-  .recommendation-card:hover .full-text {
+  .poster-container {
+    height: 140px;
+  }
+  
+  .details-container {
+    padding: 10px;
+  }
+  
+  .rating-badge {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .rating-badge::before {
+    font-size: 12px;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) {
+  .recommendation-card:hover {
     transform: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  
+  .recommendation-card:hover .poster {
+    transform: none;
+  }
+  
+  .recommendation-card:hover .details-container:before {
+    opacity: 1; /* Always show accent line on touch devices */
+  }
+  
+  .action-btn:hover {
+    opacity: 0.7;
+    background: none;
+  }
+  
+  .action-btn:active {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+  
+  .request-button:hover {
+    background-color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .request-button:active {
+    background-color: var(--primary-color-dark);
   }
 }
 </style>

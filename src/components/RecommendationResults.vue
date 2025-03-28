@@ -406,6 +406,10 @@ export default {
     },
     // Open TMDB detail modal
     openTMDBDetailModal(recommendation) {
+      if (!this.isTMDBAvailable) {
+        console.log('TMDB not available - skipping modal open');
+        return;
+      }
       console.log('RecommendationResults: Opening TMDB modal for:', recommendation.title);
       // Make sure we emit the entire recommendation object
       this.$emit('open-tmdb-modal', recommendation);

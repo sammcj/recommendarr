@@ -79,7 +79,10 @@
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
                 </span>
-                <span v-else>Add</span>
+                <span v-else class="add-button-content">
+                  <span class="add-text">
+                    Add</span>
+                </span>
               </button>
             </div>
           </div>
@@ -99,8 +102,19 @@
               </div>
             </div>
             
-            <div v-if="rec.rating" class="rating-info"></div>
-            
+            <div v-if="rec.rating" class="rating-info">
+              <div class="rating-details">
+                <div class="rating-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                </div>
+                <div class="rating-meter" :class="getScoreClass(rec.rating)">
+                  <div class="rating-meter-fill" :style="getRatingStyle(rec.rating)"></div>
+                </div>
+                <span class="rating-text">{{ rec.rating }}</span>
+              </div>
+            </div>
             
             <div v-if="!rec.description && !rec.reasoning" class="full-text">
               <p>{{ rec.fullText }}</p>
@@ -318,6 +332,13 @@ export default {
         'background-color': 'var(--card-bg-color)'
       };
     },
+    // New method to get rating meter style
+    getRatingStyle(ratingText) {
+      const score = parseInt(this.extractScore(ratingText), 10);
+      return {
+        width: `${score}%`
+      };
+    },
     // Get initials for fallback display
     getInitials(title) {
       if (!title) return '';
@@ -510,27 +531,27 @@ export default {
   display: grid;
   width: 100%;
   margin: 20px 0;
-  gap: 24px; /* Slightly reduced gap */
+  gap: 30px;
 }
 
-/* Card base styles */
+/* Card base styles - more modern and flat */
 .recommendation-card {
   background-color: var(--card-bg-color);
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Lighter shadow */
-  transition: all 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
   position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(0, 0, 0, 0.05); /* Subtle border */
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-/* Hover effects */
+/* Subtle hover effects */
 .recommendation-card:hover {
-  transform: translateY(-4px); /* More subtle lift */
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 /* Card content */
@@ -545,12 +566,12 @@ export default {
   cursor: pointer;
 }
 
-/* Poster container - KEEPING SMALLER SIZE */
+/* Modernized poster container */
 .poster-container {
   position: relative;
-  height: 160px; /* Reduced height */
+  height: 180px;
   overflow: hidden;
-  background-color: #f0f0f0; /* Fallback color */
+  background-color: #f0f0f0;
 }
 
 .poster {
@@ -574,12 +595,12 @@ export default {
   right: 0;
   bottom: 0;
   background: linear-gradient(to bottom, rgba(0,0,0,0) 60%, rgba(0,0,0,0.7) 100%);
-  opacity: 0.8;
+  opacity: 0.7;
   transition: opacity 0.3s ease;
 }
 
 .recommendation-card:hover .poster {
-  transform: scale(1.05); /* Reduced scale effect */
+  transform: scale(1.03);
 }
 
 /* Clickable poster styles */
@@ -595,41 +616,27 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(255,255,255,0.1);
+  background-color: rgba(255,255,255,0.08);
   z-index: 1;
 }
 
 /* Title fallback for missing posters */
 .title-fallback {
-  font-size: 28px; /* Smaller size */
+  font-size: 32px;
   font-weight: 600;
   color: var(--header-color);
+  opacity: 0.5;
 }
 
 /* Details container */
 .details-container {
-  padding: 14px; /* Slightly reduced padding */
+  padding: 18px;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   position: relative;
   z-index: 1;
-}
-
-.details-container:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px; /* Thinner line */
-  background: linear-gradient(to right, var(--primary-color), var(--accent-color));
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.recommendation-card:hover .details-container:before {
-  opacity: 1;
+  gap: 12px;
 }
 
 /* Card header with title and actions */
@@ -637,12 +644,12 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .recommendation-card h3 {
-  margin: 0 0 4px 0;
-  font-size: 16px; /* Smaller font */
+  margin: 0;
+  font-size: 18px;
   font-weight: 600;
   color: var(--header-color);
   line-height: 1.3;
@@ -650,7 +657,7 @@ export default {
 
 .recommendation-card p {
   margin: 0;
-  font-size: 14px; /* Smaller font */
+  font-size: 14px;
   line-height: 1.5;
   color: var(--text-color);
 }
@@ -658,17 +665,18 @@ export default {
 /* Action buttons container */
 .card-actions {
   display: flex;
-  gap: 6px; /* Reduced gap */
+  gap: 8px;
   align-items: center;
 }
 
-/* IMPROVED LIKE/DISLIKE BUTTONS */
+/* Modernized like/dislike buttons */
 .like-dislike-buttons {
   display: flex;
-  gap: 2px; /* Minimal gap */
-  background-color: rgba(0, 0, 0, 0.03); /* Very subtle background */
-  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
   padding: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .action-btn {
@@ -678,48 +686,72 @@ export default {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  padding: 5px;
   border-radius: 4px;
   color: var(--text-color);
-  opacity: 0.7;
+  opacity: 0.6;
   transition: all 0.2s ease;
-  height: 24px;
-  width: 24px;
+  height: 28px;
+  width: 28px;
 }
 
 .action-btn:hover {
-  opacity: 1;
+  opacity: 0.9;
   background-color: rgba(0, 0, 0, 0.05);
 }
 
 .action-btn.active {
-  background-color: rgba(var(--primary-color-rgb), 0.15);
+  background-color: rgba(var(--primary-color-rgb), 0.12);
   opacity: 1;
   color: var(--primary-color);
 }
 
-/* REDESIGNED ADD BUTTON */
+/* Enhanced Add button */
 .request-button {
   background-color: var(--primary-color);
   color: white;
   border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
+  border-radius: 6px;
+  padding: 6px 12px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 52px;
-  height: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-width: 70px;
+  height: 32px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.request-button:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.request-button:hover:not(:disabled):before {
+  opacity: 1;
 }
 
 .request-button:hover:not(:disabled) {
-  background-color: var(--primary-color-dark);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.18);
+}
+
+.request-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .request-button:disabled {
@@ -729,6 +761,29 @@ export default {
 
 .request-button.requested {
   background-color: var(--success-color);
+  animation: success-pulse 1s ease forwards;
+}
+
+.request-button.loading {
+  background-color: var(--primary-color-dark);
+}
+
+.add-button-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-text {
+  text-shadow: 0px 1px 2px rgba(0,0,0,0.2);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+@keyframes success-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(var(--success-color-rgb, 40, 167, 69), 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(var(--success-color-rgb, 40, 167, 69), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--success-color-rgb, 40, 167, 69), 0); }
 }
 
 /* Content sections */
@@ -736,64 +791,154 @@ export default {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px; /* Reduced gap */
+  gap: 14px;
 }
 
 .description {
-  margin-bottom: 8px;
   transition: transform 0.2s ease;
 }
 
+/* Enhanced Rating info section */
+.rating-info {
+  margin-top: 10px;
+  margin-bottom: 6px;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.rating-details {
+  display: flex;
+  align-items: center;
+}
+
+.rating-icon {
+  color: #FFB800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.rating-meter {
+  flex-grow: 1;
+  height: 10px;
+  background-color: rgba(0, 0, 0, 0.07);
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+.rating-meter.score-high {
+  border-color: rgba(46, 125, 50, 0.2);
+}
+
+.rating-meter.score-medium {
+  border-color: rgba(251, 140, 0, 0.2);
+}
+
+.rating-meter.score-low {
+  border-color: rgba(198, 40, 40, 0.2);
+}
+
+.rating-meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease-out;
+}
+
+.score-high .rating-meter-fill {
+  background: linear-gradient(to right, #43a047, #2e7d32);
+  box-shadow: 0 0 4px rgba(46, 125, 50, 0.3);
+}
+
+.score-medium .rating-meter-fill {
+  background: linear-gradient(to right, #ffb300, #fb8c00);
+  box-shadow: 0 0 4px rgba(251, 140, 0, 0.3);
+}
+
+.score-low .rating-meter-fill {
+  background: linear-gradient(to right, #e53935, #c62828);
+  box-shadow: 0 0 4px rgba(198, 40, 40, 0.3);
+}
+
+.score-na .rating-meter-fill {
+  background: linear-gradient(to right, #757575, #424242);
+}
+
+.rating-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-left: 8px;
+}
+
+/* Dark mode specific styles */
+:root[data-theme="dark"] .rating-info {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme="dark"] .rating-meter {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Reasoning section */
 .reasoning {
-  background-color: rgba(var(--primary-color-rgb), 0.05);
-  border-radius: 6px; /* Smaller radius */
-  padding: 10px; /* Reduced padding */
+  background-color: rgba(var(--primary-color-rgb), 0.04);
+  border-radius: 8px;
+  padding: 12px;
   margin-top: 4px;
   transition: all 0.2s ease;
-  border: 1px solid rgba(var(--primary-color-rgb), 0.08);
+  border: 1px solid rgba(var(--primary-color-rgb), 0.06);
 }
 
 .reasoning-header {
   display: flex;
   align-items: center;
-  gap: 6px; /* Reduced gap */
-  margin-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .reasoning-icon {
-  font-size: 14px; /* Smaller icon */
+  font-size: 16px;
 }
 
 .reasoning-label {
   font-weight: 600;
-  font-size: 13px; /* Smaller font */
+  font-size: 14px;
   color: var(--primary-color);
 }
 
 .reasoning-content p {
-  font-size: 13px; /* Smaller font */
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .full-text {
   transition: transform 0.2s ease;
 }
 
-/* Rating badge */
+/* Rating badge - modernized */
 .rating-badge {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 36px; /* Smaller badge */
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  font-weight: 600;
   color: white;
   z-index: 3;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  overflow: hidden;
 }
 
 .rating-badge::before {
@@ -807,25 +952,28 @@ export default {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 13px; /* Smaller font */
-  opacity: 0.9;
-  transition: opacity 0.3s ease;
+  font-size: 14px;
+  letter-spacing: -0.5px;
+  font-weight: 700;
+  opacity: 1;
+  transition: all 0.3s ease;
 }
 
+/* Modern color scheme for scores */
 .score-high::before {
-  background-color: #4CAF50;
+  background: linear-gradient(135deg, #43a047, #2e7d32);
 }
 
 .score-medium::before {
-  background-color: #FFC107;
+  background: linear-gradient(135deg, #ffb300, #fb8c00);
 }
 
 .score-low::before {
-  background-color: #F44336;
+  background: linear-gradient(135deg, #e53935, #c62828);
 }
 
 .score-na::before {
-  background-color: #9E9E9E;
+  background: linear-gradient(135deg, #757575, #424242);
 }
 
 /* Retry poster button */
@@ -833,23 +981,25 @@ export default {
   position: absolute;
   bottom: 8px;
   right: 8px;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.6);
   color: white;
   border: none;
   border-radius: 50%;
-  width: 28px; /* Smaller button */
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 3;
   transition: all 0.2s ease;
+  backdrop-filter: blur(2px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .retry-poster-button:hover {
   background-color: rgba(0, 0, 0, 0.8);
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 .retry-poster-button.loading {
@@ -864,7 +1014,7 @@ export default {
 
 /* Spinner */
 .small-spinner {
-  width: 14px; /* Smaller spinner */
+  width: 14px;
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
@@ -883,19 +1033,20 @@ export default {
 }
 
 .recommendation-card.compact-mode .poster-container {
-  height: 120px; /* Even smaller in compact mode */
+  height: 140px;
 }
 
 .recommendation-card.compact-mode .details-container {
-  padding: 10px; /* Smaller padding in compact mode */
+  padding: 14px;
 }
 
 .recommendation-card.compact-mode h3 {
-  font-size: 14px; /* Smaller title in compact mode */
+  font-size: 16px;
 }
 
 .recommendation-card.compact-mode:not(.expanded) .description,
-.recommendation-card.compact-mode:not(.expanded) .reasoning {
+.recommendation-card.compact-mode:not(.expanded) .reasoning,
+.recommendation-card.compact-mode:not(.expanded) .rating-info {
   display: none;
 }
 
@@ -908,18 +1059,19 @@ export default {
   width: 100%;
   background: none;
   border: none;
-  border-top: 1px solid var(--border-color);
-  padding: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 10px;
   margin-top: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   color: var(--text-color);
   opacity: 0.8;
   font-size: 13px;
   transition: all 0.2s ease;
+  border-radius: 0 0 10px 10px;
 }
 
 .full-width-expand-button:hover {
@@ -928,7 +1080,7 @@ export default {
 }
 
 .full-width-expand-button.expanded {
-  background-color: rgba(var(--primary-color-rgb), 0.05);
+  background-color: rgba(var(--primary-color-rgb), 0.04);
 }
 
 /* Smooth transition for expanded content */
@@ -939,20 +1091,24 @@ export default {
 }
 
 .recommendation-card.compact-mode.expanded .content-container {
-  max-height: 500px; /* Adjust as needed */
+  max-height: 500px;
   transition: max-height 0.3s ease-in;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .recommendation-list {
-    gap: 20px;
+    gap: 24px;
+  }
+  
+  .details-container {
+    padding: 16px;
   }
 }
 
 @media (max-width: 600px) {
   .recommendation-list {
-    gap: 16px;
+    gap: 20px;
   }
   
   .recommendation-card p {
@@ -964,24 +1120,15 @@ export default {
   }
   
   .recommendation-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
   }
   
   .poster-container {
-    height: 140px;
+    height: 160px;
   }
   
   .details-container {
-    padding: 10px;
-  }
-  
-  .rating-badge {
-    width: 32px;
-    height: 32px;
-  }
-  
-  .rating-badge::before {
-    font-size: 12px;
+    padding: 14px;
   }
 }
 
@@ -989,19 +1136,15 @@ export default {
 @media (hover: none) {
   .recommendation-card:hover {
     transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
   
   .recommendation-card:hover .poster {
     transform: none;
   }
   
-  .recommendation-card:hover .details-container:before {
-    opacity: 1; /* Always show accent line on touch devices */
-  }
-  
   .action-btn:hover {
-    opacity: 0.7;
+    opacity: 0.6;
     background: none;
   }
   
@@ -1012,7 +1155,7 @@ export default {
   
   .request-button:hover {
     background-color: var(--primary-color);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
   
   .request-button:active {

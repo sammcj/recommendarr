@@ -311,6 +311,7 @@ import credentialsService from './services/CredentialsService'
 import apiService from './services/ApiService'
 import authService from './services/AuthService'
 import openAIService from './services/OpenAIService'
+import storageUtils from './utils/StorageUtils'
 
 export default {
   name: 'App',
@@ -417,7 +418,7 @@ export default {
         this.selectedPlexUserId = plexService.selectedUserId;
         
         // For Jellyfin, try localStorage first, then fall back to service
-        const savedJellyfinUserId = localStorage.getItem('selectedJellyfinUserId');
+        const savedJellyfinUserId = storageUtils.get('selectedJellyfinUserId');
         if (savedJellyfinUserId) {
           this.selectedJellyfinUserId = savedJellyfinUserId;
           console.log(`Loaded Jellyfin user ID from localStorage: ${savedJellyfinUserId}`);
@@ -426,7 +427,7 @@ export default {
         }
         
         // For Tautulli, we need to load from localStorage since it's not stored in the service
-        const savedTautulliUserId = localStorage.getItem('selectedTautulliUserId');
+        const savedTautulliUserId = storageUtils.get('selectedTautulliUserId');
         if (savedTautulliUserId) {
           this.selectedTautulliUserId = savedTautulliUserId;
           console.log(`Loaded Tautulli user ID from localStorage: ${savedTautulliUserId}`);
@@ -484,56 +485,56 @@ export default {
       }
       
       // Clear all stored credentials from localStorage 
-      localStorage.removeItem('sonarrBaseUrl');
-      localStorage.removeItem('sonarrApiKey');
-      localStorage.removeItem('radarrBaseUrl');
-      localStorage.removeItem('radarrApiKey');
-      localStorage.removeItem('plexBaseUrl');
-      localStorage.removeItem('plexToken');
-      localStorage.removeItem('plexRecentLimit');
-      localStorage.removeItem('jellyfinBaseUrl');
-      localStorage.removeItem('jellyfinApiKey');
-      localStorage.removeItem('jellyfinUserId');
-      localStorage.removeItem('jellyfinRecentLimit');
-      localStorage.removeItem('tautulliBaseUrl');
-      localStorage.removeItem('tautulliApiKey');
-      localStorage.removeItem('tautulliRecentLimit');
-      localStorage.removeItem('traktClientId');
-      localStorage.removeItem('traktAccessToken');
-      localStorage.removeItem('traktRecentLimit');
-      localStorage.removeItem('openaiApiKey');
-      localStorage.removeItem('openaiModel');
-      localStorage.removeItem('plexHistoryMode');
-      localStorage.removeItem('jellyfinHistoryMode');
-      localStorage.removeItem('tautulliHistoryMode');
-      localStorage.removeItem('traktHistoryMode');
-      localStorage.removeItem('plexOnlyMode');
-      localStorage.removeItem('jellyfinOnlyMode');
-      localStorage.removeItem('tautulliOnlyMode');
-      localStorage.removeItem('traktOnlyMode');
+      storageUtils.remove('sonarrBaseUrl');
+      storageUtils.remove('sonarrApiKey');
+      storageUtils.remove('radarrBaseUrl');
+      storageUtils.remove('radarrApiKey');
+      storageUtils.remove('plexBaseUrl');
+      storageUtils.remove('plexToken');
+      storageUtils.remove('plexRecentLimit');
+      storageUtils.remove('jellyfinBaseUrl');
+      storageUtils.remove('jellyfinApiKey');
+      storageUtils.remove('jellyfinUserId');
+      storageUtils.remove('jellyfinRecentLimit');
+      storageUtils.remove('tautulliBaseUrl');
+      storageUtils.remove('tautulliApiKey');
+      storageUtils.remove('tautulliRecentLimit');
+      storageUtils.remove('traktClientId');
+      storageUtils.remove('traktAccessToken');
+      storageUtils.remove('traktRecentLimit');
+      storageUtils.remove('openaiApiKey');
+      storageUtils.remove('openaiModel');
+      storageUtils.remove('plexHistoryMode');
+      storageUtils.remove('jellyfinHistoryMode');
+      storageUtils.remove('tautulliHistoryMode');
+      storageUtils.remove('traktHistoryMode');
+      storageUtils.remove('plexOnlyMode');
+      storageUtils.remove('jellyfinOnlyMode');
+      storageUtils.remove('tautulliOnlyMode');
+      storageUtils.remove('traktOnlyMode');
       
       // Also clear recommendation history and preferences
-      localStorage.removeItem('previousTVRecommendations');
-      localStorage.removeItem('previousMovieRecommendations');
-      localStorage.removeItem('currentTVRecommendations');
-      localStorage.removeItem('currentMovieRecommendations');
-      localStorage.removeItem('likedTVRecommendations');
-      localStorage.removeItem('dislikedTVRecommendations');
-      localStorage.removeItem('likedMovieRecommendations');
-      localStorage.removeItem('dislikedMovieRecommendations');
+      storageUtils.remove('previousTVRecommendations');
+      storageUtils.remove('previousMovieRecommendations');
+      storageUtils.remove('currentTVRecommendations');
+      storageUtils.remove('currentMovieRecommendations');
+      storageUtils.remove('likedTVRecommendations');
+      storageUtils.remove('dislikedTVRecommendations');
+      storageUtils.remove('likedMovieRecommendations');
+      storageUtils.remove('dislikedMovieRecommendations');
       
       // Additional localStorage history that might exist
-      localStorage.removeItem('historyColumnsCount');
+      storageUtils.remove('historyColumnsCount');
       
       // Clear cached watch history
-      localStorage.removeItem('watchHistoryMovies');
-      localStorage.removeItem('watchHistoryShows');
-      localStorage.removeItem('jellyfinWatchHistoryMovies');
-      localStorage.removeItem('jellyfinWatchHistoryShows');
-      localStorage.removeItem('tautulliWatchHistoryMovies');
-      localStorage.removeItem('tautulliWatchHistoryShows');
-      localStorage.removeItem('traktWatchHistoryMovies');
-      localStorage.removeItem('traktWatchHistoryShows');
+      storageUtils.remove('watchHistoryMovies');
+      storageUtils.remove('watchHistoryShows');
+      storageUtils.remove('jellyfinWatchHistoryMovies');
+      storageUtils.remove('jellyfinWatchHistoryShows');
+      storageUtils.remove('tautulliWatchHistoryMovies');
+      storageUtils.remove('tautulliWatchHistoryShows');
+      storageUtils.remove('traktWatchHistoryMovies');
+      storageUtils.remove('traktWatchHistoryShows');
       
       // Reset service configurations
       sonarrService.configure('', '');
@@ -678,58 +679,50 @@ export default {
     // Load cached watch history from localStorage
     loadCachedWatchHistory() {
       try {
-        // Try to load movies watch history from localStorage
-        const cachedMoviesHistory = localStorage.getItem('watchHistoryMovies');
-        if (cachedMoviesHistory) {
-          this.recentlyWatchedMovies = JSON.parse(cachedMoviesHistory);
-          console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from localStorage cache`);
-        }
-        
-        // Try to load shows watch history from localStorage
-        const cachedShowsHistory = localStorage.getItem('watchHistoryShows');
-        if (cachedShowsHistory) {
-          this.recentlyWatchedShows = JSON.parse(cachedShowsHistory);
-          console.log(`Loaded ${this.recentlyWatchedShows.length} shows from localStorage cache`);
-        }
+      // Try to load movies watch history from localStorage
+      this.recentlyWatchedMovies = storageUtils.getJSON('watchHistoryMovies', []);
+      if (this.recentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from localStorage cache`);
+      }
+      
+      // Try to load shows watch history from localStorage
+      this.recentlyWatchedShows = storageUtils.getJSON('watchHistoryShows', []);
+      if (this.recentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.recentlyWatchedShows.length} shows from localStorage cache`);
+      }
 
-        // Try to load jellyfin history
-        const cachedJellyfinMoviesHistory = localStorage.getItem('jellyfinWatchHistoryMovies');
-        if (cachedJellyfinMoviesHistory) {
-          this.jellyfinRecentlyWatchedMovies = JSON.parse(cachedJellyfinMoviesHistory);
-          console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from localStorage cache`);
-        }
+      // Try to load jellyfin history
+      this.jellyfinRecentlyWatchedMovies = storageUtils.getJSON('jellyfinWatchHistoryMovies', []);
+      if (this.jellyfinRecentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from localStorage cache`);
+      }
 
-        const cachedJellyfinShowsHistory = localStorage.getItem('jellyfinWatchHistoryShows');
-        if (cachedJellyfinShowsHistory) {
-          this.jellyfinRecentlyWatchedShows = JSON.parse(cachedJellyfinShowsHistory);
-          console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from localStorage cache`);
-        }
+      this.jellyfinRecentlyWatchedShows = storageUtils.getJSON('jellyfinWatchHistoryShows', []);
+      if (this.jellyfinRecentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from localStorage cache`);
+      }
 
-        // Try to load tautulli history
-        const cachedTautulliMoviesHistory = localStorage.getItem('tautulliWatchHistoryMovies');
-        if (cachedTautulliMoviesHistory) {
-          this.tautulliRecentlyWatchedMovies = JSON.parse(cachedTautulliMoviesHistory);
-          console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from localStorage cache`);
-        }
+      // Try to load tautulli history
+      this.tautulliRecentlyWatchedMovies = storageUtils.getJSON('tautulliWatchHistoryMovies', []);
+      if (this.tautulliRecentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from localStorage cache`);
+      }
 
-        const cachedTautulliShowsHistory = localStorage.getItem('tautulliWatchHistoryShows');
-        if (cachedTautulliShowsHistory) {
-          this.tautulliRecentlyWatchedShows = JSON.parse(cachedTautulliShowsHistory);
-          console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from localStorage cache`);
-        }
+      this.tautulliRecentlyWatchedShows = storageUtils.getJSON('tautulliWatchHistoryShows', []);
+      if (this.tautulliRecentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from localStorage cache`);
+      }
 
-        // Try to load trakt history
-        const cachedTraktMoviesHistory = localStorage.getItem('traktWatchHistoryMovies');
-        if (cachedTraktMoviesHistory) {
-          this.traktRecentlyWatchedMovies = JSON.parse(cachedTraktMoviesHistory);
-          console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from localStorage cache`);
-        }
+      // Try to load trakt history
+      this.traktRecentlyWatchedMovies = storageUtils.getJSON('traktWatchHistoryMovies', []);
+      if (this.traktRecentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from localStorage cache`);
+      }
 
-        const cachedTraktShowsHistory = localStorage.getItem('traktWatchHistoryShows');
-        if (cachedTraktShowsHistory) {
-          this.traktRecentlyWatchedShows = JSON.parse(cachedTraktShowsHistory);
-          console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from localStorage cache`);
-        }
+      this.traktRecentlyWatchedShows = storageUtils.getJSON('traktWatchHistoryShows', []);
+      if (this.traktRecentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from localStorage cache`);
+      }
 
         // Also try to load from server if available
         this.loadWatchHistoryFromServer();
@@ -813,56 +806,56 @@ export default {
       // Plex
       if (this.plexConnected) {
         fetchPromises.push(this.fetchPlexData().then(() => {
-          if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
-            this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
-            localStorage.setItem('watchHistoryMovies', JSON.stringify(this.recentlyWatchedMovies));
-          }
-          if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
-            this.recentlyWatchedShows.forEach(item => item.source = 'plex');
-            localStorage.setItem('watchHistoryShows', JSON.stringify(this.recentlyWatchedShows));
-          }
+      if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
+        this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
+        storageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
+      }
+      if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
+        this.recentlyWatchedShows.forEach(item => item.source = 'plex');
+        storageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
+      }
         }));
       }
 
       // Jellyfin
       if (this.jellyfinConnected) {
         fetchPromises.push(this.fetchJellyfinData().then(() => {
-          if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
-            this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
-            localStorage.setItem('jellyfinWatchHistoryMovies', JSON.stringify(this.jellyfinRecentlyWatchedMovies));
-          }
-          if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
-            this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
-            localStorage.setItem('jellyfinWatchHistoryShows', JSON.stringify(this.jellyfinRecentlyWatchedShows));
-          }
+      if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
+        this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
+        storageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
+      }
+      if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
+        this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
+        storageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
+      }
         }));
       }
 
       // Tautulli
       if (this.tautulliConnected) {
         fetchPromises.push(this.fetchTautulliData().then(() => {
-          if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
-            this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
-            localStorage.setItem('tautulliWatchHistoryMovies', JSON.stringify(this.tautulliRecentlyWatchedMovies));
-          }
-          if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
-            this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
-            localStorage.setItem('tautulliWatchHistoryShows', JSON.stringify(this.tautulliRecentlyWatchedShows));
-          }
+      if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
+        this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
+        storageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
+      }
+      if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
+        this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
+        storageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
+      }
         }));
       }
 
       // Trakt
       if (this.traktConnected) {
         fetchPromises.push(this.fetchTraktData().then(() => {
-          if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
-            this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
-            localStorage.setItem('traktWatchHistoryMovies', JSON.stringify(this.traktRecentlyWatchedMovies));
-          }
-          if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
-            this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
-            localStorage.setItem('traktWatchHistoryShows', JSON.stringify(this.traktRecentlyWatchedShows));
-          }
+      if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+        this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
+        storageUtils.setJSON('traktWatchHistoryMovies', this.traktRecentlyWatchedMovies);
+      }
+      if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+        this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
+        storageUtils.setJSON('traktWatchHistoryShows', this.traktRecentlyWatchedShows);
+      }
         }));
       }
 
@@ -904,70 +897,37 @@ export default {
     // Load settings from localStorage
     loadLocalSettings() {
       // Load Plex recent limit from localStorage if available
-      const savedPlexLimit = localStorage.getItem('plexRecentLimit');
-      if (savedPlexLimit) {
-        this.plexRecentLimit = parseInt(savedPlexLimit, 10);
-      }
+      this.plexRecentLimit = storageUtils.get('plexRecentLimit', 100);
       
       // Load Jellyfin recent limit from localStorage if available
-      const savedJellyfinLimit = localStorage.getItem('jellyfinRecentLimit');
-      if (savedJellyfinLimit) {
-        this.jellyfinRecentLimit = parseInt(savedJellyfinLimit, 10);
-      }
+      this.jellyfinRecentLimit = storageUtils.get('jellyfinRecentLimit', 100);
       
       // Load Plex history mode from localStorage if available
-      const savedPlexHistoryMode = localStorage.getItem('plexHistoryMode');
-      if (savedPlexHistoryMode) {
-        this.plexHistoryMode = savedPlexHistoryMode;
-      }
+      this.plexHistoryMode = storageUtils.get('plexHistoryMode', 'all');
       
       // Load Jellyfin history mode from localStorage if available
-      const savedJellyfinHistoryMode = localStorage.getItem('jellyfinHistoryMode');
-      if (savedJellyfinHistoryMode) {
-        this.jellyfinHistoryMode = savedJellyfinHistoryMode;
-      }
+      this.jellyfinHistoryMode = storageUtils.get('jellyfinHistoryMode', 'all');
       
       // Load Plex only mode from localStorage if available
-      const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
-      if (savedPlexOnlyMode) {
-        this.plexOnlyMode = savedPlexOnlyMode === 'true';
-      }
+      this.plexOnlyMode = storageUtils.get('plexOnlyMode', false);
       
       // Load Jellyfin only mode from localStorage if available
-      const savedJellyfinOnlyMode = localStorage.getItem('jellyfinOnlyMode');
-      if (savedJellyfinOnlyMode) {
-        this.jellyfinOnlyMode = savedJellyfinOnlyMode === 'true';
-      }
+      this.jellyfinOnlyMode = storageUtils.get('jellyfinOnlyMode', false);
       
       // Load Tautulli history mode from localStorage if available
-      const savedTautulliHistoryMode = localStorage.getItem('tautulliHistoryMode');
-      if (savedTautulliHistoryMode) {
-        this.tautulliHistoryMode = savedTautulliHistoryMode;
-      }
+      this.tautulliHistoryMode = storageUtils.get('tautulliHistoryMode', 'all');
       
       // Load Tautulli only mode from localStorage if available
-      const savedTautulliOnlyMode = localStorage.getItem('tautulliOnlyMode');
-      if (savedTautulliOnlyMode) {
-        this.tautulliOnlyMode = savedTautulliOnlyMode === 'true';
-      }
+      this.tautulliOnlyMode = storageUtils.get('tautulliOnlyMode', false);
       
       // Load Trakt recent limit from localStorage if available
-      const savedTraktLimit = localStorage.getItem('traktRecentLimit');
-      if (savedTraktLimit) {
-        this.traktRecentLimit = parseInt(savedTraktLimit, 10);
-      }
+      this.traktRecentLimit = storageUtils.get('traktRecentLimit', 50);
       
       // Load Trakt history mode from localStorage if available
-      const savedTraktHistoryMode = localStorage.getItem('traktHistoryMode');
-      if (savedTraktHistoryMode) {
-        this.traktHistoryMode = savedTraktHistoryMode;
-      }
+      this.traktHistoryMode = storageUtils.get('traktHistoryMode', 'all');
       
       // Load Trakt only mode from localStorage if available
-      const savedTraktOnlyMode = localStorage.getItem('traktOnlyMode');
-      if (savedTraktOnlyMode) {
-        this.traktOnlyMode = savedTraktOnlyMode === 'true';
-      }
+      this.traktOnlyMode = storageUtils.get('traktOnlyMode', false);
     },
     
     // Check if we have credentials stored server-side
@@ -1103,7 +1063,7 @@ export default {
               this.selectedJellyfinUserId = credentials.userId || '';
               
               // Save the userId to localStorage for extra persistence
-              localStorage.setItem('selectedJellyfinUserId', this.selectedJellyfinUserId);
+              storageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
               
               const result = await jellyfinService.testConnection();
               if (result.success) {
@@ -1120,7 +1080,7 @@ export default {
               await tautulliService.configure(credentials.baseUrl, credentials.apiKey);
               
               // Load saved user ID from localStorage if available
-              const savedUserId = localStorage.getItem('selectedTautulliUserId');
+              const savedUserId = storageUtils.get('selectedTautulliUserId');
               if (savedUserId) {
                 this.selectedTautulliUserId = savedUserId;
               }
@@ -1168,8 +1128,8 @@ export default {
       this.series = [];
       
       // Clean up localStorage (for backwards compatibility)
-      localStorage.removeItem('sonarrBaseUrl');
-      localStorage.removeItem('sonarrApiKey');
+      storageUtils.remove('sonarrBaseUrl');
+      storageUtils.remove('sonarrApiKey');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('sonarr');
@@ -1187,8 +1147,8 @@ export default {
       this.movies = [];
       
       // Clean up localStorage (for backwards compatibility)
-      localStorage.removeItem('radarrBaseUrl');
-      localStorage.removeItem('radarrApiKey');
+      storageUtils.remove('radarrBaseUrl');
+      storageUtils.remove('radarrApiKey');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('radarr');
@@ -1207,9 +1167,9 @@ export default {
       this.recentlyWatchedShows = [];
       
       // Clean up localStorage (for backwards compatibility)
-      localStorage.removeItem('plexBaseUrl');
-      localStorage.removeItem('plexToken');
-      localStorage.removeItem('plexRecentLimit');
+      storageUtils.remove('plexBaseUrl');
+      storageUtils.remove('plexToken');
+      storageUtils.remove('plexRecentLimit');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('plex');
@@ -1222,10 +1182,10 @@ export default {
       this.jellyfinRecentlyWatchedShows = [];
       
       // Clean up localStorage (for backwards compatibility)
-      localStorage.removeItem('jellyfinBaseUrl');
-      localStorage.removeItem('jellyfinApiKey');
-      localStorage.removeItem('jellyfinUserId');
-      localStorage.removeItem('jellyfinRecentLimit');
+      storageUtils.remove('jellyfinBaseUrl');
+      storageUtils.remove('jellyfinApiKey');
+      storageUtils.remove('jellyfinUserId');
+      storageUtils.remove('jellyfinRecentLimit');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('jellyfin');
@@ -1238,9 +1198,9 @@ export default {
       this.tautulliRecentlyWatchedShows = [];
       
       // Clean up localStorage
-      localStorage.removeItem('tautulliBaseUrl');
-      localStorage.removeItem('tautulliApiKey');
-      localStorage.removeItem('tautulliRecentLimit');
+      storageUtils.remove('tautulliBaseUrl');
+      storageUtils.remove('tautulliApiKey');
+      storageUtils.remove('tautulliRecentLimit');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('tautulli');
@@ -1260,9 +1220,9 @@ export default {
       this.traktRecentlyWatchedShows = [];
       
       // Clean up localStorage
-      localStorage.removeItem('traktClientId');
-      localStorage.removeItem('traktAccessToken');
-      localStorage.removeItem('traktRecentLimit');
+      storageUtils.remove('traktClientId');
+      storageUtils.remove('traktAccessToken');
+      storageUtils.remove('traktRecentLimit');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('trakt');
@@ -1340,7 +1300,7 @@ export default {
       this.jellyfinUsers = [];
       
       // Try to load the user ID from localStorage first (for extra persistence)
-      const savedUserId = localStorage.getItem('selectedJellyfinUserId');
+      const savedUserId = storageUtils.get('selectedJellyfinUserId');
       if (savedUserId) {
         this.selectedJellyfinUserId = savedUserId;
         console.log(`Loaded Jellyfin user ID from localStorage: ${savedUserId}`);
@@ -1365,7 +1325,7 @@ export default {
     selectJellyfinUser(user) {
       this.selectedJellyfinUserId = user.id;
       // Also store the selection in localStorage for extra safety
-      localStorage.setItem('selectedJellyfinUserId', user.id);
+      storageUtils.set('selectedJellyfinUserId', user.id);
     },
     
     async applyJellyfinUserSelection() {
@@ -1376,9 +1336,9 @@ export default {
       }
       
       // Save current history limit to ensure it persists across user changes
-      localStorage.setItem('jellyfinHistoryLimit', this.jellyfinRecentLimit.toString());
+      storageUtils.set('jellyfinHistoryLimit', this.jellyfinRecentLimit.toString());
       // Always persist the user ID selection to localStorage
-      localStorage.setItem('selectedJellyfinUserId', this.selectedJellyfinUserId);
+      storageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
       
       // Update the Jellyfin service with the new user ID
       await jellyfinService.configure(
@@ -1402,7 +1362,7 @@ export default {
       this.tautulliUsers = [];
       
       // Load the previously selected user ID if available
-      const savedUserId = localStorage.getItem('selectedTautulliUserId');
+      const savedUserId = storageUtils.get('selectedTautulliUserId');
       this.selectedTautulliUserId = savedUserId || '';
       
       try {
@@ -1421,15 +1381,15 @@ export default {
     selectTautulliUser(user) {
       this.selectedTautulliUserId = user.user_id;
       // Store the selection immediately to ensure it's available on page reload
-      localStorage.setItem('selectedTautulliUserId', user.user_id);
+      storageUtils.set('selectedTautulliUserId', user.user_id);
     },
     
     applyTautulliUserSelection() {
       // Save current history limit to ensure it persists
-      localStorage.setItem('tautulliRecentLimit', this.tautulliRecentLimit.toString());
+      storageUtils.set('tautulliRecentLimit', this.tautulliRecentLimit.toString());
       
       // Always persist the user ID selection to localStorage
-      localStorage.setItem('selectedTautulliUserId', this.selectedTautulliUserId || '');
+      storageUtils.set('selectedTautulliUserId', this.selectedTautulliUserId || '');
       
       // Close the modal
       this.showTautulliUserSelect = false;
@@ -1468,7 +1428,7 @@ export default {
       if (!this.selectedPlexUserId) return;
       
       // Save current history limit to ensure it persists across user changes
-      localStorage.setItem('plexRecentLimit', this.plexRecentLimit.toString());
+      storageUtils.set('plexRecentLimit', this.plexRecentLimit.toString());
       
       // Update the Plex service with the new user ID
       plexService.configure(
@@ -1564,7 +1524,7 @@ export default {
           this.tautulliConnected = true;
           
           // Load saved user ID from localStorage if available
-          const savedUserId = localStorage.getItem('selectedTautulliUserId');
+          const savedUserId = storageUtils.get('selectedTautulliUserId');
           if (savedUserId) {
             this.selectedTautulliUserId = savedUserId;
           }
@@ -1908,7 +1868,7 @@ export default {
         // Store the selected user ID in component state for future use
         if (userIdToUse && userIdToUse !== this.selectedTautulliUserId) {
           this.selectedTautulliUserId = userIdToUse;
-          localStorage.setItem('selectedTautulliUserId', userIdToUse);
+          storageUtils.set('selectedTautulliUserId', userIdToUse);
         }
         
         console.log(`Fetching Tautulli history with user ID: ${userIdToUse || 'all users'}`);
@@ -2077,57 +2037,57 @@ export default {
       });
       
       // Clear all stored credentials from localStorage (for backwards compatibility)
-      localStorage.removeItem('sonarrBaseUrl');
-      localStorage.removeItem('sonarrApiKey');
-      localStorage.removeItem('radarrBaseUrl');
-      localStorage.removeItem('radarrApiKey');
-      localStorage.removeItem('plexBaseUrl');
-      localStorage.removeItem('plexToken');
-      localStorage.removeItem('plexRecentLimit');
-      localStorage.removeItem('jellyfinBaseUrl');
-      localStorage.removeItem('jellyfinApiKey');
-      localStorage.removeItem('jellyfinUserId');
-      localStorage.removeItem('jellyfinRecentLimit');
-      localStorage.removeItem('tautulliBaseUrl');
-      localStorage.removeItem('tautulliApiKey');
-      localStorage.removeItem('tautulliRecentLimit');
-      localStorage.removeItem('traktClientId');
-      localStorage.removeItem('traktAccessToken');
-      localStorage.removeItem('traktRecentLimit');
-      localStorage.removeItem('openaiApiKey');
-      localStorage.removeItem('openaiModel');
-      localStorage.removeItem('plexHistoryMode');
-      localStorage.removeItem('jellyfinHistoryMode');
-      localStorage.removeItem('tautulliHistoryMode');
-      localStorage.removeItem('traktHistoryMode');
-      localStorage.removeItem('plexOnlyMode');
-      localStorage.removeItem('jellyfinOnlyMode');
-      localStorage.removeItem('tautulliOnlyMode');
-      localStorage.removeItem('traktOnlyMode');
+      storageUtils.remove('sonarrBaseUrl');
+      storageUtils.remove('sonarrApiKey');
+      storageUtils.remove('radarrBaseUrl');
+      storageUtils.remove('radarrApiKey');
+      storageUtils.remove('plexBaseUrl');
+      storageUtils.remove('plexToken');
+      storageUtils.remove('plexRecentLimit');
+      storageUtils.remove('jellyfinBaseUrl');
+      storageUtils.remove('jellyfinApiKey');
+      storageUtils.remove('jellyfinUserId');
+      storageUtils.remove('jellyfinRecentLimit');
+      storageUtils.remove('tautulliBaseUrl');
+      storageUtils.remove('tautulliApiKey');
+      storageUtils.remove('tautulliRecentLimit');
+      storageUtils.remove('traktClientId');
+      storageUtils.remove('traktAccessToken');
+      storageUtils.remove('traktRecentLimit');
+      storageUtils.remove('openaiApiKey');
+      storageUtils.remove('openaiModel');
+      storageUtils.remove('plexHistoryMode');
+      storageUtils.remove('jellyfinHistoryMode');
+      storageUtils.remove('tautulliHistoryMode');
+      storageUtils.remove('traktHistoryMode');
+      storageUtils.remove('plexOnlyMode');
+      storageUtils.remove('jellyfinOnlyMode');
+      storageUtils.remove('tautulliOnlyMode');
+      storageUtils.remove('traktOnlyMode');
       
       // Also clear recommendation history and preferences
       // Remove from localStorage as well to ensure clear doesn't persist after reload
-      localStorage.removeItem('previousTVRecommendations');
-      localStorage.removeItem('previousMovieRecommendations');
-      localStorage.removeItem('currentTVRecommendations');
-      localStorage.removeItem('currentMovieRecommendations');
-      localStorage.removeItem('likedTVRecommendations');
-      localStorage.removeItem('dislikedTVRecommendations');
-      localStorage.removeItem('likedMovieRecommendations');
-      localStorage.removeItem('dislikedMovieRecommendations');
+      storageUtils.remove('previousTVRecommendations');
+      storageUtils.remove('previousMovieRecommendations');
+      storageUtils.remove('currentTVRecommendations');
+      storageUtils.remove('currentMovieRecommendations');
+      storageUtils.remove('likedTVRecommendations');
+      storageUtils.remove('dislikedTVRecommendations');
+      storageUtils.remove('likedMovieRecommendations');
+      storageUtils.remove('dislikedMovieRecommendations');
       
       // Additional localStorage history that might exist
-      localStorage.removeItem('historyColumnsCount');
+      storageUtils.remove('historyColumnsCount');
       
       // Clear cached watch history
-      localStorage.removeItem('watchHistoryMovies');
-      localStorage.removeItem('watchHistoryShows');
-      localStorage.removeItem('jellyfinWatchHistoryMovies');
-      localStorage.removeItem('jellyfinWatchHistoryShows');
-      localStorage.removeItem('tautulliWatchHistoryMovies');
-      localStorage.removeItem('tautulliWatchHistoryShows');
-      localStorage.removeItem('traktWatchHistoryMovies');
-      localStorage.removeItem('traktWatchHistoryShows');
+      storageUtils.remove('watchHistoryMovies');
+      storageUtils.remove('watchHistoryShows');
+      storageUtils.remove('jellyfinWatchHistoryMovies');
+      storageUtils.remove('jellyfinWatchHistoryShows');
+      storageUtils.remove('tautulliWatchHistoryMovies');
+      storageUtils.remove('tautulliWatchHistoryShows');
+      storageUtils.remove('traktWatchHistoryMovies');
+      storageUtils.remove('traktWatchHistoryShows');
       
       // We're no longer resetting user data on logout
       // This preserves the user's settings between sessions

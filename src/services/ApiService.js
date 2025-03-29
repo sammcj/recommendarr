@@ -4,6 +4,8 @@ import axios from 'axios';
  * Client-side API service for communicating with our proxy server
  */
 class ApiService {
+  // Current user information
+  currentUser = null;
   constructor() {
     // Use the same server for both frontend and API by using a relative path
     // This enables both to run on the same port
@@ -322,6 +324,25 @@ class ApiService {
       console.error(`Failed to save ${type} watch history:`, error);
       return false;
     }
+  }
+
+  /**
+   * Set the current user information
+   * This should be called by AuthService after login/logout
+   * 
+   * @param {Object} user - User information
+   */
+  setCurrentUser(user) {
+    this.currentUser = user;
+  }
+
+  /**
+   * Get the current user information
+   * 
+   * @returns {Object|null} - Current user information or null if not logged in
+   */
+  getCurrentUser() {
+    return this.currentUser;
   }
 
   /**

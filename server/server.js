@@ -1167,7 +1167,25 @@ app.post('/api/recommendations/:type', async (req, res) => {
 // Get liked/disliked/hidden items
 app.get('/api/preferences/:type/:preference', async (req, res) => {
   const { type, preference } = req.params;
-  const userId = req.user.userId;
+  const { username } = req.query;
+  
+  // Use the authenticated user's ID by default, or look up the user ID by username if provided
+  let userId = req.user.userId;
+  
+  // If a username is provided and it's not the current user, check if the user exists
+  if (username && username !== req.user.username) {
+    try {
+      const user = await authService.getUserByUsername(username);
+      if (user) {
+        userId = user.userId;
+      } else {
+        return res.status(404).json({ error: 'User not found' });
+      }
+    } catch (error) {
+      console.error(`Error looking up user by username: ${username}`, error);
+      return res.status(500).json({ error: 'Error looking up user' });
+    }
+  }
   
   // Load user data
   const userData = await userDataManager.getUserData(userId);
@@ -1192,8 +1210,26 @@ app.get('/api/preferences/:type/:preference', async (req, res) => {
 // Save liked/disliked/hidden items
 app.post('/api/preferences/:type/:preference', async (req, res) => {
   const { type, preference } = req.params;
+  const { username } = req.query;
   const items = req.body;
-  const userId = req.user.userId;
+  
+  // Use the authenticated user's ID by default, or look up the user ID by username if provided
+  let userId = req.user.userId;
+  
+  // If a username is provided and it's not the current user, check if the user exists
+  if (username && username !== req.user.username) {
+    try {
+      const user = await authService.getUserByUsername(username);
+      if (user) {
+        userId = user.userId;
+      } else {
+        return res.status(404).json({ error: 'User not found' });
+      }
+    } catch (error) {
+      console.error(`Error looking up user by username: ${username}`, error);
+      return res.status(500).json({ error: 'Error looking up user' });
+    }
+  }
   
   if (!Array.isArray(items)) {
     return res.status(400).json({ error: 'Preferences must be an array' });

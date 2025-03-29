@@ -10,6 +10,8 @@ class AuthService {
       const userJson = localStorage.getItem('auth_user');
       if (userJson) {
         this.user = JSON.parse(userJson);
+        // Initialize ApiService with the current user
+        ApiService.setCurrentUser(this.user);
       }
     } catch (error) {
       console.error('Error accessing localStorage:', error);
@@ -27,6 +29,13 @@ class AuthService {
   // Get current user
   getUser() {
     return this.user;
+  }
+  
+  // Initialize the current user in ApiService
+  initApiServiceUser() {
+    if (this.user) {
+      ApiService.setCurrentUser(this.user);
+    }
   }
   
   // Get authentication token
@@ -73,6 +82,10 @@ class AuthService {
         this.user = response.data.user;
         this.token = "cookie-auth";
         localStorage.setItem('auth_user', JSON.stringify(this.user));
+        
+        // Set the current user in ApiService
+        ApiService.setCurrentUser(this.user);
+        
         return true;
       }
       return false;
@@ -153,6 +166,9 @@ class AuthService {
       const currentHeaders = ApiService.axiosInstance.defaults.headers.common;
       console.log('Current auth header:', currentHeaders['Authorization'] ? 'Set' : 'Not set');
       
+      // Set the current user in ApiService
+      ApiService.setCurrentUser(user);
+      
       return user;
     } catch (error) {
       console.error('Login error:', error);
@@ -220,6 +236,9 @@ class AuthService {
     
     // Remove auth header (for backward compatibility)
     ApiService.removeHeader('Authorization');
+    
+    // Clear the current user in ApiService
+    ApiService.setCurrentUser(null);
   }
   
   // Change password

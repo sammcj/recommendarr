@@ -883,7 +883,7 @@ export default {
   .rating-info {
     margin-top: 6px;
     margin-bottom: 6px;
-    padding: 8px 6px;
+    padding: 10px;
     background-color: rgba(0, 0, 0, 0.03);
     border-radius: 8px;
     transition: all 0.2s ease;
@@ -891,18 +891,15 @@ export default {
 
   .ratings-container {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    justify-content: space-around;
     align-items: center;
-    gap: 10px;
-    row-gap: 8px;
+    gap: 16px;
   }
 
   .rating-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin: 0 2px;
+    gap: 8px;
   }
 
   .rating-service-icon {
@@ -910,11 +907,9 @@ export default {
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 11px;
-    padding: 3px 5px;
+    font-size: 12px;
+    padding: 4px 6px;
     border-radius: 4px;
-    min-width: 28px;
-    text-align: center;
   }
 
   .recommendarr-icon {
@@ -943,10 +938,9 @@ export default {
   }
 
   .rating-text {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-color);
-    white-space: nowrap;
   }
 
   /* Dark mode specific styles */

@@ -3514,8 +3514,7 @@ export default {
           // Remove any duplicate recommendations
           this.recommendations = this.removeDuplicateRecommendations(this.recommendations);
           
-          // Fetch ratings data from Sonarr/Radarr for each recommendation
-          this.fetchRatingsForRecommendations();
+          // Ratings will be fetched after all recommendations are gathered
         }
         
         // If we have fewer recommendations than requested after filtering, get more
@@ -3536,7 +3535,11 @@ export default {
           
           console.log("Recommendations sorted by recommendarr rating (highest first)");
         }
-        
+
+        if (this.recommendations.length > 0) {
+          this.fetchRatingsForRecommendations()
+        }
+      
         // Add new recommendations to history
         this.addToRecommendationHistory(this.recommendations);
         
@@ -3640,11 +3643,6 @@ export default {
         
         // Remove any duplicate recommendations after combining
         this.recommendations = this.removeDuplicateRecommendations(this.recommendations);
-        
-        // Fetch ratings for the additional recommendations if there are any
-        if (filteredAdditional.length > 0) {
-          this.fetchRatingsForRecommendations();
-        }
         
         // Sort recommendations by recommendarr rating from highest to lowest
         if (this.recommendations.length > 0) {

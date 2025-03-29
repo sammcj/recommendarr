@@ -2,8 +2,9 @@
 const fs = require('fs').promises;
 const path = require('path');
 const encryptionService = require('./encryption');
+const databaseService = require('./databaseService');
 
-// Data storage location - use the same data directory as server.js uses
+// Data storage location - used only for migration
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const USER_DATA_DIR = path.join(DATA_DIR, 'user_data');
 
@@ -42,26 +43,21 @@ const createDefaultUserData = () => ({
 
 class UserDataManager {
   constructor() {
-    this.userDataCache = new Map(); // In-memory cache of user data
+    this.initialized = false;
   }
   
-  // Initialize the user data directory
+  // Initialize the user data manager
   async init() {
     try {
       console.log('Initializing user data manager...');
       
-      // Ensure user data directory exists
-      try {
-        console.log(`Ensuring user data directory exists: ${USER_DATA_DIR}`);
-        await fs.mkdir(USER_DATA_DIR, { recursive: true });
-        console.log('User data directory ready');
-      } catch (dirErr) {
-        if (dirErr.code !== 'EEXIST') {
-          console.error('Error creating user data directory:', dirErr);
-          throw dirErr;
-        }
+      // Ensure database is initialized
+      if (!databaseService.initialized) {
+        console.log('Database service not initialized, initializing now...');
+        await databaseService.init();
       }
       
+      this.initialized = true;
       console.log('User data manager initialized successfully');
     } catch (err) {
       console.error('Error initializing user data manager:', err);
@@ -69,64 +65,48 @@ class UserDataManager {
     }
   }
   
-  // Get the file path for a user's data
-  getUserDataPath(userId) {
-    return path.join(USER_DATA_DIR, `${userId}.json`);
-  }
-  
   // Load user data for a specific user
   async getUserData(userId) {
-    // Return from cache if available
-    if (this.userDataCache.has(userId)) {
-      return this.userDataCache.get(userId);
-    }
-    
-    const userDataPath = this.getUserDataPath(userId);
     try {
+      // Ensure the service is initialized
+      if (!this.initialized) {
+        console.log('User data manager not initialized, initializing now...');
+        await this.init();
+      }
+      
       console.log(`Loading user data for userId: ${userId}`);
       
-      // Attempt to read the user data file
-      const data = await fs.readFile(userDataPath, 'utf8');
-      const fileData = JSON.parse(data);
+      // Get user data from database
+      const userData = databaseService.getUserData(userId);
       
-      // Check if data is encrypted
-      if (fileData.encrypted && fileData.iv && fileData.authTag) {
-        console.log('Decrypting user data...');
-        const userData = encryptionService.decrypt(fileData);
-        
-        // Cache the data
-        this.userDataCache.set(userId, userData);
-        return userData;
-      } else {
-        // Legacy unencrypted data - encrypt it now
-        console.log('Found unencrypted user data, migrating to encrypted format...');
-        const userData = fileData;
-        await this.saveUserData(userId, userData);
-        return userData;
-      }
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        // File doesn't exist yet, create default user data
+      // If no user data found, return default data
+      if (!userData) {
         console.log(`No user data found for userId: ${userId}, creating default data`);
         const defaultData = createDefaultUserData();
         
         // Save and return the default data
         await this.saveUserData(userId, defaultData);
         return defaultData;
-      } else {
-        console.error(`Error reading user data for userId: ${userId}:`, err);
-        // Return default data in case of error
-        const defaultData = createDefaultUserData();
-        return defaultData;
       }
+      
+      return userData;
+    } catch (err) {
+      console.error(`Error reading user data for userId: ${userId}:`, err);
+      // Return default data in case of error
+      const defaultData = createDefaultUserData();
+      return defaultData;
     }
   }
   
   // Save user data for a specific user
   async saveUserData(userId, userData) {
-    const userDataPath = this.getUserDataPath(userId);
-    
     try {
+      // Ensure the service is initialized
+      if (!this.initialized) {
+        console.log('User data manager not initialized, initializing now...');
+        await this.init();
+      }
+      
       console.log(`Saving user data for userId: ${userId}`);
       
       // Make sure userData is valid before saving
@@ -150,18 +130,11 @@ class UserDataManager {
       const defaultData = createDefaultUserData();
       userData.settings = { ...defaultData.settings, ...userData.settings };
       
-      // Update cache
-      this.userDataCache.set(userId, userData);
-      
-      // Encrypt the user data
-      console.log('Encrypting user data...');
-      const encryptedData = encryptionService.encrypt(userData);
-      
-      // Write to file
-      await fs.writeFile(userDataPath, JSON.stringify(encryptedData, null, 2), 'utf8');
+      // Save to database
+      const success = databaseService.saveUserData(userId, userData);
       
       console.log(`User data saved successfully for userId: ${userId}`);
-      return true;
+      return success;
     } catch (err) {
       console.error(`Error saving user data for userId: ${userId}:`, err);
       return false;
@@ -170,27 +143,20 @@ class UserDataManager {
   
   // Delete user data
   async deleteUserData(userId) {
-    const userDataPath = this.getUserDataPath(userId);
-    
     try {
-      console.log(`Deleting user data for userId: ${userId}`);
-      
-      // Remove from cache
-      this.userDataCache.delete(userId);
-      
-      // Check if file exists
-      try {
-        await fs.access(userDataPath);
-      } catch (err) {
-        // File doesn't exist, nothing to delete
-        console.log(`No user data file found for userId: ${userId}`);
-        return true;
+      // Ensure the service is initialized
+      if (!this.initialized) {
+        console.log('User data manager not initialized, initializing now...');
+        await this.init();
       }
       
-      // Delete the file
-      await fs.unlink(userDataPath);
+      console.log(`Deleting user data for userId: ${userId}`);
+      
+      // Delete from database
+      const success = databaseService.deleteUserData(userId);
+      
       console.log(`User data deleted successfully for userId: ${userId}`);
-      return true;
+      return success;
     } catch (err) {
       console.error(`Error deleting user data for userId: ${userId}:`, err);
       return false;
@@ -200,6 +166,12 @@ class UserDataManager {
   // Migrate legacy data to per-user data
   async migrateLegacyData(legacyData, userId) {
     try {
+      // Ensure the service is initialized
+      if (!this.initialized) {
+        console.log('User data manager not initialized, initializing now...');
+        await this.init();
+      }
+      
       console.log(`Migrating legacy data to user: ${userId}`);
       
       // Load the user's current data (or create default)
@@ -295,12 +267,35 @@ class UserDataManager {
     }
   }
   
-  // Clear cache for a specific user
-  clearCache(userId) {
-    if (userId) {
-      this.userDataCache.delete(userId);
-    } else {
-      this.userDataCache.clear();
+  // Get user service selection
+  async getUserServiceSelection(userId, serviceName) {
+    try {
+      // Ensure the service is initialized
+      if (!this.initialized) {
+        console.log('User data manager not initialized, initializing now...');
+        await this.init();
+      }
+      
+      return databaseService.getUserServiceSelection(userId, serviceName);
+    } catch (err) {
+      console.error(`Error getting user service selection for userId: ${userId}, service: ${serviceName}:`, err);
+      return null;
+    }
+  }
+  
+  // Set user service selection
+  async setUserServiceSelection(userId, serviceName, selectedUserId) {
+    try {
+      // Ensure the service is initialized
+      if (!this.initialized) {
+        console.log('User data manager not initialized, initializing now...');
+        await this.init();
+      }
+      
+      return databaseService.setUserServiceSelection(userId, serviceName, selectedUserId);
+    } catch (err) {
+      console.error(`Error setting user service selection for userId: ${userId}, service: ${serviceName}:`, err);
+      return false;
     }
   }
 }

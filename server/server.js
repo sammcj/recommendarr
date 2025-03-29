@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const expressSession = require('express-session');
 const encryptionService = require('./utils/encryption');
+const databaseService = require('./utils/databaseService');
 const authService = require('./utils/auth');
 const sessionManager = require('./utils/sessionManager');
 const userDataManager = require('./utils/userDataManager');
@@ -28,48 +29,14 @@ let appConfig = {
 // Simple logging message for startup
 console.log(`API Server starting up in ${process.env.NODE_ENV || 'development'} mode`);
 
-// Create a data directory for storing credentials
+// Data directory path for reference
 const DATA_DIR = path.join(__dirname, 'data');
-const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.json');
-const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
 
-// Initialize storage
-let credentials = {};
-let legacyUserData = {
-  tvRecommendations: [],
-  movieRecommendations: [],
-  likedTV: [],
-  dislikedTV: [],
-  hiddenTV: [],
-  likedMovies: [],
-  dislikedMovies: [],
-  hiddenMovies: [],
-  watchHistory: {
-    movies: [],
-    shows: []
-  },
-  settings: {
-    numRecommendations: 6,
-    columnsCount: 3,
-    historyColumnsCount: 3,
-    historyHideExisting: true,
-    historyHideLiked: false,
-    historyHideDisliked: false,
-    historyHideHidden: true,
-    contentTypePreference: 'tv',
-    isMovieMode: false,
-    tvGenrePreferences: [],
-    tvCustomVibe: '',
-    tvLanguagePreference: 'en',
-    movieGenrePreferences: [],
-    movieCustomVibe: '',
-    movieLanguagePreference: 'en'
-  }
-};
-
-// Create data directory if it doesn't exist and load credentials and user data
+// Initialize storage and services
 async function initStorage() {
   try {
+    console.log('Initializing storage and services...');
+    
     // Initialize encryption service first
     await encryptionService.init();
     
@@ -82,237 +49,31 @@ async function initStorage() {
         console.error('Error creating data directory:', err);
       }
     }
-
-    // Try to load existing credentials
-    try {
-      const data = await fs.readFile(CREDENTIALS_FILE, 'utf8');
-      const fileData = JSON.parse(data);
-      
-      // Check if data is already encrypted
-      if (fileData.encrypted && fileData.iv && fileData.authTag) {
-        // Decrypt the data
-        credentials = encryptionService.decrypt(fileData);
-        console.log('Loaded and decrypted existing credentials');
-        
-        // App-config feature has been removed - use environment vars only
-        console.log('Using environment variables for application configuration');
-      } else {
-        // Legacy unencrypted data - encrypt it now
-        credentials = fileData;
-        await saveCredentials();
-        console.log('Migrated unencrypted credentials to encrypted format');
-      }
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        // File doesn't exist yet, initialize with empty object
-        credentials = {};
-        await saveCredentials();
-        console.log('Created new encrypted credentials file');
-      } else {
-        console.error('Error reading credentials file:', err);
-      }
-    }
-
-    // Try to load existing legacy user data
-    try {
-      const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
-      const fileData = JSON.parse(data);
-      
-      // Check if data is already encrypted
-      if (fileData.encrypted && fileData.iv && fileData.authTag) {
-        // Decrypt the data
-        legacyUserData = encryptionService.decrypt(fileData);
-        console.log('Loaded and decrypted existing legacy user data');
-      } else {
-        // Legacy unencrypted data - encrypt it now
-        legacyUserData = fileData;
-        await saveLegacyUserData();
-        console.log('Migrated unencrypted legacy user data to encrypted format');
-      }
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        // File doesn't exist yet, initialize with default values
-        await saveLegacyUserData();
-        console.log('Created new encrypted legacy user data file');
-      } else {
-        console.error('Error reading legacy user data file:', err);
-      }
-    }
     
-    // Initialize the new user data manager
+    // Initialize database service
+    await databaseService.init();
+    
+    // Migrate data from JSON files to database
+    await databaseService.migrateData();
+    
+    // Initialize other services
+    await authService.init();
     await userDataManager.init();
+    await sessionManager.init();
+    
+    // Schedule periodic session cleanup (every hour)
+    setInterval(() => {
+      sessionManager.cleanupSessions();
+    }, 60 * 60 * 1000);
+    
+    console.log('Storage and services initialized successfully');
   } catch (err) {
-    console.error('Error initializing data storage:', err);
-  }
-}
-
-// Save credentials to file with encryption
-async function saveCredentials() {
-  try {
-    // Encrypt the credentials object
-    const encryptedData = encryptionService.encrypt(credentials);
-    
-    // Write encrypted data to file
-    await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(encryptedData, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error saving credentials:', err);
-  }
-}
-
-// Save legacy user data to file with encryption
-async function saveLegacyUserData() {
-  try {
-    // Make sure userData is valid before saving
-    if (!legacyUserData || typeof legacyUserData !== 'object') {
-      throw new Error('Invalid userData object');
-    }
-    
-    // Ensure required properties exist
-    if (!Array.isArray(legacyUserData.tvRecommendations)) legacyUserData.tvRecommendations = [];
-    if (!Array.isArray(legacyUserData.movieRecommendations)) legacyUserData.movieRecommendations = [];
-    if (!Array.isArray(legacyUserData.likedTV)) legacyUserData.likedTV = [];
-    if (!Array.isArray(legacyUserData.dislikedTV)) legacyUserData.dislikedTV = [];
-    if (!Array.isArray(legacyUserData.hiddenTV)) legacyUserData.hiddenTV = [];
-    if (!Array.isArray(legacyUserData.likedMovies)) legacyUserData.likedMovies = [];
-    if (!Array.isArray(legacyUserData.dislikedMovies)) legacyUserData.dislikedMovies = [];
-    if (!Array.isArray(legacyUserData.hiddenMovies)) legacyUserData.hiddenMovies = [];
-    if (!legacyUserData.watchHistory) legacyUserData.watchHistory = { movies: [], shows: [] };
-    if (!legacyUserData.settings) legacyUserData.settings = {};
-    
-    // Ensure historyHideHidden setting exists
-    if (legacyUserData.settings.historyHideHidden === undefined) legacyUserData.settings.historyHideHidden = true;
-    
-    console.log(`Saving legacy userData (${legacyUserData.tvRecommendations.length} TV recommendations, ${legacyUserData.movieRecommendations.length} movie recommendations)`);
-    
-    // Encrypt the user data object
-    const encryptedData = encryptionService.encrypt(legacyUserData);
-    
-    // Convert to string with pretty formatting
-    const dataToWrite = JSON.stringify(encryptedData, null, 2);
-    
-    if (!dataToWrite || dataToWrite.length < 10) {
-      throw new Error('Generated data is too small, possible encryption error');
-    }
-    
-    console.log(`Writing ${dataToWrite.length} bytes to ${LEGACY_USER_DATA_FILE}`);
-    
-    // Simple direct file write approach
-    try {
-      // Write directly to the file - no deleting, no temp files
-      await fs.writeFile(LEGACY_USER_DATA_FILE, dataToWrite, 'utf8');
-      console.log(`Successfully wrote to ${LEGACY_USER_DATA_FILE}`);
-    } catch (writeErr) {
-      console.error(`Error writing to ${LEGACY_USER_DATA_FILE}: ${writeErr.message}`);
-      throw writeErr;
-    }
-    
-    // Wait a moment to ensure the write completes
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Simple verification - just check if the file exists and has content
-    try {
-      const fileStats = await fs.stat(LEGACY_USER_DATA_FILE);
-      console.log(`✓ ${LEGACY_USER_DATA_FILE} exists, size=${fileStats.size} bytes, modified=${fileStats.mtime}`);
-      return true;
-    } catch (verifyErr) {
-      console.error(`❌ Error verifying saved file: ${verifyErr.message}`);
-      return false; // Return false instead of throwing to allow operation to continue
-    }
-  } catch (err) {
-    console.error('❌ ERROR saving legacy user data:', err);
-    return false; // Return false instead of throwing to allow operation to continue
-  }
-}
-
-// Add migration function to move recommendation data from credentials to userData
-async function migrateRecommendationsFromCredentials() {
-  const recommendationKeys = [
-    'movie-recommendations',
-    'tv-recommendations', 
-    'liked-movies',
-    'disliked-movies', 
-    'liked-tv',
-    'disliked-tv'
-  ];
-  
-  let migrationNeeded = false;
-  
-  // Check if any recommendation data exists in credentials
-  for (const key of recommendationKeys) {
-    if (credentials[key] && credentials[key].titles && credentials[key].titles.length > 0) {
-      migrationNeeded = true;
-      break;
-    }
-  }
-  
-  if (migrationNeeded) {
-    console.log('Found recommendation data in credentials, migrating to legacy user_data...');
-    
-    // Migrate movie recommendations
-    if (credentials['movie-recommendations'] && credentials['movie-recommendations'].titles) {
-      legacyUserData.movieRecommendations = [
-        ...new Set([...legacyUserData.movieRecommendations, ...credentials['movie-recommendations'].titles])
-      ];
-      console.log(`Migrated ${credentials['movie-recommendations'].titles.length} movie recommendations`);
-    }
-    
-    // Migrate TV recommendations
-    if (credentials['tv-recommendations'] && credentials['tv-recommendations'].titles) {
-      legacyUserData.tvRecommendations = [
-        ...new Set([...legacyUserData.tvRecommendations, ...credentials['tv-recommendations'].titles])
-      ];
-      console.log(`Migrated ${credentials['tv-recommendations'].titles.length} TV recommendations`);
-    }
-    
-    // Migrate liked/disliked movies
-    if (credentials['liked-movies'] && credentials['liked-movies'].titles) {
-      legacyUserData.likedMovies = [
-        ...new Set([...legacyUserData.likedMovies, ...credentials['liked-movies'].titles])
-      ];
-      console.log(`Migrated ${credentials['liked-movies'].titles.length} liked movies`);
-    }
-    
-    if (credentials['disliked-movies'] && credentials['disliked-movies'].titles) {
-      legacyUserData.dislikedMovies = [
-        ...new Set([...legacyUserData.dislikedMovies, ...credentials['disliked-movies'].titles])
-      ];
-      console.log(`Migrated ${credentials['disliked-movies'].titles.length} disliked movies`);
-    }
-    
-    // Migrate liked/disliked TV shows
-    if (credentials['liked-tv'] && credentials['liked-tv'].titles) {
-      legacyUserData.likedTV = [
-        ...new Set([...legacyUserData.likedTV, ...credentials['liked-tv'].titles])
-      ];
-      console.log(`Migrated ${credentials['liked-tv'].titles.length} liked TV shows`);
-    }
-    
-    if (credentials['disliked-tv'] && credentials['disliked-tv'].titles) {
-      legacyUserData.dislikedTV = [
-        ...new Set([...legacyUserData.dislikedTV, ...credentials['disliked-tv'].titles])
-      ];
-      console.log(`Migrated ${credentials['disliked-tv'].titles.length} disliked TV shows`);
-    }
-    
-    // Save the updated user data
-    await saveLegacyUserData();
-    console.log('Migration complete. Recommendations merged into legacy user_data.');
+    console.error('Error initializing storage and services:', err);
   }
 }
 
 // Initialize storage on startup
-initStorage().then(async () => {
-  // After initializing storage, migrate any recommendation data
-  await migrateRecommendationsFromCredentials();
-  
-  // Initialize auth service
-  await authService.init();
-  
-  // Schedule periodic session cleanup (every hour)
-  setInterval(() => {
-    sessionManager.cleanupSessions();
-  }, 60 * 60 * 1000);
-});
+initStorage();
 
 // Enable CORS with credentials
 app.use(cors({
@@ -499,16 +260,34 @@ app.get('/api/auth/google/callback',
       path: '/'                // Available across the site
     });
     
-    // If we have legacy user data, migrate it to the user's account
-    if (legacyUserData && Object.keys(legacyUserData).length > 0) {
-      userDataManager.migrateLegacyData(legacyUserData, req.user.userId)
-        .then(() => {
+    // Check for legacy user data file and migrate if it exists
+    const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+    fs.access(LEGACY_USER_DATA_FILE)
+      .then(async () => {
+        try {
+          // Read and decrypt legacy user data
+          const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+          const fileData = JSON.parse(data);
+          
+          let legacyUserData = {};
+          if (fileData.encrypted && fileData.iv && fileData.authTag) {
+            // Decrypt the data
+            legacyUserData = encryptionService.decrypt(fileData);
+          } else {
+            // Legacy unencrypted data
+            legacyUserData = fileData;
+          }
+          
+          // Migrate to user account
+          await userDataManager.migrateLegacyData(legacyUserData, req.user.userId);
           console.log(`Migrated legacy data to user: ${req.user.username}`);
-        })
-        .catch(err => {
+        } catch (err) {
           console.error(`Error migrating legacy data: ${err.message}`);
-        });
-    }
+        }
+      })
+      .catch(() => {
+        // Legacy file doesn't exist, nothing to migrate
+      });
     
     // Redirect to home page after successful authentication
     res.redirect('/');
@@ -541,16 +320,34 @@ app.get('/api/auth/github/callback',
       path: '/'                // Available across the site
     });
     
-    // If we have legacy user data, migrate it to the user's account
-    if (legacyUserData && Object.keys(legacyUserData).length > 0) {
-      userDataManager.migrateLegacyData(legacyUserData, req.user.userId)
-        .then(() => {
+    // Check for legacy user data file and migrate if it exists
+    const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+    fs.access(LEGACY_USER_DATA_FILE)
+      .then(async () => {
+        try {
+          // Read and decrypt legacy user data
+          const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+          const fileData = JSON.parse(data);
+          
+          let legacyUserData = {};
+          if (fileData.encrypted && fileData.iv && fileData.authTag) {
+            // Decrypt the data
+            legacyUserData = encryptionService.decrypt(fileData);
+          } else {
+            // Legacy unencrypted data
+            legacyUserData = fileData;
+          }
+          
+          // Migrate to user account
+          await userDataManager.migrateLegacyData(legacyUserData, req.user.userId);
           console.log(`Migrated legacy data to user: ${req.user.username}`);
-        })
-        .catch(err => {
+        } catch (err) {
           console.error(`Error migrating legacy data: ${err.message}`);
-        });
-    }
+        }
+      })
+      .catch(() => {
+        // Legacy file doesn't exist, nothing to migrate
+      });
     
     // Redirect to home page after successful authentication
     res.redirect('/');
@@ -610,12 +407,29 @@ app.post('/api/auth/login', async (req, res) => {
         path: '/'                // Available across the site
       });
       
-      // If we have legacy user data, migrate it to the user's account
-      if (legacyUserData && Object.keys(legacyUserData).length > 0) {
-        try {
-          await userDataManager.migrateLegacyData(legacyUserData, authResult.user.userId);
-          console.log(`Migrated legacy data to user: ${username}`);
-        } catch (err) {
+      // Check for legacy user data file and migrate if it exists
+      const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+      try {
+        await fs.access(LEGACY_USER_DATA_FILE);
+        
+        // Read and decrypt legacy user data
+        const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+        const fileData = JSON.parse(data);
+        
+        let legacyUserData = {};
+        if (fileData.encrypted && fileData.iv && fileData.authTag) {
+          // Decrypt the data
+          legacyUserData = encryptionService.decrypt(fileData);
+        } else {
+          // Legacy unencrypted data
+          legacyUserData = fileData;
+        }
+        
+        // Migrate to user account
+        await userDataManager.migrateLegacyData(legacyUserData, authResult.user.userId);
+        console.log(`Migrated legacy data to user: ${username}`);
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
           console.error(`Error migrating legacy data: ${err.message}`);
         }
       }
@@ -894,6 +708,9 @@ app.delete('/api/auth/users/:userId', async (req, res) => {
 // API endpoints for credentials management
 // Get all credentials (service IDs only, no secrets)
 app.get('/api/credentials', (req, res) => {
+  // Get credentials from database
+  const credentials = databaseService.getAllCredentials();
+  
   // Return just the service names and their existence, not the actual keys
   const services = {};
   for (const [service, creds] of Object.entries(credentials)) {
@@ -946,19 +763,17 @@ app.post('/api/credentials/:service', async (req, res) => {
     return res.status(400).json({ error: 'No credentials provided' });
   }
   
-  // Initialize the service if it doesn't exist
-  if (!credentials[service]) {
-    credentials[service] = {};
-  }
+  // Get existing credentials
+  const existingCredentials = databaseService.getCredentials(service) || {};
   
   // Update the credentials
-  credentials[service] = {
-    ...credentials[service],
+  const updatedCredentials = {
+    ...existingCredentials,
     ...serviceCredentials
   };
   
-  // Save to file
-  await saveCredentials();
+  // Save to database
+  databaseService.saveCredentials(service, updatedCredentials);
   
   // Return success, but don't echo back the credentials
   res.json({ success: true, service });
@@ -979,11 +794,13 @@ app.get('/api/credentials/:service', (req, res) => {
     return res.json({});
   }
   
-  if (!credentials[service]) {
+  const serviceCredentials = databaseService.getCredentials(service);
+  
+  if (!serviceCredentials) {
     return res.status(404).json({ error: `No credentials found for ${service}` });
   }
   
-  res.json(credentials[service]);
+  res.json(serviceCredentials);
 });
 
 // Delete credentials for a service
@@ -995,12 +812,11 @@ app.delete('/api/credentials/:service', async (req, res) => {
   
   const { service } = req.params;
   
-  if (!credentials[service]) {
+  const success = databaseService.deleteCredentials(service);
+  
+  if (!success) {
     return res.status(404).json({ error: `No credentials found for ${service}` });
   }
-  
-  delete credentials[service];
-  await saveCredentials();
   
   res.json({ success: true, message: `Credentials for ${service} deleted` });
 });
@@ -1413,50 +1229,23 @@ app.post('/api/admin/reset-all', async (req, res) => {
   console.log('🔄 ADMIN RESET ALL ENDPOINT CALLED - Clearing ALL DATA');
   
   try {
-    // Reset credentials
-    credentials = {};
-    await saveCredentials();
-    
-    // Reset legacy user data
-    legacyUserData = {
-      tvRecommendations: [],
-      movieRecommendations: [],
-      likedTV: [],
-      dislikedTV: [],
-      hiddenTV: [],
-      likedMovies: [],
-      dislikedMovies: [],
-      hiddenMovies: [],
-      watchHistory: {
-        movies: [],
-        shows: []
-      },
-      settings: {
-        numRecommendations: 6,
-        columnsCount: 3,
-        historyColumnsCount: 3,
-        historyHideExisting: true,
-        historyHideLiked: false,
-        historyHideDisliked: false,
-        historyHideHidden: true,
-        contentTypePreference: 'tv',
-        isMovieMode: false,
-        tvGenrePreferences: [],
-        tvCustomVibe: '',
-        tvLanguagePreference: 'en',
-        movieGenrePreferences: [],
-        movieCustomVibe: '',
-        movieLanguagePreference: 'en'
-      }
-    };
-    await saveLegacyUserData();
-    
     // Get all users
     const users = await authService.getAllUsers();
     
-    // Reset user data for all users
+    // Delete all credentials
+    const credentials = databaseService.getAllCredentials();
+    for (const service of Object.keys(credentials)) {
+      databaseService.deleteCredentials(service);
+    }
+    
+    // Delete all user data
     for (const user of users) {
       await userDataManager.deleteUserData(user.userId);
+    }
+    
+    // Delete all sessions
+    for (const user of users) {
+      sessionManager.deleteUserSessions(user.userId);
     }
     
     console.log('✅ COMPLETE ADMIN RESET SUCCESSFUL');

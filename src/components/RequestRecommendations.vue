@@ -1365,28 +1365,55 @@ export default {
         this.isMovieMode = isMovie;
         await this.saveContentTypePreference();
         
-        // Reload the previous recommendations from the server after switching content type
+        // Reload the previous recommendations and liked/disliked lists from the server after switching content type
         try {
-          console.log("Content type changed, reloading recommendations from server...");
-          if (isMovie) {
-            // Switching to movie mode - reload movie recommendations
-            const movieRecsResponse = await apiService.getRecommendations('movie', this.username) || [];
-            if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
-              console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server after content type change`);
-              this.previousMovieRecommendations = movieRecsResponse;
+          console.log("Content type changed, reloading data from server...");
+          
+          // Load recommendations based on new mode
+          const contentType = isMovie ? 'movie' : 'tv';
+          const recsResponse = await apiService.getRecommendations(contentType, this.username) || [];
+          
+          if (Array.isArray(recsResponse) && recsResponse.length > 0) {
+            console.log(`Loaded ${recsResponse.length} ${contentType} recommendations from server after content type change`);
+            
+            if (isMovie) {
+              this.previousMovieRecommendations = recsResponse;
               this.previousRecommendations = [...this.previousMovieRecommendations];
-            }
-          } else {
-            // Switching to TV mode - reload TV recommendations
-            const tvRecsResponse = await apiService.getRecommendations('tv', this.username) || [];
-            if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
-              console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server after content type change`);
-              this.previousShowRecommendations = tvRecsResponse;
+            } else {
+              this.previousShowRecommendations = recsResponse;
               this.previousRecommendations = [...this.previousShowRecommendations];
             }
           }
+          
+          // Load liked/disliked preferences for the new content type
+          const likedContent = await apiService.getPreferences(contentType, 'liked');
+          if (Array.isArray(likedContent)) {
+            this.likedRecommendations = likedContent;
+            console.log(`Loaded ${likedContent.length} liked ${contentType} preferences after content type change`);
+          } else {
+            // Reset if no data found
+            this.likedRecommendations = [];
+          }
+          
+          const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
+          if (Array.isArray(dislikedContent)) {
+            this.dislikedRecommendations = dislikedContent;
+            console.log(`Loaded ${dislikedContent.length} disliked ${contentType} preferences after content type change`);
+          } else {
+            // Reset if no data found
+            this.dislikedRecommendations = [];
+          }
         } catch (error) {
-          console.error("Error reloading recommendations after content type change:", error);
+          console.error("Error reloading data after content type change:", error);
+          
+          // Fallback to localStorage if server request fails
+          if (isMovie) {
+            this.likedRecommendations = storageUtils.getJSON('likedMovieRecommendations', []);
+            this.dislikedRecommendations = storageUtils.getJSON('dislikedMovieRecommendations', []);
+          } else {
+            this.likedRecommendations = storageUtils.getJSON('likedTVRecommendations', []);
+            this.dislikedRecommendations = storageUtils.getJSON('dislikedTVRecommendations', []);
+          }
         }
       }
     },
@@ -3562,6 +3589,9 @@ export default {
         const previousRecsList = this.isMovieMode ? this.previousMovieRecommendations : this.previousShowRecommendations;
         const updatedPrevious = [...new Set([...previousRecsList, ...currentTitles])];
         
+        // Log the liked/disliked lists for debugging
+        console.log(`Using ${this.likedRecommendations.length} liked and ${this.dislikedRecommendations.length} disliked items for additional recommendations`);
+        
         // Request more recommendations than we need to account for filtering
         const requestCount = Math.min(additionalCount * 2, 25); // Request 100% more, up to 25 max
         
@@ -4700,16 +4730,19 @@ export default {
       console.log("After loading from server - Movie history count:", this.previousMovieRecommendations.length);
       console.log("Currently displayed history count:", this.previousRecommendations.length);
       
-      // Load liked/disliked preferences from server
+      // Load liked/disliked preferences from server based on current mode
       try {
-        const likedTV = await apiService.getPreferences('tv', 'liked');
-        if (Array.isArray(likedTV)) {
-          this.likedRecommendations = likedTV;
+        const contentType = this.isMovieMode ? 'movie' : 'tv';
+        const likedContent = await apiService.getPreferences(contentType, 'liked');
+        if (Array.isArray(likedContent)) {
+          this.likedRecommendations = likedContent;
+          console.log(`Loaded ${likedContent.length} liked ${contentType} preferences from server`);
         }
         
-        const dislikedTV = await apiService.getPreferences('tv', 'disliked');
-        if (Array.isArray(dislikedTV)) {
-          this.dislikedRecommendations = dislikedTV;
+        const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
+        if (Array.isArray(dislikedContent)) {
+          this.dislikedRecommendations = dislikedContent;
+          console.log(`Loaded ${dislikedContent.length} disliked ${contentType} preferences from server`);
         }
       } catch (prefError) {
         console.error("Error loading preferences from server:", prefError);

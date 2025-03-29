@@ -972,44 +972,44 @@ export default {
     };
   },
   methods: {
+    /**
+     * Remove duplicate recommendations based on title
+     * @param {Array} recommendations - The recommendations array to deduplicate
+     * @returns {Array} - Deduplicated recommendations array
+     */
+    removeDuplicateRecommendations(recommendations) {
+      if (!recommendations || recommendations.length === 0) {
+        return recommendations;
+      }
+      
+      console.log(`Checking for duplicates in ${recommendations.length} recommendations`);
+      
+      // Use a Map to track unique titles (case-insensitive)
+      const uniqueTitles = new Map();
+      
+      // Filter the recommendations array to keep only the first occurrence of each title
+      const deduplicated = recommendations.filter(rec => {
+        if (!rec || !rec.title) return false;
+        
+        const normalizedTitle = rec.title.toLowerCase();
+        
+        if (uniqueTitles.has(normalizedTitle)) {
+          console.log(`Found duplicate recommendation: "${rec.title}"`);
+          return false;
+        }
+        
+        uniqueTitles.set(normalizedTitle, true);
+        return true;
+      });
+      
+      console.log(`Removed ${recommendations.length - deduplicated.length} duplicate recommendations`);
+      return deduplicated;
+    },
+    
     // Handle window resize for responsive features like compact mode
     handleWindowResize() {
       // This triggers a reactivity update for the shouldUseCompactMode computed property
       this.$forceUpdate();
-    },
-    
-    // Toggle card expansion in compact mode
-    // toggleCardExpansion has been moved to RecommendationResults.vue
-    
-    // Watch history modal methods
-    async openWatchHistoryModal() {
-      this.showWatchHistoryModal = true;
-      this.currentHistoryPage = 1;
-      this.historySourceFilter = 'all';
-      this.historyTypeFilter = 'all';
-      this.historySearchFilter = '';
-      
-      // Log data directly when modal is opened
-      console.log('MODAL OPENED - DIRECT DATA CHECK:');
-      console.log('Movies data when modal opened:', this.movies);
-      console.log('Shows data when modal opened:', this.recentlyWatchedShows);
-      
-      // Create temporary watch history data for testing
-      // This will be a "global" property that the computed property can access
-      this._watchHistoryData = [];
-      
-      // Add movies from the movies prop
-      if (this.movies && this.movies.length > 0) {
-        this._watchHistoryData = this.movies.map(movie => ({
-          ...movie,
-          title: movie.title,
-          type: 'movie',
-          source: 'plex',
-          // Convert Unix timestamp to readable date if needed
-          watchedDate: movie.viewedAt ? new Date(movie.viewedAt * 1000).toISOString() : new Date().toISOString()
-        }));
-        console.log('Created watch history data with movies:', this._watchHistoryData.length);
-      }
       
       // Try accessing data from App component directly
       if (this.$root) {
@@ -3511,6 +3511,9 @@ export default {
         if (this.recommendations.length > 0) {
           this.recommendations = await this.filterExistingShows(this.recommendations);
           
+          // Remove any duplicate recommendations
+          this.recommendations = this.removeDuplicateRecommendations(this.recommendations);
+          
           // Fetch ratings data from Sonarr/Radarr for each recommendation
           this.fetchRatingsForRecommendations();
         }
@@ -3634,6 +3637,9 @@ export default {
         
         // Combine with existing recommendations
         this.recommendations = [...this.recommendations, ...filteredAdditional];
+        
+        // Remove any duplicate recommendations after combining
+        this.recommendations = this.removeDuplicateRecommendations(this.recommendations);
         
         // Fetch ratings for the additional recommendations if there are any
         if (filteredAdditional.length > 0) {

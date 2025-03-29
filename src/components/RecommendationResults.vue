@@ -879,67 +879,68 @@ export default {
   transition: transform 0.2s ease;
 }
 
-  /* Compact Rating info section */
+  /* Minimal Rating section */
   .rating-info {
     margin-top: 6px;
     margin-bottom: 6px;
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.03);
+    padding: 8px;
+    background-color: transparent;
     border-radius: 8px;
     transition: all 0.2s ease;
+    border: 1px solid rgba(0, 0, 0, 0.04);
   }
 
   .ratings-container {
     display: flex;
-    justify-content: space-around;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
+    row-gap: 8px;
   }
 
   .rating-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 4px;
+    padding: 2px 6px;
   }
 
   .rating-service-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    font-size: 12px;
-    padding: 4px 6px;
-    border-radius: 4px;
+    font-weight: 600;
+    font-size: 10px;
+    min-width: 20px;
+    text-align: center;
   }
 
   .recommendarr-icon {
-    background-color: var(--primary-color);
-    color: #FFFFFF;
+    color: var(--primary-color);
   }
 
   .imdb-icon {
-    background-color: #F5C518;
-    color: #000000;
+    color: #F5C518;
   }
 
   .rt-icon {
-    background-color: #FA320A; /* Standard Rotten Tomatoes red */
-    color: #FFFFFF;
+    color: #FA320A; /* Standard Rotten Tomatoes red */
   }
 
   .metacritic-icon {
-    background-color: #FFCC33; /* Standard Metacritic yellow */
-    color: #000000;
+    color: #FFCC33; /* Standard Metacritic yellow */
   }
 
   .tmdb-icon {
-    background-color: #01D277; /* Standard TMDB green */
-    color: #FFFFFF;
+    color: #01D277; /* Standard TMDB green */
   }
 
   .rating-text {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
     color: var(--text-color);
   }
 

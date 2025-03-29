@@ -2,97 +2,38 @@ const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const encryptionService = require('./encryption');
+const databaseService = require('./databaseService');
 
-// User data storage location - use the same data directory as server.js uses
+// User data storage location - used only for migration
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 class AuthService {
   constructor() {
-    this.users = {};
     this.initialized = false;
   }
 
-  // Initialize the auth service - load or create users file
+  // Initialize the auth service
   async init() {
     try {
       console.log('Initializing auth service...');
       
-      // Ensure data directory exists
-      const dataDir = path.dirname(USERS_FILE);
-      try {
-        console.log(`Ensuring data directory exists: ${dataDir}`);
-        await fs.mkdir(dataDir, { recursive: true });
-      } catch (dirErr) {
-        if (dirErr.code !== 'EEXIST') {
-          console.error('Error creating data directory:', dirErr);
-        }
+      // Ensure database is initialized
+      if (!databaseService.initialized) {
+        console.log('Database service not initialized, initializing now...');
+        await databaseService.init();
       }
       
-      // Try to load existing users
-      try {
-        console.log(`Attempting to read users file: ${USERS_FILE}`);
-        const data = await fs.readFile(USERS_FILE, 'utf8');
-        
-        console.log('Parsing user file data...');
-        const fileData = JSON.parse(data);
-        
-        // Check if data is already encrypted
-        if (fileData.encrypted && fileData.iv && fileData.authTag) {
-          console.log('Decrypting user data...');
-          // Decrypt the data
-          this.users = encryptionService.decrypt(fileData);
-          console.log('Loaded and decrypted existing users');
-        } else {
-          // Legacy unencrypted data - encrypt it now
-          console.log('Found unencrypted user data, migrating to encrypted format...');
-          this.users = fileData;
-          await this.saveUsers();
-          console.log('Migrated unencrypted users to encrypted format');
-        }
-      } catch (err) {
-        if (err.code === 'ENOENT') {
-          console.log('Users file does not exist, creating new file with default admin user');
-          // File doesn't exist yet, initialize with empty object
-          this.users = {};
-          
-          // Create default admin user with password "1234"
-          console.log('Creating default admin user...');
-          try {
-            const salt = crypto.randomBytes(16).toString('hex');
-            const hash = crypto.pbkdf2Sync('1234', salt, 1000, 64, 'sha512').toString('hex');
-            
-            this.users['admin'] = {
-              userId: 'admin',
-              username: 'admin',
-              salt,
-              hash,
-              isAdmin: true,
-              createdAt: new Date().toISOString(),
-              authProvider: 'local'
-            };
-            
-            await this.saveUsers();
-            console.log('Created default admin user with password "1234" and saved to file');
-          } catch (createErr) {
-            console.error('Error creating default admin user:', createErr);
-            this.users = {}; // Ensure we at least have an empty users object
-          }
-        } else {
-          console.error('Error reading users file:', err);
-          // Initialize with empty object instead of throwing error
-          this.users = {};
-        }
-      }
+      // Check if we need to create a default admin user
+      const users = databaseService.getAllUsers();
       
-      // If we have an empty users object, create a default admin user
-      if (Object.keys(this.users).length === 0) {
-        console.log('No users found, creating default admin user...');
+      if (users.length === 0) {
+        console.log('No users found in database, creating default admin user...');
         try {
           const salt = crypto.randomBytes(16).toString('hex');
           const hash = crypto.pbkdf2Sync('1234', salt, 1000, 64, 'sha512').toString('hex');
           
-          this.users['admin'] = {
+          const adminUser = {
             userId: 'admin',
             username: 'admin',
             salt,
@@ -102,26 +43,10 @@ class AuthService {
             authProvider: 'local'
           };
           
-          await this.saveUsers();
-          console.log('Created default admin user with password "1234" and saved to file');
+          databaseService.saveUser(adminUser);
+          console.log('Created default admin user with password "1234"');
         } catch (createErr) {
           console.error('Error creating default admin user:', createErr);
-        }
-      } else {
-        // Migrate existing users to the new format with authProvider field
-        let needsMigration = false;
-        for (const [userId, user] of Object.entries(this.users)) {
-          if (!user.authProvider) {
-            this.users[userId].authProvider = 'local';
-            if (!user.userId) this.users[userId].userId = userId;
-            needsMigration = true;
-          }
-        }
-        
-        // Save migrated users if needed
-        if (needsMigration) {
-          console.log('Migrating existing users to include authProvider field');
-          await this.saveUsers();
         }
       }
       
@@ -129,42 +54,7 @@ class AuthService {
       this.initialized = true;
     } catch (err) {
       console.error('Error initializing auth service:', err);
-      // Initialize with empty object instead of throwing error
-      this.users = {};
-      this.initialized = true;
-    }
-  }
-  
-  // Save users to file with encryption
-  async saveUsers() {
-    try {
-      console.log('Saving users to file...');
-      
-      // Ensure data directory exists
-      const dataDir = path.dirname(USERS_FILE);
-      try {
-        console.log(`Ensuring data directory exists: ${dataDir}`);
-        await fs.mkdir(dataDir, { recursive: true });
-      } catch (dirErr) {
-        if (dirErr.code !== 'EEXIST') {
-          console.error('Error creating data directory:', dirErr);
-          throw dirErr;
-        }
-      }
-      
-      // Encrypt the users object
-      console.log('Encrypting user data...');
-      const encryptedData = encryptionService.encrypt(this.users);
-      
-      // Write encrypted data to file
-      console.log(`Writing encrypted data to file: ${USERS_FILE}`);
-      await fs.writeFile(USERS_FILE, JSON.stringify(encryptedData, null, 2), 'utf8');
-      
-      console.log('Users saved successfully');
-      return true;
-    } catch (err) {
-      console.error('Error saving users:', err);
-      return false;
+      this.initialized = true; // Set to true anyway to prevent repeated init attempts
     }
   }
   
@@ -218,7 +108,7 @@ class AuthService {
       
       // Create user object
       console.log('Creating user object...');
-      this.users[userId] = {
+      const user = {
         userId,
         username,
         salt,
@@ -228,9 +118,9 @@ class AuthService {
         authProvider: 'local'
       };
       
-      // Save users to file
-      console.log('Saving users to file...');
-      await this.saveUsers();
+      // Save user to database
+      console.log('Saving user to database...');
+      databaseService.saveUser(user);
       
       console.log(`User ${username} created successfully`);
       return { 
@@ -252,12 +142,7 @@ class AuthService {
   
   // Find a user by username
   getUserByUsername(username) {
-    for (const user of Object.values(this.users)) {
-      if (user.username === username) {
-        return user;
-      }
-    }
-    return null;
+    return databaseService.getUserByUsername(username);
   }
   
   // Find or create user from OAuth profile
@@ -272,21 +157,14 @@ class AuthService {
     
     // Look for an existing user with this OAuth ID
     const oauthKey = `${provider}:${profile.id}`;
-    let user = null;
-    
-    // First check by provider ID
-    for (const existingUser of Object.values(this.users)) {
-      if (existingUser.oauthId === oauthKey) {
-        console.log(`Found existing OAuth user: ${existingUser.username}`);
-        user = existingUser;
-        break;
-      }
-    }
+    let user = databaseService.getUserByOAuthId(oauthKey);
     
     // If not found, check by email if available
     if (!user && profile.emails && profile.emails.length > 0) {
       const email = profile.emails[0].value;
-      for (const existingUser of Object.values(this.users)) {
+      const users = databaseService.getAllUsers();
+      
+      for (const existingUser of users) {
         if (existingUser.email === email) {
           console.log(`Found existing user by email: ${existingUser.username}`);
           
@@ -296,7 +174,7 @@ class AuthService {
           user = existingUser;
           
           // Save the updated user
-          await this.saveUsers();
+          databaseService.saveUser(user);
           break;
         }
       }
@@ -349,9 +227,8 @@ class AuthService {
         }
       };
       
-      // Save to our users object
-      this.users[userId] = newUser;
-      await this.saveUsers();
+      // Save to database
+      databaseService.saveUser(newUser);
       
       console.log(`Created new OAuth user: ${username}`);
       user = newUser;
@@ -416,21 +293,7 @@ class AuthService {
       await this.init();
     }
     
-    const user = this.users[userId];
-    if (!user) {
-      return null;
-    }
-    
-    // Return user info (excluding sensitive data)
-    return {
-      userId: user.userId,
-      username: user.username,
-      isAdmin: user.isAdmin,
-      createdAt: user.createdAt,
-      authProvider: user.authProvider,
-      email: user.email,
-      profile: user.profile
-    };
+    return databaseService.getUserById(userId);
   }
   
   // Update user password
@@ -441,18 +304,21 @@ class AuthService {
     }
     
     // Check if user exists
-    const user = this.users[userId];
+    const user = databaseService.getUserById(userId);
     if (!user) {
       return { success: false, message: 'User not found' };
     }
     
+    // Get full user data for authentication
+    const fullUser = databaseService.getUserByUsername(user.username);
+    
     // Check if this is an OAuth user
-    if (user.authProvider !== 'local') {
+    if (fullUser.authProvider !== 'local') {
       return { success: false, message: 'Cannot change password for social login accounts' };
     }
     
     // Verify current password
-    if (!this.verifyPassword(currentPassword, user.salt, user.hash)) {
+    if (!this.verifyPassword(currentPassword, fullUser.salt, fullUser.hash)) {
       return { success: false, message: 'Current password is incorrect' };
     }
     
@@ -460,11 +326,11 @@ class AuthService {
     const { salt, hash } = this.hashPassword(newPassword);
     
     // Update user's password
-    user.salt = salt;
-    user.hash = hash;
+    fullUser.salt = salt;
+    fullUser.hash = hash;
     
-    // Save users to file
-    await this.saveUsers();
+    // Save user to database
+    databaseService.saveUser(fullUser);
     
     return { success: true, message: 'Password updated successfully' };
   }
@@ -477,45 +343,48 @@ class AuthService {
     }
     
     // Check if user exists
-    const user = this.users[userId];
+    const user = databaseService.getUserById(userId);
     if (!user) {
       return { success: false, message: 'User not found' };
     }
     
+    // Get full user data
+    const fullUser = databaseService.getUserByUsername(user.username);
+    
     // Update the fields
-    if (updates.email) user.email = updates.email;
+    if (updates.email) fullUser.email = updates.email;
     
     // Only admins can change admin status
     if (updates.hasOwnProperty('isAdmin') && updates.isAdmin !== undefined) {
       // This will be checked in the route handler
-      user.isAdmin = !!updates.isAdmin;
+      fullUser.isAdmin = !!updates.isAdmin;
     }
     
     // Initialize profile if it doesn't exist
-    if (!user.profile) user.profile = {};
+    if (!fullUser.profile) fullUser.profile = {};
     
     // Update profile fields
     if (updates.profile) {
-      user.profile = {
-        ...user.profile,
+      fullUser.profile = {
+        ...fullUser.profile,
         ...updates.profile
       };
     }
     
-    // Save users to file
-    await this.saveUsers();
+    // Save user to database
+    databaseService.saveUser(fullUser);
     
     return { 
       success: true, 
       message: 'Profile updated successfully',
       user: {
-        userId: user.userId,
-        username: user.username,
-        isAdmin: user.isAdmin,
-        email: user.email,
-        profile: user.profile,
-        authProvider: user.authProvider,
-        createdAt: user.createdAt
+        userId: fullUser.userId,
+        username: fullUser.username,
+        isAdmin: fullUser.isAdmin,
+        email: fullUser.email,
+        profile: fullUser.profile,
+        authProvider: fullUser.authProvider,
+        createdAt: fullUser.createdAt
       }
     };
   }
@@ -527,18 +396,7 @@ class AuthService {
       await this.init();
     }
     
-    // Return all users excluding sensitive data
-    const userList = Object.values(this.users).map(user => ({
-      userId: user.userId,
-      username: user.username,
-      isAdmin: user.isAdmin,
-      createdAt: user.createdAt,
-      authProvider: user.authProvider,
-      email: user.email,
-      profile: user.profile
-    }));
-    
-    return userList;
+    return databaseService.getAllUsers();
   }
   
   // Delete a user
@@ -549,19 +407,21 @@ class AuthService {
     }
     
     // Check if user exists
-    if (!this.users[userId]) {
+    const user = databaseService.getUserById(userId);
+    if (!user) {
       return { success: false, message: 'User not found' };
     }
     
-    const username = this.users[userId].username;
+    const username = user.username;
     
-    // Delete user
-    delete this.users[userId];
+    // Delete user from database
+    const success = databaseService.deleteUser(userId);
     
-    // Save users to file
-    await this.saveUsers();
-    
-    return { success: true, message: `User ${username} deleted successfully` };
+    if (success) {
+      return { success: true, message: `User ${username} deleted successfully` };
+    } else {
+      return { success: false, message: `Failed to delete user ${username}` };
+    }
   }
 }
 

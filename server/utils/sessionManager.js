@@ -1,10 +1,30 @@
 const crypto = require('crypto');
+const databaseService = require('./databaseService');
 
 class SessionManager {
   constructor() {
-    this.sessions = {};
+    this.initialized = false;
     // Session expiration time (7 days in milliseconds)
     this.sessionExpiry = 7 * 24 * 60 * 60 * 1000;
+  }
+  
+  // Initialize the session manager
+  async init() {
+    try {
+      console.log('Initializing session manager...');
+      
+      // Ensure database is initialized
+      if (!databaseService.initialized) {
+        console.log('Database service not initialized, initializing now...');
+        await databaseService.init();
+      }
+      
+      this.initialized = true;
+      console.log('Session manager initialized successfully');
+    } catch (err) {
+      console.error('Error initializing session manager:', err);
+      throw err;
+    }
   }
   
   // Create a new session for a user
@@ -19,8 +39,9 @@ class SessionManager {
     const createdAt = new Date();
     const expiresAt = new Date(createdAt.getTime() + this.sessionExpiry);
     
-    // Store session data
-    this.sessions[token] = {
+    // Create session object
+    const session = {
+      token,
       userId: user.userId,
       username: user.username,
       isAdmin: user.isAdmin,
@@ -29,8 +50,10 @@ class SessionManager {
       authProvider: user.authProvider || 'local'
     };
     
+    // Store session in database
+    databaseService.createSession(session);
+    
     console.log('Session created with expiry:', expiresAt);
-    console.log('Current active sessions:', Object.keys(this.sessions).length);
     
     return token;
   }
@@ -38,9 +61,15 @@ class SessionManager {
   // Validate a session token
   validateSession(token) {
     console.log('Validating session token:', token.substring(0, 10) + '...');
-    console.log('Current sessions:', Object.keys(this.sessions).map(t => t.substring(0, 10) + '...'));
     
-    const session = this.sessions[token];
+    // Ensure database is initialized
+    if (!databaseService.initialized) {
+      console.log('Session manager not initialized, initializing now...');
+      this.init();
+    }
+    
+    // Get session from database
+    const session = databaseService.getSession(token);
     
     // Check if session exists
     if (!session) {
@@ -60,59 +89,31 @@ class SessionManager {
     if (expiryDate < now) {
       console.log('Session has expired');
       // Remove expired session
-      delete this.sessions[token];
+      databaseService.deleteSession(token);
       return null;
     }
     
     // Refresh session expiry
-    session.expiresAt = new Date(Date.now() + this.sessionExpiry).toISOString();
-    console.log('Session expiry extended to:', session.expiresAt);
+    const newExpiryDate = new Date(Date.now() + this.sessionExpiry);
+    databaseService.updateSessionExpiry(token, newExpiryDate.toISOString());
+    console.log('Session expiry extended to:', newExpiryDate);
     
     return session;
   }
   
   // Delete a session
   deleteSession(token) {
-    delete this.sessions[token];
+    return databaseService.deleteSession(token);
   }
   
   // Clean up expired sessions
   cleanupSessions() {
-    const now = new Date();
-    
-    Object.keys(this.sessions).forEach(token => {
-      const expiryDate = new Date(this.sessions[token].expiresAt);
-      if (expiryDate < now) {
-        delete this.sessions[token];
-      }
-    });
-  }
-  
-  // Get all sessions for a specific user
-  getUserSessions(userId) {
-    const userSessions = {};
-    
-    Object.entries(this.sessions).forEach(([token, session]) => {
-      if (session.userId === userId) {
-        userSessions[token] = session;
-      }
-    });
-    
-    return userSessions;
+    return databaseService.cleanupSessions();
   }
   
   // Delete all sessions for a user
   deleteUserSessions(userId) {
-    let deletedCount = 0;
-    
-    Object.entries(this.sessions).forEach(([token, session]) => {
-      if (session.userId === userId) {
-        delete this.sessions[token];
-        deletedCount++;
-      }
-    });
-    
-    return deletedCount;
+    return databaseService.deleteUserSessions(userId);
   }
 }
 

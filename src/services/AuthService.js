@@ -107,14 +107,23 @@ class AuthService {
   }
   
   // Register a new user
+  // eslint-disable-next-line no-unused-vars
   async register(username, password) {
     try {
+      // Prevent local username/password registration from login page
+      // Only admins can create local users now
+      // Note: Users can still register via OAuth providers if configured
+      throw new Error('Direct registration is disabled. Please contact an administrator to create an account or use a social login option if available.');
+      
+      // This code is unreachable but kept for reference
+      /*
       const response = await ApiService.post('/auth/register', {
         username,
         password
       });
       
       return response.data;
+      */
     } catch (error) {
       throw error.response?.data?.error || error.message;
     }

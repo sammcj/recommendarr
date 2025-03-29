@@ -101,7 +101,7 @@
             <div v-if="rec.rating || (rec.ratings && (rec.ratings.imdb || rec.ratings.rottenTomatoes || rec.ratings.metacritic || rec.ratings.tmdb))" class="rating-info">
               <div class="ratings-container">
                 <!-- Recommendarr Rating -->
-                <div v-if="rec.rating" class="rating-item recommendarr-rating" title="Likelihood of enjoying this title based on analysis of your library">
+                <div v-if="rec.rating" class="rating-item recommendarr-rating">
                   <div class="rating-service-icon recommendarr-icon">
                     <span>RR</span>
                   </div>

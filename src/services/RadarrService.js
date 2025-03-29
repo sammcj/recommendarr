@@ -135,13 +135,100 @@ class RadarrService {
 
   /**
    * Get all movies from Radarr
+   * @param {boolean} [forceRefresh=false] - Force refresh from API instead of using cached data
    * @returns {Promise<Array>} - List of movies
    */
-  async getMovies() {
+  async getMovies(forceRefresh = false) {
     try {
-      return await this._apiRequest('/api/v3/movie');
+      // Check if we have data in the database and it's not a forced refresh
+      if (!forceRefresh) {
+        try {
+          // Try to get library from database via API
+          const response = await apiService.get('/radarr/library');
+          
+          if (response.data && Array.isArray(response.data)) {
+            console.log('Using cached Radarr library from database');
+            return response.data;
+          }
+        } catch (dbError) {
+          console.error('Error accessing database for Radarr library:', dbError);
+          // Continue to API request if database access fails
+        }
+      }
+      
+      // If no cached data or force refresh, get from API
+      console.log(forceRefresh ? 'Forcing refresh of Radarr library from API' : 'No cached data, fetching Radarr library from API');
+      const moviesData = await this._apiRequest('/api/v3/movie');
+      
+      // Save to database for future use
+      try {
+        // Save library to database via API
+        await apiService.post('/radarr/library', moviesData);
+        console.log('Saved Radarr library to database');
+      } catch (saveError) {
+        console.error('Error saving Radarr library to database:', saveError);
+        // Continue even if save fails
+      }
+      
+      return moviesData;
     } catch (error) {
       console.error('Error fetching movies from Radarr:', error);
+      
+      // If API request fails, try to fall back to database
+      try {
+        // Try to get library from database as fallback
+        const response = await apiService.get('/radarr/library');
+        
+        if (response.data && Array.isArray(response.data)) {
+          console.log('API request failed, using cached Radarr library from database');
+          return response.data;
+        }
+      } catch (dbError) {
+        console.error('Error accessing database for fallback Radarr library:', dbError);
+      }
+      
+      // If both API and database fallback fail, rethrow the original error
+      throw error;
+    }
+  }
+  
+  /**
+   * Force refresh of the Radarr library from the API
+   * @returns {Promise<Array>} - Updated list of movies
+   */
+  async refreshLibrary() {
+    try {
+      console.log('Forcing refresh of Radarr library from API');
+      const moviesData = await this._apiRequest('/api/v3/movie');
+      
+      // Save to database for all users via the refresh-all endpoint
+      try {
+        // Save library to database via API for all users
+        await apiService.post('/radarr/library/refresh-all', moviesData);
+        console.log('Saved Radarr library to database for all users');
+      } catch (saveError) {
+        console.error('Error saving Radarr library to database for all users:', saveError);
+        // Continue even if save fails
+      }
+      
+      return moviesData;
+    } catch (error) {
+      console.error('Error refreshing Radarr library:', error);
+      
+      // If API request fails, try to fall back to database
+      try {
+        // Try to get library from database as fallback
+        const response = await apiService.get('/radarr/library');
+        
+        if (response.data && Array.isArray(response.data)) {
+          console.log('API request failed, using cached Radarr library from database');
+          return response.data;
+        }
+      } catch (dbError) {
+        console.error('Error accessing database for fallback Radarr library:', dbError);
+      }
+      
+      // If both API and database fallback fail, rethrow the original error
       throw error;
     }
   }
@@ -153,8 +240,8 @@ class RadarrService {
    */
   async findExistingMovieByTitle(title) {
     try {
-      // Search in the existing library
-      const libraryData = await this._apiRequest('/api/v3/movie');
+      // Search in the existing library - use getMovies which handles caching
+      const libraryData = await this.getMovies();
       
       // Look for exact match first
       let match = libraryData.find(movie => 
@@ -183,8 +270,8 @@ class RadarrService {
    */
   async findMovieByTitle(title) {
     try {
-      // First try to search in existing library
-      const libraryData = await this._apiRequest('/api/v3/movie');
+      // First try to search in existing library - use getMovies which handles caching
+      const libraryData = await this.getMovies();
       
       // Find closest match in library
       const libraryMatch = libraryData.find(movie => 

@@ -2136,14 +2136,17 @@ CRITICAL REQUIREMENTS:
     // Remove common prefixes like "the ", "a ", "an "
     normalized = normalized.replace(/^(the|a|an) /, '');
     
+    // Handle common title formats with reversed articles (e.g., "Matrix, The")
+    normalized = normalized.replace(/, (the|a|an)$/i, '');
+    
     // Remove special characters and extra spaces
     normalized = normalized.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
     
-    // Remove year patterns like (2021) or [2021]
-    normalized = normalized.replace(/[([]?(19|20)\d{2}[)\]]?/g, '').trim();
+    // Remove year patterns like (2021) or [2021] or "2021"
+    normalized = normalized.replace(/[(["]?(19|20)\d{2}[)\]"]?/g, '').trim();
     
     // Remove common suffixes or subtitles
-    const commonSplitters = [': ', ' - ', ' – '];
+    const commonSplitters = [': ', ' - ', ' – ', ': ', ':', ' | ', '~'];
     for (const splitter of commonSplitters) {
       if (normalized.includes(splitter)) {
         // Only take the main title part if it's reasonably long
@@ -2152,6 +2155,21 @@ CRITICAL REQUIREMENTS:
           normalized = mainPart;
         }
       }
+    }
+    
+    // Remove common franchise indicators
+    normalized = normalized.replace(/\bpart\s+\d+\b/i, '').trim();
+    normalized = normalized.replace(/\bvolume\s+\d+\b/i, '').trim();
+    normalized = normalized.replace(/\bvol\s+\d+\b/i, '').trim();
+    
+    // Remove common edition indicators
+    const editionPatterns = [
+      /\b(special|extended|director'?s|theatrical|ultimate|complete|collector'?s|anniversary|definitive|final)\s+(cut|edition|version|collection|release)\b/i,
+      /\b(remastered|unrated|uncut)\b/i
+    ];
+    
+    for (const pattern of editionPatterns) {
+      normalized = normalized.replace(pattern, '').trim();
     }
     
     return normalized;
@@ -2164,9 +2182,15 @@ CRITICAL REQUIREMENTS:
    * @returns {boolean} - True if titles are similar
    */
   areTitlesSimilar(title1, title2) {
+    // Skip comparison if either title is missing
+    if (!title1 || !title2) return false;
+    
     // Get normalized versions
     const normalized1 = this.normalizeTitleForComparison(title1);
     const normalized2 = this.normalizeTitleForComparison(title2);
+    
+    // Skip if either normalized title is too short (likely not a valid title)
+    if (normalized1.length < 2 || normalized2.length < 2) return false;
     
     // Check for exact match after normalization
     if (normalized1 === normalized2) {
@@ -2178,7 +2202,6 @@ CRITICAL REQUIREMENTS:
     // But "The Duke" and "The Duke of Burgundy" should NOT match
     if (normalized1.length > 4 && normalized2.length > 4) {
       // Check if one is a prefix of the other, but add boundary check to avoid partial word matches
-      // For example: "The Duke" should not match with "The Duke of Burgundy"
       const shorterStr = normalized1.length < normalized2.length ? normalized1 : normalized2;
       const longerStr = normalized1.length < normalized2.length ? normalized2 : normalized1;
       
@@ -2189,8 +2212,42 @@ CRITICAL REQUIREMENTS:
            longerStr[shorterStr.length] === ' ' ||   // Space after prefix
            longerStr[shorterStr.length] === ':' ||   // Colon after prefix
            longerStr[shorterStr.length] === '-')) {  // Dash after prefix
-        // For cases like "Star Wars" vs "Star Wars: The Force Awakens"
-        return true;
+        
+        // For franchise titles, we want to match
+        // But avoid matching titles that just happen to start with the same words
+        // For example, "The Batman" should not match "The Batman Who Laughs"
+        
+        // If the shorter string is a common franchise name, it's likely a match
+        const commonFranchises = ['star wars', 'harry potter', 'lord of the rings', 'fast and furious', 
+                                 'mission impossible', 'james bond', 'marvel', 'avengers', 'spider man',
+                                 'batman', 'superman', 'jurassic park', 'transformers', 'terminator',
+                                 'alien', 'predator', 'pirates of the caribbean', 'matrix', 'indiana jones'];
+        
+        if (commonFranchises.some(franchise => shorterStr.includes(franchise))) {
+          return true;
+        }
+        
+        // If the shorter string is very short (1-2 words), be more cautious
+        const wordCount = shorterStr.split(' ').length;
+        if (wordCount <= 2) {
+          // For short titles, require the longer title to have a clear separator
+          // This helps avoid false matches like "The Batman" and "The Batman Who Laughs"
+          const remainingPart = longerStr.substring(shorterStr.length).trim();
+          const hasClearSeparator = remainingPart.startsWith(':') || 
+                                   remainingPart.startsWith('-') || 
+                                   remainingPart.startsWith('(') ||
+                                   remainingPart.startsWith('part ');
+          
+          if (hasClearSeparator) {
+            return true;
+          }
+          
+          // If no clear separator, be more conservative about matching
+          return false;
+        } else {
+          // For longer titles (3+ words), it's more likely a legitimate match
+          return true;
+        }
       }
     }
     
@@ -2208,12 +2265,12 @@ CRITICAL REQUIREMENTS:
         return false;
       }
       
-      // Increase threshold to 85% for higher precision
+      // Increase threshold to 90% for higher precision
       // This helps distinguish between titles like "The Duke" and "The Duke of Burgundy"
       const matchRatio1 = matchingWords.length / words1.length;
       const matchRatio2 = matchingWords.length / words2.length;
       
-      if (matchRatio1 >= 0.85 || matchRatio2 >= 0.85) {
+      if (matchRatio1 >= 0.9 || matchRatio2 >= 0.9) {
         return true;
       }
     }
@@ -2228,6 +2285,16 @@ CRITICAL REQUIREMENTS:
       return true;
     }
     
+    // Check for sequels/numbered entries
+    // Remove numbers and check if the base titles match
+    const baseTitle1 = normalized1.replace(/\s+\d+$/, '');
+    const baseTitle2 = normalized2.replace(/\s+\d+$/, '');
+    
+    if (baseTitle1 !== normalized1 && baseTitle2 !== normalized2 && baseTitle1 === baseTitle2) {
+      // Both titles had numbers and the base titles match
+      return true;
+    }
+    
     return false;
   }
 
@@ -2237,16 +2304,23 @@ CRITICAL REQUIREMENTS:
     }
 
     // Prepare library items for comparison
-    const libraryTitles = libraryItems.map(item => typeof item === 'string' ? item : item.title);
-    const likedTitles = likedItems.map(item => typeof item === 'string' ? item : item.title);
-    const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title);
-    const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title);
+    const libraryTitles = libraryItems.map(item => {
+      if (typeof item === 'string') return item;
+      // Handle different possible structures for library items
+      return item.title || item.name || (item.attributes && item.attributes.title) || '';
+    }).filter(title => title); // Remove any empty titles
+    
+    const likedTitles = likedItems.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
+    const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
+    const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
     
     // All titles to check against
     const allExistingTitles = [...libraryTitles, ...likedTitles, ...dislikedTitles, ...previousRecTitles];
 
     // Filter out any recommendations that match existing items
     const filteredRecommendations = recommendations.filter(rec => {
+      if (!rec || !rec.title) return false; // Skip invalid recommendations
+      
       const title = rec.title;
       
       // Enhanced debugging of the recommendation being checked
@@ -2291,6 +2365,8 @@ CRITICAL REQUIREMENTS:
     const removedCount = recommendations.length - filteredRecommendations.length;
     if (removedCount > 0) {
       console.log(`Final verification removed ${removedCount} recommendations that matched existing items`);
+    } else {
+      console.log(`No recommendations were filtered out during verification`);
     }
 
     return filteredRecommendations;

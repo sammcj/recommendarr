@@ -120,13 +120,100 @@ class SonarrService {
 
   /**
    * Get all series from Sonarr
+   * @param {boolean} [forceRefresh=false] - Force refresh from API instead of using cached data
    * @returns {Promise<Array>} - List of TV shows
    */
-  async getSeries() {
+  async getSeries(forceRefresh = false) {
     try {
-      return await this._apiRequest('/api/v3/series');
+      // Check if we have data in the database and it's not a forced refresh
+      if (!forceRefresh) {
+        try {
+          // Try to get library from database via API
+          const response = await apiService.get('/sonarr/library');
+          
+          if (response.data && Array.isArray(response.data)) {
+            console.log('Using cached Sonarr library from database');
+            return response.data;
+          }
+        } catch (dbError) {
+          console.error('Error accessing database for Sonarr library:', dbError);
+          // Continue to API request if database access fails
+        }
+      }
+      
+      // If no cached data or force refresh, get from API
+      console.log(forceRefresh ? 'Forcing refresh of Sonarr library from API' : 'No cached data, fetching Sonarr library from API');
+      const seriesData = await this._apiRequest('/api/v3/series');
+      
+      // Save to database for future use
+      try {
+        // Save library to database via API
+        await apiService.post('/sonarr/library', seriesData);
+        console.log('Saved Sonarr library to database');
+      } catch (saveError) {
+        console.error('Error saving Sonarr library to database:', saveError);
+        // Continue even if save fails
+      }
+      
+      return seriesData;
     } catch (error) {
       console.error('Error fetching series from Sonarr:', error);
+      
+      // If API request fails, try to fall back to database
+      try {
+        // Try to get library from database as fallback
+        const response = await apiService.get('/sonarr/library');
+        
+        if (response.data && Array.isArray(response.data)) {
+          console.log('API request failed, using cached Sonarr library from database');
+          return response.data;
+        }
+      } catch (dbError) {
+        console.error('Error accessing database for fallback Sonarr library:', dbError);
+      }
+      
+      // If both API and database fallback fail, rethrow the original error
+      throw error;
+    }
+  }
+  
+  /**
+   * Force refresh of the Sonarr library from the API
+   * @returns {Promise<Array>} - Updated list of TV shows
+   */
+  async refreshLibrary() {
+    try {
+      console.log('Forcing refresh of Sonarr library from API');
+      const seriesData = await this._apiRequest('/api/v3/series');
+      
+      // Save to database for all users via the refresh-all endpoint
+      try {
+        // Save library to database via API for all users
+        await apiService.post('/sonarr/library/refresh-all', seriesData);
+        console.log('Saved Sonarr library to database for all users');
+      } catch (saveError) {
+        console.error('Error saving Sonarr library to database for all users:', saveError);
+        // Continue even if save fails
+      }
+      
+      return seriesData;
+    } catch (error) {
+      console.error('Error refreshing Sonarr library:', error);
+      
+      // If API request fails, try to fall back to database
+      try {
+        // Try to get library from database as fallback
+        const response = await apiService.get('/sonarr/library');
+        
+        if (response.data && Array.isArray(response.data)) {
+          console.log('API request failed, using cached Sonarr library from database');
+          return response.data;
+        }
+      } catch (dbError) {
+        console.error('Error accessing database for fallback Sonarr library:', dbError);
+      }
+      
+      // If both API and database fallback fail, rethrow the original error
       throw error;
     }
   }
@@ -138,8 +225,8 @@ class SonarrService {
    */
   async findExistingSeriesByTitle(title) {
     try {
-      // Search in the existing library
-      const libraryData = await this._apiRequest('/api/v3/series');
+      // Search in the existing library - use getSeries which handles caching
+      const libraryData = await this.getSeries();
       
       // Look for exact match first
       let match = libraryData.find(show => 
@@ -168,8 +255,8 @@ class SonarrService {
    */
   async findSeriesByTitle(title) {
     try {
-      // First try to search in existing library
-      const libraryData = await this._apiRequest('/api/v3/series');
+      // First try to search in existing library - use getSeries which handles caching
+      const libraryData = await this.getSeries();
       
       // Find closest match in library
       const libraryMatch = libraryData.find(show => 

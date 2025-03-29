@@ -101,8 +101,10 @@ app.use(expressSession({
 // Set up OAuth
 const { passport, getEnabledProviders } = setupPassport(app);
 
-// Parse JSON request body
-app.use(express.json());
+// Parse JSON request body with increased size limit
+app.use(express.json({ limit: '50mb' }));
+// Increase URL-encoded payload size limit as well
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Verify session endpoint
 app.get('/api/auth/verify', async (req, res) => {
@@ -1118,6 +1120,199 @@ app.get('/api/watch-history/:type', async (req, res) => {
     res.json(userData.watchHistory.shows || []);
   } else {
     res.status(400).json({ error: 'Invalid watch history type. Use "movies" or "shows".' });
+  }
+});
+
+// Sonarr and Radarr library endpoints
+// Get Sonarr library
+app.get('/api/sonarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    // Get library from database
+    const library = await databaseService.getSonarrLibrary(userId);
+    
+    if (library) {
+      res.json(library);
+    } else {
+      res.status(404).json({ error: 'No Sonarr library found' });
+    }
+  } catch (error) {
+    console.error('Error getting Sonarr library:', error);
+    res.status(500).json({ error: 'Error getting Sonarr library' });
+  }
+});
+
+// Save Sonarr library
+app.post('/api/sonarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Save library to database
+    const success = await databaseService.saveSonarrLibrary(userId, library);
+    
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Error saving Sonarr library' });
+    }
+  } catch (error) {
+    console.error('Error saving Sonarr library:', error);
+    res.status(500).json({ error: 'Error saving Sonarr library' });
+  }
+});
+
+// Refresh Sonarr library for all users
+app.post('/api/sonarr/library/refresh-all', async (req, res) => {
+  // Only admin users can refresh library for all users
+  if (!req.user.isAdmin) {
+    // For non-admin users, we'll still allow the operation but log it
+    console.log(`Non-admin user ${req.user.username} (${req.user.userId}) is refreshing Sonarr library for all users`);
+  }
+  
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Get all users
+    const users = await authService.getAllUsers();
+    
+    // Save library for each user
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      try {
+        const success = await databaseService.saveSonarrLibrary(user.userId, library);
+        if (success) {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error(`Failed to save Sonarr library for user: ${user.username} (${user.userId})`);
+        }
+      } catch (userError) {
+        errorCount++;
+        console.error(`Error saving Sonarr library for user: ${user.username} (${user.userId})`, userError);
+      }
+    }
+    
+    console.log(`Sonarr library refreshed for all users: ${successCount} successful, ${errorCount} failed`);
+    
+    if (errorCount === 0) {
+      res.json({ success: true, message: `Library updated for all ${successCount} users` });
+    } else {
+      res.status(207).json({ 
+        partialSuccess: true, 
+        message: `Library updated for ${successCount} users, failed for ${errorCount} users` 
+      });
+    }
+  } catch (error) {
+    console.error('Error refreshing Sonarr library for all users:', error);
+    res.status(500).json({ error: 'Error refreshing Sonarr library for all users' });
+  }
+});
+
+// Get Radarr library
+app.get('/api/radarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    // Get library from database
+    const library = await databaseService.getRadarrLibrary(userId);
+    
+    if (library) {
+      res.json(library);
+    } else {
+      res.status(404).json({ error: 'No Radarr library found' });
+    }
+  } catch (error) {
+    console.error('Error getting Radarr library:', error);
+    res.status(500).json({ error: 'Error getting Radarr library' });
+  }
+});
+
+// Save Radarr library
+app.post('/api/radarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Save library to database
+    const success = await databaseService.saveRadarrLibrary(userId, library);
+    
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Error saving Radarr library' });
+    }
+  } catch (error) {
+    console.error('Error saving Radarr library:', error);
+    res.status(500).json({ error: 'Error saving Radarr library' });
+  }
+});
+
+// Refresh Radarr library for all users
+app.post('/api/radarr/library/refresh-all', async (req, res) => {
+  // Only admin users can refresh library for all users
+  if (!req.user.isAdmin) {
+    // For non-admin users, we'll still allow the operation but log it
+    console.log(`Non-admin user ${req.user.username} (${req.user.userId}) is refreshing Radarr library for all users`);
+  }
+  
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Get all users
+    const users = await authService.getAllUsers();
+    
+    // Save library for each user
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      try {
+        const success = await databaseService.saveRadarrLibrary(user.userId, library);
+        if (success) {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error(`Failed to save Radarr library for user: ${user.username} (${user.userId})`);
+        }
+      } catch (userError) {
+        errorCount++;
+        console.error(`Error saving Radarr library for user: ${user.username} (${user.userId})`, userError);
+      }
+    }
+    
+    console.log(`Radarr library refreshed for all users: ${successCount} successful, ${errorCount} failed`);
+    
+    if (errorCount === 0) {
+      res.json({ success: true, message: `Library updated for all ${successCount} users` });
+    } else {
+      res.status(207).json({ 
+        partialSuccess: true, 
+        message: `Library updated for ${successCount} users, failed for ${errorCount} users` 
+      });
+    }
+  } catch (error) {
+    console.error('Error refreshing Radarr library for all users:', error);
+    res.status(500).json({ error: 'Error refreshing Radarr library for all users' });
   }
 });
 

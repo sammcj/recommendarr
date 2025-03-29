@@ -120,6 +120,28 @@ class DatabaseService {
       )
     `);
     
+    // Sonarr libraries table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS sonarr_libraries (
+        userId TEXT NOT NULL,
+        data TEXT NOT NULL,
+        lastUpdated TEXT NOT NULL,
+        PRIMARY KEY (userId),
+        FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
+      )
+    `);
+    
+    // Radarr libraries table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS radarr_libraries (
+        userId TEXT NOT NULL,
+        data TEXT NOT NULL,
+        lastUpdated TEXT NOT NULL,
+        PRIMARY KEY (userId),
+        FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
+      )
+    `);
+    
     console.log('Database tables created successfully');
   }
   
@@ -948,6 +970,90 @@ class DatabaseService {
     } catch (err) {
       console.error(`Error setting user service selection: ${userId}, ${serviceName}`, err);
       return false;
+    }
+  }
+
+  // Sonarr library methods
+
+  // Save Sonarr library data for a user
+  saveSonarrLibrary(userId, data) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO sonarr_libraries (userId, data, lastUpdated)
+        VALUES (?, ?, ?)
+      `);
+      
+      stmt.run(
+        userId,
+        JSON.stringify(data),
+        new Date().toISOString()
+      );
+      
+      console.log(`Saved Sonarr library for user: ${userId} (${data.length} items)`);
+      return true;
+    } catch (err) {
+      console.error(`Error saving Sonarr library for user: ${userId}`, err);
+      return false;
+    }
+  }
+
+  // Get Sonarr library data for a user
+  getSonarrLibrary(userId) {
+    try {
+      const row = this.db.prepare('SELECT data, lastUpdated FROM sonarr_libraries WHERE userId = ?').get(userId);
+      
+      if (!row) {
+        return null;
+      }
+      
+      const library = JSON.parse(row.data);
+      console.log(`Retrieved Sonarr library for user: ${userId} (${library.length} items, last updated: ${row.lastUpdated})`);
+      return library;
+    } catch (err) {
+      console.error(`Error getting Sonarr library for user: ${userId}`, err);
+      return null;
+    }
+  }
+
+  // Radarr library methods
+
+  // Save Radarr library data for a user
+  saveRadarrLibrary(userId, data) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO radarr_libraries (userId, data, lastUpdated)
+        VALUES (?, ?, ?)
+      `);
+      
+      stmt.run(
+        userId,
+        JSON.stringify(data),
+        new Date().toISOString()
+      );
+      
+      console.log(`Saved Radarr library for user: ${userId} (${data.length} items)`);
+      return true;
+    } catch (err) {
+      console.error(`Error saving Radarr library for user: ${userId}`, err);
+      return false;
+    }
+  }
+
+  // Get Radarr library data for a user
+  getRadarrLibrary(userId) {
+    try {
+      const row = this.db.prepare('SELECT data, lastUpdated FROM radarr_libraries WHERE userId = ?').get(userId);
+      
+      if (!row) {
+        return null;
+      }
+      
+      const library = JSON.parse(row.data);
+      console.log(`Retrieved Radarr library for user: ${userId} (${library.length} items, last updated: ${row.lastUpdated})`);
+      return library;
+    } catch (err) {
+      console.error(`Error getting Radarr library for user: ${userId}`, err);
+      return null;
     }
   }
 }

@@ -364,25 +364,49 @@
           </div>
         </div>
         
-        <div v-if="plexConfigured" class="plex-options">
-          <div class="service-header collapsible-header" @click="togglePlexHistory">
-            <label>Plex Watch History:</label>
-            <div class="header-right">
-              <div class="service-controls">
-                <label class="toggle-switch">
-                  <input 
-                    type="checkbox" 
-                    :checked="plexUseHistory"
-                    @change="$emit('update:plexUseHistory', $event.target.checked); savePlexUseHistory($event.target.checked)"
-                    @click.stop
-                  >
-                  <span class="toggle-slider"></span>
-                  <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
-                </label>
-              </div>
-              <span class="toggle-icon">{{ plexHistoryExpanded ? '▼' : '▶' }}</span>
-            </div>
-          </div>
+<div class="library-refresh-section" v-if="isAdmin">
+  <div class="refresh-header">
+    <h3>Library Management</h3>
+  </div>
+  <div class="refresh-buttons">
+<button 
+  @click.stop="refreshSonarrLibrary" 
+  class="refresh-button sonarr-refresh"
+  title="Refresh Sonarr library from API"
+>
+  <span class="refresh-icon">⟳</span>
+  <span class="refresh-text">Refresh Sonarr Library</span>
+</button>
+<button 
+  @click.stop="refreshRadarrLibrary" 
+  class="refresh-button radarr-refresh"
+  title="Refresh Radarr library from API"
+>
+  <span class="refresh-icon">⟳</span>
+  <span class="refresh-text">Refresh Radarr Library</span>
+</button>
+  </div>
+</div>
+
+<div v-if="plexConfigured" class="plex-options">
+  <div class="service-header collapsible-header" @click="togglePlexHistory">
+    <label>Plex Watch History:</label>
+    <div class="header-right">
+      <div class="service-controls">
+        <label class="toggle-switch">
+          <input 
+            type="checkbox" 
+            :checked="plexUseHistory"
+            @change="$emit('update:plexUseHistory', $event.target.checked); savePlexUseHistory($event.target.checked)"
+            @click.stop
+          >
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
+        </label>
+      </div>
+      <span class="toggle-icon">{{ plexHistoryExpanded ? '▼' : '▶' }}</span>
+    </div>
+  </div>
           
           <div v-if="plexUseHistory" class="service-settings plex-content" :class="{ 'collapsed': !plexHistoryExpanded }" v-show="plexHistoryExpanded">
             <div class="plex-history-toggle">
@@ -765,8 +789,17 @@
 </template>
 
 <script>
+import sonarrService from '../services/SonarrService';
+import radarrService from '../services/RadarrService';
+import authService from '../services/AuthService';
+
 export default {
   name: 'RecommendationSettings',
+  computed: {
+    isAdmin() {
+      return authService.isAdmin();
+    }
+  },
   props: {
     settingsExpanded: {
       type: Boolean,
@@ -813,6 +846,14 @@ export default {
       default: false
     },
     isMovieMode: {
+      type: Boolean,
+      default: false
+    },
+    sonarrConfigured: {
+      type: Boolean,
+      default: false
+    },
+    radarrConfigured: {
       type: Boolean,
       default: false
     },
@@ -1113,6 +1154,29 @@ export default {
     getLanguageName(code) {
       const lang = this.availableLanguages.find(l => l.code === code);
       return lang ? lang.name : '';
+    },
+    async refreshSonarrLibrary() {
+      try {
+        // Call the refreshLibrary method directly using the imported service
+        await sonarrService.refreshLibrary();
+        
+        // Show a success message
+        console.log('Sonarr library refreshed successfully');
+      } catch (error) {
+        console.error('Error refreshing Sonarr library:', error);
+      }
+    },
+    
+    async refreshRadarrLibrary() {
+      try {
+        // Call the refreshLibrary method directly using the imported service
+        await radarrService.refreshLibrary();
+        
+        // Show a success message
+        console.log('Radarr library refreshed successfully');
+      } catch (error) {
+        console.error('Error refreshing Radarr library:', error);
+      }
     }
   }
 };
@@ -2184,6 +2248,90 @@ body.dark-theme .info-section-title.collapsible-header:hover {
   .action-button:disabled {
     background-color: #707070;
   }
+}
+
+.library-refresh-section {
+  margin-bottom: 20px;
+  background-color: var(--primary-color-lighter);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.refresh-header {
+  margin-bottom: 15px;
+}
+
+.refresh-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.refresh-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.refresh-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
+  background-color: var(--card-bg-color);
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.refresh-button:hover:not(:disabled) {
+  background-color: var(--primary-color-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+}
+
+.refresh-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.refresh-icon {
+  font-size: 16px;
+  display: inline-block;
+}
+
+.sonarr-refresh {
+  border-color: #2196F3;
+  color: #2196F3;
+}
+
+.sonarr-refresh:hover:not(:disabled) {
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+.radarr-refresh {
+  border-color: #F44336;
+  color: #F44336;
+}
+
+.radarr-refresh:hover:not(:disabled) {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.refresh-button.refreshing .refresh-icon {
+  animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .prompt-style-help {

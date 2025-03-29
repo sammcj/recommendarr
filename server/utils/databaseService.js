@@ -137,11 +137,86 @@ class DatabaseService {
       // Migrate user data
       await this.migrateUserData();
       
+      // Delete JSON files after successful migration
+      await this.deleteJSONFiles();
+      
       console.log('Data migration completed successfully');
       return true;
     } catch (err) {
       console.error('Error migrating data:', err);
       return false;
+    }
+  }
+  
+  // Delete JSON files after successful migration
+  async deleteJSONFiles() {
+    try {
+      console.log('Deleting JSON files after successful migration...');
+      
+      const USERS_FILE = path.join(DATA_DIR, 'users.json');
+      const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.json');
+      const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+      const USER_DATA_DIR = path.join(DATA_DIR, 'user_data');
+      
+      // Delete users.json if it exists
+      try {
+        await fs.access(USERS_FILE);
+        await fs.unlink(USERS_FILE);
+        console.log(`Deleted ${USERS_FILE}`);
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          console.error(`Error deleting ${USERS_FILE}:`, err);
+        }
+      }
+      
+      // Delete credentials.json if it exists
+      try {
+        await fs.access(CREDENTIALS_FILE);
+        await fs.unlink(CREDENTIALS_FILE);
+        console.log(`Deleted ${CREDENTIALS_FILE}`);
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          console.error(`Error deleting ${CREDENTIALS_FILE}:`, err);
+        }
+      }
+      
+      // Delete legacy user_data.json if it exists
+      try {
+        await fs.access(LEGACY_USER_DATA_FILE);
+        await fs.unlink(LEGACY_USER_DATA_FILE);
+        console.log(`Deleted ${LEGACY_USER_DATA_FILE}`);
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          console.error(`Error deleting ${LEGACY_USER_DATA_FILE}:`, err);
+        }
+      }
+      
+      // Delete user_data directory and its contents if it exists
+      try {
+        await fs.access(USER_DATA_DIR);
+        
+        // Get all files in the user_data directory
+        const files = await fs.readdir(USER_DATA_DIR);
+        
+        // Delete each file in the directory
+        for (const file of files) {
+          const filePath = path.join(USER_DATA_DIR, file);
+          await fs.unlink(filePath);
+          console.log(`Deleted ${filePath}`);
+        }
+        
+        // Delete the directory itself
+        await fs.rmdir(USER_DATA_DIR);
+        console.log(`Deleted ${USER_DATA_DIR} directory`);
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          console.error(`Error deleting ${USER_DATA_DIR}:`, err);
+        }
+      }
+      
+      console.log('JSON files deleted successfully');
+    } catch (err) {
+      console.error('Error deleting JSON files:', err);
     }
   }
   

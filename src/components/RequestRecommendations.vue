@@ -218,8 +218,8 @@
         :liked-recommendations="likedRecommendations"
         :disliked-recommendations="dislikedRecommendations"
         :columns-count="columnsCount"
-        @update:liked-recommendations="likedRecommendations = $event"
-        @update:disliked-recommendations="dislikedRecommendations = $event"
+        @update:liked-recommendations="likeRecommendation($event)"
+        @update:disliked-recommendations="dislikeRecommendation($event)"
         @open-tmdb-modal="openTMDBDetailModal"
         @request-series="requestSeries"
       />

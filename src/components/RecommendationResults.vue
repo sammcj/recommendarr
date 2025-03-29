@@ -392,33 +392,33 @@ export default {
     async likeRecommendation(title) {
       // If it's already liked, remove it from liked list (toggle behavior)
       if (this.isLiked(title)) {
-        this.$emit('update:likedRecommendations', this.likedRecommendations.filter(item => item !== title));
+        this.$emit('update:likedRecommendations', title);
         return;
       }
       
       // Remove from disliked list if it was there
       if (this.isDisliked(title)) {
-        this.$emit('update:dislikedRecommendations', this.dislikedRecommendations.filter(item => item !== title));
+        this.$emit('update:dislikedRecommendations', title);
       }
       
       // Add to liked list
-      this.$emit('update:likedRecommendations', [...this.likedRecommendations, title]);
+      this.$emit('update:likedRecommendations', title);
     },
     // Dislike a TV show recommendation
     async dislikeRecommendation(title) {
       // If it's already disliked, remove it from disliked list (toggle behavior)
       if (this.isDisliked(title)) {
-        this.$emit('update:dislikedRecommendations', this.dislikedRecommendations.filter(item => item !== title));
+        this.$emit('update:dislikedRecommendations', title);
         return;
       }
       
       // Remove from liked list if it was there
       if (this.isLiked(title)) {
-        this.$emit('update:likedRecommendations', this.likedRecommendations.filter(item => item !== title));
+        this.$emit('update:likedRecommendations', title);
       }
       
       // Add to disliked list
-      this.$emit('update:dislikedRecommendations', [...this.dislikedRecommendations, title]);
+      this.$emit('update:dislikedRecommendations', title);
     },
     // Check if a TV show is liked
     isLiked(title) {

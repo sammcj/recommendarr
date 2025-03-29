@@ -21,7 +21,7 @@
                   title="Refresh models from API"
                 >
                   <span v-if="fetchingModels" class="loading-icon">⟳</span>
-                  <span v-else>⟳</span>The 
+                  <span v-else>⟳</span>
                 </button>
               </div>
               <div class="model-select-container">

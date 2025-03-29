@@ -1353,7 +1353,43 @@ export default {
       
       // Fetch updated watch history with the explicitly selected user ID
       console.log(`Applying Jellyfin user selection: ${this.selectedJellyfinUserId}`);
-      this.fetchJellyfinData(this.selectedJellyfinUserId);
+      
+      try {
+        // Fetch the user history
+        await this.fetchJellyfinData(this.selectedJellyfinUserId);
+        
+        // Save the history data to localStorage
+        if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
+          this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
+          storageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
+        }
+        
+        if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
+          this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
+          storageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
+        }
+        
+        // Save to server
+        const allMovies = [
+          ...(this.jellyfinRecentlyWatchedMovies || [])
+        ];
+        
+        const allShows = [
+          ...(this.jellyfinRecentlyWatchedShows || [])
+        ];
+        
+        if (allMovies.length > 0) {
+          await apiService.saveWatchHistory('movies', allMovies);
+        }
+        
+        if (allShows.length > 0) {
+          await apiService.saveWatchHistory('shows', allShows);
+        }
+        
+        console.log('Jellyfin watch history stored successfully');
+      } catch (error) {
+        console.error('Error fetching and storing Jellyfin watch history:', error);
+      }
     },
     
     async openTautulliUserSelect() {
@@ -1384,7 +1420,7 @@ export default {
       storageUtils.set('selectedTautulliUserId', user.user_id);
     },
     
-    applyTautulliUserSelection() {
+    async applyTautulliUserSelection() {
       // Save current history limit to ensure it persists
       storageUtils.set('tautulliRecentLimit', this.tautulliRecentLimit.toString());
       
@@ -1398,7 +1434,43 @@ export default {
       // If selectedTautulliUserId is empty, pass null to indicate "all users"
       const userId = this.selectedTautulliUserId ? this.selectedTautulliUserId : null;
       console.log(`Applying Tautulli user selection: ${userId || 'all users'}`);
-      this.fetchTautulliData(userId);
+      
+      try {
+        // Fetch the user history
+        await this.fetchTautulliData(userId);
+        
+        // Save the history data to localStorage
+        if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
+          this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
+          storageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
+        }
+        
+        if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
+          this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
+          storageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
+        }
+        
+        // Save to server
+        const allMovies = [
+          ...(this.tautulliRecentlyWatchedMovies || [])
+        ];
+        
+        const allShows = [
+          ...(this.tautulliRecentlyWatchedShows || [])
+        ];
+        
+        if (allMovies.length > 0) {
+          await apiService.saveWatchHistory('movies', allMovies);
+        }
+        
+        if (allShows.length > 0) {
+          await apiService.saveWatchHistory('shows', allShows);
+        }
+        
+        console.log('Tautulli watch history stored successfully');
+      } catch (error) {
+        console.error('Error fetching and storing Tautulli watch history:', error);
+      }
     },
     
     async openPlexUserSelect() {
@@ -1441,8 +1513,42 @@ export default {
       // Close the modal
       this.showPlexUserSelect = false;
       
-      // Fetch updated watch history
-      this.fetchPlexData();
+      try {
+        // Fetch updated watch history
+        await this.fetchPlexData();
+        
+        // Save the history data to localStorage
+        if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
+          this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
+          storageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
+        }
+        
+        if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
+          this.recentlyWatchedShows.forEach(item => item.source = 'plex');
+          storageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
+        }
+        
+        // Save to server
+        const allMovies = [
+          ...(this.recentlyWatchedMovies || [])
+        ];
+        
+        const allShows = [
+          ...(this.recentlyWatchedShows || [])
+        ];
+        
+        if (allMovies.length > 0) {
+          await apiService.saveWatchHistory('movies', allMovies);
+        }
+        
+        if (allShows.length > 0) {
+          await apiService.saveWatchHistory('shows', allShows);
+        }
+        
+        console.log('Plex watch history stored successfully');
+      } catch (error) {
+        console.error('Error fetching and storing Plex watch history:', error);
+      }
     },
     
     async checkSonarrConnection() {

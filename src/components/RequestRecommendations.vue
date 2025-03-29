@@ -3510,6 +3510,9 @@ export default {
         // Always do this filtering regardless of mode to ensure clean recommendations
         if (this.recommendations.length > 0) {
           this.recommendations = await this.filterExistingShows(this.recommendations);
+          
+          // Fetch ratings data from Sonarr/Radarr for each recommendation
+          this.fetchRatingsForRecommendations();
         }
         
         // If we have fewer recommendations than requested after filtering, get more
@@ -3632,6 +3635,11 @@ export default {
         // Combine with existing recommendations
         this.recommendations = [...this.recommendations, ...filteredAdditional];
         
+        // Fetch ratings for the additional recommendations if there are any
+        if (filteredAdditional.length > 0) {
+          this.fetchRatingsForRecommendations();
+        }
+        
         // Sort recommendations by recommendarr rating from highest to lowest
         if (this.recommendations.length > 0) {
           this.recommendations.sort((a, b) => {
@@ -3676,6 +3684,69 @@ export default {
           }
         }
       }
+    },
+    
+    /**
+     * Fetch ratings data from Sonarr/Radarr for each recommendation
+     * This adds the ratings object to each recommendation if available
+     */
+    async fetchRatingsForRecommendations() {
+      // Skip if no recommendations or services not configured
+      if (!this.recommendations.length) return;
+      
+      const isRadarrConfigured = this.radarrConfigured || radarrService.isConfigured();
+      const isSonarrConfigured = this.sonarrConfigured || sonarrService.isConfigured();
+      
+      if ((this.isMovieMode && !isRadarrConfigured) || (!this.isMovieMode && !isSonarrConfigured)) {
+        console.log(`Skipping ratings lookup - ${this.isMovieMode ? 'Radarr' : 'Sonarr'} not configured`);
+        return;
+      }
+      
+      console.log(`Fetching ratings data for ${this.recommendations.length} recommendations from ${this.isMovieMode ? 'Radarr' : 'Sonarr'}`);
+      
+      // Process recommendations in batches to avoid overwhelming the API
+      const batchSize = 5;
+      for (let i = 0; i < this.recommendations.length; i += batchSize) {
+        const batch = this.recommendations.slice(i, i + batchSize);
+        
+        // Process each recommendation in the batch in parallel
+        await Promise.all(batch.map(async (rec) => {
+          try {
+            if (this.isMovieMode) {
+              // Lookup movie in Radarr
+              const movieData = await radarrService.lookupMovie(rec.title);
+              if (movieData && movieData.ratings) {
+                rec.ratings = movieData.ratings;
+                console.log(`Added ratings for movie "${rec.title}":`, rec.ratings);
+              }
+        } else {
+          // Lookup series in Sonarr
+          const seriesData = await sonarrService.lookupSeries(rec.title);
+          if (seriesData && seriesData.ratings) {
+            // Transform Sonarr ratings to match expected structure
+            // Sonarr ratings are just IMDB ratings
+            rec.ratings = {
+              imdb: {
+                value: seriesData.ratings.value,
+                votes: seriesData.ratings.votes
+              }
+            };
+            console.log(`Added transformed ratings for series "${rec.title}":`, rec.ratings);
+          }
+            }
+          } catch (error) {
+            console.error(`Error fetching ratings for "${rec.title}":`, error);
+            // Continue with other recommendations even if one fails
+          }
+        }));
+        
+        // Small delay between batches to be nice to the API
+        if (i + batchSize < this.recommendations.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      console.log('Finished fetching ratings data for all recommendations');
     },
     
     /**

@@ -336,7 +336,7 @@ class SonarrService {
   /**
    * Look up a series by title in Sonarr API
    * @param {string} title - The title to search for
-   * @returns {Promise<Object>} - Series details from the lookup
+   * @returns {Promise<Object>} - Series details from the lookup, including ratings if available
    */
   async lookupSeries(title) {
     try {
@@ -347,7 +347,15 @@ class SonarrService {
         throw new Error(`Series "${title}" not found in Sonarr lookup.`);
       }
       
-      return lookupData[0];
+      // The first result is typically the most relevant
+      const seriesData = lookupData[0];
+      
+      // Log ratings data if available for debugging
+      if (seriesData.ratings) {
+        console.log(`Found ratings data for "${title}":`, seriesData.ratings);
+      }
+      
+      return seriesData;
     } catch (error) {
       console.error(`Error looking up series "${title}" in Sonarr:`, error);
       throw error;

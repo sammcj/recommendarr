@@ -368,6 +368,35 @@ class RadarrService {
   }
 
   /**
+   * Look up a movie by title in Radarr API
+   * @param {string} title - The title to search for
+   * @returns {Promise<Object>} - Movie details from the lookup, including ratings if available
+   */
+  async lookupMovie(title) {
+    try {
+      const cleanTitle = title.trim();
+      const lookupData = await this._apiRequest('/api/v3/movie/lookup', 'GET', null, { term: cleanTitle });
+      
+      if (!lookupData || lookupData.length === 0) {
+        throw new Error(`Movie "${title}" not found in Radarr lookup.`);
+      }
+      
+      // The first result is typically the most relevant
+      const movieData = lookupData[0];
+      
+      // Log ratings data if available for debugging
+      if (movieData.ratings) {
+        console.log(`Found ratings data for "${title}":`, movieData.ratings);
+      }
+      
+      return movieData;
+    } catch (error) {
+      console.error(`Error looking up movie "${title}" in Radarr:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Add a movie to Radarr
    * @param {string} title - The movie title to search for
    * @param {number} [qualityProfileId] - Quality profile ID to use (optional)
@@ -378,14 +407,7 @@ class RadarrService {
   async addMovie(title, qualityProfileId = null, rootFolderPath = null, tags = []) {
     try {
       // 1. Look up the movie to get details
-      const cleanTitle = title.trim();
-      const lookupData = await this._apiRequest('/api/v3/movie/lookup', 'GET', null, { term: cleanTitle });
-      
-      if (!lookupData || lookupData.length === 0) {
-        throw new Error(`Movie "${title}" not found in Radarr lookup.`);
-      }
-      
-      const movieData = lookupData[0];
+      const movieData = await this.lookupMovie(title);
       
       // 2. Get quality profiles and root folders if not provided
       const [qualityProfiles, rootFolders] = await Promise.all([

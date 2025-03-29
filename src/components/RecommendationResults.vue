@@ -34,11 +34,6 @@
               </svg>
             </button>
           </div>
-          
-          <div v-if="rec.rating" class="rating-badge" 
-            :class="getScoreClass(rec.rating)"
-            :data-rating="extractScore(rec.rating) + '%'">
-          </div>
         </div>
         
         <div class="details-container">
@@ -102,17 +97,48 @@
               </div>
             </div>
             
-            <div v-if="rec.rating" class="rating-info">
-              <div class="rating-details">
-                <div class="rating-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
+            <!-- Updated v-if to check rec.rating OR the presence of any rating in rec.ratings -->
+            <div v-if="rec.rating || (rec.ratings && (rec.ratings.imdb || rec.ratings.rottenTomatoes || rec.ratings.metacritic || rec.ratings.tmdb))" class="rating-info">
+              <div class="ratings-container">
+                <!-- Recommendarr Rating -->
+                <div v-if="rec.rating" class="rating-item recommendarr-rating">
+                  <div class="rating-service-icon recommendarr-icon">
+                    <span>RR</span>
+                  </div>
+                  <span class="rating-text">{{ rec.rating }}</span>
                 </div>
-                <div class="rating-meter" :class="getScoreClass(rec.rating)">
-                  <div class="rating-meter-fill" :style="getRatingStyle(rec.rating)"></div>
+                
+                <!-- IMDB Rating - Now checks rec.ratings.imdb -->
+                <div v-if="rec.ratings && rec.ratings.imdb" class="rating-item imdb-rating">
+                  <div class="rating-service-icon imdb-icon">
+                    <span>IMDb</span>
+                  </div>
+                  <span class="rating-text">{{ rec.ratings.imdb.value }}</span>
                 </div>
-                <span class="rating-text">{{ rec.rating }}</span>
+                
+                <!-- Rotten Tomatoes Rating - Now checks rec.ratings.rottenTomatoes -->
+                <div v-if="rec.ratings && rec.ratings.rottenTomatoes" class="rating-item rt-rating">
+                  <div class="rating-service-icon rt-icon">
+                    <span>RT</span>
+                  </div>
+                  <span class="rating-text">{{ rec.ratings.rottenTomatoes.value }}%</span> <!-- Assuming RT value is percentage -->
+                </div>
+
+                <!-- Metacritic Rating - New -->
+                <div v-if="rec.ratings && rec.ratings.metacritic" class="rating-item metacritic-rating">
+                  <div class="rating-service-icon metacritic-icon">
+                    <span>MC</span>
+                  </div>
+                  <span class="rating-text">{{ rec.ratings.metacritic.value }}</span>
+                </div>
+
+                <!-- TMDB Rating - New -->
+                <div v-if="rec.ratings && rec.ratings.tmdb" class="rating-item tmdb-rating">
+                  <div class="rating-service-icon tmdb-icon">
+                    <span>TMDB</span>
+                  </div>
+                  <span class="rating-text">{{ rec.ratings.tmdb.value }}</span>
+                </div>
               </div>
             </div>
             
@@ -853,92 +879,74 @@ export default {
   transition: transform 0.2s ease;
 }
 
-/* Enhanced Rating info section */
-.rating-info {
-  margin-top: 10px;
-  margin-bottom: 6px;
-  padding: 10px;
-  background-color: rgba(0, 0, 0, 0.03);
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
+  /* Enhanced Rating info section */
+  .rating-info {
+    margin-top: 10px;
+    margin-bottom: 6px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
 
-.rating-details {
-  display: flex;
-  align-items: center;
-}
+  .ratings-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 16px;
+  }
 
-.rating-icon {
-  color: #FFB800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-}
+  .rating-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-.rating-meter {
-  flex-grow: 1;
-  height: 10px;
-  background-color: rgba(0, 0, 0, 0.07);
-  border-radius: 5px;
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.02);
-}
+  .rating-service-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
 
-.rating-meter.score-high {
-  border-color: rgba(46, 125, 50, 0.2);
-}
+  .recommendarr-icon {
+    background-color: var(--primary-color);
+    color: #FFFFFF;
+  }
 
-.rating-meter.score-medium {
-  border-color: rgba(251, 140, 0, 0.2);
-}
+  .imdb-icon {
+    background-color: #F5C518;
+    color: #000000;
+  }
 
-.rating-meter.score-low {
-  border-color: rgba(198, 40, 40, 0.2);
-}
+  .rt-icon {
+    background-color: #FA320A; /* Standard Rotten Tomatoes red */
+    color: #FFFFFF;
+  }
 
-.rating-meter-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.5s ease-out;
-}
+  .metacritic-icon {
+    background-color: #FFCC33; /* Standard Metacritic yellow */
+    color: #000000;
+  }
 
-.score-high .rating-meter-fill {
-  background: linear-gradient(to right, #43a047, #2e7d32);
-  box-shadow: 0 0 4px rgba(46, 125, 50, 0.3);
-}
+  .tmdb-icon {
+    background-color: #01D277; /* Standard TMDB green */
+    color: #FFFFFF;
+  }
 
-.score-medium .rating-meter-fill {
-  background: linear-gradient(to right, #ffb300, #fb8c00);
-  box-shadow: 0 0 4px rgba(251, 140, 0, 0.3);
-}
+  .rating-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
 
-.score-low .rating-meter-fill {
-  background: linear-gradient(to right, #e53935, #c62828);
-  box-shadow: 0 0 4px rgba(198, 40, 40, 0.3);
-}
-
-.score-na .rating-meter-fill {
-  background: linear-gradient(to right, #757575, #424242);
-}
-
-.rating-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-color);
-  margin-left: 8px;
-}
-
-/* Dark mode specific styles */
-:root[data-theme="dark"] .rating-info {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-:root[data-theme="dark"] .rating-meter {
-  background-color: rgba(0, 0, 0, 0.25);
-  border-color: rgba(255, 255, 255, 0.05);
-}
+  /* Dark mode specific styles */
+  :root[data-theme="dark"] .rating-info {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
 
 /* Reasoning section */
 .reasoning {
@@ -986,55 +994,6 @@ export default {
   transition: transform 0.2s ease;
 }
 
-/* Rating badge - clean, flat and modern */
-.rating-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  z-index: 3;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  font-size: 13px;
-  font-weight: 700;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.rating-badge:hover {
-  transform: scale(1.05);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
-}
-
-.rating-badge::before {
-  content: attr(data-rating);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-/* Flat color scheme for scores */
-.score-high {
-  background-color: #2E7D32;
-}
-
-.score-medium {
-  background-color: #FB8C00;
-}
-
-.score-low {
-  background-color: #C62828;
-}
-
-.score-na {
-  background-color: #616161;
-}
 
 /* Retry poster button */
 .retry-poster-button {

@@ -4,11 +4,11 @@
       <!-- Whole card content is clickable for TMDB -->
       <div class="card-content" 
         @click="openTMDBDetailModal(rec)" 
-        :class="{ 'clickable': isTMDBAvailable, 'compact-layout': shouldUseCompactMode }"
+        :class="{ 'clickable': isTMDBAvailable, 'compact-layout': shouldUseCompactMode, 'horizontal-layout': !shouldUseCompactMode }"
         :title="isTMDBAvailable ? 'Click for more details' : ''"
       >
         <!-- Poster container -->
-        <div class="poster-container">
+        <div class="poster-container" :class="{ 'poster-left': !shouldUseCompactMode }">
           <div 
             class="poster" 
             :style="getPosterStyle(rec.title)"
@@ -239,12 +239,15 @@ export default {
   },
   computed: {
     shouldUseCompactMode() {
-      // Improved compact mode detection that works better on all screen sizes
+      // Calculate available width per card based on screen width and columns
       const screenWidth = window.innerWidth;
       const numColumns = this.getNumColumns();
+      const availableGap = numColumns > 1 ? (numColumns - 1) * 30 : 0; // Account for gaps between cards
+      const availableWidthPerCard = (screenWidth - availableGap) / numColumns;
       
-      // Use compact mode if screen is narrow or user has selected many columns
-      return screenWidth < 768 || numColumns > 2;
+      // Use compact mode when cards would be too narrow for horizontal layout
+      // 450px is a good threshold where horizontal layout starts to look cramped
+      return availableWidthPerCard < 450;
     },
     isTMDBAvailable() {
       return this.tmdbAvailable;
@@ -566,12 +569,27 @@ export default {
   cursor: pointer;
 }
 
+/* Horizontal layout for non-compact cards */
+.card-content.horizontal-layout {
+  flex-direction: row;
+  height: auto; /* Allow the card to adjust height based on content */
+  min-height: 180px; /* Minimum height to ensure poster is fully visible */
+}
+
 /* Modernized poster container */
 .poster-container {
   position: relative;
   height: 180px;
   overflow: hidden;
   background-color: #f0f0f0;
+}
+
+/* Left-aligned poster for non-compact mode */
+.poster-container.poster-left {
+  width: 150px;
+  min-width: 150px;
+  height: 100%;
+  border-radius: 8px 0 0 8px;
 }
 
 .poster {
@@ -637,6 +655,15 @@ export default {
   position: relative;
   z-index: 1;
   gap: 12px;
+  overflow: hidden; /* Prevent content overflow */
+}
+
+/* Adjust details container for horizontal layout */
+.horizontal-layout .details-container {
+  padding: 14px;
+  overflow-y: visible; /* Show all content without scrolling */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Card header with title and actions */
@@ -647,12 +674,23 @@ export default {
   margin-bottom: 4px;
 }
 
+/* Adjust header for horizontal layout */
+.horizontal-layout .card-header {
+  margin-bottom: 8px;
+}
+
 .recommendation-card h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
   color: var(--header-color);
   line-height: 1.3;
+}
+
+/* Adjust title for horizontal layout */
+.horizontal-layout h3 {
+  font-size: 16px;
+  line-height: 1.2;
 }
 
 .recommendation-card p {
@@ -794,6 +832,22 @@ export default {
   gap: 14px;
 }
 
+/* Adjust content for horizontal layout */
+.horizontal-layout .content-container {
+  gap: 10px; /* Tighter spacing between sections */
+}
+
+/* Make description more concise in horizontal layout */
+.horizontal-layout .description p,
+.horizontal-layout .reasoning-content p,
+.horizontal-layout .full-text p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3; /* Limit to 3 lines */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .description {
   transition: transform 0.2s ease;
 }
@@ -893,6 +947,16 @@ export default {
   margin-top: 4px;
   transition: all 0.2s ease;
   border: 1px solid rgba(var(--primary-color-rgb), 0.06);
+}
+
+/* Adjust reasoning section for horizontal layout */
+.horizontal-layout .reasoning {
+  padding: 10px;
+  margin-top: 2px;
+}
+
+.horizontal-layout .reasoning-header {
+  margin-bottom: 4px;
 }
 
 .reasoning-header {

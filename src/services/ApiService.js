@@ -4,6 +4,8 @@ import axios from 'axios';
  * Client-side API service for communicating with our proxy server
  */
 class ApiService {
+  // Current user information
+  currentUser = null;
   constructor() {
     // Use the same server for both frontend and API by using a relative path
     // This enables both to run on the same port
@@ -200,11 +202,15 @@ class ApiService {
    * (History component should use getRecommendationsReadOnly instead)
    * 
    * @param {string} type - 'tv' or 'movie'
+   * @param {string} [username] - Optional username for user-specific recommendations
    * @returns {Promise<Array>} - Recommendations
    */
-  async getRecommendations(type) {
+  async getRecommendations(type, username) {
     try {
-      const response = await this.get(`/recommendations/${type}`);
+      const endpoint = username 
+        ? `/recommendations/${type}?username=${encodeURIComponent(username)}`
+        : `/recommendations/${type}`;
+      const response = await this.get(endpoint);
       return response.data;
     } catch (error) {
       console.error(`Failed to get ${type} recommendations:`, error);
@@ -217,12 +223,16 @@ class ApiService {
    * This should be used by History component to avoid overwriting data
    * 
    * @param {string} type - 'tv' or 'movie'
+   * @param {string} [username] - Optional username for user-specific recommendations
    * @returns {Promise<Array>} - Recommendations
    */
-  async getRecommendationsReadOnly(type) {
+  async getRecommendationsReadOnly(type, username) {
     try {
       // This calls a different endpoint entirely, ensuring no side effects
-      const response = await this.get(`/recommendations-readonly/${type}`);
+      const endpoint = username 
+        ? `/recommendations-readonly/${type}?username=${encodeURIComponent(username)}`
+        : `/recommendations-readonly/${type}`;
+      const response = await this.get(endpoint);
       return response.data;
     } catch (error) {
       console.error(`Failed to get ${type} recommendations (readonly):`, error);
@@ -235,49 +245,18 @@ class ApiService {
    * 
    * @param {string} type - 'tv' or 'movie'
    * @param {Array} recommendations - Recommendations to save
+   * @param {string} [username] - Optional username for user-specific recommendations
    * @returns {Promise<boolean>} - Whether the save was successful
    */
-  async saveRecommendations(type, recommendations) {
+  async saveRecommendations(type, recommendations, username) {
     try {
-      await this.post(`/recommendations/${type}`, recommendations);
+      const endpoint = username 
+        ? `/recommendations/${type}?username=${encodeURIComponent(username)}`
+        : `/recommendations/${type}`;
+      await this.post(endpoint, recommendations);
       return true;
     } catch (error) {
       console.error(`Failed to save ${type} recommendations:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Get user preferences (liked/disliked items)
-   * 
-   * @param {string} type - 'tv' or 'movie'
-   * @param {string} preference - 'liked' or 'disliked'
-   * @returns {Promise<Array>} - User preferences
-   */
-  async getPreferences(type, preference) {
-    try {
-      const response = await this.get(`/preferences/${type}/${preference}`);
-      return response.data;
-    } catch (error) {
-      console.error(`Failed to get ${type} ${preference} preferences:`, error);
-      return [];
-    }
-  }
-
-  /**
-   * Save user preferences (liked/disliked items)
-   * 
-   * @param {string} type - 'tv' or 'movie'
-   * @param {string} preference - 'liked' or 'disliked'
-   * @param {Array} items - Items to save
-   * @returns {Promise<boolean>} - Whether the save was successful
-   */
-  async savePreferences(type, preference, items) {
-    try {
-      await this.post(`/preferences/${type}/${preference}`, items);
-      return true;
-    } catch (error) {
-      console.error(`Failed to save ${type} ${preference} preferences:`, error);
       return false;
     }
   }
@@ -343,6 +322,60 @@ class ApiService {
       return true;
     } catch (error) {
       console.error(`Failed to save ${type} watch history:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Set the current user information
+   * This should be called by AuthService after login/logout
+   * 
+   * @param {Object} user - User information
+   */
+  setCurrentUser(user) {
+    this.currentUser = user;
+  }
+
+  /**
+   * Get the current user information
+   * 
+   * @returns {Object|null} - Current user information or null if not logged in
+   */
+  getCurrentUser() {
+    return this.currentUser;
+  }
+
+  /**
+   * Get user preferences (liked/disliked items)
+   * 
+   * @param {string} type - 'tv' or 'movie'
+   * @param {string} preference - 'liked' or 'disliked'
+   * @returns {Promise<Array>} - User preferences
+   */
+  async getPreferences(type, preference) {
+    try {
+      const response = await this.get(`/preferences/${type}/${preference}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get ${type} ${preference} preferences:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Save user preferences (liked/disliked items)
+   * 
+   * @param {string} type - 'tv' or 'movie'
+   * @param {string} preference - 'liked' or 'disliked'
+   * @param {Array} items - Items to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async savePreferences(type, preference, items) {
+    try {
+      await this.post(`/preferences/${type}/${preference}`, items);
+      return true;
+    } catch (error) {
+      console.error(`Failed to save ${type} ${preference} preferences:`, error);
       return false;
     }
   }

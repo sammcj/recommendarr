@@ -92,10 +92,21 @@ class OpenAIService {
    * Falls back to the model stored in credentials if localStorage model doesn't exist
    */
   loadModelFromLocalStorage() {
-    const localStorageModel = localStorage.getItem('openaiModel');
-    if (localStorageModel) {
-      this.model = localStorageModel;
-    }
+    // Import storageUtils dynamically to avoid circular dependency
+    import('../utils/StorageUtils.js').then(module => {
+      const storageUtils = module.default;
+      const savedModel = storageUtils.get('openaiModel');
+      if (savedModel) {
+        this.model = savedModel;
+      }
+    }).catch(error => {
+      console.error('Error loading storageUtils:', error);
+      // Fallback to localStorage if storageUtils fails
+      const localStorageModel = localStorage.getItem('openaiModel');
+      if (localStorageModel) {
+        this.model = localStorageModel;
+      }
+    });
   }
   
   /**
@@ -790,8 +801,16 @@ From these insights, recommend series that evoke comparable emotional states and
     
     if (model) {
       this.model = model;
-      // When model is updated, also store it in localStorage for easy access
-      localStorage.setItem('openaiModel', model);
+      // When model is updated, store it in storageUtils for user-specific access
+      // Import storageUtils dynamically to avoid circular dependency
+      import('../utils/StorageUtils.js').then(module => {
+        const storageUtils = module.default;
+        storageUtils.set('openaiModel', model);
+      }).catch(error => {
+        console.error('Error loading storageUtils:', error);
+        // Fallback to localStorage if storageUtils fails
+        localStorage.setItem('openaiModel', model);
+      });
     }
     
     if (baseUrl) {

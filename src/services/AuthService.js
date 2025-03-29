@@ -10,6 +10,8 @@ class AuthService {
       const userJson = localStorage.getItem('auth_user');
       if (userJson) {
         this.user = JSON.parse(userJson);
+        // Initialize ApiService with the current user
+        ApiService.setCurrentUser(this.user);
       }
     } catch (error) {
       console.error('Error accessing localStorage:', error);
@@ -29,6 +31,13 @@ class AuthService {
     return this.user;
   }
   
+  // Initialize the current user in ApiService
+  initApiServiceUser() {
+    if (this.user) {
+      ApiService.setCurrentUser(this.user);
+    }
+  }
+  
   // Get authentication token
   getToken() {
     return this.token;
@@ -37,6 +46,11 @@ class AuthService {
   // Check if user is admin
   isAdmin() {
     return this.user && this.user.isAdmin;
+  }
+  
+  // Get authentication provider
+  getAuthProvider() {
+    return this.user && this.user.authProvider ? this.user.authProvider : 'local';
   }
   
   // Set authentication headers for API requests (for compatibility)
@@ -57,6 +71,38 @@ class AuthService {
     } else {
       console.log('Removing auth header due to no token');
       ApiService.removeHeader('Authorization');
+    }
+  }
+  
+  // Verify current session (useful after OAuth redirect)
+  async verifySession() {
+    try {
+      const response = await ApiService.get('/auth/verify');
+      if (response.data && response.data.user) {
+        this.user = response.data.user;
+        this.token = "cookie-auth";
+        localStorage.setItem('auth_user', JSON.stringify(this.user));
+        
+        // Set the current user in ApiService
+        ApiService.setCurrentUser(this.user);
+        
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Session verification failed:', error);
+      return false;
+    }
+  }
+
+  // Get enabled authentication providers
+  async getEnabledProviders() {
+    try {
+      const response = await ApiService.get('/auth/providers');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting auth providers:', error);
+      return { providers: [], localAuth: true };
     }
   }
   
@@ -100,7 +146,7 @@ class AuthService {
       this.user = user;
       
       // The token is implicitly sent with every request via cookies
-      // We store null for token, as we don't have direct access to the HttpOnly cookie
+      // We store "cookie-auth" for token, as we don't have direct access to the HttpOnly cookie
       this.token = "cookie-auth"; // Marker to indicate we're using cookie auth
       
       // Save user data to localStorage
@@ -120,11 +166,20 @@ class AuthService {
       const currentHeaders = ApiService.axiosInstance.defaults.headers.common;
       console.log('Current auth header:', currentHeaders['Authorization'] ? 'Set' : 'Not set');
       
+      // Set the current user in ApiService
+      ApiService.setCurrentUser(user);
+      
       return user;
     } catch (error) {
       console.error('Login error:', error);
       throw error.response?.data?.error || error.message;
     }
+  }
+  
+  // OAuth login redirect
+  oauthLogin(provider) {
+    // Redirect to the OAuth provider's authorization page
+    window.location.href = `${ApiService.baseUrl}/auth/${provider}`;
   }
   
   // Logout the current user - handles both server-side and local logout
@@ -181,6 +236,9 @@ class AuthService {
     
     // Remove auth header (for backward compatibility)
     ApiService.removeHeader('Authorization');
+    
+    // Clear the current user in ApiService
+    ApiService.setCurrentUser(null);
   }
   
   // Change password
@@ -190,6 +248,25 @@ class AuthService {
         currentPassword,
         newPassword
       });
+      
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.error || error.message;
+    }
+  }
+  
+  // Update user profile
+  async updateProfile(profile) {
+    try {
+      const response = await ApiService.post('/auth/profile', {
+        profile
+      });
+      
+      if (response.data.success && response.data.user) {
+        // Update local user data
+        this.user = response.data.user;
+        localStorage.setItem('auth_user', JSON.stringify(this.user));
+      }
       
       return response.data;
     } catch (error) {
@@ -222,10 +299,20 @@ class AuthService {
     }
   }
   
-  // Delete a user (admin only)
-  async deleteUser(username) {
+  // Update a user (admin only)
+  async updateUser(userId, updates) {
     try {
-      const response = await ApiService.delete(`/auth/users/${username}`);
+      const response = await ApiService.put(`/auth/users/${userId}`, updates);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.error || error.message;
+    }
+  }
+  
+  // Delete a user (admin only)
+  async deleteUser(userId) {
+    try {
+      const response = await ApiService.delete(`/auth/users/${userId}`);
       return response.data;
     } catch (error) {
       throw error.response?.data?.error || error.message;

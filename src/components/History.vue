@@ -6,7 +6,8 @@
       <button class="notification-close" @click="dismissNotification">×</button>
     </div>
     
-    <h2>Recommendation History</h2>
+    <h2>Your Recommendation History</h2>
+    <p class="history-user-info" v-if="username">Viewing history for user: {{ username }}</p>
     
     <div class="history-controls">
       <div class="view-toggle">
@@ -549,6 +550,8 @@ import radarrService from '../services/RadarrService.js';
 import tmdbService from '../services/TMDBService.js';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 import apiService from '../services/ApiService.js';
+import authService from '../services/AuthService.js';
+import storageUtils from '../utils/StorageUtils.js';
 import axios from 'axios';
 
 // Debug services availability
@@ -575,6 +578,7 @@ export default {
   },
   data() {
     return {
+      username: authService.getUser()?.username || '',
       activeView: 'combined',
       tvRecommendations: [],
       movieRecommendations: [],
@@ -785,7 +789,7 @@ export default {
       this.resetPagination();
       
       // Save to localStorage
-      localStorage.setItem('historyHideExisting', this.hideExistingContent.toString());
+      storageUtils.set('historyHideExisting', this.hideExistingContent);
       
       // Save to server
       try {
@@ -802,7 +806,7 @@ export default {
       this.resetPagination();
       
       // Save to localStorage
-      localStorage.setItem('historyHideLiked', this.hideLikedContent.toString());
+      storageUtils.set('historyHideLiked', this.hideLikedContent);
       
       // Save to server
       try {
@@ -819,7 +823,7 @@ export default {
       this.resetPagination();
       
       // Save to localStorage
-      localStorage.setItem('historyHideDisliked', this.hideDislikedContent.toString());
+      storageUtils.set('historyHideDisliked', this.hideDislikedContent);
       
       // Save to server
       try {
@@ -958,7 +962,7 @@ export default {
         // First try to load TV recommendations from server with abort signal
         // Use readonly method to avoid overwriting server data
         const tvRecommendations = await this.fetchWithAbort(
-          () => apiService.getRecommendationsReadOnly('tv'),
+          () => apiService.getRecommendationsReadOnly('tv', this.username),
           signal,
           'Loading TV recommendations (readonly)'
         );
@@ -968,23 +972,32 @@ export default {
           // Normalize recommendations to ensure they're all strings
           this.tvRecommendations = this.normalizeArray(tvRecommendations);
           console.log('Normalized TV recommendations:', this.tvRecommendations);
-          // Update localStorage with server data
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.tvRecommendations));
+          // Update localStorage with server data - include user ID in the key
+          storageUtils.setJSON(`previousTVRecommendations`, this.tvRecommendations);
         } else if (!signal.aborted) {
-          // Fallback to localStorage if server returns empty
-          const tvHistory = localStorage.getItem('previousTVRecommendations');
-          if (tvHistory) {
-            const parsed = JSON.parse(tvHistory);
-            this.tvRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
-            // Don't save to server - server was empty by design (likely after a reset)
+          // If server returns empty, check if we recently cleared history
+          const recentlyClearedTV = storageUtils.get('recentlyClearedTVHistory');
+          
+          if (recentlyClearedTV) {
+            console.log('Recently cleared TV history detected, using empty array');
+            this.tvRecommendations = [];
+          } else {
+            // Only fallback to localStorage if we haven't recently cleared
+            const tvHistory = storageUtils.getJSON('previousTVRecommendations');
+            if (tvHistory) {
+              this.tvRecommendations = this.normalizeArray(tvHistory);
+              console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
+              // Don't save to server - server was empty by design (likely after a reset)
+            } else {
+              this.tvRecommendations = [];
+            }
           }
         }
         
         // Then try to load movie recommendations from server with abort signal
         if (!signal.aborted) {
           const movieRecommendations = await this.fetchWithAbort(
-            () => apiService.getRecommendationsReadOnly('movie'),
+            () => apiService.getRecommendationsReadOnly('movie', this.username),
             signal,
             'Loading movie recommendations (readonly)'
           );
@@ -994,16 +1007,25 @@ export default {
             // Normalize recommendations to ensure they're all strings
             this.movieRecommendations = this.normalizeArray(movieRecommendations);
             console.log('Normalized movie recommendations:', this.movieRecommendations);
-            // Update localStorage with server data
-            localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.movieRecommendations));
+            // Update localStorage with server data - include user ID in the key
+            storageUtils.setJSON(`previousMovieRecommendations`, this.movieRecommendations);
           } else if (!signal.aborted) {
-            // Fallback to localStorage if server returns empty
-            const movieHistory = localStorage.getItem('previousMovieRecommendations');
-            if (movieHistory) {
-              const parsed = JSON.parse(movieHistory);
-              this.movieRecommendations = this.normalizeArray(parsed);
-              console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
-              // Don't save to server - server was empty by design (likely after a reset)
+            // If server returns empty, check if we recently cleared history
+            const recentlyClearedMovies = storageUtils.get('recentlyClearedMovieHistory');
+            
+            if (recentlyClearedMovies) {
+              console.log('Recently cleared movie history detected, using empty array');
+              this.movieRecommendations = [];
+            } else {
+              // Only fallback to localStorage if we haven't recently cleared
+              const movieHistory = storageUtils.getJSON('previousMovieRecommendations');
+              if (movieHistory) {
+                this.movieRecommendations = this.normalizeArray(movieHistory);
+                console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
+                // Don't save to server - server was empty by design (likely after a reset)
+              } else {
+                this.movieRecommendations = [];
+              }
             }
           }
         }
@@ -1012,20 +1034,41 @@ export default {
         if (!signal.aborted) {
           console.error('Error loading recommendations from server:', error);
           
-          // Fallback to localStorage on error
-          const tvHistory = localStorage.getItem('previousTVRecommendations');
-          if (tvHistory) {
-            const parsed = JSON.parse(tvHistory);
-            this.tvRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded TV recommendations from localStorage (after server error)');
+          // Check if we have any data already loaded
+          if (this.tvRecommendations.length === 0) {
+            // Only try localStorage if we haven't cleared history recently
+            const recentlyClearedTV = storageUtils.get('recentlyClearedTVHistory');
+            
+            if (!recentlyClearedTV) {
+              // Try to load from localStorage
+              const tvHistory = storageUtils.getJSON('previousTVRecommendations');
+              if (tvHistory) {
+                this.tvRecommendations = this.normalizeArray(tvHistory);
+                console.log('Loaded TV recommendations from localStorage (after server error)');
+              }
+            } else {
+              console.log('Recently cleared TV history, not loading from localStorage');
+            }
           }
           
-          const movieHistory = localStorage.getItem('previousMovieRecommendations');
-          if (movieHistory) {
-            const parsed = JSON.parse(movieHistory);
-            this.movieRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded movie recommendations from localStorage (after server error)');
+          if (this.movieRecommendations.length === 0) {
+            // Only try localStorage if we haven't cleared history recently
+            const recentlyClearedMovies = storageUtils.get('recentlyClearedMovieHistory');
+            
+            if (!recentlyClearedMovies) {
+              // Try to load from localStorage
+              const movieHistory = storageUtils.getJSON('previousMovieRecommendations');
+              if (movieHistory) {
+                this.movieRecommendations = this.normalizeArray(movieHistory);
+                console.log('Loaded movie recommendations from localStorage (after server error)');
+              }
+            } else {
+              console.log('Recently cleared movie history, not loading from localStorage');
+            }
           }
+          
+          // Show error notification
+          this.showNotification('Error loading recommendations from server. Some data may be missing.', 'error');
         } else {
           console.log('Request was aborted, skipping error handling');
         }
@@ -1082,10 +1125,10 @@ export default {
           console.log('Loaded history columns count from server:', settings.historyColumnsCount);
           this.columnsCount = settings.historyColumnsCount;
           // Update localStorage
-          localStorage.setItem('historyColumnsCount', settings.historyColumnsCount.toString());
+          storageUtils.set('historyColumnsCount', settings.historyColumnsCount);
         } else {
           // Fall back to localStorage
-          const savedCount = localStorage.getItem('historyColumnsCount');
+          const savedCount = storageUtils.get('historyColumnsCount');
           if (savedCount) {
             this.columnsCount = parseInt(savedCount);
             // Save to server for future use
@@ -1098,7 +1141,7 @@ export default {
       } catch (error) {
         console.error('Error loading columns count from server:', error);
         // Fall back to localStorage
-        const savedCount = localStorage.getItem('historyColumnsCount');
+        const savedCount = storageUtils.get('historyColumnsCount');
         if (savedCount) {
           this.columnsCount = parseInt(savedCount);
         }
@@ -1107,7 +1150,7 @@ export default {
     
     async saveColumnsCount() {
       // Save to localStorage
-      localStorage.setItem('historyColumnsCount', this.columnsCount.toString());
+      storageUtils.set('historyColumnsCount', this.columnsCount);
       
       // Save to server
       try {
@@ -1129,15 +1172,15 @@ export default {
           console.log('Loaded historyHideExisting from server:', settings.historyHideExisting);
           this.hideExistingContent = settings.historyHideExisting;
           // Update localStorage
-          localStorage.setItem('historyHideExisting', settings.historyHideExisting.toString());
+          storageUtils.set('historyHideExisting', settings.historyHideExisting);
         } else {
           // Fall back to localStorage
-          const hideExisting = localStorage.getItem('historyHideExisting');
+          const hideExisting = storageUtils.get('historyHideExisting');
           if (hideExisting !== null) {
-            this.hideExistingContent = hideExisting === 'true';
+            this.hideExistingContent = hideExisting;
             // Save to server for future use
             if (settings) {
-              settings.historyHideExisting = hideExisting === 'true';
+              settings.historyHideExisting = hideExisting;
               await apiService.saveSettings(settings);
             }
           }
@@ -1148,15 +1191,15 @@ export default {
           console.log('Loaded historyHideLiked from server:', settings.historyHideLiked);
           this.hideLikedContent = settings.historyHideLiked;
           // Update localStorage
-          localStorage.setItem('historyHideLiked', settings.historyHideLiked.toString());
+          storageUtils.set('historyHideLiked', settings.historyHideLiked);
         } else {
           // Fall back to localStorage
-          const hideLiked = localStorage.getItem('historyHideLiked');
+          const hideLiked = storageUtils.get('historyHideLiked');
           if (hideLiked !== null) {
-            this.hideLikedContent = hideLiked === 'true';
+            this.hideLikedContent = hideLiked;
             // Save to server for future use
             if (settings) {
-              settings.historyHideLiked = hideLiked === 'true';
+              settings.historyHideLiked = hideLiked;
               await apiService.saveSettings(settings);
             }
           }
@@ -1167,15 +1210,15 @@ export default {
           console.log('Loaded historyHideDisliked from server:', settings.historyHideDisliked);
           this.hideDislikedContent = settings.historyHideDisliked;
           // Update localStorage
-          localStorage.setItem('historyHideDisliked', settings.historyHideDisliked.toString());
+          storageUtils.set('historyHideDisliked', settings.historyHideDisliked);
         } else {
           // Fall back to localStorage
-          const hideDisliked = localStorage.getItem('historyHideDisliked');
+          const hideDisliked = storageUtils.get('historyHideDisliked');
           if (hideDisliked !== null) {
-            this.hideDislikedContent = hideDisliked === 'true';
+            this.hideDislikedContent = hideDisliked;
             // Save to server for future use
             if (settings) {
-              settings.historyHideDisliked = hideDisliked === 'true';
+              settings.historyHideDisliked = hideDisliked;
               await apiService.saveSettings(settings);
             }
           }
@@ -1186,16 +1229,16 @@ export default {
           console.log('Loaded historyHideHidden from server:', settings.historyHideHidden);
           this.hideHiddenContent = settings.historyHideHidden;
           // Update localStorage
-          localStorage.setItem('historyHideHidden', settings.historyHideHidden.toString());
+          storageUtils.set('historyHideHidden', settings.historyHideHidden);
         } else {
           // Fall back to localStorage or default to true
-          const hideHidden = localStorage.getItem('historyHideHidden');
+          const hideHidden = storageUtils.get('historyHideHidden');
           if (hideHidden !== null) {
-            this.hideHiddenContent = hideHidden === 'true';
+            this.hideHiddenContent = hideHidden;
           } else {
             // Set default to true if no setting exists anywhere
             this.hideHiddenContent = true;
-            localStorage.setItem('historyHideHidden', 'true');
+            storageUtils.set('historyHideHidden', true);
           }
           
           // Save to server for future use
@@ -1211,16 +1254,15 @@ export default {
           console.log('Loaded hidden TV shows from server:', hiddenTVFromServer.length);
           this.hiddenTVShows = new Set(hiddenTVFromServer.map(show => show.toLowerCase()));
           // Update localStorage
-          localStorage.setItem('hiddenTVShows', JSON.stringify(hiddenTVFromServer));
+          storageUtils.setJSON('hiddenTVShows', hiddenTVFromServer);
         } else {
           // Fall back to localStorage
-          const hiddenTV = localStorage.getItem('hiddenTVShows');
+          const hiddenTV = storageUtils.getJSON('hiddenTVShows');
           if (hiddenTV) {
-            const parsed = JSON.parse(hiddenTV);
-            this.hiddenTVShows = new Set(parsed.map(show => show.toLowerCase()));
-            console.log('Loaded hidden TV shows from localStorage:', parsed.length);
+            this.hiddenTVShows = new Set(hiddenTV.map(show => show.toLowerCase()));
+            console.log('Loaded hidden TV shows from localStorage:', hiddenTV.length);
             // Save to server for future use
-            apiService.savePreferences('tv', 'hidden', parsed);
+            apiService.savePreferences('tv', 'hidden', hiddenTV);
           }
         }
         
@@ -1230,16 +1272,15 @@ export default {
           console.log('Loaded hidden movies from server:', hiddenMoviesFromServer.length);
           this.hiddenMovies = new Set(hiddenMoviesFromServer.map(movie => movie.toLowerCase()));
           // Update localStorage
-          localStorage.setItem('hiddenMovies', JSON.stringify(hiddenMoviesFromServer));
+          storageUtils.setJSON('hiddenMovies', hiddenMoviesFromServer);
         } else {
           // Fall back to localStorage
-          const hiddenMovies = localStorage.getItem('hiddenMovies');
+          const hiddenMovies = storageUtils.getJSON('hiddenMovies');
           if (hiddenMovies) {
-            const parsed = JSON.parse(hiddenMovies);
-            this.hiddenMovies = new Set(parsed.map(movie => movie.toLowerCase()));
-            console.log('Loaded hidden movies from localStorage:', parsed.length);
+            this.hiddenMovies = new Set(hiddenMovies.map(movie => movie.toLowerCase()));
+            console.log('Loaded hidden movies from localStorage:', hiddenMovies.length);
             // Save to server for future use
-            apiService.savePreferences('movie', 'hidden', parsed);
+            apiService.savePreferences('movie', 'hidden', hiddenMovies);
           }
         }
       } catch (error) {
@@ -1247,43 +1288,43 @@ export default {
         
         // Fall back to localStorage on error
         // Load existing content preference
-        const hideExisting = localStorage.getItem('historyHideExisting');
+        const hideExisting = storageUtils.get('historyHideExisting');
         if (hideExisting !== null) {
-          this.hideExistingContent = hideExisting === 'true';
+          this.hideExistingContent = hideExisting;
         }
         
         // Load liked content preference
-        const hideLiked = localStorage.getItem('historyHideLiked');
+        const hideLiked = storageUtils.get('historyHideLiked');
         if (hideLiked !== null) {
-          this.hideLikedContent = hideLiked === 'true';
+          this.hideLikedContent = hideLiked;
         }
         
         // Load disliked content preference
-        const hideDisliked = localStorage.getItem('historyHideDisliked');
+        const hideDisliked = storageUtils.get('historyHideDisliked');
         if (hideDisliked !== null) {
-          this.hideDislikedContent = hideDisliked === 'true';
+          this.hideDislikedContent = hideDisliked;
         }
         
         // Load hidden content preference (default to true if not found)
-        const hideHidden = localStorage.getItem('historyHideHidden');
+        const hideHidden = storageUtils.get('historyHideHidden');
         if (hideHidden !== null) {
-          this.hideHiddenContent = hideHidden === 'true';
+          this.hideHiddenContent = hideHidden;
         } else {
           // If no setting exists, default to true (hide hidden items)
           this.hideHiddenContent = true;
-          localStorage.setItem('historyHideHidden', 'true');
+          storageUtils.set('historyHideHidden', true);
         }
         
         // Load hidden TV shows
-        const hiddenTV = localStorage.getItem('hiddenTVShows');
+        const hiddenTV = storageUtils.getJSON('hiddenTVShows');
         if (hiddenTV) {
-          this.hiddenTVShows = new Set(JSON.parse(hiddenTV).map(show => show.toLowerCase()));
+          this.hiddenTVShows = new Set(hiddenTV.map(show => show.toLowerCase()));
         }
         
         // Load hidden movies
-        const hiddenMovies = localStorage.getItem('hiddenMovies');
+        const hiddenMovies = storageUtils.getJSON('hiddenMovies');
         if (hiddenMovies) {
-          this.hiddenMovies = new Set(JSON.parse(hiddenMovies).map(movie => movie.toLowerCase()));
+          this.hiddenMovies = new Set(hiddenMovies.map(movie => movie.toLowerCase()));
         }
       }
       
@@ -1301,16 +1342,15 @@ export default {
           console.log('Loaded liked TV shows from server:', likedTVFromServer.length);
           this.likedTVShows = new Set(likedTVFromServer.map(show => show.toLowerCase()));
           // Update localStorage
-          localStorage.setItem('likedTVRecommendations', JSON.stringify(likedTVFromServer));
+          storageUtils.setJSON('likedTVRecommendations', likedTVFromServer);
         } else {
           // Fall back to localStorage
-          const likedTV = localStorage.getItem('likedTVRecommendations');
+          const likedTV = storageUtils.getJSON('likedTVRecommendations');
           if (likedTV) {
-            const parsed = JSON.parse(likedTV);
-            this.likedTVShows = new Set(parsed.map(show => show.toLowerCase()));
-            console.log('Loaded liked TV shows from localStorage:', parsed.length);
+            this.likedTVShows = new Set(likedTV.map(show => show.toLowerCase()));
+            console.log('Loaded liked TV shows from localStorage:', likedTV.length);
             // Save to server for future use
-            apiService.savePreferences('tv', 'liked', parsed);
+            apiService.savePreferences('tv', 'liked', likedTV);
           }
         }
         
@@ -1320,16 +1360,15 @@ export default {
           console.log('Loaded disliked TV shows from server:', dislikedTVFromServer.length);
           this.dislikedTVShows = new Set(dislikedTVFromServer.map(show => show.toLowerCase()));
           // Update localStorage
-          localStorage.setItem('dislikedTVRecommendations', JSON.stringify(dislikedTVFromServer));
+          storageUtils.setJSON('dislikedTVRecommendations', dislikedTVFromServer);
         } else {
           // Fall back to localStorage
-          const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
+          const dislikedTV = storageUtils.getJSON('dislikedTVRecommendations');
           if (dislikedTV) {
-            const parsed = JSON.parse(dislikedTV);
-            this.dislikedTVShows = new Set(parsed.map(show => show.toLowerCase()));
-            console.log('Loaded disliked TV shows from localStorage:', parsed.length);
+            this.dislikedTVShows = new Set(dislikedTV.map(show => show.toLowerCase()));
+            console.log('Loaded disliked TV shows from localStorage:', dislikedTV.length);
             // Save to server for future use
-            apiService.savePreferences('tv', 'disliked', parsed);
+            apiService.savePreferences('tv', 'disliked', dislikedTV);
           }
         }
         
@@ -1339,16 +1378,15 @@ export default {
           console.log('Loaded liked movies from server:', likedMoviesFromServer.length);
           this.likedMovies = new Set(likedMoviesFromServer.map(movie => movie.toLowerCase()));
           // Update localStorage
-          localStorage.setItem('likedMovieRecommendations', JSON.stringify(likedMoviesFromServer));
+          storageUtils.setJSON('likedMovieRecommendations', likedMoviesFromServer);
         } else {
           // Fall back to localStorage
-          const likedMovies = localStorage.getItem('likedMovieRecommendations');
+          const likedMovies = storageUtils.getJSON('likedMovieRecommendations');
           if (likedMovies) {
-            const parsed = JSON.parse(likedMovies);
-            this.likedMovies = new Set(parsed.map(movie => movie.toLowerCase()));
-            console.log('Loaded liked movies from localStorage:', parsed.length);
+            this.likedMovies = new Set(likedMovies.map(movie => movie.toLowerCase()));
+            console.log('Loaded liked movies from localStorage:', likedMovies.length);
             // Save to server for future use
-            apiService.savePreferences('movie', 'liked', parsed);
+            apiService.savePreferences('movie', 'liked', likedMovies);
           }
         }
         
@@ -1358,40 +1396,39 @@ export default {
           console.log('Loaded disliked movies from server:', dislikedMoviesFromServer.length);
           this.dislikedMovies = new Set(dislikedMoviesFromServer.map(movie => movie.toLowerCase()));
           // Update localStorage
-          localStorage.setItem('dislikedMovieRecommendations', JSON.stringify(dislikedMoviesFromServer));
+          storageUtils.setJSON('dislikedMovieRecommendations', dislikedMoviesFromServer);
         } else {
           // Fall back to localStorage
-          const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
+          const dislikedMovies = storageUtils.getJSON('dislikedMovieRecommendations');
           if (dislikedMovies) {
-            const parsed = JSON.parse(dislikedMovies);
-            this.dislikedMovies = new Set(parsed.map(movie => movie.toLowerCase()));
-            console.log('Loaded disliked movies from localStorage:', parsed.length);
+            this.dislikedMovies = new Set(dislikedMovies.map(movie => movie.toLowerCase()));
+            console.log('Loaded disliked movies from localStorage:', dislikedMovies.length);
             // Save to server for future use
-            apiService.savePreferences('movie', 'disliked', parsed);
+            apiService.savePreferences('movie', 'disliked', dislikedMovies);
           }
         }
       } catch (error) {
         console.error('Error loading liked/disliked content from server:', error);
         
         // Fall back to localStorage on error
-        const likedTV = localStorage.getItem('likedTVRecommendations');
+        const likedTV = storageUtils.getJSON('likedTVRecommendations');
         if (likedTV) {
-          this.likedTVShows = new Set(JSON.parse(likedTV).map(show => show.toLowerCase()));
+          this.likedTVShows = new Set(likedTV.map(show => show.toLowerCase()));
         }
         
-        const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
+        const dislikedTV = storageUtils.getJSON('dislikedTVRecommendations');
         if (dislikedTV) {
-          this.dislikedTVShows = new Set(JSON.parse(dislikedTV).map(show => show.toLowerCase()));
+          this.dislikedTVShows = new Set(dislikedTV.map(show => show.toLowerCase()));
         }
         
-        const likedMovies = localStorage.getItem('likedMovieRecommendations');
+        const likedMovies = storageUtils.getJSON('likedMovieRecommendations');
         if (likedMovies) {
-          this.likedMovies = new Set(JSON.parse(likedMovies).map(movie => movie.toLowerCase()));
+          this.likedMovies = new Set(likedMovies.map(movie => movie.toLowerCase()));
         }
         
-        const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
+        const dislikedMovies = storageUtils.getJSON('dislikedMovieRecommendations');
         if (dislikedMovies) {
-          this.dislikedMovies = new Set(JSON.parse(dislikedMovies).map(movie => movie.toLowerCase()));
+          this.dislikedMovies = new Set(dislikedMovies.map(movie => movie.toLowerCase()));
         }
       }
     },
@@ -1707,18 +1744,18 @@ export default {
     
     async saveFilterPreferences() {
       // Save filter preferences to localStorage
-      localStorage.setItem('hideExistingContent', String(this.hideExistingContent));
-      localStorage.setItem('hideLikedContent', String(this.hideLikedContent));
-      localStorage.setItem('hideDislikedContent', String(this.hideDislikedContent));
-      localStorage.setItem('hideHiddenContent', String(this.hideHiddenContent));
+      storageUtils.set('historyHideExisting', this.hideExistingContent);
+      storageUtils.set('historyHideLiked', this.hideLikedContent);
+      storageUtils.set('historyHideDisliked', this.hideDislikedContent);
+      storageUtils.set('historyHideHidden', this.hideHiddenContent);
       
       // Convert Sets to arrays for storage
       const hiddenTVArray = Array.from(this.hiddenTVShows);
       const hiddenMoviesArray = Array.from(this.hiddenMovies);
       
       // Save hidden items to localStorage
-      localStorage.setItem('hiddenTVShows', JSON.stringify(hiddenTVArray));
-      localStorage.setItem('hiddenMovies', JSON.stringify(hiddenMoviesArray));
+      storageUtils.setJSON('hiddenTVShows', hiddenTVArray);
+      storageUtils.setJSON('hiddenMovies', hiddenMoviesArray);
       
       // Also save to server if possible
       try {
@@ -1989,36 +2026,72 @@ export default {
       });
     },
     
-    // Remove unused methods as we're now using the load more trigger approach instead
-    
     async clearTVHistory() {
       if (confirm('Are you sure you want to clear your TV show recommendation history?')) {
-        // Clear from localStorage
-        localStorage.removeItem('previousTVRecommendations');
-        this.tvRecommendations = [];
-        
-        // Clear from server
         try {
+          // Clear from localStorage using StorageUtils
+          storageUtils.remove('previousTVRecommendations', true); // Remove legacy key too
+          
+          // Clear from server
           await apiService.saveRecommendations('tv', []);
           console.log('Cleared TV recommendations from server');
+          
+          // Clear local data
+          this.tvRecommendations = [];
+          this.filteredTVRecommendations = [];
+          this.displayedTVShows = [];
+          
+          // Set a flag to prevent reloading from localStorage
+          storageUtils.set('recentlyClearedTVHistory', true);
+          
+          // Clear this flag after 1 minute
+          setTimeout(() => {
+            storageUtils.remove('recentlyClearedTVHistory');
+          }, 60000);
+          
+          // Show success notification
+          this.showNotification('TV show history has been cleared successfully', 'success');
+          
+          // Reset pagination
+          this.tvCurrentPage = 1;
         } catch (error) {
-          console.error('Failed to clear TV recommendations from server:', error);
+          console.error('Failed to clear TV recommendations:', error);
+          this.showNotification('Failed to clear TV history. Please try again.', 'error');
         }
       }
     },
     
     async clearMovieHistory() {
       if (confirm('Are you sure you want to clear your movie recommendation history?')) {
-        // Clear from localStorage
-        localStorage.removeItem('previousMovieRecommendations');
-        this.movieRecommendations = [];
-        
-        // Clear from server
         try {
+          // Clear from localStorage using StorageUtils
+          storageUtils.remove('previousMovieRecommendations', true); // Remove legacy key too
+          
+          // Clear from server
           await apiService.saveRecommendations('movie', []);
           console.log('Cleared movie recommendations from server');
+          
+          // Clear local data
+          this.movieRecommendations = [];
+          this.filteredMovieRecommendations = [];
+          this.displayedMovies = [];
+          
+          // Set a flag to prevent reloading from localStorage
+          storageUtils.set('recentlyClearedMovieHistory', true);
+          
+          // Clear this flag after 1 minute
+          setTimeout(() => {
+            storageUtils.remove('recentlyClearedMovieHistory');
+          }, 60000);
+          
+          // Show success notification
+          this.showNotification('Movie history has been cleared successfully', 'success');
+          
+          // Reset pagination
+          this.movieCurrentPage = 1;
         } catch (error) {
-          console.error('Failed to clear movie recommendations from server:', error);
+          console.error('Failed to clear movie recommendations:', error);
+          this.showNotification('Failed to clear movie history. Please try again.', 'error');
         }
       }
     },
@@ -2727,10 +2800,19 @@ export default {
 }
 
 h2 {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   color: var(--header-color);
   font-size: 24px;
   text-align: center;
+}
+
+.history-user-info {
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 14px;
+  margin-bottom: 20px;
+  font-style: italic;
 }
 
 .history-controls {

@@ -1,12 +1,14 @@
 import axios from 'axios';
 import apiService from './ApiService';
 import credentialsService from './CredentialsService';
+import storageUtils from '../utils/StorageUtils';
 
 class TautulliService {
   constructor() {
     this.baseUrl = '';
     this.apiKey = '';
     this.configured = false;
+    this.selectedUserId = storageUtils.get('selectedTautulliUserId') || '';
     // Flag to determine if we should use the proxy
     this.useProxy = true;
     
@@ -38,7 +40,7 @@ class TautulliService {
     return false;
   }
 
-  async configure(baseUrl, apiKey, recentLimit = null) {
+  async configure(baseUrl, apiKey, userId = '', recentLimit = null) {
     // Validate and normalize the base URL
     if (baseUrl) {
       // Make sure the URL starts with http:// or https://
@@ -51,7 +53,10 @@ class TautulliService {
       
       this.baseUrl = baseUrl;
       this.apiKey = apiKey;
+      this.selectedUserId = userId;
       this.configured = true;
+      
+      storageUtils.set('selectedTautulliUserId', this.selectedUserId);
       
       const credentials = {
         baseUrl: this.baseUrl,
@@ -65,7 +70,7 @@ class TautulliService {
         localStorage.setItem('tautulliRecentLimit', recentLimit.toString());
       }
       
-      // Store credentials on the server
+      // Store credentials server-side (single set of credentials)
       await credentialsService.storeCredentials('tautulli', credentials);
       
       return true;
@@ -198,7 +203,7 @@ class TautulliService {
     }
   }
   
-  async getRecentlyWatchedMovies(limit = 50, daysAgo = 0, userId = null) {
+  async getRecentlyWatchedMovies(limit = 50, daysAgo = 0, userId = this.selectedUserId || null) {
     try {
       const historyData = await this.getWatchHistory(userId, 'movie', limit, daysAgo);
       
@@ -217,7 +222,7 @@ class TautulliService {
     }
   }
   
-  async getRecentlyWatchedShows(limit = 50, daysAgo = 0, userId = null) {
+  async getRecentlyWatchedShows(limit = 50, daysAgo = 0, userId = this.selectedUserId || null) {
     try {
       const historyData = await this.getWatchHistory(userId, 'episode', limit, daysAgo);
       
@@ -263,6 +268,26 @@ class TautulliService {
     } catch (error) {
       console.error('Failed to get recently watched shows from Tautulli:', error);
       return [];
+    }
+  }
+
+  async disconnect() {
+    try {
+      // Clear local credentials
+      this.baseUrl = '';
+      this.apiKey = '';
+      this.configured = false;
+      
+      // Remove credentials from storage
+      await credentialsService.deleteCredentials('tautulli');
+      
+      // Remove recent limit from localStorage
+      localStorage.removeItem('tautulliRecentLimit');
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to disconnect Tautulli:', error);
+      return false;
     }
   }
 }

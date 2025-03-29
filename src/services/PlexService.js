@@ -3,12 +3,13 @@ import axios from 'axios';
 /* eslint-enable no-unused-vars */
 import credentialsService from './CredentialsService';
 import apiService from './ApiService';
+import storageUtils from '../utils/StorageUtils';
 
 class PlexService {
   constructor() {
     this.token = '';
     this.baseUrl = '';
-    this.selectedUserId = ''; // Add selectedUserId property
+    this.selectedUserId = storageUtils.get('selectedPlexUserId') || '';
     // Load credentials when instantiated
     this.loadCredentials();
   }
@@ -21,7 +22,7 @@ class PlexService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.token = credentials.token || '';
-      this.selectedUserId = credentials.selectedUserId || '';
+      // selectedUserId is stored separately via StorageUtils
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
@@ -41,11 +42,11 @@ class PlexService {
     this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.token = token;
     this.selectedUserId = selectedUserId;
+    storageUtils.set('selectedPlexUserId', selectedUserId);
     
     const credentials = {
       baseUrl: this.baseUrl,
-      token: this.token,
-      selectedUserId: this.selectedUserId
+      token: this.token
     };
     
     // If recentLimit is provided, store it with the credentials
@@ -55,7 +56,7 @@ class PlexService {
       localStorage.setItem('plexRecentLimit', recentLimit.toString());
     }
     
-    // Store credentials server-side
+    // Store credentials server-side (single set of credentials)
     await credentialsService.storeCredentials('plex', credentials);
   }
 

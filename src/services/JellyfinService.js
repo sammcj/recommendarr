@@ -3,12 +3,13 @@ import axios from 'axios';
 /* eslint-enable no-unused-vars */
 import credentialsService from './CredentialsService';
 import apiService from './ApiService';
+import storageUtils from '../utils/StorageUtils';
 
 class JellyfinService {
   constructor() {
     this.baseUrl = '';
     this.apiKey = '';
-    this.userId = '';
+    this.userId = storageUtils.get('selectedJellyfinUserId') || '';
     // Load credentials when instantiated
     this.loadCredentials();
   }
@@ -21,7 +22,7 @@ class JellyfinService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.apiKey = credentials.apiKey || '';
-      this.userId = credentials.userId || '';
+      // userId is now stored separately via StorageUtils
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
@@ -35,11 +36,11 @@ class JellyfinService {
     this.baseUrl = baseUrl ? baseUrl.replace(/\/$/, '') : '';
     this.apiKey = apiKey || '';
     this.userId = userId || '';
+    storageUtils.set('selectedJellyfinUserId', this.userId);
 
     const credentials = {
       baseUrl: this.baseUrl,
-      apiKey: this.apiKey,
-      userId: this.userId
+      apiKey: this.apiKey
     };
     
     // If recentLimit is provided, store it with the credentials
@@ -49,7 +50,7 @@ class JellyfinService {
       localStorage.setItem('jellyfinRecentLimit', recentLimit.toString());
     }
     
-    // Store credentials server-side
+    // Store credentials server-side (single set of credentials)
     await credentialsService.storeCredentials('jellyfin', credentials);
   }
 

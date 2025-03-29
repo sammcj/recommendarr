@@ -535,6 +535,7 @@ export default {
   width: 100%;
   margin: 20px 0;
   gap: 30px;
+  align-items: start; /* Prevent row height from being determined by tallest item */
 }
 
 /* Card base styles - more modern and flat */
@@ -1094,6 +1095,7 @@ export default {
 .recommendation-card.compact-mode {
   display: flex;
   flex-direction: column;
+  height: auto; /* Allow each card to determine its own height */
 }
 
 .recommendation-card.compact-mode .poster-container {
@@ -1116,6 +1118,7 @@ export default {
 
 .recommendation-card.compact-mode.expanded {
   height: auto;
+  z-index: 1; /* Ensure expanded cards appear above others */
 }
 
 /* Expand/collapse button */
@@ -1151,12 +1154,14 @@ export default {
 .recommendation-card.compact-mode .content-container {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.3s ease-out;
+  transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+  opacity: 0;
 }
 
 .recommendation-card.compact-mode.expanded .content-container {
   max-height: 500px;
-  transition: max-height 0.3s ease-in;
+  transition: max-height 0.3s ease-in, opacity 0.3s ease-in;
+  opacity: 1;
 }
 
 /* Responsive adjustments */

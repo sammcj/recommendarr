@@ -879,9 +879,9 @@ export default {
   transition: transform 0.2s ease;
 }
 
-  /* Enhanced Rating info section */
+  /* Compact Rating info section */
   .rating-info {
-    margin-top: 10px;
+    margin-top: 6px;
     margin-bottom: 6px;
     padding: 10px;
     background-color: rgba(0, 0, 0, 0.03);

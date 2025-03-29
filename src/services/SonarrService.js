@@ -33,6 +33,10 @@ class SonarrService {
    * @private
    */
   async _apiRequest(endpoint, method = 'GET', data = null, params = {}) {
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 second
+    let retryCount = 0;
+    
     if (!this.isConfigured()) {
       // Try to load credentials again in case they weren't ready during init
       await this.loadCredentials();
@@ -50,46 +54,56 @@ class SonarrService {
     
     const url = `${this.baseUrl}${endpoint}`;
     
-    try {
-      if (this.useProxy) {
-        // Log attempt to connect through proxy for debugging
-        console.log(`Making ${method} request to Sonarr via proxy: ${endpoint}`);
+    while (retryCount <= maxRetries) {
+      try {
+        if (this.useProxy) {
+          // Log attempt to connect through proxy for debugging
+          console.log(`Making ${method} request to Sonarr via proxy: ${endpoint}`);
+          
+          const response = await apiService.proxyRequest({
+            url,
+            method,
+            data,
+            params: requestParams
+          });
+          
+          // The proxy returns the data wrapped, we need to unwrap it
+          return response.data;
+        } else {
+          // Direct API request
+          console.log(`Making direct ${method} request to Sonarr: ${endpoint}`);
+          
+          const response = await axios({
+            url,
+            method,
+            data,
+            params: requestParams,
+            // Removed timeout to allow slower network connections
+          });
+          
+          return response.data;
+        }
+      } catch (error) {
+        if (retryCount === maxRetries || 
+            (error.response && error.response.status < 500)) {
+          console.error(`Final attempt failed in Sonarr API request to ${endpoint}:`, error);
+          
+          // Enhance the error with more helpful information
+          const enhancedError = {
+            ...error,
+            message: error.message || 'Unknown error',
+            endpoint,
+            url
+          };
+          
+          throw enhancedError;
+        }
         
-        const response = await apiService.proxyRequest({
-          url,
-          method,
-          data,
-          params: requestParams
-        });
-        
-        // The proxy returns the data wrapped, we need to unwrap it
-        return response.data;
-      } else {
-        // Direct API request
-        console.log(`Making direct ${method} request to Sonarr: ${endpoint}`);
-        
-        const response = await axios({
-          url,
-          method,
-          data,
-          params: requestParams,
-          // Removed timeout to allow slower network connections
-        });
-        
-        return response.data;
+        const delay = baseDelay * Math.pow(2, retryCount);
+        console.log(`Retry ${retryCount + 1}/${maxRetries} in ${delay}ms for ${endpoint}...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
       }
-    } catch (error) {
-      console.error(`Error in Sonarr API request to ${endpoint}:`, error);
-      
-      // Enhance the error with more helpful information
-      const enhancedError = {
-        ...error,
-        message: error.message || 'Unknown error',
-        endpoint,
-        url
-      };
-      
-      throw enhancedError;
     }
   }
 

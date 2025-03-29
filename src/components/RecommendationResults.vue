@@ -986,59 +986,54 @@ export default {
   transition: transform 0.2s ease;
 }
 
-/* Rating badge - modernized */
+/* Rating badge - clean, flat and modern */
 .rating-badge {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 44px;
-  height: 44px;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
   color: white;
   z-index: 3;
-  backdrop-filter: blur(2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  font-weight: 700;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rating-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
 }
 
 .rating-badge::before {
   content: attr(data-rating);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  font-size: 14px;
-  letter-spacing: -0.5px;
-  font-weight: 700;
-  opacity: 1;
-  transition: all 0.3s ease;
+  width: 100%;
+  height: 100%;
 }
 
-/* Modern color scheme for scores */
-.score-high::before {
-  background: linear-gradient(135deg, #43a047, #2e7d32);
+/* Flat color scheme for scores */
+.score-high {
+  background-color: #2E7D32;
 }
 
-.score-medium::before {
-  background: linear-gradient(135deg, #ffb300, #fb8c00);
+.score-medium {
+  background-color: #FB8C00;
 }
 
-.score-low::before {
-  background: linear-gradient(135deg, #e53935, #c62828);
+.score-low {
+  background-color: #C62828;
 }
 
-.score-na::before {
-  background: linear-gradient(135deg, #757575, #424242);
+.score-na {
+  background-color: #616161;
 }
 
 /* Retry poster button */

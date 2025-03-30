@@ -29,6 +29,15 @@ class TraktService {
     try {
       const credentials = await credentialsService.getCredentials('trakt');
       if (credentials) {
+        console.log('Loaded Trakt credentials:', JSON.stringify({
+          hasClientId: !!credentials.clientId,
+          hasClientSecret: !!credentials.clientSecret,
+          hasAccessToken: !!credentials.accessToken,
+          hasRefreshToken: !!credentials.refreshToken,
+          hasExpiresAt: !!credentials.expiresAt,
+          recentLimit: credentials.recentLimit
+        }));
+        
         this.clientId = credentials.clientId || '';
         this.clientSecret = credentials.clientSecret || '';
         this.accessToken = credentials.accessToken || '';
@@ -36,14 +45,14 @@ class TraktService {
         this.expiresAt = credentials.expiresAt || null;
         this.configured = !!(this.clientId && this.accessToken);
         
-      // Load recentLimit if available
-      if (credentials.recentLimit) {
-        storageUtils.set('traktRecentLimit', credentials.recentLimit);
-      }
+        // Load recentLimit if available
+        if (credentials.recentLimit) {
+          storageUtils.set('traktRecentLimit', credentials.recentLimit);
+        }
         
         // Check if token is expired and needs refresh
         if (this.isTokenExpired() && this.refreshToken) {
-          this.refreshAccessToken();
+          await this.refreshAccessToken();
         }
         
         return true;
@@ -248,35 +257,123 @@ class TraktService {
     }
   }
 
+  /**
+   * Update just the recent limit without affecting other credentials
+   * 
+   * @param {number} recentLimit - The new recent limit value
+   * @returns {Promise<boolean>} - Success status
+   */
+  async updateRecentLimit(recentLimit) {
+    if (recentLimit === null || recentLimit === undefined) {
+      return false;
+    }
+    
+    try {
+      // Get existing credentials first
+      const existingCredentials = await credentialsService.getCredentials('trakt');
+      
+      if (!existingCredentials) {
+        console.log('No existing Trakt credentials found when updating recentLimit');
+        return false;
+      }
+      
+      // Update just the recentLimit while preserving all other credentials
+      const updatedCredentials = {
+        ...existingCredentials,
+        recentLimit: parseInt(recentLimit, 10)
+      };
+      
+      // Store in storageUtils for client-side access
+      storageUtils.set('traktRecentLimit', recentLimit);
+      
+      // Store updated credentials on the server
+      await credentialsService.storeCredentials('trakt', updatedCredentials);
+      
+      console.log(`Updated Trakt recentLimit to ${recentLimit} while preserving other credentials`);
+      return true;
+    } catch (error) {
+      console.error('Failed to update Trakt recentLimit:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Configure the Trakt service with client ID and secret
+   * 
+   * @param {string} clientId - Trakt client ID
+   * @param {string} clientSecret - Trakt client secret (optional)
+   * @param {number} recentLimit - Number of recent items to fetch (optional)
+   * @returns {Promise<boolean>} - Success status
+   */
   async configure(clientId, clientSecret = '', recentLimit = null) {
     if (clientId) {
       this.clientId = clientId;
       this.clientSecret = clientSecret;
       
-      const credentials = {
-        clientId: this.clientId,
-        clientSecret: this.clientSecret
-      };
-      
-    // If recentLimit is provided, store it with the credentials
-    if (recentLimit !== null) {
-      credentials.recentLimit = recentLimit;
-      // Also store in storageUtils for client-side access
-      storageUtils.set('traktRecentLimit', recentLimit);
-    }
-      
-      // We don't immediately set this as configured since we need to complete OAuth
-      // Store partial credentials on the server
-      await credentialsService.storeCredentials('trakt', credentials);
-      
-      return true;
+      try {
+        // Get existing credentials first to preserve any existing OAuth tokens
+        const existingCredentials = await credentialsService.getCredentials('trakt');
+        
+        // Start with existing credentials or empty object
+        const credentials = existingCredentials || {
+          clientId: this.clientId,
+          clientSecret: this.clientSecret
+        };
+        
+        // Update clientId and clientSecret
+        credentials.clientId = this.clientId;
+        credentials.clientSecret = this.clientSecret;
+        
+        // If recentLimit is provided, store it with the credentials
+        if (recentLimit !== null) {
+          credentials.recentLimit = recentLimit;
+          // Also store in storageUtils for client-side access
+          storageUtils.set('traktRecentLimit', recentLimit);
+        }
+        
+        // Preserve existing OAuth credentials if they exist
+        if (existingCredentials) {
+          if (existingCredentials.accessToken) this.accessToken = existingCredentials.accessToken;
+          if (existingCredentials.refreshToken) this.refreshToken = existingCredentials.refreshToken;
+          if (existingCredentials.expiresAt) this.expiresAt = existingCredentials.expiresAt;
+          
+          // Update configured status based on whether we have an access token
+          this.configured = !!(this.clientId && this.accessToken);
+        }
+        
+        // We don't immediately set this as configured if we don't have an access token
+        // Store credentials on the server
+        await credentialsService.storeCredentials('trakt', credentials);
+        
+        console.log('Trakt service configured with client ID and secret');
+        return true;
+      } catch (error) {
+        console.error('Failed to configure Trakt service:', error);
+        return false;
+      }
     }
     
     return false;
   }
   
+  /**
+   * Check if the Trakt service is configured
+   * 
+   * @returns {boolean} - Whether the service is configured
+   */
   isConfigured() {
-    return this.clientId && this.accessToken;
+    // Service is fully configured if we have both client ID and access token
+    return !!(this.clientId && this.accessToken);
+  }
+  
+  /**
+   * Check if the Trakt service has credentials but needs OAuth
+   * 
+   * @returns {boolean} - Whether the service needs OAuth
+   */
+  needsOAuth() {
+    // Service needs OAuth if we have client ID but no access token
+    return !!(this.clientId && !this.accessToken);
   }
   
   async testConnection() {

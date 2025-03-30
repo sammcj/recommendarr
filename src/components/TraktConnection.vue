@@ -332,10 +332,15 @@ export default {
       }
       
       this.recentLimit = this.newLimit;
-      
-      // Use storageUtils instead of localStorage
-      storageUtils.set('traktRecentLimit', this.recentLimit);
       this.editLimit = false;
+      
+      // Use the new updateRecentLimit method to preserve other credentials
+      try {
+        await traktService.updateRecentLimit(this.recentLimit);
+        console.log(`Updated Trakt recent limit to ${this.recentLimit}`);
+      } catch (error) {
+        console.error('Error updating Trakt recent limit:', error);
+      }
       
       // Save to user settings in database
       try {

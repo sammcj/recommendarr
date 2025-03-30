@@ -95,6 +95,17 @@ class DatabaseService {
       )
     `);
     
+    // User-specific credentials table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS user_credentials (
+        userId TEXT NOT NULL,
+        service TEXT NOT NULL,
+        data TEXT NOT NULL,
+        PRIMARY KEY (userId, service),
+        FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
+      )
+    `);
+    
     // Sessions table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -835,6 +846,67 @@ class DatabaseService {
     } catch (err) {
       console.error(`Error deleting credentials for service: ${service}`, err);
       return false;
+    }
+  }
+  
+  // User-specific credentials methods
+  
+  // Get user-specific credentials for a service
+  getUserCredentials(userId, service) {
+    try {
+      const row = this.db.prepare('SELECT data FROM user_credentials WHERE userId = ? AND service = ?').get(userId, service);
+      
+      if (!row) {
+        return null;
+      }
+      
+      return JSON.parse(row.data);
+    } catch (err) {
+      console.error(`Error getting user credentials for userId: ${userId}, service: ${service}`, err);
+      return null;
+    }
+  }
+  
+  // Save user-specific credentials for a service
+  saveUserCredentials(userId, service, data) {
+    try {
+      const stmt = this.db.prepare('INSERT OR REPLACE INTO user_credentials (userId, service, data) VALUES (?, ?, ?)');
+      
+      stmt.run(userId, service, JSON.stringify(data));
+      
+      return true;
+    } catch (err) {
+      console.error(`Error saving user credentials for userId: ${userId}, service: ${service}`, err);
+      return false;
+    }
+  }
+  
+  // Delete user-specific credentials for a service
+  deleteUserCredentials(userId, service) {
+    try {
+      const result = this.db.prepare('DELETE FROM user_credentials WHERE userId = ? AND service = ?').run(userId, service);
+      
+      return result.changes > 0;
+    } catch (err) {
+      console.error(`Error deleting user credentials for userId: ${userId}, service: ${service}`, err);
+      return false;
+    }
+  }
+  
+  // Get all user-specific credentials for a user
+  getAllUserCredentials(userId) {
+    try {
+      const credentials = {};
+      const rows = this.db.prepare('SELECT service, data FROM user_credentials WHERE userId = ?').all(userId);
+      
+      for (const row of rows) {
+        credentials[row.service] = JSON.parse(row.data);
+      }
+      
+      return credentials;
+    } catch (err) {
+      console.error(`Error getting all user credentials for userId: ${userId}`, err);
+      return {};
     }
   }
   

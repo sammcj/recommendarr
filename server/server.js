@@ -800,11 +800,6 @@ app.get('/api/credentials', (req, res) => {
 
 // Store credentials for a service
 app.post('/api/credentials/:service', async (req, res) => {
-  // Only admin users can update global credentials
-  if (!req.user.isAdmin) {
-    return res.status(403).json({ error: 'Admin privileges required' });
-  }
-  
   const { service } = req.params;
   const serviceCredentials = req.body;
   
@@ -835,6 +830,19 @@ app.post('/api/credentials/:service', async (req, res) => {
     return res.status(400).json({ error: 'No credentials provided' });
   }
   
+  // Handle Trakt credentials differently - they should be user-specific
+  if (service === 'trakt') {
+    // Store user-specific Trakt credentials
+    console.log(`Storing user-specific Trakt credentials for userId: ${req.user.userId}`);
+    databaseService.saveUserCredentials(req.user.userId, service, serviceCredentials);
+    return res.json({ success: true, service });
+  }
+  
+  // For all other services, only admin users can update global credentials
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
   // Get existing credentials
   const existingCredentials = databaseService.getCredentials(service) || {};
   
@@ -855,17 +863,33 @@ app.post('/api/credentials/:service', async (req, res) => {
 app.get('/api/credentials/:service', (req, res) => {
   const { service } = req.params;
   
-  // For non-admin users, only allow access to shared services (all except trakt)
-  // Trakt should be user-specific, while other services are shared among all users
-  if (!req.user.isAdmin && service === 'trakt') {
-    return res.status(403).json({ error: 'Admin privileges required for Trakt credentials' });
-  }
-  
   // Return empty response for app-config as it's been removed
   if (service === 'app-config') {
     return res.json({});
   }
   
+  // Handle Trakt credentials differently - they should be user-specific
+  if (service === 'trakt') {
+    // For non-admin users, get user-specific Trakt credentials
+    if (!req.user.isAdmin) {
+      const userCredentials = databaseService.getUserCredentials(req.user.userId, service);
+      
+      if (!userCredentials) {
+        return res.status(404).json({ error: `No credentials found for ${service}` });
+      }
+      
+      return res.json(userCredentials);
+    }
+    
+    // For admin users, check user-specific credentials first, then fall back to global
+    const userCredentials = databaseService.getUserCredentials(req.user.userId, service);
+    
+    if (userCredentials) {
+      return res.json(userCredentials);
+    }
+  }
+  
+  // For all other services, use global credentials
   const serviceCredentials = databaseService.getCredentials(service);
   
   if (!serviceCredentials) {
@@ -877,12 +901,25 @@ app.get('/api/credentials/:service', (req, res) => {
 
 // Delete credentials for a service
 app.delete('/api/credentials/:service', async (req, res) => {
-  // Only admin users can delete global credentials
+  const { service } = req.params;
+  
+  // Handle Trakt credentials differently - they should be user-specific
+  if (service === 'trakt') {
+    // Delete user-specific Trakt credentials
+    console.log(`Deleting user-specific Trakt credentials for userId: ${req.user.userId}`);
+    const success = databaseService.deleteUserCredentials(req.user.userId, service);
+    
+    if (!success) {
+      return res.status(404).json({ error: `No credentials found for ${service}` });
+    }
+    
+    return res.json({ success: true, message: `Credentials for ${service} deleted` });
+  }
+  
+  // For all other services, only admin users can delete global credentials
   if (!req.user.isAdmin) {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
-  
-  const { service } = req.params;
   
   const success = databaseService.deleteCredentials(service);
   

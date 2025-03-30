@@ -798,6 +798,8 @@
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import authService from '../services/AuthService';
+import apiService from '../services/ApiService';
+import storageUtils from '../utils/StorageUtils';
 
 export default {
   name: 'RecommendationSettings',
@@ -1079,9 +1081,43 @@ export default {
       this.$emit('update-temperature', Number(value));
     },
     saveLibraryModePreference(value) {
+      // Save to server
+      const settings = {
+        useSampledLibrary: value
+      };
+      
+      // Try to save to server first
+      apiService.saveSettings(settings)
+        .then(() => {
+          console.log('Saved sampled library mode to server:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save sampled library mode to server:', error);
+          // Fall back to localStorage if server save fails
+          storageUtils.set('useSampledLibrary', value.toString());
+        });
+      
+      // Also emit the event for parent component
       this.$emit('save-library-mode-preference', value);
     },
     saveSampleSize(value) {
+      // Save to server
+      const settings = {
+        librarySampleSize: Number(value)
+      };
+      
+      // Try to save to server first
+      apiService.saveSettings(settings)
+        .then(() => {
+          console.log('Saved library sample size to server:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save library sample size to server:', error);
+          // Fall back to localStorage if server save fails
+          storageUtils.set('librarySampleSize', value.toString());
+        });
+      
+      // Also emit the event for parent component
       this.$emit('save-sample-size', Number(value));
     },
     saveStructuredOutputPreference(value) {
@@ -1101,9 +1137,39 @@ export default {
     },
     toggleGenre(genre) {
       this.$emit('toggle-genre', genre);
+      
+      // After toggling, save the updated genre preferences
+      this.saveGenrePreferences();
     },
     clearGenres() {
       this.$emit('clear-genres');
+      
+      // After clearing, save the empty genre preferences
+      this.saveGenrePreferences();
+    },
+    saveGenrePreferences() {
+      // Determine if we're in movie or TV mode
+      const isMovieMode = this.isMovieMode;
+      
+      // Create the settings object with the appropriate key
+      const settings = {};
+      if (isMovieMode) {
+        settings.movieGenrePreferences = this.selectedGenres || [];
+      } else {
+        settings.tvGenrePreferences = this.selectedGenres || [];
+      }
+      
+      // Try to save to server first
+      apiService.saveSettings(settings)
+        .then(() => {
+          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} genre preferences to server:`, this.selectedGenres);
+        })
+        .catch(error => {
+          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} genre preferences to server:`, error);
+          // Fall back to localStorage if server save fails
+          const key = isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
+          storageUtils.setJSON(key, this.selectedGenres || []);
+        });
     },
     savePromptStyle(value) {
       this.$emit('save-prompt-style', value);
@@ -1118,6 +1184,30 @@ export default {
       this.$emit('save-custom-prompt-only-preference', value);
     },
     saveLanguagePreference(value) {
+      // Determine if we're in movie or TV mode
+      const isMovieMode = this.isMovieMode;
+      
+      // Create the settings object with the appropriate key
+      const settings = {};
+      if (isMovieMode) {
+        settings.movieLanguagePreference = value;
+      } else {
+        settings.tvLanguagePreference = value;
+      }
+      
+      // Try to save to server first
+      apiService.saveSettings(settings)
+        .then(() => {
+          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} language preference to server:`, value);
+        })
+        .catch(error => {
+          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} language preference to server:`, error);
+          // Fall back to localStorage if server save fails
+          const key = isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
+          storageUtils.set(key, value);
+        });
+      
+      // Also emit the event for parent component
       this.$emit('save-language-preference', value);
     },
     savePlexUseHistory(value) {

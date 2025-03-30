@@ -895,8 +895,110 @@ export default {
       }
     },
 
-    // Load settings from localStorage
-    loadLocalSettings() {
+    // Load settings from server or localStorage
+    async loadLocalSettings() {
+      try {
+        // First try to get settings from server
+        const settings = await apiService.getSettings();
+        
+        if (settings) {
+          console.log('Loaded settings from server:', settings);
+          
+          // Load Plex recent limit
+          if (settings.plexRecentLimit) {
+            this.plexRecentLimit = parseInt(settings.plexRecentLimit, 10) || 100;
+          }
+          
+          // Load Jellyfin recent limit
+          if (settings.jellyfinRecentLimit) {
+            this.jellyfinRecentLimit = parseInt(settings.jellyfinRecentLimit, 10) || 100;
+          }
+          
+          // Load Plex history mode
+          if (settings.plexHistoryMode) {
+            this.plexHistoryMode = settings.plexHistoryMode;
+          }
+          
+          // Load Jellyfin history mode
+          if (settings.jellyfinHistoryMode) {
+            this.jellyfinHistoryMode = settings.jellyfinHistoryMode;
+          }
+          
+          // Load Plex only mode
+          if (settings.plexOnlyMode !== undefined) {
+            this.plexOnlyMode = settings.plexOnlyMode === true || settings.plexOnlyMode === 'true';
+          }
+          
+          // Load Jellyfin only mode
+          if (settings.jellyfinOnlyMode !== undefined) {
+            this.jellyfinOnlyMode = settings.jellyfinOnlyMode === true || settings.jellyfinOnlyMode === 'true';
+          }
+          
+          // Load Tautulli history mode
+          if (settings.tautulliHistoryMode) {
+            this.tautulliHistoryMode = settings.tautulliHistoryMode;
+          }
+          
+          // Load Tautulli only mode
+          if (settings.tautulliOnlyMode !== undefined) {
+            this.tautulliOnlyMode = settings.tautulliOnlyMode === true || settings.tautulliOnlyMode === 'true';
+          }
+          
+          // Load Trakt recent limit
+          if (settings.traktRecentLimit) {
+            this.traktRecentLimit = parseInt(settings.traktRecentLimit, 10) || 50;
+          }
+          
+          // Load Trakt history mode
+          if (settings.traktHistoryMode) {
+            this.traktHistoryMode = settings.traktHistoryMode;
+          }
+          
+          // Load Trakt only mode
+          if (settings.traktOnlyMode !== undefined) {
+            this.traktOnlyMode = settings.traktOnlyMode === true || settings.traktOnlyMode === 'true';
+          }
+          
+          // The following settings are used by RequestRecommendations.vue component
+          // but are not part of App.vue's data properties, so we store them in localStorage
+          
+          // Load genre preferences for RequestRecommendations.vue
+          if (settings.tvGenrePreferences) {
+            storageUtils.setJSON('tvGenrePreferences', settings.tvGenrePreferences);
+          }
+          
+          if (settings.movieGenrePreferences) {
+            storageUtils.setJSON('movieGenrePreferences', settings.movieGenrePreferences);
+          }
+          
+          // Load sampled library mode for RequestRecommendations.vue
+          if (settings.useSampledLibrary !== undefined) {
+            storageUtils.set('useSampledLibrary', settings.useSampledLibrary.toString());
+          }
+          
+          // Load sample size for RequestRecommendations.vue
+          if (settings.librarySampleSize) {
+            storageUtils.set('librarySampleSize', settings.librarySampleSize.toString());
+          }
+          
+          // Load language preferences for RequestRecommendations.vue
+          if (settings.tvLanguagePreference) {
+            storageUtils.set('tvLanguagePreference', settings.tvLanguagePreference);
+          }
+          
+          if (settings.movieLanguagePreference) {
+            storageUtils.set('movieLanguagePreference', settings.movieLanguagePreference);
+          }
+          
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading settings from server:', error);
+      }
+      
+      // Fall back to localStorage if server loading fails
+      console.log('Falling back to localStorage for settings');
+      
       // Load Plex recent limit from localStorage if available
       this.plexRecentLimit = storageUtils.get('plexRecentLimit', 100);
       
@@ -929,6 +1031,20 @@ export default {
       
       // Load Trakt only mode from localStorage if available
       this.traktOnlyMode = storageUtils.get('traktOnlyMode', false);
+      
+      // Load sampled library mode from localStorage if available
+      const useSampledLibrary = storageUtils.get('useSampledLibrary');
+      if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
+        // Already stored in localStorage, no need to set it again
+        console.log('Loaded useSampledLibrary from localStorage:', useSampledLibrary);
+      }
+      
+      // Load library sample size from localStorage if available
+      const librarySampleSize = storageUtils.get('librarySampleSize');
+      if (librarySampleSize !== null && librarySampleSize !== undefined) {
+        // Already stored in localStorage, no need to set it again
+        console.log('Loaded librarySampleSize from localStorage:', librarySampleSize);
+      }
     },
     
     // Check if we have credentials stored server-side

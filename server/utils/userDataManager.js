@@ -37,7 +37,9 @@ const createDefaultUserData = () => ({
     tvLanguagePreference: 'en',
     movieGenrePreferences: [],
     movieCustomVibe: '',
-    movieLanguagePreference: 'en'
+    movieLanguagePreference: 'en',
+    useSampledLibrary: false,
+    librarySampleSize: 100
   }
 });
 

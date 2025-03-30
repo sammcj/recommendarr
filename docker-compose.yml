@@ -49,15 +49,6 @@ services:
       #- GITHUB_CLIENT_ID=your-github-client-id
       #- GITHUB_CLIENT_SECRET=your-github-client-secret
       
-      # Authentik OAuth Setup:
-      # 1. Create OAuth2/OpenID Provider in Authentik admin interface
-      # 2. Set redirect URI to:
-      #    {PUBLIC_URL}/api/auth/authentik/callback
-      # 3. Configure scopes: openid, profile, email
-      #- AUTHENTIK_BASE_URL=https://authentik.yourdomain.com
-      #- AUTHENTIK_CLIENT_ID=your-authentik-client-id
-      #- AUTHENTIK_CLIENT_SECRET=your-authentik-client-secret
-      
       # Custom OAuth2 Setup:
       # 1. Create OAuth2 application with your provider
       # 2. Set redirect URI to:

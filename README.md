@@ -186,7 +186,7 @@ You can connect to any combination of these services based on your needs.
 
 ### 3. Set Up OAuth Login (Optional)
 
-Recommendarr supports social login via Google, GitHub, Authentik, and custom OAuth2 providers. To enable:
+Recommendarr supports social login via Google, GitHub, and custom OAuth2 providers. To enable:
 
 #### Generating a Secure SESSION_SECRET
 The SESSION_SECRET is used to encrypt session cookies and should be:
@@ -216,17 +216,6 @@ openssl rand -hex 32
      3. Fill in application details
      4. Set callback URL (see below)
    
-   - **Authentik**:
-     1. Go to your Authentik admin interface
-     2. Navigate to "Applications" → "Providers"
-     3. Create a new OAuth2/OpenID Provider
-     4. Configure the following:
-        - Name: Recommendarr
-        - Client type: Confidential
-        - Redirect URIs: Add your callback URL (see below)
-        - Scopes: openid, profile, email
-     5. Save the provider and note the Client ID and Client Secret
-   
    - **Custom OAuth2 Provider**:
      1. Go to your OAuth2 provider's developer console
      2. Create a new OAuth2 application
@@ -242,12 +231,11 @@ openssl rand -hex 32
    ```
    Where:
    - `{PUBLIC_URL}` is your Recommendarr's public URL (e.g., `http://localhost:3000` or `https://recommendarr.yourdomain.com`)
-   - `{provider}` is either `google`, `github`, `authentik`, or `custom`
+   - `{provider}` is either `google`, `github`, or `custom`
 
    Example callback URLs:
    - Development: `http://localhost:3000/api/auth/google/callback`
    - Production: `https://recommendarr.yourdomain.com/api/auth/github/callback`
-   - Authentik: `https://recommendarr.yourdomain.com/api/auth/authentik/callback`
    - Custom: `https://recommendarr.yourdomain.com/api/auth/custom/callback`
 
 3. **Set Environment Variables**:
@@ -263,11 +251,6 @@ openssl rand -hex 32
    # GitHub OAuth
    GITHUB_CLIENT_ID=your-github-client-id
    GITHUB_CLIENT_SECRET=your-github-client-secret
-   
-   # Authentik OAuth
-   AUTHENTIK_BASE_URL=https://authentik.yourdomain.com
-   AUTHENTIK_CLIENT_ID=your-authentik-client-id
-   AUTHENTIK_CLIENT_SECRET=your-authentik-client-secret
    
    # Custom OAuth2 Provider
    CUSTOM_OAUTH_AUTH_URL=https://your-oauth-provider.com/oauth/authorize
@@ -392,9 +375,6 @@ volumes:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret for social login | |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID for social login | |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret for social login | |
-| `AUTHENTIK_BASE_URL` | Authentik instance base URL | |
-| `AUTHENTIK_CLIENT_ID` | Authentik OAuth client ID for social login | |
-| `AUTHENTIK_CLIENT_SECRET` | Authentik OAuth client secret for social login | |
 | `CUSTOM_OAUTH_AUTH_URL` | Custom OAuth2 provider authorization URL | |
 | `CUSTOM_OAUTH_TOKEN_URL` | Custom OAuth2 provider token URL | |
 | `CUSTOM_OAUTH_USERINFO_URL` | Custom OAuth2 provider userinfo URL | |

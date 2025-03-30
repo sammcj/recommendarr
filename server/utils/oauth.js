@@ -84,79 +84,6 @@ exports.setupPassport = (app) => {
     console.log('GitHub OAuth not configured - missing environment variables');
   }
   
-  // Set up Authentik OAuth if credentials exist
-  if (process.env.AUTHENTIK_CLIENT_ID && process.env.AUTHENTIK_CLIENT_SECRET && process.env.AUTHENTIK_BASE_URL) {
-    console.log('Setting up Authentik OAuth strategy...');
-    
-    // Configure Authentik OAuth2 strategy
-    const authentikStrategy = new OAuth2Strategy({
-      authorizationURL: `${process.env.AUTHENTIK_BASE_URL}/application/o/authorize/`,
-      tokenURL: `${process.env.AUTHENTIK_BASE_URL}/application/o/token/`,
-      clientID: process.env.AUTHENTIK_CLIENT_ID,
-      clientSecret: process.env.AUTHENTIK_CLIENT_SECRET,
-      callbackURL: '/api/auth/authentik/callback',
-      scope: ['openid', 'profile', 'email']
-    }, async (accessToken, refreshToken, params, profile, done) => {
-      try {
-        console.log('Authentik OAuth callback received');
-        
-        // Fetch user profile from Authentik userinfo endpoint
-        const axios = require('axios');
-        const userInfoResponse = await axios.get(`${process.env.AUTHENTIK_BASE_URL}/application/o/userinfo/`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        });
-        
-        // Map Authentik profile to expected format
-        const userProfile = {
-          id: userInfoResponse.data.sub,
-          displayName: userInfoResponse.data.name,
-          emails: userInfoResponse.data.email ? [{ value: userInfoResponse.data.email }] : [],
-          photos: userInfoResponse.data.picture ? [{ value: userInfoResponse.data.picture }] : []
-        };
-        
-        const user = await authService.findOrCreateOAuthUser(userProfile, 'authentik');
-        return done(null, user);
-      } catch (error) {
-        console.error('Error in Authentik OAuth callback:', error);
-        return done(error, null);
-      }
-    });
-    
-    // Add custom userProfile method to fetch profile from userinfo endpoint
-    authentikStrategy.userProfile = function(accessToken, done) {
-      const axios = require('axios');
-      axios.get(`${process.env.AUTHENTIK_BASE_URL}/application/o/userinfo/`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-      .then(response => {
-        const profile = {
-          provider: 'authentik',
-          id: response.data.sub,
-          displayName: response.data.name,
-          username: response.data.preferred_username || response.data.sub,
-          emails: response.data.email ? [{ value: response.data.email }] : [],
-          photos: response.data.picture ? [{ value: response.data.picture }] : [],
-          _raw: JSON.stringify(response.data),
-          _json: response.data
-        };
-        done(null, profile);
-      })
-      .catch(error => {
-        done(error);
-      });
-    };
-    
-    passport.use('authentik', authentikStrategy);
-    
-    console.log('Authentik OAuth strategy configured successfully');
-  } else {
-    console.log('Authentik OAuth not configured - missing environment variables');
-  }
-  
   // Set up Custom OAuth2 if credentials exist
   if (process.env.CUSTOM_OAUTH_CLIENT_ID && 
       process.env.CUSTOM_OAUTH_CLIENT_SECRET && 
@@ -251,10 +178,6 @@ exports.setupPassport = (app) => {
     
     if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
       providers.push('github');
-    }
-    
-    if (process.env.AUTHENTIK_CLIENT_ID && process.env.AUTHENTIK_CLIENT_SECRET && process.env.AUTHENTIK_BASE_URL) {
-      providers.push('authentik');
     }
     
     if (process.env.CUSTOM_OAUTH_CLIENT_ID && 

@@ -159,7 +159,9 @@ const authenticateUser = (req, res, next) => {
     '/api/auth/github',
     '/api/auth/github/callback',
     '/api/auth/authentik',
-    '/api/auth/authentik/callback'
+    '/api/auth/authentik/callback',
+    '/api/auth/custom',
+    '/api/auth/custom/callback'
   ];
   
   // Also check if the path ends with these endpoints (for when the /api prefix is already in the path)
@@ -170,7 +172,8 @@ const authenticateUser = (req, res, next) => {
       req.path.endsWith('/health') ||
       req.path.includes('/auth/google') ||
       req.path.includes('/auth/github') ||
-      req.path.includes('/auth/authentik')) {
+      req.path.includes('/auth/authentik') ||
+      req.path.includes('/auth/custom')) {
     console.log('Skipping auth for public endpoint');
     return next();
   }
@@ -363,6 +366,73 @@ app.get('/api/auth/github/callback',
 app.get('/api/auth/authentik', passport.authenticate('authentik', { scope: ['openid', 'profile', 'email'] }));
 app.get('/api/auth/authentik/callback', 
   passport.authenticate('authentik', { failureRedirect: '/login?error=auth-failed' }),
+  (req, res) => {
+    // Create session after successful OAuth login
+    if (!req.user) {
+      return res.redirect('/login?error=auth-failed');
+    }
+    
+    // Create session
+    const token = sessionManager.createSession(req.user);
+    
+    // Set auth cookie
+    const isSecureConnection = req.secure || 
+                               req.headers['x-forwarded-proto'] === 'https' || 
+                               process.env.FORCE_SECURE_COOKIES === 'true';
+    
+    res.cookie('auth_token', token, {
+      httpOnly: true,          // Prevents JavaScript access
+      secure: isSecureConnection, // Only set secure flag on HTTPS connections
+      sameSite: 'lax',         // Provides some CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/'                // Available across the site
+    });
+    
+    // Check for legacy user data file and migrate if it exists
+    const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+    fs.access(LEGACY_USER_DATA_FILE)
+      .then(async () => {
+        try {
+          // Read and decrypt legacy user data
+          const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+          const fileData = JSON.parse(data);
+          
+          let legacyUserData = {};
+          if (fileData.encrypted && fileData.iv && fileData.authTag) {
+            // Decrypt the data
+            legacyUserData = encryptionService.decrypt(fileData);
+          } else {
+            // Legacy unencrypted data
+            legacyUserData = fileData;
+          }
+          
+          // Migrate to user account
+          await userDataManager.migrateLegacyData(legacyUserData, req.user.userId);
+          console.log(`Migrated legacy data to user: ${req.user.username}`);
+        } catch (err) {
+          console.error(`Error migrating legacy data: ${err.message}`);
+        }
+      })
+      .catch(() => {
+        // Legacy file doesn't exist, nothing to migrate
+      });
+    
+    // Redirect to home page after successful authentication
+    res.redirect('/');
+  }
+);
+
+// Custom OAuth routes
+app.get('/api/auth/custom', (req, res, next) => {
+  // Get scope from environment variable or use default
+  const scopeString = process.env.CUSTOM_OAUTH_SCOPE || 'openid profile email';
+  const scope = scopeString.split(' ');
+  
+  passport.authenticate('custom', { scope: scope })(req, res, next);
+});
+
+app.get('/api/auth/custom/callback', 
+  passport.authenticate('custom', { failureRedirect: '/login?error=auth-failed' }),
   (req, res) => {
     // Create session after successful OAuth login
     if (!req.user) {

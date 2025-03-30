@@ -186,7 +186,7 @@ You can connect to any combination of these services based on your needs.
 
 ### 3. Set Up OAuth Login (Optional)
 
-Recommendarr supports social login via Google, GitHub, and Authentik. To enable:
+Recommendarr supports social login via Google, GitHub, Authentik, and custom OAuth2 providers. To enable:
 
 #### Generating a Secure SESSION_SECRET
 The SESSION_SECRET is used to encrypt session cookies and should be:
@@ -226,6 +226,14 @@ openssl rand -hex 32
         - Redirect URIs: Add your callback URL (see below)
         - Scopes: openid, profile, email
      5. Save the provider and note the Client ID and Client Secret
+   
+   - **Custom OAuth2 Provider**:
+     1. Go to your OAuth2 provider's developer console
+     2. Create a new OAuth2 application
+     3. Configure the redirect URI (see below)
+     4. Note the authorization URL, token URL, and userinfo URL
+     5. Configure appropriate scopes for your provider
+     6. Save the application and note the Client ID and Client Secret
 
 2. **Configure Callback URLs**:
    The callback URL must match exactly with what you configure in the OAuth provider:
@@ -234,12 +242,13 @@ openssl rand -hex 32
    ```
    Where:
    - `{PUBLIC_URL}` is your Recommendarr's public URL (e.g., `http://localhost:3000` or `https://recommendarr.yourdomain.com`)
-   - `{provider}` is either `google`, `github`, or `authentik`
+   - `{provider}` is either `google`, `github`, `authentik`, or `custom`
 
    Example callback URLs:
    - Development: `http://localhost:3000/api/auth/google/callback`
    - Production: `https://recommendarr.yourdomain.com/api/auth/github/callback`
    - Authentik: `https://recommendarr.yourdomain.com/api/auth/authentik/callback`
+   - Custom: `https://recommendarr.yourdomain.com/api/auth/custom/callback`
 
 3. **Set Environment Variables**:
    Add these to your docker-compose.yml or .env file:
@@ -259,6 +268,14 @@ openssl rand -hex 32
    AUTHENTIK_BASE_URL=https://authentik.yourdomain.com
    AUTHENTIK_CLIENT_ID=your-authentik-client-id
    AUTHENTIK_CLIENT_SECRET=your-authentik-client-secret
+   
+   # Custom OAuth2 Provider
+   CUSTOM_OAUTH_AUTH_URL=https://your-oauth-provider.com/oauth/authorize
+   CUSTOM_OAUTH_TOKEN_URL=https://your-oauth-provider.com/oauth/token
+   CUSTOM_OAUTH_USERINFO_URL=https://your-oauth-provider.com/oauth/userinfo
+   CUSTOM_OAUTH_CLIENT_ID=your-client-id
+   CUSTOM_OAUTH_CLIENT_SECRET=your-client-secret
+   CUSTOM_OAUTH_SCOPE=openid profile email
 
    # Public URL (must match callback URL domain)
    PUBLIC_URL=http://localhost:3000  # Or your production domain
@@ -378,6 +395,12 @@ volumes:
 | `AUTHENTIK_BASE_URL` | Authentik instance base URL | |
 | `AUTHENTIK_CLIENT_ID` | Authentik OAuth client ID for social login | |
 | `AUTHENTIK_CLIENT_SECRET` | Authentik OAuth client secret for social login | |
+| `CUSTOM_OAUTH_AUTH_URL` | Custom OAuth2 provider authorization URL | |
+| `CUSTOM_OAUTH_TOKEN_URL` | Custom OAuth2 provider token URL | |
+| `CUSTOM_OAUTH_USERINFO_URL` | Custom OAuth2 provider userinfo URL | |
+| `CUSTOM_OAUTH_CLIENT_ID` | Custom OAuth2 provider client ID | |
+| `CUSTOM_OAUTH_CLIENT_SECRET` | Custom OAuth2 provider client secret | |
+| `CUSTOM_OAUTH_SCOPE` | Custom OAuth2 provider scopes (space-separated) | openid profile email |
 | `SESSION_SECRET` | Secret for session encryption (highly recommended to set this) | random string |
 
 ## 🖥️ Compatible AI Services

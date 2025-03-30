@@ -345,7 +345,7 @@ export default {
       aiSettingsSubtab: 'account',
       traktRecentlyWatchedMovies: [],
       traktRecentlyWatchedShows: [],
-      traktRecentLimit: 50,
+      traktRecentLimit: 50, // Will be updated from TraktService when credentials are loaded
       traktHistoryMode: 'all',
       traktOnlyMode: false,
       showSonarrConnect: false,
@@ -1104,6 +1104,16 @@ export default {
               traktService.refreshToken = credentials.refreshToken || '';
               traktService.expiresAt = credentials.expiresAt || null;
               traktService.configured = true;
+              
+              // Update traktRecentLimit from credentials if available
+              if (credentials.recentLimit) {
+                this.traktRecentLimit = parseInt(credentials.recentLimit, 10);
+                console.log(`Updated traktRecentLimit to ${this.traktRecentLimit} from credentials`);
+              } else {
+                // If not in credentials, use the value from TraktService
+                this.traktRecentLimit = traktService.getRecentLimit();
+                console.log(`Using traktRecentLimit from TraktService: ${this.traktRecentLimit}`);
+              }
               
               const success = await traktService.testConnection();
               if (success) {

@@ -45,9 +45,16 @@ class TraktService {
         this.expiresAt = credentials.expiresAt || null;
         this.configured = !!(this.clientId && this.accessToken);
         
-        // Load recentLimit if available
+        // Store recentLimit as a property of the service
         if (credentials.recentLimit) {
-          storageUtils.set('traktRecentLimit', credentials.recentLimit);
+          this.recentLimit = parseInt(credentials.recentLimit, 10);
+          // Also store in storageUtils for backward compatibility
+          storageUtils.set('traktRecentLimit', this.recentLimit);
+          console.log(`Set TraktService.recentLimit to ${this.recentLimit} from user credentials`);
+        } else {
+          // Default value if not in credentials
+          this.recentLimit = 50;
+          console.log(`Using default TraktService.recentLimit of ${this.recentLimit}`);
         }
         
         // Check if token is expired and needs refresh
@@ -60,6 +67,10 @@ class TraktService {
     } catch (error) {
       console.error('Failed to load Trakt credentials:', error);
     }
+    
+    // Set default recentLimit if credentials couldn't be loaded
+    this.recentLimit = 50;
+    console.log(`Using default TraktService.recentLimit of ${this.recentLimit} (no credentials)`);
     return false;
   }
 
@@ -277,19 +288,22 @@ class TraktService {
         return false;
       }
       
+      // Update the service property
+      this.recentLimit = parseInt(recentLimit, 10);
+      
       // Update just the recentLimit while preserving all other credentials
       const updatedCredentials = {
         ...existingCredentials,
-        recentLimit: parseInt(recentLimit, 10)
+        recentLimit: this.recentLimit
       };
       
       // Store in storageUtils for client-side access
-      storageUtils.set('traktRecentLimit', recentLimit);
+      storageUtils.set('traktRecentLimit', this.recentLimit);
       
       // Store updated credentials on the server
       await credentialsService.storeCredentials('trakt', updatedCredentials);
       
-      console.log(`Updated Trakt recentLimit to ${recentLimit} while preserving other credentials`);
+      console.log(`Updated Trakt recentLimit to ${this.recentLimit} while preserving other credentials`);
       return true;
     } catch (error) {
       console.error('Failed to update Trakt recentLimit:', error);
@@ -638,8 +652,19 @@ class TraktService {
     }
   }
   
-  async getRecentlyWatchedMovies(limit = 50, daysAgo = 0) {
-    console.log(`TraktService: Getting ${limit} recently watched movies, daysAgo=${daysAgo}`);
+  /**
+   * Get the current recent limit value
+   * 
+   * @returns {number} - The current recent limit value
+   */
+  getRecentLimit() {
+    return this.recentLimit || 50;
+  }
+  
+  async getRecentlyWatchedMovies(limit = null, daysAgo = 0) {
+    // Use the service's recentLimit if no limit is provided
+    const actualLimit = limit || this.recentLimit || 50;
+    console.log(`TraktService: Getting ${actualLimit} recently watched movies, daysAgo=${daysAgo}`);
     try {
       let options = {
         limit,
@@ -697,10 +722,12 @@ class TraktService {
     }
   }
   
-  async getRecentlyWatchedShows(limit = 50, daysAgo = 0) {
+  async getRecentlyWatchedShows(limit = null, daysAgo = 0) {
     try {
+      // Use the service's recentLimit if no limit is provided
+      const actualLimit = limit || this.recentLimit || 50;
       let options = {
-        limit,
+        limit: actualLimit,
         type: 'episodes'
       };
       

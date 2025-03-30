@@ -186,7 +186,7 @@ You can connect to any combination of these services based on your needs.
 
 ### 3. Set Up OAuth Login (Optional)
 
-Recommendarr supports social login via Google and GitHub. To enable:
+Recommendarr supports social login via Google, GitHub, and Authentik. To enable:
 
 #### Generating a Secure SESSION_SECRET
 The SESSION_SECRET is used to encrypt session cookies and should be:
@@ -215,6 +215,17 @@ openssl rand -hex 32
      2. Click "New OAuth App"
      3. Fill in application details
      4. Set callback URL (see below)
+   
+   - **Authentik**:
+     1. Go to your Authentik admin interface
+     2. Navigate to "Applications" → "Providers"
+     3. Create a new OAuth2/OpenID Provider
+     4. Configure the following:
+        - Name: Recommendarr
+        - Client type: Confidential
+        - Redirect URIs: Add your callback URL (see below)
+        - Scopes: openid, profile, email
+     5. Save the provider and note the Client ID and Client Secret
 
 2. **Configure Callback URLs**:
    The callback URL must match exactly with what you configure in the OAuth provider:
@@ -223,11 +234,12 @@ openssl rand -hex 32
    ```
    Where:
    - `{PUBLIC_URL}` is your Recommendarr's public URL (e.g., `http://localhost:3000` or `https://recommendarr.yourdomain.com`)
-   - `{provider}` is either `google` or `github`
+   - `{provider}` is either `google`, `github`, or `authentik`
 
    Example callback URLs:
    - Development: `http://localhost:3000/api/auth/google/callback`
    - Production: `https://recommendarr.yourdomain.com/api/auth/github/callback`
+   - Authentik: `https://recommendarr.yourdomain.com/api/auth/authentik/callback`
 
 3. **Set Environment Variables**:
    Add these to your docker-compose.yml or .env file:
@@ -242,6 +254,11 @@ openssl rand -hex 32
    # GitHub OAuth
    GITHUB_CLIENT_ID=your-github-client-id
    GITHUB_CLIENT_SECRET=your-github-client-secret
+   
+   # Authentik OAuth
+   AUTHENTIK_BASE_URL=https://authentik.yourdomain.com
+   AUTHENTIK_CLIENT_ID=your-authentik-client-id
+   AUTHENTIK_CLIENT_SECRET=your-authentik-client-secret
 
    # Public URL (must match callback URL domain)
    PUBLIC_URL=http://localhost:3000  # Or your production domain
@@ -358,6 +375,9 @@ volumes:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret for social login | |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID for social login | |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret for social login | |
+| `AUTHENTIK_BASE_URL` | Authentik instance base URL | |
+| `AUTHENTIK_CLIENT_ID` | Authentik OAuth client ID for social login | |
+| `AUTHENTIK_CLIENT_SECRET` | Authentik OAuth client secret for social login | |
 | `SESSION_SECRET` | Secret for session encryption (highly recommended to set this) | random string |
 
 ## 🖥️ Compatible AI Services

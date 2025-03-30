@@ -393,6 +393,38 @@ class TraktService {
     }
   }
   
+  async getUserRatings(type) {
+    try {
+      // Validate type parameter
+      if (!type || (type !== 'movies' && type !== 'shows')) {
+        console.error('Invalid type parameter for getUserRatings. Must be "movies" or "shows".');
+        return [];
+      }
+      
+      // First get user settings to get the username
+      const userSettings = await this._apiRequest('/users/settings');
+      const username = userSettings?.user?.username || 'me';
+      
+      const endpoint = `/users/${username}/ratings/${type}`;
+      const params = {
+        extended: 'full'
+      };
+      
+      console.log(`Getting Trakt ratings for user ${username}, type: ${type}`);
+      const response = await this._apiRequest(endpoint, params);
+      
+      // Handle different response formats
+      // If response is wrapped in a data property (from proxy), extract it
+      const ratingsData = response.data ? response.data : response;
+      
+      console.log(`Received ${ratingsData ? ratingsData.length : 0} ratings for ${type}`);
+      return ratingsData || [];
+    } catch (error) {
+      console.error(`Failed to get Trakt ${type} ratings:`, error);
+      return [];
+    }
+  }
+  
   async getWatchHistory(options = {}) {
     try {
       const { limit = 50, type, startDate = null, endDate = null } = options;
@@ -415,10 +447,96 @@ class TraktService {
       }
       
       const response = await this._apiRequest(endpoint, params);
+      
+      // If we have a specific type, fetch ratings and process disliked items
+      if (type === 'movies' || type === 'shows') {
+        const contentType = type === 'movies' ? 'movie' : 'tv';
+        await this.processRatingsAndUpdateDislikes(response, contentType);
+      }
+      
       return response;
     } catch (error) {
       console.error('Failed to get Trakt watch history:', error);
       return [];
+    }
+  }
+  
+  async processRatingsAndUpdateDislikes(watchHistory, contentType) {
+    if (!watchHistory || watchHistory.length === 0) {
+      return watchHistory;
+    }
+    
+    try {
+      // Get ratings for the appropriate content type
+      const ratings = await this.getUserRatings(contentType === 'movie' ? 'movies' : 'shows');
+      if (!ratings || ratings.length === 0) {
+        return watchHistory;
+      }
+      
+      // Get current disliked list
+      const dislikedContent = await apiService.getPreferences(contentType, 'disliked') || [];
+      let updatedDislikedList = [...dislikedContent];
+      let itemsToRemove = [];
+      
+      // Create a map of ratings by item ID for faster lookup
+      const ratingsMap = new Map();
+      
+      // Log a sample rating item to debug
+      if (ratings.length > 0) {
+        console.log('Sample rating item:', JSON.stringify(ratings[0]));
+      }
+      
+      ratings.forEach(ratingItem => {
+        // Check if the rating is 5.0 or lower
+        if (ratingItem.rating !== undefined && ratingItem.rating <= 5.0) {
+          const item = ratingItem[contentType === 'movie' ? 'movie' : 'show'];
+          if (item && item.ids && item.ids.trakt) {
+            ratingsMap.set(item.ids.trakt, ratingItem.rating);
+            
+            // Add to disliked list if not already there
+            if (item.title && !updatedDislikedList.includes(item.title)) {
+              console.log(`Adding low-rated item to disliked list: ${item.title} (rating: ${ratingItem.rating})`);
+              updatedDislikedList.push(item.title);
+            }
+          }
+        }
+      });
+      
+      // Process each watch history item to mark for removal if it's in the disliked ratings
+      watchHistory.forEach(historyItem => {
+        const item = historyItem[contentType === 'movie' ? 'movie' : 'show'];
+        if (item && item.ids && item.ids.trakt) {
+          const traktId = item.ids.trakt;
+          if (ratingsMap.has(traktId)) {
+            itemsToRemove.push(traktId);
+          }
+        }
+      });
+      
+      // If we have new disliked items, save the updated list
+      if (updatedDislikedList.length > dislikedContent.length) {
+        await apiService.savePreferences(contentType, 'disliked', updatedDislikedList);
+        console.log(`Added ${updatedDislikedList.length - dislikedContent.length} low-rated ${contentType}s to disliked list`);
+      }
+      
+      // Remove disliked items from watch history
+      if (itemsToRemove.length > 0) {
+        const filteredHistory = watchHistory.filter(historyItem => {
+          const item = historyItem[contentType === 'movie' ? 'movie' : 'show'];
+          return !(item && item.ids && item.ids.trakt && itemsToRemove.includes(item.ids.trakt));
+        });
+        
+        // Replace the original array contents with filtered results
+        watchHistory.length = 0;
+        filteredHistory.forEach(item => watchHistory.push(item));
+        
+        console.log(`Removed ${itemsToRemove.length} disliked ${contentType}s from watch history`);
+      }
+      
+      return watchHistory;
+    } catch (error) {
+      console.error(`Error processing ratings for ${contentType}:`, error);
+      return watchHistory;
     }
   }
   
@@ -446,6 +564,9 @@ class TraktService {
         console.log('TraktService: No movie history data returned from API');
         return [];
       }
+      
+      // Get ratings and update disliked list
+      await this.processRatingsAndUpdateDislikes(historyData, 'movie');
       
       // Process and format the movie data
       const formattedData = historyData.map(item => {
@@ -495,6 +616,31 @@ class TraktService {
       
       const historyData = await this.getWatchHistory(options);
       
+      // Get show ratings and update disliked list
+      // First, extract unique show IDs from the history data
+      const showIds = new Set();
+      historyData.forEach(item => {
+        if (item.show && item.show.ids && item.show.ids.trakt) {
+          showIds.add(item.show.ids.trakt);
+        }
+      });
+      
+      // Get ratings for shows
+      const ratings = await this.getUserRatings('shows');
+      
+      // Create a map of show ratings
+      const showRatingsMap = new Map();
+      ratings.forEach(ratingItem => {
+        if (ratingItem.show && ratingItem.show.ids && ratingItem.show.ids.trakt) {
+          showRatingsMap.set(ratingItem.show.ids.trakt, ratingItem.rating);
+        }
+      });
+      
+      // Get current disliked list
+      const dislikedContent = await apiService.getPreferences('tv', 'disliked') || [];
+      let updatedDislikedList = [...dislikedContent];
+      let showsToRemove = new Set();
+      
       // Group episodes by show
       const showMap = new Map();
       
@@ -502,6 +648,17 @@ class TraktService {
         const show = item.show;
         const episode = item.episode;
         const showId = show.ids.trakt;
+        
+        // Check if this show has a low rating
+        const rating = showRatingsMap.get(showId);
+        if (rating !== undefined && rating <= 5.0) {
+          // Add to disliked list if not already there
+          if (!updatedDislikedList.includes(show.title)) {
+            updatedDislikedList.push(show.title);
+          }
+          showsToRemove.add(showId);
+          return; // Skip this show
+        }
         
         if (!showMap.has(showId)) {
           showMap.set(showId, {
@@ -530,6 +687,12 @@ class TraktService {
           showMap.get(showId).lastWatched = episodeDate.toISOString();
         }
       });
+      
+      // If we have new disliked items, save the updated list
+      if (updatedDislikedList.length > dislikedContent.length) {
+        await apiService.savePreferences('tv', 'disliked', updatedDislikedList);
+        console.log(`Added ${updatedDislikedList.length - dislikedContent.length} low-rated shows to disliked list`);
+      }
       
       // Convert map to array and sort by last watched (most recent first)
       return Array.from(showMap.values()).sort((a, b) => {

@@ -13,7 +13,7 @@
           <span>TV Shows</span>
         </button>
         <button 
-          class="content-type-button" 
+            class="content-type-button" 
           :class="{ 'active': isMovieMode }"
           @click="setContentType(true)"
         >

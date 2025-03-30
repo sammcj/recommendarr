@@ -372,17 +372,23 @@
 <button 
   @click.stop="refreshSonarrLibrary" 
   class="refresh-button sonarr-refresh"
+  :class="{ 'refreshing': refreshingSonarr, 'success': sonarrRefreshSuccess }"
   title="Refresh Sonarr library from API"
+  :disabled="refreshingSonarr"
 >
-  <span class="refresh-icon">⟳</span>
+  <span v-if="sonarrRefreshSuccess" class="success-icon">✓</span>
+  <span v-else class="refresh-icon" :class="{ 'spinning': refreshingSonarr }">⟳</span>
   <span class="refresh-text">Refresh Sonarr Library</span>
 </button>
 <button 
   @click.stop="refreshRadarrLibrary" 
   class="refresh-button radarr-refresh"
+  :class="{ 'refreshing': refreshingRadarr, 'success': radarrRefreshSuccess }"
   title="Refresh Radarr library from API"
+  :disabled="refreshingRadarr"
 >
-  <span class="refresh-icon">⟳</span>
+  <span v-if="radarrRefreshSuccess" class="success-icon">✓</span>
+  <span v-else class="refresh-icon" :class="{ 'spinning': refreshingRadarr }">⟳</span>
   <span class="refresh-text">Refresh Radarr Library</span>
 </button>
   </div>
@@ -795,6 +801,14 @@ import authService from '../services/AuthService';
 
 export default {
   name: 'RecommendationSettings',
+  data() {
+    return {
+      refreshingSonarr: false,
+      refreshingRadarr: false,
+      sonarrRefreshSuccess: false,
+      radarrRefreshSuccess: false
+    };
+  },
   computed: {
     isAdmin() {
       return authService.isAdmin();
@@ -1157,25 +1171,45 @@ export default {
     },
     async refreshSonarrLibrary() {
       try {
+        this.refreshingSonarr = true;
+        
         // Call the refreshLibrary method directly using the imported service
         await sonarrService.refreshLibrary();
         
-        // Show a success message
+        // Show a success message and visual feedback
         console.log('Sonarr library refreshed successfully');
+        this.refreshingSonarr = false;
+        this.sonarrRefreshSuccess = true;
+        
+        // Reset success state after 2 seconds
+        setTimeout(() => {
+          this.sonarrRefreshSuccess = false;
+        }, 2000);
       } catch (error) {
         console.error('Error refreshing Sonarr library:', error);
+        this.refreshingSonarr = false;
       }
     },
     
     async refreshRadarrLibrary() {
       try {
+        this.refreshingRadarr = true;
+        
         // Call the refreshLibrary method directly using the imported service
         await radarrService.refreshLibrary();
         
-        // Show a success message
+        // Show a success message and visual feedback
         console.log('Radarr library refreshed successfully');
+        this.refreshingRadarr = false;
+        this.radarrRefreshSuccess = true;
+        
+        // Reset success state after 2 seconds
+        setTimeout(() => {
+          this.radarrRefreshSuccess = false;
+        }, 2000);
       } catch (error) {
         console.error('Error refreshing Radarr library:', error);
+        this.refreshingRadarr = false;
       }
     }
   }
@@ -2326,8 +2360,19 @@ body.dark-theme .info-section-title.collapsible-header:hover {
   background-color: rgba(244, 67, 54, 0.1);
 }
 
-.refresh-button.refreshing .refresh-icon {
+.refresh-icon.spinning {
   animation: spin 1s infinite linear;
+}
+
+.refresh-button.success {
+  border-color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+}
+
+.success-icon {
+  color: #4CAF50;
+  font-weight: bold;
 }
 
 @keyframes spin {

@@ -1086,6 +1086,15 @@ export default {
                 this.selectedTautulliUserId = savedUserId;
               }
               
+              // Update tautulliRecentLimit from credentials if available
+              if (credentials.recentLimit) {
+                this.tautulliRecentLimit = parseInt(credentials.recentLimit, 10);
+                console.log(`Updated tautulliRecentLimit to ${this.tautulliRecentLimit} from credentials`);
+              } else {
+                // If not in credentials, use the default value
+                console.log(`Using default tautulliRecentLimit: ${this.tautulliRecentLimit}`);
+              }
+              
               const success = await tautulliService.testConnection();
               if (success) {
                 this.tautulliConnected = true;

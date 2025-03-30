@@ -811,6 +811,23 @@ export default {
       radarrRefreshSuccess: false
     };
   },
+  mounted() {
+    // Load sampled library mode preference
+    const useSampledLibrary = storageUtils.get('useSampledLibrary');
+    if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
+      const boolValue = useSampledLibrary === 'true' || useSampledLibrary === true;
+      this.$emit('update:useSampledLibrary', boolValue);
+    }
+    
+    // Load sample size
+    const librarySampleSize = storageUtils.get('librarySampleSize');
+    if (librarySampleSize !== null && librarySampleSize !== undefined) {
+      const numValue = parseInt(librarySampleSize, 10);
+      if (!isNaN(numValue)) {
+        this.$emit('update:sampleSize', numValue);
+      }
+    }
+  },
   computed: {
     isAdmin() {
       return authService.isAdmin();
@@ -1090,6 +1107,8 @@ export default {
       apiService.saveSettings(settings)
         .then(() => {
           console.log('Saved sampled library mode to server:', value);
+          // Also save to localStorage as a backup
+          storageUtils.set('useSampledLibrary', value.toString());
         })
         .catch(error => {
           console.error('Failed to save sampled library mode to server:', error);
@@ -1110,6 +1129,8 @@ export default {
       apiService.saveSettings(settings)
         .then(() => {
           console.log('Saved library sample size to server:', value);
+          // Also save to localStorage as a backup
+          storageUtils.set('librarySampleSize', value.toString());
         })
         .catch(error => {
           console.error('Failed to save library sample size to server:', error);

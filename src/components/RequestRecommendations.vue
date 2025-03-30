@@ -4361,12 +4361,26 @@ export default {
         // Library sampling settings
         if (settings.useSampledLibrary !== undefined) {
           this.useSampledLibrary = settings.useSampledLibrary === true || settings.useSampledLibrary === 'true';
+          console.log('Setting useSampledLibrary from server:', this.useSampledLibrary);
+          
+          // Also update in OpenAIService
+          openAIService.useSampledLibrary = this.useSampledLibrary;
+          
+          // Save to localStorage as backup
+          storageUtils.set('useSampledLibrary', this.useSampledLibrary.toString());
         }
         
         if (settings.librarySampleSize !== undefined) {
           const sampleSize = parseInt(settings.librarySampleSize, 10);
           if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 1000) {
             this.sampleSize = sampleSize;
+            console.log('Setting sampleSize from server:', this.sampleSize);
+            
+            // Also update in OpenAIService
+            openAIService.sampleSize = this.sampleSize;
+            
+            // Save to localStorage as backup
+            storageUtils.set('librarySampleSize', this.sampleSize.toString());
           }
         }
         

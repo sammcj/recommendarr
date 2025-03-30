@@ -148,6 +148,30 @@ class RadarrService {
   }
 
   /**
+   * Extract essential movie information for storage and LLM requests
+   * @param {Array} moviesData - Full movies data from Radarr API
+   * @returns {Array} - Array of simplified movie objects with only essential information
+   * @private
+   */
+  _extractMovieEssentials(moviesData) {
+    if (!Array.isArray(moviesData)) {
+      console.error('Invalid movie data provided to _extractMovieEssentials');
+      return [];
+    }
+    
+    return moviesData.map(movie => ({
+      id: movie.id,
+      title: movie.title,
+      year: movie.year,
+      tmdbId: movie.tmdbId,
+      status: movie.status,
+      overview: movie.overview ? movie.overview.substring(0, 200) : '', // Truncate overview to save space
+      studio: movie.studio || '',
+      genres: Array.isArray(movie.genres) ? movie.genres : []
+    }));
+  }
+
+  /**
    * Get all movies from Radarr
    * @param {boolean} [forceRefresh=false] - Force refresh from API instead of using cached data
    * @returns {Promise<Array>} - List of movies
@@ -174,11 +198,14 @@ class RadarrService {
       console.log(forceRefresh ? 'Forcing refresh of Radarr library from API' : 'No cached data, fetching Radarr library from API');
       const moviesData = await this._apiRequest('/api/v3/movie');
       
+      // Extract essential information before saving to database
+      const essentialMoviesData = this._extractMovieEssentials(moviesData);
+      
       // Save to database for future use
       try {
         // Save library to database via API
-        await apiService.post('/radarr/library', moviesData);
-        console.log('Saved Radarr library to database');
+        await apiService.post('/radarr/library', essentialMoviesData);
+        console.log('Saved Radarr library to database (essential data only)');
       } catch (saveError) {
         console.error('Error saving Radarr library to database:', saveError);
         // Continue even if save fails
@@ -215,11 +242,14 @@ class RadarrService {
       console.log('Forcing refresh of Radarr library from API');
       const moviesData = await this._apiRequest('/api/v3/movie');
       
+      // Extract essential information before saving to database
+      const essentialMoviesData = this._extractMovieEssentials(moviesData);
+      
       // Save to database for all users via the refresh-all endpoint
       try {
         // Save library to database via API for all users
-        await apiService.post('/radarr/library/refresh-all', moviesData);
-        console.log('Saved Radarr library to database for all users');
+        await apiService.post('/radarr/library/refresh-all', essentialMoviesData);
+        console.log('Saved Radarr library to database for all users (essential data only)');
       } catch (saveError) {
         console.error('Error saving Radarr library to database for all users:', saveError);
         // Continue even if save fails

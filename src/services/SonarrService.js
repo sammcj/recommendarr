@@ -133,6 +133,30 @@ class SonarrService {
   }
 
   /**
+   * Extract essential series information for storage and LLM requests
+   * @param {Array} seriesData - Full series data from Sonarr API
+   * @returns {Array} - Array of simplified series objects with only essential information
+   * @private
+   */
+  _extractSeriesEssentials(seriesData) {
+    if (!Array.isArray(seriesData)) {
+      console.error('Invalid series data provided to _extractSeriesEssentials');
+      return [];
+    }
+    
+    return seriesData.map(series => ({
+      id: series.id,
+      title: series.title,
+      year: series.year,
+      tvdbId: series.tvdbId,
+      status: series.status,
+      overview: series.overview ? series.overview.substring(0, 200) : '', // Truncate overview to save space
+      network: series.network || '',
+      genres: Array.isArray(series.genres) ? series.genres : []
+    }));
+  }
+
+  /**
    * Get all series from Sonarr
    * @param {boolean} [forceRefresh=false] - Force refresh from API instead of using cached data
    * @returns {Promise<Array>} - List of TV shows
@@ -159,11 +183,14 @@ class SonarrService {
       console.log(forceRefresh ? 'Forcing refresh of Sonarr library from API' : 'No cached data, fetching Sonarr library from API');
       const seriesData = await this._apiRequest('/api/v3/series');
       
+      // Extract essential information before saving to database
+      const essentialSeriesData = this._extractSeriesEssentials(seriesData);
+      
       // Save to database for future use
       try {
         // Save library to database via API
-        await apiService.post('/sonarr/library', seriesData);
-        console.log('Saved Sonarr library to database');
+        await apiService.post('/sonarr/library', essentialSeriesData);
+        console.log('Saved Sonarr library to database (essential data only)');
       } catch (saveError) {
         console.error('Error saving Sonarr library to database:', saveError);
         // Continue even if save fails
@@ -200,11 +227,14 @@ class SonarrService {
       console.log('Forcing refresh of Sonarr library from API');
       const seriesData = await this._apiRequest('/api/v3/series');
       
+      // Extract essential information before saving to database
+      const essentialSeriesData = this._extractSeriesEssentials(seriesData);
+      
       // Save to database for all users via the refresh-all endpoint
       try {
         // Save library to database via API for all users
-        await apiService.post('/sonarr/library/refresh-all', seriesData);
-        console.log('Saved Sonarr library to database for all users');
+        await apiService.post('/sonarr/library/refresh-all', essentialSeriesData);
+        console.log('Saved Sonarr library to database for all users (essential data only)');
       } catch (saveError) {
         console.error('Error saving Sonarr library to database for all users:', saveError);
         // Continue even if save fails

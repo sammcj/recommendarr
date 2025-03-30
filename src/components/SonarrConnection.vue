@@ -104,8 +104,7 @@ export default {
       try {
         // Validate and normalize the URL
         if (!this.validateUrl()) {
-          // Clear invalid credentials
-          this.clearStoredCredentials();
+          console.warn('Invalid Sonarr URL format during auto-connect, keeping credentials');
           return;
         }
         
@@ -121,13 +120,13 @@ export default {
           await sonarrService.configure(this.baseUrl, this.apiKey);
           this.$emit('connected');
         } else {
-          // Clear invalid credentials
-          this.clearStoredCredentials();
+          // Log the error but KEEP the credentials
+          console.warn('Sonarr connection test failed during auto-connect, keeping credentials');
         }
       } catch (error) {
         console.error('Error auto-connecting to Sonarr:', error);
-        // Clear invalid credentials
-        this.clearStoredCredentials();
+        // Log the error but KEEP the credentials
+        console.warn('Exception during Sonarr auto-connect, keeping credentials');
         
         // No need to show alerts during auto-connect
       } finally {

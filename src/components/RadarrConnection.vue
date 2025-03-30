@@ -102,8 +102,7 @@ export default {
       try {
         // Validate and normalize the URL
         if (!this.validateUrl()) {
-          // Clear invalid credentials
-          this.clearStoredCredentials();
+          console.warn('Invalid Radarr URL format during auto-connect, keeping credentials');
           return;
         }
         
@@ -117,13 +116,13 @@ export default {
         if (success) {
           this.$emit('connected');
         } else {
-          // Clear invalid credentials
-          await this.clearStoredCredentials();
+          // Log the error but KEEP the credentials
+          console.warn('Radarr connection test failed during auto-connect, keeping credentials');
         }
       } catch (error) {
         console.error('Error auto-connecting to Radarr:', error);
-        // Clear invalid credentials
-        this.clearStoredCredentials();
+        // Log the error but KEEP the credentials
+        console.warn('Exception during Radarr auto-connect, keeping credentials');
       } finally {
         this.connecting = false;
       }

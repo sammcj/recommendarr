@@ -670,7 +670,7 @@
               v-model.number="plexSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="2000" 
+              max="10000" 
               step="1" 
               @change="savePlexLimit"
             />
@@ -764,7 +764,7 @@
               v-model.number="jellyfinSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="2000" 
+              max="10000" 
               step="1" 
             />
             <span class="slider-value">{{ jellyfinSettings.recentLimit }}</span>
@@ -842,7 +842,7 @@
               v-model.number="tautulliSettings.recentLimit" 
               type="range" 
               min="1" 
-              max="2000" 
+              max="10000" 
               step="1" 
             />
             <span class="slider-value">{{ tautulliSettings.recentLimit }}</span>
@@ -923,7 +923,7 @@
                 v-model.number="traktSettings.recentLimit" 
                 type="range" 
                 min="1" 
-                max="2000" 
+                max="10000" 
                 step="1" 
               />
               <span class="slider-value">{{ traktSettings.recentLimit }}</span>
@@ -1003,6 +1003,8 @@ import tautulliService from '../services/TautulliService';
 import traktService from '../services/TraktService';
 import credentialsService from '../services/CredentialsService';
 import authService from '../services/AuthService';
+import apiService from '../services/ApiService';
+import storageUtils from '../utils/StorageUtils';
 import PlexConnection from './PlexConnection.vue';
 import JellyfinConnection from './JellyfinConnection.vue';
 import TautulliConnection from './TautulliConnection.vue';
@@ -1498,7 +1500,7 @@ export default {
         if (plexService.isConfigured()) {
           this.plexSettings.baseUrl = plexService.baseUrl;
           this.plexSettings.token = plexService.token;
-          this.plexSettings.recentLimit = parseInt(localStorage.getItem('plexRecentLimit') || '10');
+          this.plexSettings.recentLimit = storageUtils.get('plexRecentLimit', 10);
           return;
         }
         
@@ -1506,7 +1508,7 @@ export default {
         const credentials = await credentialsService.getCredentials('plex');
         if (credentials) {
           this.plexSettings.token = credentials.token || '';
-          this.plexSettings.recentLimit = parseInt(localStorage.getItem('plexRecentLimit') || '10');
+          this.plexSettings.recentLimit = storageUtils.get('plexRecentLimit', 10);
         }
       } catch (error) {
         console.error('Error loading Plex settings:', error);
@@ -1520,7 +1522,7 @@ export default {
           this.jellyfinSettings.baseUrl = jellyfinService.baseUrl;
           this.jellyfinSettings.apiKey = jellyfinService.apiKey;
           this.jellyfinSettings.userId = jellyfinService.userId;
-          this.jellyfinSettings.recentLimit = parseInt(localStorage.getItem('jellyfinRecentLimit') || '10');
+          this.jellyfinSettings.recentLimit = storageUtils.get('jellyfinRecentLimit', 10);
           
           // Try to look up the username for the current userId
           if (this.jellyfinSettings.userId) {
@@ -1544,7 +1546,7 @@ export default {
           this.jellyfinSettings.baseUrl = credentials.baseUrl || '';
           this.jellyfinSettings.apiKey = credentials.apiKey || '';
           this.jellyfinSettings.userId = credentials.userId || '';
-          this.jellyfinSettings.recentLimit = parseInt(localStorage.getItem('jellyfinRecentLimit') || '10');
+          this.jellyfinSettings.recentLimit = storageUtils.get('jellyfinRecentLimit', 10);
           
           // If we have credentials but no service configured yet, configure it temporarily to look up username
           if (this.jellyfinSettings.baseUrl && this.jellyfinSettings.apiKey && this.jellyfinSettings.userId) {
@@ -1578,7 +1580,7 @@ export default {
         if (tautulliService.isConfigured()) {
           this.tautulliSettings.baseUrl = tautulliService.baseUrl;
           this.tautulliSettings.apiKey = tautulliService.apiKey;
-          this.tautulliSettings.recentLimit = parseInt(localStorage.getItem('tautulliRecentLimit') || '50');
+          this.tautulliSettings.recentLimit = storageUtils.get('tautulliRecentLimit', 50);
           return;
         }
         
@@ -1587,7 +1589,7 @@ export default {
         if (credentials) {
           this.tautulliSettings.baseUrl = credentials.baseUrl || '';
           this.tautulliSettings.apiKey = credentials.apiKey || '';
-          this.tautulliSettings.recentLimit = parseInt(localStorage.getItem('tautulliRecentLimit') || '50');
+          this.tautulliSettings.recentLimit = storageUtils.get('tautulliRecentLimit', 50);
         }
       } catch (error) {
         console.error('Error loading Tautulli settings:', error);
@@ -1599,7 +1601,7 @@ export default {
         // First try to get from service directly
         if (traktService.isConfigured()) {
           this.traktSettings.clientId = traktService.clientId;
-          this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
+          this.traktSettings.recentLimit = storageUtils.get('traktRecentLimit', 50);
           return;
         }
         
@@ -1607,7 +1609,7 @@ export default {
         const credentials = await credentialsService.getCredentials('trakt');
         if (credentials) {
           this.traktSettings.clientId = credentials.clientId || '';
-          this.traktSettings.recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50');
+          this.traktSettings.recentLimit = storageUtils.get('traktRecentLimit', 50);
         }
       } catch (error) {
         console.error('Error loading Trakt settings:', error);
@@ -1921,8 +1923,8 @@ export default {
         // Configure the service with provided details
         await plexService.configure(this.plexSettings.baseUrl, this.plexSettings.token);
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('plexRecentLimit', this.plexSettings.recentLimit.toString());
+        // Store the recent limit in storageUtils (server doesn't need this)
+        storageUtils.set('plexRecentLimit', this.plexSettings.recentLimit);
         
         // Test the connection
         const success = await plexService.testConnection();
@@ -1996,8 +1998,8 @@ export default {
     
     async savePlexLimit() {
       try {
-        // Store the limit in localStorage first
-        localStorage.setItem('plexRecentLimit', this.plexSettings.recentLimit.toString());
+        // Store the limit in storageUtils instead of direct localStorage
+        storageUtils.set('plexRecentLimit', this.plexSettings.recentLimit);
         
         // Update the server with the new limit
         await plexService.configure(
@@ -2007,6 +2009,16 @@ export default {
           this.plexSettings.recentLimit // explicitly pass the limit
         );
         
+        // Save to user settings in database
+        try {
+          const userData = await apiService.getSettings();
+          userData.plexRecentLimit = this.plexSettings.recentLimit;
+          await apiService.saveSettings(userData);
+        } catch (settingsError) {
+          console.error('Error saving Plex limit to user settings:', settingsError);
+          // Continue even if settings save fails
+        }
+        
         // Fetch and cache watch history with new limit
         try {
           console.log('Fetching Plex watch history with updated limit for caching...');
@@ -2014,7 +2026,6 @@ export default {
           const showHistory = await plexService.getRecentlyWatchedShows(this.plexSettings.recentLimit);
           
           // Save watch history to server cache
-          const apiService = await import('../services/ApiService').then(m => m.default);
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
           console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Plex with new limit`);
@@ -2084,8 +2095,8 @@ export default {
           userId
         );
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('jellyfinRecentLimit', this.jellyfinSettings.recentLimit.toString());
+        // Store the recent limit in storageUtils (server doesn't need this)
+        storageUtils.set('jellyfinRecentLimit', this.jellyfinSettings.recentLimit);
         
         // Test the connection
         const result = await jellyfinService.testConnection();
@@ -2188,6 +2199,9 @@ export default {
     
     async saveJellyfinLimit() {
       try {
+        // Store the limit in storageUtils instead of direct localStorage
+        storageUtils.set('jellyfinRecentLimit', this.jellyfinSettings.recentLimit);
+        
         // Update the server with the new limit
         await jellyfinService.configure(
           jellyfinService.baseUrl,
@@ -2196,6 +2210,16 @@ export default {
           this.jellyfinSettings.recentLimit
         );
         
+        // Save to user settings in database
+        try {
+          const userData = await apiService.getSettings();
+          userData.jellyfinRecentLimit = this.jellyfinSettings.recentLimit;
+          await apiService.saveSettings(userData);
+        } catch (settingsError) {
+          console.error('Error saving Jellyfin limit to user settings:', settingsError);
+          // Continue even if settings save fails
+        }
+        
         // Fetch and cache watch history with new limit
         try {
           console.log('Fetching Jellyfin watch history with updated limit for caching...');
@@ -2203,7 +2227,6 @@ export default {
           const showHistory = await jellyfinService.getRecentlyWatchedShows(this.jellyfinSettings.recentLimit);
           
           // Save watch history to server cache
-          const apiService = await import('../services/ApiService').then(m => m.default);
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
           console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Jellyfin with new limit`);
@@ -2239,8 +2262,8 @@ export default {
         // Configure the service with provided details
         await tautulliService.configure(this.tautulliSettings.baseUrl, this.tautulliSettings.apiKey);
         
-        // Store the recent limit in localStorage (server doesn't need this)
-        localStorage.setItem('tautulliRecentLimit', this.tautulliSettings.recentLimit.toString());
+        // Store the recent limit in storageUtils (server doesn't need this)
+        storageUtils.set('tautulliRecentLimit', this.tautulliSettings.recentLimit);
         
         // Test the connection
         const success = await tautulliService.testConnection();
@@ -2278,6 +2301,7 @@ export default {
         await tautulliService.configure(
           this.tautulliSettings.baseUrl, 
           this.tautulliSettings.apiKey,
+          '', // userId (empty string)
           this.tautulliSettings.recentLimit
         );
         
@@ -2314,12 +2338,26 @@ export default {
     
     async saveTautulliLimit() {
       try {
+        // Store the limit in storageUtils instead of direct localStorage
+        storageUtils.set('tautulliRecentLimit', this.tautulliSettings.recentLimit);
+        
         // Update the server with the new limit
         await tautulliService.configure(
           tautulliService.baseUrl,
           tautulliService.apiKey,
+          '', // userId (empty string)
           this.tautulliSettings.recentLimit
         );
+        
+        // Save to user settings in database
+        try {
+          const userData = await apiService.getSettings();
+          userData.tautulliRecentLimit = this.tautulliSettings.recentLimit;
+          await apiService.saveSettings(userData);
+        } catch (settingsError) {
+          console.error('Error saving Tautulli limit to user settings:', settingsError);
+          // Continue even if settings save fails
+        }
         
         // Fetch and cache watch history with new limit
         try {
@@ -2328,7 +2366,6 @@ export default {
           const showHistory = await tautulliService.getRecentlyWatchedShows(this.tautulliSettings.recentLimit);
           
           // Save watch history to server cache
-          const apiService = await import('../services/ApiService').then(m => m.default);
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
           console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Tautulli with new limit`);
@@ -2368,13 +2405,13 @@ export default {
     
     onTraktLimitChange(limit) {
       this.traktSettings.recentLimit = limit;
-      localStorage.setItem('traktRecentLimit', limit.toString());
+      storageUtils.set('traktRecentLimit', limit);
       this.$emit('trakt-limit-changed', limit);
     },
     
     async saveTraktLimit() {
-      // Save the recent limit to localStorage
-      localStorage.setItem('traktRecentLimit', this.traktSettings.recentLimit.toString());
+      // Store the limit in storageUtils instead of direct localStorage
+      storageUtils.set('traktRecentLimit', this.traktSettings.recentLimit);
       
       try {
         // Update the server with the new limit
@@ -2384,6 +2421,16 @@ export default {
           this.traktSettings.recentLimit
         );
         
+        // Save to user settings in database
+        try {
+          const userData = await apiService.getSettings();
+          userData.traktRecentLimit = this.traktSettings.recentLimit;
+          await apiService.saveSettings(userData);
+        } catch (settingsError) {
+          console.error('Error saving Trakt limit to user settings:', settingsError);
+          // Continue even if settings save fails
+        }
+        
         // Fetch and cache watch history after successful update
         try {
           console.log('Fetching Trakt watch history for caching...');
@@ -2391,7 +2438,6 @@ export default {
           const showHistory = await traktService.getRecentlyWatchedShows(this.traktSettings.recentLimit);
           
           // Save watch history to server cache
-          const apiService = await import('../services/ApiService').then(m => m.default);
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
           console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Trakt`);
@@ -2501,8 +2547,8 @@ export default {
       // Also update the model in the OpenAI service to ensure it's saved in both localStorage and server-side credentials
       try {
         if (this.aiSettings.selectedModel) {
-          // Store model in localStorage
-          localStorage.setItem('openaiModel', this.aiSettings.selectedModel);
+          // Store model in storageUtils
+          storageUtils.set('openaiModel', this.aiSettings.selectedModel);
           
           // Configure the service with the updated model, which will also save to credentials
           await openAIService.configure(

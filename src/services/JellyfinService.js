@@ -3,6 +3,7 @@ import axios from 'axios';
 /* eslint-enable no-unused-vars */
 import credentialsService from './CredentialsService';
 import apiService from './ApiService';
+import AuthService from './AuthService';
 import storageUtils from '../utils/StorageUtils';
 
 class JellyfinService {
@@ -26,7 +27,7 @@ class JellyfinService {
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
-        localStorage.setItem('jellyfinRecentLimit', credentials.recentLimit.toString());
+        storageUtils.set('jellyfinRecentLimit', credentials.recentLimit);
       }
     }
   }
@@ -46,8 +47,8 @@ class JellyfinService {
     // If recentLimit is provided, store it with the credentials
     if (recentLimit !== null) {
       credentials.recentLimit = recentLimit;
-      // Also store in localStorage for client-side access
-      localStorage.setItem('jellyfinRecentLimit', recentLimit.toString());
+      // Also store in storageUtils for client-side access
+      storageUtils.set('jellyfinRecentLimit', recentLimit);
     }
     
     // Store credentials server-side (single set of credentials)
@@ -174,6 +175,15 @@ class JellyfinService {
         return [];
       }
     }
+    
+    // For non-admin users, reload credentials to get the admin-set limit
+    if (!AuthService.isAdmin()) {
+      const credentials = await credentialsService.getCredentials('jellyfin');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the admin-set limit
+        limit = credentials.recentLimit;
+      }
+    }
 
     try {
       // Construct the URL for getting watch history for movies
@@ -219,6 +229,15 @@ class JellyfinService {
       
       if (!this.isConfigured() || !this.userId) {
         return [];
+      }
+    }
+    
+    // For non-admin users, reload credentials to get the admin-set limit
+    if (!AuthService.isAdmin()) {
+      const credentials = await credentialsService.getCredentials('jellyfin');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the admin-set limit
+        limit = credentials.recentLimit;
       }
     }
 

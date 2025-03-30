@@ -3,6 +3,7 @@ import axios from 'axios';
 /* eslint-enable no-unused-vars */
 import credentialsService from './CredentialsService';
 import apiService from './ApiService';
+import AuthService from './AuthService';
 import storageUtils from '../utils/StorageUtils';
 
 class PlexService {
@@ -26,7 +27,7 @@ class PlexService {
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
-        localStorage.setItem('plexRecentLimit', credentials.recentLimit.toString());
+        storageUtils.set('plexRecentLimit', credentials.recentLimit);
       }
     }
   }
@@ -52,8 +53,8 @@ class PlexService {
     // If recentLimit is provided, store it with the credentials
     if (recentLimit !== null) {
       credentials.recentLimit = recentLimit;
-      // Also store in localStorage for client-side access
-      localStorage.setItem('plexRecentLimit', recentLimit.toString());
+      // Also store in storageUtils for client-side access
+      storageUtils.set('plexRecentLimit', recentLimit);
     }
     
     // Store credentials server-side (single set of credentials)
@@ -322,6 +323,15 @@ class PlexService {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
       }
     }
+    
+    // For non-admin users, reload credentials to get the admin-set limit
+    if (!AuthService.isAdmin()) {
+      const credentials = await credentialsService.getCredentials('plex');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the admin-set limit
+        limit = credentials.recentLimit;
+      }
+    }
 
     try {
       // Use provided userId or fall back to the selectedUserId
@@ -504,6 +514,15 @@ class PlexService {
       await this.loadCredentials();
       if (!this.isConfigured()) {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
+      }
+    }
+    
+    // For non-admin users, reload credentials to get the admin-set limit
+    if (!AuthService.isAdmin()) {
+      const credentials = await credentialsService.getCredentials('plex');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the admin-set limit
+        limit = credentials.recentLimit;
       }
     }
     

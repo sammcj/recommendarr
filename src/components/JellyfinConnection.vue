@@ -58,7 +58,7 @@
             v-model.number="jellyfinHistoryLimit"
             type="number"
             min="1"
-            max="2000"
+            max="10000"
             :disabled="loading"
           />
           <div class="limit-buttons">
@@ -98,6 +98,8 @@
 <script>
 import JellyfinService from '@/services/JellyfinService.js';
 import credentialsService from '@/services/CredentialsService.js';
+import storageUtils from '@/utils/StorageUtils';
+import apiService from '@/services/ApiService';
 
 export default {
   name: 'JellyfinConnection',
@@ -113,7 +115,7 @@ export default {
       jellyfinApiKey: '',
       jellyfinUserId: '',
       jellyfinUsername: '',
-      jellyfinHistoryLimit: parseInt(localStorage.getItem('jellyfinHistoryLimit') || '50'),
+      jellyfinHistoryLimit: 50, // Default value, will be updated in created()
       loading: false,
       message: '',
       messageSuccess: false,
@@ -121,6 +123,9 @@ export default {
     };
   },
   async created() {
+    // Load history limit from storageUtils
+    this.jellyfinHistoryLimit = storageUtils.get('jellyfinHistoryLimit', 50);
+    
     // If already connected, load current values from service
     if (this.connected) {
       this.jellyfinUrl = JellyfinService.baseUrl;
@@ -188,7 +193,7 @@ export default {
     },
     
     increaseLimit() {
-      if (this.jellyfinHistoryLimit < 2000) {
+      if (this.jellyfinHistoryLimit < 10000) {
         this.jellyfinHistoryLimit++;
       }
     },
@@ -206,8 +211,19 @@ export default {
         return;
       }
 
-      // Save the history limit
-      localStorage.setItem('jellyfinHistoryLimit', this.jellyfinHistoryLimit.toString());
+      // Save the history limit using storageUtils instead of localStorage
+      storageUtils.set('jellyfinHistoryLimit', this.jellyfinHistoryLimit);
+      
+      // Save to user settings in database
+      try {
+        const userData = await apiService.getSettings();
+        userData.jellyfinHistoryLimit = this.jellyfinHistoryLimit;
+        await apiService.saveSettings(userData);
+      } catch (settingsError) {
+        console.error('Error saving Jellyfin limit to user settings:', settingsError);
+        // Continue even if settings save fails
+      }
+      
       this.$emit('limitChanged', this.jellyfinHistoryLimit);
 
       try {

@@ -21,6 +21,7 @@
       <!-- Always show app navigation -->
       <AppNavigation 
         :activeTab="activeTab" 
+        :username="username"
         @navigate="handleNavigate"
         @logout="handleLogout"
         @clearData="handleClearData" 

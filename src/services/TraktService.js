@@ -1,6 +1,7 @@
 import axios from 'axios';
 import apiService from './ApiService';
 import credentialsService from './CredentialsService';
+import storageUtils from '../utils/StorageUtils';
 
 class TraktService {
   constructor() {
@@ -35,10 +36,10 @@ class TraktService {
         this.expiresAt = credentials.expiresAt || null;
         this.configured = !!(this.clientId && this.accessToken);
         
-        // Load recentLimit if available
-        if (credentials.recentLimit) {
-          localStorage.setItem('traktRecentLimit', credentials.recentLimit.toString());
-        }
+      // Load recentLimit if available
+      if (credentials.recentLimit) {
+        storageUtils.set('traktRecentLimit', credentials.recentLimit);
+      }
         
         // Check if token is expired and needs refresh
         if (this.isTokenExpired() && this.refreshToken) {
@@ -61,17 +62,17 @@ class TraktService {
       throw new Error('Client ID is required to start OAuth flow');
     }
     
-    // Store the client ID in local storage temporarily
-    localStorage.setItem('trakt_client_id', this.clientId);
+    // Store the client ID in storageUtils temporarily
+    storageUtils.set('trakt_client_id', this.clientId);
     
     // If client secret is provided, store it too
     if (this.clientSecret) {
-      localStorage.setItem('trakt_client_secret', this.clientSecret);
+      storageUtils.set('trakt_client_secret', this.clientSecret);
     }
     
     // Generate random state value for security
     const state = Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('trakt_oauth_state', state);
+    storageUtils.set('trakt_oauth_state', state);
     
     // Construct the authorization URL
     const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${this.clientId}&redirect_uri=${encodeURIComponent(this.redirectUri)}&state=${state}`;
@@ -88,24 +89,24 @@ class TraktService {
    */
   async handleOAuthCallback(code, state) {
     // Verify state parameter matches what we stored
-    const storedState = localStorage.getItem('trakt_oauth_state');
+    const storedState = storageUtils.get('trakt_oauth_state');
     if (state !== storedState) {
       throw new Error('OAuth state mismatch - possible CSRF attack');
     }
     
-    // Get client ID from localStorage
-    const clientId = localStorage.getItem('trakt_client_id');
+    // Get client ID from storageUtils
+    const clientId = storageUtils.get('trakt_client_id');
     if (!clientId) {
-      throw new Error('Client ID not found in localStorage');
+      throw new Error('Client ID not found in storageUtils');
     }
     
-    // Get client secret from localStorage if available
-    const clientSecret = localStorage.getItem('trakt_client_secret') || '';
+    // Get client secret from storageUtils if available
+    const clientSecret = storageUtils.get('trakt_client_secret', '');
     
-    // Clear localStorage values
-    localStorage.removeItem('trakt_oauth_state');
-    localStorage.removeItem('trakt_client_id');
-    localStorage.removeItem('trakt_client_secret');
+    // Clear storageUtils values
+    storageUtils.remove('trakt_oauth_state');
+    storageUtils.remove('trakt_client_id');
+    storageUtils.remove('trakt_client_secret');
     
     // Exchange code for tokens using our proxy to avoid CORS issues
     try {
@@ -145,8 +146,8 @@ class TraktService {
       this.expiresAt = expiresAt;
       this.configured = true;
       
-      // Get existing recentLimit from localStorage if available
-      const recentLimit = localStorage.getItem('traktRecentLimit');
+      // Get existing recentLimit from storageUtils if available
+      const recentLimit = storageUtils.get('traktRecentLimit');
       
       // Store credentials on the server
       const credentials = {
@@ -221,8 +222,8 @@ class TraktService {
       this.refreshToken = data.refresh_token;
       this.expiresAt = expiresAt;
       
-      // Get existing recentLimit from localStorage if available
-      const recentLimit = localStorage.getItem('traktRecentLimit');
+      // Get existing recentLimit from storageUtils if available
+      const recentLimit = storageUtils.get('traktRecentLimit');
       
       // Store updated credentials
       const credentials = {
@@ -257,12 +258,12 @@ class TraktService {
         clientSecret: this.clientSecret
       };
       
-      // If recentLimit is provided, store it with the credentials
-      if (recentLimit !== null) {
-        credentials.recentLimit = recentLimit;
-        // Also store in localStorage for client-side access
-        localStorage.setItem('traktRecentLimit', recentLimit.toString());
-      }
+    // If recentLimit is provided, store it with the credentials
+    if (recentLimit !== null) {
+      credentials.recentLimit = recentLimit;
+      // Also store in storageUtils for client-side access
+      storageUtils.set('traktRecentLimit', recentLimit);
+    }
       
       // We don't immediately set this as configured since we need to complete OAuth
       // Store partial credentials on the server
@@ -763,8 +764,8 @@ class TraktService {
       this.expiresAt = null;
       this.configured = false;
       
-      // Get existing recentLimit from localStorage
-      const recentLimit = localStorage.getItem('traktRecentLimit');
+      // Get existing recentLimit from storageUtils
+      const recentLimit = storageUtils.get('traktRecentLimit');
       
       // Clear credentials on server
       const credentials = {

@@ -56,7 +56,7 @@
               v-model.number="recentLimit" 
               type="number" 
               min="1" 
-              max="2000" 
+              max="10000" 
             />
           </div>
         </div>
@@ -126,7 +126,7 @@
               type="number" 
               v-model.number="newLimit" 
               min="1" 
-              max="2000"
+              max="10000"
             />
             <div class="edit-actions">
               <button class="save-button" @click="updateLimit">Save</button>
@@ -147,6 +147,8 @@
 
 <script>
 import traktService from '../services/TraktService';
+import storageUtils from '../utils/StorageUtils';
+import apiService from '../services/ApiService';
 
 export default {
   name: 'TraktConnection',
@@ -201,12 +203,9 @@ export default {
         this.clientSecret = traktService.clientSecret;
         this.expiresAt = traktService.expiresAt;
         
-        // Load recent limit from localStorage if available
-        const savedLimit = localStorage.getItem('traktRecentLimit');
-        if (savedLimit) {
-          this.recentLimit = parseInt(savedLimit, 10);
-          this.newLimit = this.recentLimit;
-        }
+        // Load recent limit from storageUtils instead of localStorage
+        this.recentLimit = storageUtils.get('traktRecentLimit', 50);
+        this.newLimit = this.recentLimit;
       }
     }
   },
@@ -232,8 +231,18 @@ export default {
         // Configure Trakt service with client ID and secret
         await traktService.configure(this.clientId, this.clientSecret);
         
-        // Save the recent limit to localStorage
-        localStorage.setItem('traktRecentLimit', this.recentLimit.toString());
+        // Save the recent limit to storageUtils instead of localStorage
+        storageUtils.set('traktRecentLimit', this.recentLimit);
+        
+        // Save to user settings in database
+        try {
+          const userData = await apiService.getSettings();
+          userData.traktRecentLimit = this.recentLimit;
+          await apiService.saveSettings(userData);
+        } catch (settingsError) {
+          console.error('Error saving Trakt limit to user settings:', settingsError);
+          // Continue even if settings save fails
+        }
         
         // Start OAuth flow
         await traktService.startOAuthFlow();
@@ -259,8 +268,8 @@ export default {
         const success = await traktService.testConnection();
         
         if (success) {
-          // Get the recent limit
-          const recentLimit = parseInt(localStorage.getItem('traktRecentLimit') || '50', 10);
+          // Get the recent limit from storageUtils instead of localStorage
+          const recentLimit = storageUtils.get('traktRecentLimit', 50);
           
           // Fetch and cache watch history after successful connection
           try {
@@ -318,13 +327,25 @@ export default {
     async updateLimit() {
       if (this.newLimit < 1) {
         this.newLimit = 1;
-      } else if (this.newLimit > 2000) {
-        this.newLimit = 2000;
+      } else if (this.newLimit > 10000) {
+        this.newLimit = 10000;
       }
       
       this.recentLimit = this.newLimit;
-      localStorage.setItem('traktRecentLimit', this.recentLimit.toString());
+      
+      // Use storageUtils instead of localStorage
+      storageUtils.set('traktRecentLimit', this.recentLimit);
       this.editLimit = false;
+      
+      // Save to user settings in database
+      try {
+        const userData = await apiService.getSettings();
+        userData.traktRecentLimit = this.recentLimit;
+        await apiService.saveSettings(userData);
+      } catch (settingsError) {
+        console.error('Error saving Trakt limit to user settings:', settingsError);
+        // Continue even if settings save fails
+      }
       
       // Fetch and cache watch history with the new limit
       try {
@@ -332,8 +353,7 @@ export default {
         const movieHistory = await traktService.getRecentlyWatchedMovies(this.recentLimit);
         const showHistory = await traktService.getRecentlyWatchedShows(this.recentLimit);
         
-        // Import ApiService and save watch history to server cache
-        const { default: apiService } = await import('../services/ApiService');
+        // Save watch history to server cache
         await apiService.saveWatchHistory('movies', movieHistory);
         await apiService.saveWatchHistory('shows', showHistory);
         console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Trakt with new limit`);

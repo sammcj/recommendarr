@@ -1,6 +1,7 @@
 import axios from 'axios';
 import apiService from './ApiService';
 import credentialsService from './CredentialsService';
+import AuthService from './AuthService';
 import storageUtils from '../utils/StorageUtils';
 
 class TautulliService {
@@ -27,10 +28,10 @@ class TautulliService {
         this.apiKey = credentials.apiKey || '';
         this.configured = !!(this.baseUrl && this.apiKey);
         
-        // Load recentLimit if available
-        if (credentials.recentLimit) {
-          localStorage.setItem('tautulliRecentLimit', credentials.recentLimit.toString());
-        }
+      // Load recentLimit if available
+      if (credentials.recentLimit) {
+        storageUtils.set('tautulliRecentLimit', credentials.recentLimit);
+      }
         
         return true;
       }
@@ -58,6 +59,7 @@ class TautulliService {
       
       storageUtils.set('selectedTautulliUserId', this.selectedUserId);
       
+      // Create credentials object with baseUrl and apiKey
       const credentials = {
         baseUrl: this.baseUrl,
         apiKey: this.apiKey
@@ -66,8 +68,8 @@ class TautulliService {
       // If recentLimit is provided, store it with the credentials
       if (recentLimit !== null) {
         credentials.recentLimit = recentLimit;
-        // Also store in localStorage for client-side access
-        localStorage.setItem('tautulliRecentLimit', recentLimit.toString());
+        // Also store in storageUtils for client-side access
+        storageUtils.set('tautulliRecentLimit', recentLimit);
       }
       
       // Store credentials server-side (single set of credentials)
@@ -167,6 +169,15 @@ class TautulliService {
   
   async getWatchHistory(userId = null, mediaType = null, limit = 50, daysAgo = 0) {
     try {
+      // For non-admin users, reload credentials to get the admin-set limit
+      if (!AuthService.isAdmin()) {
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials && credentials.recentLimit !== undefined) {
+          // Override the provided limit with the admin-set limit
+          limit = credentials.recentLimit;
+        }
+      }
+      
       const params = {
         length: limit
       };
@@ -205,6 +216,15 @@ class TautulliService {
   
   async getRecentlyWatchedMovies(limit = 50, daysAgo = 0, userId = this.selectedUserId || null) {
     try {
+      // For non-admin users, reload credentials to get the admin-set limit
+      if (!AuthService.isAdmin()) {
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials && credentials.recentLimit !== undefined) {
+          // Override the provided limit with the admin-set limit
+          limit = credentials.recentLimit;
+        }
+      }
+      
       const historyData = await this.getWatchHistory(userId, 'movie', limit, daysAgo);
       
       // Process and format the movie data
@@ -224,6 +244,15 @@ class TautulliService {
   
   async getRecentlyWatchedShows(limit = 50, daysAgo = 0, userId = this.selectedUserId || null) {
     try {
+      // For non-admin users, reload credentials to get the admin-set limit
+      if (!AuthService.isAdmin()) {
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials && credentials.recentLimit !== undefined) {
+          // Override the provided limit with the admin-set limit
+          limit = credentials.recentLimit;
+        }
+      }
+      
       const historyData = await this.getWatchHistory(userId, 'episode', limit, daysAgo);
       
       // Group episodes by show
@@ -281,8 +310,8 @@ class TautulliService {
       // Remove credentials from storage
       await credentialsService.deleteCredentials('tautulli');
       
-      // Remove recent limit from localStorage
-      localStorage.removeItem('tautulliRecentLimit');
+      // Remove recent limit from storageUtils
+      storageUtils.remove('tautulliRecentLimit');
       
       return true;
     } catch (error) {

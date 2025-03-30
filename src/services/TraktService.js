@@ -615,63 +615,41 @@ class TraktService {
       }
       
       const historyData = await this.getWatchHistory(options);
+      console.log(`TraktService: Received ${historyData ? historyData.length : 0} episode history items from Trakt API`);
       
-      // Get show ratings and update disliked list
-      // First, extract unique show IDs from the history data
-      const showIds = new Set();
-      historyData.forEach(item => {
-        if (item.show && item.show.ids && item.show.ids.trakt) {
-          showIds.add(item.show.ids.trakt);
-        }
-      });
+      if (!historyData || historyData.length === 0) {
+        console.log('TraktService: No episode history data returned from API');
+        return [];
+      }
       
-      // Get ratings for shows
-      const ratings = await this.getUserRatings('shows');
-      
-      // Create a map of show ratings
-      const showRatingsMap = new Map();
-      ratings.forEach(ratingItem => {
-        if (ratingItem.show && ratingItem.show.ids && ratingItem.show.ids.trakt) {
-          showRatingsMap.set(ratingItem.show.ids.trakt, ratingItem.rating);
-        }
-      });
-      
-      // Get current disliked list
-      const dislikedContent = await apiService.getPreferences('tv', 'disliked') || [];
-      let updatedDislikedList = [...dislikedContent];
-      let showsToRemove = new Set();
-      
-      // Group episodes by show
+      // Process ratings and update disliked list for shows
+      // First, extract unique show IDs and create a mapping of episodes to shows
       const showMap = new Map();
+      const showEpisodeMap = new Map(); // Maps show IDs to arrays of episode history items
       
       historyData.forEach(item => {
+        if (!item.show || !item.episode) {
+          console.warn('TraktService: Trakt history item missing show or episode property:', item);
+          return;
+        }
+        
         const show = item.show;
         const episode = item.episode;
         const showId = show.ids.trakt;
         
-        // Check if this show has a low rating
-        const rating = showRatingsMap.get(showId);
-        if (rating !== undefined && rating <= 5.0) {
-          // Add to disliked list if not already there
-          if (!updatedDislikedList.includes(show.title)) {
-            updatedDislikedList.push(show.title);
-          }
-          showsToRemove.add(showId);
-          return; // Skip this show
-        }
-        
+        // Initialize show in the map if not already there
         if (!showMap.has(showId)) {
           showMap.set(showId, {
             title: show.title,
             tmdbId: show.ids.tmdb,
-            traktId: show.ids.trakt,
+            traktId: showId,
             episodes: [],
             lastWatched: new Date(item.watched_at).toISOString(),
             type: 'show'
           });
         }
         
-        // Add this episode
+        // Add this episode to the show
         showMap.get(showId).episodes.push({
           title: episode.title,
           season: episode.season,
@@ -686,18 +664,72 @@ class TraktService {
         if (episodeDate > lastWatchedDate) {
           showMap.get(showId).lastWatched = episodeDate.toISOString();
         }
+        
+        // Add this episode to the show's episode list for later processing
+        if (!showEpisodeMap.has(showId)) {
+          showEpisodeMap.set(showId, []);
+        }
+        showEpisodeMap.get(showId).push(item);
+      });
+      
+      // Get ratings for shows
+      const ratings = await this.getUserRatings('shows');
+      console.log(`TraktService: Received ${ratings ? ratings.length : 0} show ratings from Trakt API`);
+      
+      if (ratings && ratings.length > 0) {
+        console.log('TraktService: Sample show rating:', JSON.stringify(ratings[0]));
+      }
+      
+      // Get current disliked list
+      const dislikedContent = await apiService.getPreferences('tv', 'disliked') || [];
+      let updatedDislikedList = [...dislikedContent];
+      let showsToRemove = new Set();
+      
+      // Process each rating to find low-rated shows
+      ratings.forEach(ratingItem => {
+        if (ratingItem.rating !== undefined && ratingItem.rating <= 5.0) {
+          const show = ratingItem.show;
+          if (show && show.ids && show.ids.trakt) {
+            const showId = show.ids.trakt;
+            
+            // Add to disliked list if not already there
+            if (show.title && !updatedDislikedList.includes(show.title)) {
+              console.log(`TraktService: Adding low-rated show to disliked list: ${show.title} (rating: ${ratingItem.rating})`);
+              updatedDislikedList.push(show.title);
+            }
+            
+            // Mark for removal from results
+            if (showMap.has(showId)) {
+              showsToRemove.add(showId);
+            }
+          }
+        }
       });
       
       // If we have new disliked items, save the updated list
       if (updatedDislikedList.length > dislikedContent.length) {
         await apiService.savePreferences('tv', 'disliked', updatedDislikedList);
-        console.log(`Added ${updatedDislikedList.length - dislikedContent.length} low-rated shows to disliked list`);
+        console.log(`TraktService: Added ${updatedDislikedList.length - dislikedContent.length} low-rated shows to disliked list`);
       }
       
+      // Remove disliked shows from the results
+      showsToRemove.forEach(showId => {
+        showMap.delete(showId);
+      });
+      
+      console.log(`TraktService: Removed ${showsToRemove.size} disliked shows from results`);
+      
       // Convert map to array and sort by last watched (most recent first)
-      return Array.from(showMap.values()).sort((a, b) => {
+      const result = Array.from(showMap.values()).sort((a, b) => {
         return new Date(b.lastWatched) - new Date(a.lastWatched);
       });
+      
+      console.log(`TraktService: Returning ${result.length} formatted watched shows`);
+      if (result.length > 0) {
+        console.log('TraktService: First show sample:', result[0]);
+      }
+      
+      return result;
     } catch (error) {
       console.error('Failed to get recently watched shows from Trakt:', error);
       return [];

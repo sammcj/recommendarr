@@ -818,9 +818,15 @@ export default {
         }));
       }
 
-      // Jellyfin
-      if (this.jellyfinConnected) {
-        fetchPromises.push(this.fetchJellyfinData().then(() => {
+  // Jellyfin - Check both the connected flag AND if the service is configured
+  if (this.jellyfinConnected || jellyfinService.isConfigured()) {
+    // If service is configured but not marked as connected, try to set the flag
+    if (!this.jellyfinConnected && jellyfinService.isConfigured()) {
+      console.log('Jellyfin service is configured but not marked as connected. Setting connected flag.');
+      this.jellyfinConnected = true;
+    }
+    
+    fetchPromises.push(this.fetchJellyfinData().then(() => {
       if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
         this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
         storageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
@@ -829,8 +835,8 @@ export default {
         this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
         storageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
       }
-        }));
-      }
+    }));
+  }
 
       // Tautulli
       if (this.tautulliConnected) {

@@ -25,7 +25,8 @@
             <i v-else-if="provider === 'github'" class="fab fa-github"></i>
             <i v-else class="fas fa-user"></i>
           </span>
-          <span>Continue with {{ capitalizeProvider(provider) }}</span>
+          <span v-if="provider === 'custom'">Login with OAuth2</span>
+    <span v-else>Continue with {{ capitalizeProvider(provider) }}</span>
         </button>
       </div>
 

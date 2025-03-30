@@ -102,9 +102,9 @@ app.use(expressSession({
 const { passport, getEnabledProviders } = setupPassport(app);
 
 // Parse JSON request body with increased size limit
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
 // Increase URL-encoded payload size limit as well
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Verify session endpoint
 app.get('/api/auth/verify', async (req, res) => {

@@ -5327,6 +5327,11 @@ h2 {
 }
 
 @media (max-width: 600px) {
+  .recommendation-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
   .content-type-selector {
     margin-left: 0;
     margin-top: 10px;

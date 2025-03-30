@@ -2382,6 +2382,18 @@ body.dark-theme .info-section-title.collapsible-header:hover {
   .settings-left, .settings-right {
     flex: 1;
   }
+  
+  .settings-container {
+    max-height: 80vh; /* Limit height on mobile */
+    overflow-y: auto; /* Enable vertical scrolling */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+  
+  /* Improve touch targets for mobile */
+  .collapsible-header {
+    padding: 12px 8px;
+    min-height: 44px; /* Better for touch targets */
+  }
 }
 
 @media (max-width: 600px) {

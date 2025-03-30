@@ -1152,15 +1152,20 @@ export default {
             
           case 'plex':
             if (credentials.baseUrl && credentials.token) {
-              // Make sure to include selectedUserId from credentials if it exists
+              // Make sure to include selectedUserId and recentLimit from credentials if they exist
               await plexService.configure(
                 credentials.baseUrl, 
                 credentials.token,
-                credentials.selectedUserId || ''
+                credentials.selectedUserId || '',
+                credentials.recentLimit || this.plexRecentLimit
               );
               
-              // Update the component's state with the user ID from credentials
+              // Update the component's state with values from credentials
               this.selectedPlexUserId = credentials.selectedUserId || '';
+              if (credentials.recentLimit) {
+                this.plexRecentLimit = parseInt(credentials.recentLimit, 10);
+                console.log(`Updated plexRecentLimit to ${this.plexRecentLimit} from credentials`);
+              }
               
               const success = await plexService.testConnection();
               if (success) {

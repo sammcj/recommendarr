@@ -10,7 +10,6 @@ const databaseService = require('./utils/databaseService');
 const authService = require('./utils/auth');
 const sessionManager = require('./utils/sessionManager');
 const userDataManager = require('./utils/userDataManager');
-const proxyService = require('./services/ProxyService');
 const { setupPassport } = require('./utils/oauth');
 
 const app = express();
@@ -55,6 +54,15 @@ async function initStorage() {
     
     // Migrate data from JSON files to database
     await databaseService.migrateData();
+    
+    // Migrate settings from JSON to individual columns
+    try {
+      const migrateSettingsToColumns = require('./utils/migrateSettingsToColumns');
+      const result = await migrateSettingsToColumns();
+      console.log('Settings migration result:', result);
+    } catch (err) {
+      console.error('Error migrating settings to columns:', err);
+    }
     
     // Initialize other services
     await authService.init();
@@ -1709,7 +1717,7 @@ app.post('/api/proxy', async (req, res) => {
       params,
       headers,
       // Removed timeout to allow model generation time
-      validateStatus: function (status) {
+      validateStatus: function () {
         // Accept all status codes to handle them in our response
         return true;
       }

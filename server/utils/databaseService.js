@@ -709,13 +709,24 @@ class DatabaseService {
             tvLanguagePreference: 'en',
             movieGenrePreferences: [],
             movieCustomVibe: '',
-            movieLanguagePreference: 'en'
+            movieLanguagePreference: 'en',
+            useSampledLibrary: false,
+            librarySampleSize: 100,
+            darkTheme: false,
+            selectedPlexUserId: '',
+            plexRecentLimit: 6500,
+            plexHistoryMode: 'recent',
+            plexCustomHistoryDays: 30,
+            openaiModel: '',
+            previousTVRecommendations: [],
+            currentTVRecommendations: [],
+            fullDatabaseStorageMigrationComplete: false
           }
         };
       }
       
       // Parse JSON fields
-      return {
+      const parsedData = {
         tvRecommendations: JSON.parse(userData.tvRecommendations || '[]'),
         movieRecommendations: JSON.parse(userData.movieRecommendations || '[]'),
         likedTV: JSON.parse(userData.likedTV || '[]'),
@@ -724,9 +735,59 @@ class DatabaseService {
         likedMovies: JSON.parse(userData.likedMovies || '[]'),
         dislikedMovies: JSON.parse(userData.dislikedMovies || '[]'),
         hiddenMovies: JSON.parse(userData.hiddenMovies || '[]'),
-        watchHistory: JSON.parse(userData.watchHistory || '{"movies":[],"shows":[]}'),
-        settings: JSON.parse(userData.settings || '{}')
+        watchHistory: JSON.parse(userData.watchHistory || '{"movies":[],"shows":[]}')
       };
+      
+      // Construct settings object from individual columns
+      parsedData.settings = {
+        // Basic UI settings
+        numRecommendations: userData.numRecommendations || 6,
+        columnsCount: userData.columnsCount || 3,
+        historyColumnsCount: userData.historyColumnsCount || 3,
+        darkTheme: Boolean(userData.darkTheme),
+        
+        // History display settings
+        historyHideExisting: Boolean(userData.historyHideExisting),
+        historyHideLiked: Boolean(userData.historyHideLiked),
+        historyHideDisliked: Boolean(userData.historyHideDisliked),
+        historyHideHidden: Boolean(userData.historyHideHidden),
+        
+        // Content preferences
+        contentTypePreference: userData.contentTypePreference || 'tv',
+        isMovieMode: Boolean(userData.isMovieMode),
+        tvGenrePreferences: JSON.parse(userData.tvGenrePreferences || '[]'),
+        tvCustomVibe: userData.tvCustomVibe || '',
+        tvLanguagePreference: userData.tvLanguagePreference || 'en',
+        movieGenrePreferences: JSON.parse(userData.movieGenrePreferences || '[]'),
+        movieCustomVibe: userData.movieCustomVibe || '',
+        movieLanguagePreference: userData.movieLanguagePreference || 'en',
+        
+        // Library settings
+        useSampledLibrary: Boolean(userData.useSampledLibrary),
+        librarySampleSize: userData.librarySampleSize || 100,
+        
+        // Plex-specific settings
+        selectedPlexUserId: userData.selectedPlexUserId || '',
+        plexRecentLimit: userData.plexRecentLimit || 6500,
+        plexHistoryMode: userData.plexHistoryMode || 'recent',
+        plexCustomHistoryDays: userData.plexCustomHistoryDays || 30,
+        
+        // AI model settings
+        openaiModel: userData.openaiModel || 'google/gemini-2.0-flash-exp:free',
+        
+        // Recommendation history
+        previousTVRecommendations: JSON.parse(userData.previousTVRecommendations || '[]'),
+        currentTVRecommendations: JSON.parse(userData.currentTVRecommendations || '[]'),
+        
+        // Migration flags
+        fullDatabaseStorageMigrationComplete: Boolean(userData.fullDatabaseStorageMigrationComplete)
+      };
+      
+      // Parse any remaining settings from the settings column for backward compatibility
+      const legacySettings = JSON.parse(userData.settings || '{}');
+      parsedData.settings = { ...parsedData.settings, ...legacySettings };
+      
+      return parsedData;
     } catch (err) {
       console.error(`Error getting user data: ${userId}`, err);
       throw err;
@@ -748,11 +809,32 @@ class DatabaseService {
       if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
       if (!userData.settings) userData.settings = {};
       
+      // Extract settings from the settings object
+      const settings = userData.settings || {};
+      
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO user_data (
           userId, tvRecommendations, movieRecommendations, likedTV, dislikedTV, hiddenTV,
-          likedMovies, dislikedMovies, hiddenMovies, watchHistory, settings
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          likedMovies, dislikedMovies, hiddenMovies, watchHistory, settings,
+          numRecommendations, columnsCount, historyColumnsCount, darkTheme,
+          historyHideExisting, historyHideLiked, historyHideDisliked, historyHideHidden,
+          contentTypePreference, isMovieMode, tvGenrePreferences, tvCustomVibe, tvLanguagePreference,
+          movieGenrePreferences, movieCustomVibe, movieLanguagePreference,
+          useSampledLibrary, librarySampleSize,
+          selectedPlexUserId, plexRecentLimit, plexHistoryMode, plexCustomHistoryDays,
+          openaiModel, previousTVRecommendations, currentTVRecommendations,
+          fullDatabaseStorageMigrationComplete
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?,
+          ?
+        )
       `);
       
       stmt.run(
@@ -766,7 +848,49 @@ class DatabaseService {
         JSON.stringify(userData.dislikedMovies),
         JSON.stringify(userData.hiddenMovies),
         JSON.stringify(userData.watchHistory),
-        JSON.stringify(userData.settings)
+        JSON.stringify(userData.settings),
+        
+        // Basic UI settings
+        settings.numRecommendations || 6,
+        settings.columnsCount || 3,
+        settings.historyColumnsCount || 3,
+        settings.darkTheme ? 1 : 0,
+        
+        // History display settings
+        settings.historyHideExisting ? 1 : 0,
+        settings.historyHideLiked ? 1 : 0,
+        settings.historyHideDisliked ? 1 : 0,
+        settings.historyHideHidden ? 1 : 0,
+        
+        // Content preferences
+        settings.contentTypePreference || 'tv',
+        settings.isMovieMode ? 1 : 0,
+        JSON.stringify(settings.tvGenrePreferences || []),
+        settings.tvCustomVibe || '',
+        settings.tvLanguagePreference || 'en',
+        JSON.stringify(settings.movieGenrePreferences || []),
+        settings.movieCustomVibe || '',
+        settings.movieLanguagePreference || 'en',
+        
+        // Library settings
+        settings.useSampledLibrary ? 1 : 0,
+        settings.librarySampleSize || 100,
+        
+        // Plex-specific settings
+        settings.selectedPlexUserId || '',
+        settings.plexRecentLimit || 6500,
+        settings.plexHistoryMode || 'recent',
+        settings.plexCustomHistoryDays || 30,
+        
+        // AI model settings
+        settings.openaiModel || 'google/gemini-2.0-flash-exp:free',
+        
+        // Recommendation history
+        JSON.stringify(settings.previousTVRecommendations || []),
+        JSON.stringify(settings.currentTVRecommendations || []),
+        
+        // Migration flags
+        settings.fullDatabaseStorageMigrationComplete ? 1 : 0
       );
       
       return true;

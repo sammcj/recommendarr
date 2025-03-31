@@ -69,7 +69,7 @@ class DatabaseService {
       )
     `);
     
-    // User data table
+    // User data table with all columns
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS user_data (
         userId TEXT PRIMARY KEY,
@@ -83,6 +83,83 @@ class DatabaseService {
         hiddenMovies TEXT DEFAULT '[]',
         watchHistory TEXT DEFAULT '{"movies":[],"shows":[]}',
         settings TEXT DEFAULT '{}',
+        
+        -- Basic UI settings
+        numRecommendations INTEGER DEFAULT 6,
+        columnsCount INTEGER DEFAULT 3,
+        historyColumnsCount INTEGER DEFAULT 3,
+        darkTheme INTEGER DEFAULT 0,
+        
+        -- History display settings
+        historyHideExisting INTEGER DEFAULT 1,
+        historyHideLiked INTEGER DEFAULT 0,
+        historyHideDisliked INTEGER DEFAULT 0,
+        historyHideHidden INTEGER DEFAULT 1,
+        
+        -- Content preferences
+        contentTypePreference TEXT DEFAULT 'tv',
+        isMovieMode INTEGER DEFAULT 0,
+        tvGenrePreferences TEXT DEFAULT '[]',
+        tvCustomVibe TEXT DEFAULT '',
+        tvLanguagePreference TEXT DEFAULT 'en',
+        movieGenrePreferences TEXT DEFAULT '[]',
+        movieCustomVibe TEXT DEFAULT '',
+        movieLanguagePreference TEXT DEFAULT 'en',
+        
+        -- Library settings
+        useSampledLibrary INTEGER DEFAULT 0,
+        librarySampleSize INTEGER DEFAULT 100,
+        
+        -- Plex-specific settings
+        selectedPlexUserId TEXT DEFAULT '',
+        plexRecentLimit INTEGER DEFAULT 6500,
+        plexHistoryMode TEXT DEFAULT 'recent',
+        plexCustomHistoryDays INTEGER DEFAULT 30,
+        plexOnlyMode INTEGER DEFAULT 0,
+        
+        -- Jellyfin-specific settings
+        selectedJellyfinUserId TEXT DEFAULT '',
+        jellyfinRecentLimit INTEGER DEFAULT 100,
+        jellyfinHistoryMode TEXT DEFAULT 'all',
+        jellyfinOnlyMode INTEGER DEFAULT 0,
+        
+        -- Tautulli-specific settings
+        selectedTautulliUserId TEXT DEFAULT '',
+        tautulliRecentLimit INTEGER DEFAULT 50,
+        tautulliHistoryMode TEXT DEFAULT 'all',
+        tautulliOnlyMode INTEGER DEFAULT 0,
+        
+        -- Trakt-specific settings
+        traktRecentLimit INTEGER DEFAULT 50,
+        traktHistoryMode TEXT DEFAULT 'all',
+        traktOnlyMode INTEGER DEFAULT 0,
+        
+        -- Watch history
+        watchHistoryMovies TEXT DEFAULT '[]',
+        watchHistoryShows TEXT DEFAULT '[]',
+        
+        -- Service-specific watch history
+        jellyfinWatchHistoryMovies TEXT DEFAULT '[]',
+        jellyfinWatchHistoryShows TEXT DEFAULT '[]',
+        tautulliWatchHistoryMovies TEXT DEFAULT '[]',
+        tautulliWatchHistoryShows TEXT DEFAULT '[]',
+        traktWatchHistoryMovies TEXT DEFAULT '[]',
+        traktWatchHistoryShows TEXT DEFAULT '[]',
+        
+        -- General preferences
+        genrePreferences TEXT DEFAULT '[]',
+        languagePreference TEXT DEFAULT 'en',
+        
+        -- AI model settings
+        openaiModel TEXT DEFAULT 'google/gemini-2.0-flash-exp:free',
+        
+        -- Recommendation history
+        previousTVRecommendations TEXT DEFAULT '[]',
+        currentTVRecommendations TEXT DEFAULT '[]',
+        
+        -- Migration flags
+        fullDatabaseStorageMigrationComplete INTEGER DEFAULT 0,
+        
         FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
       )
     `);
@@ -771,6 +848,40 @@ class DatabaseService {
         plexRecentLimit: userData.plexRecentLimit || 6500,
         plexHistoryMode: userData.plexHistoryMode || 'recent',
         plexCustomHistoryDays: userData.plexCustomHistoryDays || 30,
+        plexOnlyMode: Boolean(userData.plexOnlyMode),
+        
+        // Jellyfin-specific settings
+        selectedJellyfinUserId: userData.selectedJellyfinUserId || '',
+        jellyfinRecentLimit: userData.jellyfinRecentLimit || 100,
+        jellyfinHistoryMode: userData.jellyfinHistoryMode || 'all',
+        jellyfinOnlyMode: Boolean(userData.jellyfinOnlyMode),
+        
+        // Tautulli-specific settings
+        selectedTautulliUserId: userData.selectedTautulliUserId || '',
+        tautulliRecentLimit: userData.tautulliRecentLimit || 50,
+        tautulliHistoryMode: userData.tautulliHistoryMode || 'all',
+        tautulliOnlyMode: Boolean(userData.tautulliOnlyMode),
+        
+        // Trakt-specific settings
+        traktRecentLimit: userData.traktRecentLimit || 50,
+        traktHistoryMode: userData.traktHistoryMode || 'all',
+        traktOnlyMode: Boolean(userData.traktOnlyMode),
+        
+        // Watch history
+        watchHistoryMovies: userData.watchHistoryMovies ? JSON.parse(userData.watchHistoryMovies) : [],
+        watchHistoryShows: userData.watchHistoryShows ? JSON.parse(userData.watchHistoryShows) : [],
+        
+        // Service-specific watch history
+        jellyfinWatchHistoryMovies: userData.jellyfinWatchHistoryMovies ? JSON.parse(userData.jellyfinWatchHistoryMovies) : [],
+        jellyfinWatchHistoryShows: userData.jellyfinWatchHistoryShows ? JSON.parse(userData.jellyfinWatchHistoryShows) : [],
+        tautulliWatchHistoryMovies: userData.tautulliWatchHistoryMovies ? JSON.parse(userData.tautulliWatchHistoryMovies) : [],
+        tautulliWatchHistoryShows: userData.tautulliWatchHistoryShows ? JSON.parse(userData.tautulliWatchHistoryShows) : [],
+        traktWatchHistoryMovies: userData.traktWatchHistoryMovies ? JSON.parse(userData.traktWatchHistoryMovies) : [],
+        traktWatchHistoryShows: userData.traktWatchHistoryShows ? JSON.parse(userData.traktWatchHistoryShows) : [],
+        
+        // General preferences
+        genrePreferences: userData.genrePreferences ? JSON.parse(userData.genrePreferences) : [],
+        languagePreference: userData.languagePreference || 'en',
         
         // AI model settings
         openaiModel: userData.openaiModel || 'google/gemini-2.0-flash-exp:free',
@@ -821,7 +932,15 @@ class DatabaseService {
           contentTypePreference, isMovieMode, tvGenrePreferences, tvCustomVibe, tvLanguagePreference,
           movieGenrePreferences, movieCustomVibe, movieLanguagePreference,
           useSampledLibrary, librarySampleSize,
-          selectedPlexUserId, plexRecentLimit, plexHistoryMode, plexCustomHistoryDays,
+          selectedPlexUserId, plexRecentLimit, plexHistoryMode, plexCustomHistoryDays, plexOnlyMode,
+          selectedJellyfinUserId, jellyfinRecentLimit, jellyfinHistoryMode, jellyfinOnlyMode,
+          selectedTautulliUserId, tautulliRecentLimit, tautulliHistoryMode, tautulliOnlyMode,
+          traktRecentLimit, traktHistoryMode, traktOnlyMode,
+          watchHistoryMovies, watchHistoryShows,
+          jellyfinWatchHistoryMovies, jellyfinWatchHistoryShows,
+          tautulliWatchHistoryMovies, tautulliWatchHistoryShows,
+          traktWatchHistoryMovies, traktWatchHistoryShows,
+          genrePreferences, languagePreference,
           openaiModel, previousTVRecommendations, currentTVRecommendations,
           fullDatabaseStorageMigrationComplete
         ) VALUES (
@@ -831,7 +950,15 @@ class DatabaseService {
           ?, ?, ?, ?, ?,
           ?, ?, ?,
           ?, ?,
+          ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
           ?, ?, ?,
           ?
         )
@@ -881,6 +1008,40 @@ class DatabaseService {
         settings.plexRecentLimit || 6500,
         settings.plexHistoryMode || 'recent',
         settings.plexCustomHistoryDays || 30,
+        settings.plexOnlyMode ? 1 : 0,
+        
+        // Jellyfin-specific settings
+        settings.selectedJellyfinUserId || '',
+        settings.jellyfinRecentLimit || 100,
+        settings.jellyfinHistoryMode || 'all',
+        settings.jellyfinOnlyMode ? 1 : 0,
+        
+        // Tautulli-specific settings
+        settings.selectedTautulliUserId || '',
+        settings.tautulliRecentLimit || 50,
+        settings.tautulliHistoryMode || 'all',
+        settings.tautulliOnlyMode ? 1 : 0,
+        
+        // Trakt-specific settings
+        settings.traktRecentLimit || 50,
+        settings.traktHistoryMode || 'all',
+        settings.traktOnlyMode ? 1 : 0,
+        
+        // Watch history
+        JSON.stringify(settings.watchHistoryMovies || []),
+        JSON.stringify(settings.watchHistoryShows || []),
+        
+        // Service-specific watch history
+        JSON.stringify(settings.jellyfinWatchHistoryMovies || []),
+        JSON.stringify(settings.jellyfinWatchHistoryShows || []),
+        JSON.stringify(settings.tautulliWatchHistoryMovies || []),
+        JSON.stringify(settings.tautulliWatchHistoryShows || []),
+        JSON.stringify(settings.traktWatchHistoryMovies || []),
+        JSON.stringify(settings.traktWatchHistoryShows || []),
+        
+        // General preferences
+        JSON.stringify(settings.genrePreferences || []),
+        settings.languagePreference || 'en',
         
         // AI model settings
         settings.openaiModel || 'google/gemini-2.0-flash-exp:free',

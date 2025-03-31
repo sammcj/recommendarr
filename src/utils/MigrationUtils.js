@@ -9,9 +9,22 @@ import databaseStorageUtils from './DatabaseStorageUtils';
 
 /**
  * Migrate all legacy localStorage keys to database storage
+ * @param {boolean} forceRun - Force migration even if user might not be authenticated
  * @returns {Promise<Object>} Migration results
  */
-export async function migrateLocalStorage() {
+export async function migrateLocalStorage(forceRun = false) {
+  // Import apiService dynamically to avoid circular dependencies
+  const apiService = (await import('../services/ApiService')).default;
+  
+  // Check if user is authenticated
+  if (!forceRun && !apiService.getCurrentUser()) {
+    console.log('Skipping localStorage migration - user is not authenticated');
+    return { 
+      status: 'skipped',
+      reason: 'user-not-authenticated'
+    };
+  }
+  
   // Check if migration already happened for this user
   const migrationFlag = 'databaseStorageMigrationComplete';
   const isMigrated = await databaseStorageUtils.getSync(migrationFlag) === true;
@@ -23,8 +36,8 @@ export async function migrateLocalStorage() {
   
   console.log('Starting localStorage migration to database storage...');
   
-  // Perform migration
-  const results = await migrateAllLegacyKeys();
+  // Perform migration - pass the forceRun parameter
+  const results = await migrateAllLegacyKeys(forceRun);
   
   // Mark migration as complete
   await databaseStorageUtils.set(migrationFlag, true);
@@ -38,9 +51,25 @@ export async function migrateLocalStorage() {
 
 /**
  * Migrate all legacy localStorage keys to database storage
+ * @param {boolean} forceRun - Force migration even if user might not be authenticated
  * @returns {Promise<Object>} Migration results
  */
-export async function migrateAllLegacyKeys() {
+export async function migrateAllLegacyKeys(forceRun = false) {
+  // Import apiService dynamically to avoid circular dependencies
+  const apiService = (await import('../services/ApiService')).default;
+  
+  // Check if user is authenticated
+  if (!forceRun && !apiService.getCurrentUser()) {
+    console.log('Skipping migration of all legacy keys - user is not authenticated');
+    return { 
+      status: 'skipped',
+      reason: 'user-not-authenticated',
+      migrated: 0,
+      failed: 0,
+      total: 0
+    };
+  }
+  
   const results = {
     migrated: 0,
     failed: 0,
@@ -167,9 +196,22 @@ export const knownStorageKeys = [
 
 /**
  * Migrate specific known keys to database storage
+ * @param {boolean} forceRun - Force migration even if user might not be authenticated
  * @returns {Promise<Object>} Migration results
  */
-export async function migrateKnownKeys() {
+export async function migrateKnownKeys(forceRun = false) {
+  // Import apiService dynamically to avoid circular dependencies
+  const apiService = (await import('../services/ApiService')).default;
+  
+  // Check if user is authenticated
+  if (!forceRun && !apiService.getCurrentUser()) {
+    console.log('Skipping migration of known localStorage keys - user is not authenticated');
+    return { 
+      status: 'skipped',
+      reason: 'user-not-authenticated'
+    };
+  }
+  
   console.log('Starting migration of known localStorage keys...');
   
   const results = {
@@ -224,9 +266,22 @@ export async function migrateKnownKeys() {
  * - Then try to migrate all legacy keys
  * - Mark migration as complete
  * 
+ * @param {boolean} forceRun - Force migration even if user might not be authenticated
  * @returns {Promise<Object>} Migration results
  */
-export async function runFullMigration() {
+export async function runFullMigration(forceRun = false) {
+  // Import apiService dynamically to avoid circular dependencies
+  const apiService = (await import('../services/ApiService')).default;
+  
+  // Check if user is authenticated
+  if (!forceRun && !apiService.getCurrentUser()) {
+    console.log('Skipping full migration - user is not authenticated');
+    return { 
+      status: 'skipped',
+      reason: 'user-not-authenticated'
+    };
+  }
+  
   // Check if full migration already happened for this user
   const migrationFlag = 'fullDatabaseStorageMigrationComplete';
   const isMigrated = await databaseStorageUtils.getSync(migrationFlag) === true;
@@ -237,10 +292,10 @@ export async function runFullMigration() {
   }
   
   // Start with known keys
-  const knownResults = await migrateKnownKeys();
+  const knownResults = await migrateKnownKeys(forceRun);
   
   // Then try to migrate any remaining legacy keys
-  const allResults = await migrateAllLegacyKeys();
+  const allResults = await migrateAllLegacyKeys(forceRun);
   
   // Mark full migration as complete
   await databaseStorageUtils.set(migrationFlag, true);

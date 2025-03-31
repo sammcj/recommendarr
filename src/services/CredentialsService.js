@@ -13,11 +13,18 @@ class CredentialsService {
   
   /**
    * Migrate credentials from localStorage to server storage
+   * Only runs when user is authenticated
    * 
    * @param {string} serviceName - Name of the service
    * @returns {Promise<Object|null>} - Migrated credentials or null
    */
   async migrateFromLocalStorage(serviceName) {
+    // Check if user is authenticated before attempting migration
+    if (!apiService.getCurrentUser()) {
+      console.log(`Not migrating ${serviceName} credentials - user is not authenticated`);
+      return null;
+    }
+    
     // Check if we've already tried to migrate this service
     if (this.migrated[serviceName]) {
       return null;
@@ -47,8 +54,13 @@ class CredentialsService {
       if (success) {
         console.log(`Successfully migrated ${serviceName} credentials to server storage`);
         
-        // Run the general migration to ensure other settings are migrated too
-        await migrateKnownKeys();
+        // Only run general migration if user is authenticated
+        if (apiService.getCurrentUser()) {
+          // Run the general migration to ensure other settings are migrated too
+          await migrateKnownKeys();
+        } else {
+          console.log('Skipping general migration - user is not authenticated');
+        }
         
         return credentials;
       } else {
@@ -102,6 +114,12 @@ class CredentialsService {
    */
   async storeCredentials(serviceName, credentials) {
     try {
+      // Check if user is authenticated before making the request
+      if (!apiService.getCurrentUser()) {
+        console.log(`Not storing credentials for ${serviceName} - user is not authenticated`);
+        return false;
+      }
+      
       console.log(`Storing credentials for ${serviceName}`);
       // Send credentials to server using ApiService with auth header
       const response = await apiService.post(`/credentials/${serviceName}`, credentials);

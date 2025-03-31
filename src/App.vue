@@ -682,12 +682,9 @@ export default {
         const movieGenres = await databaseStorageUtils.getJSON('movieGenrePreferences', []);
         console.log('Loaded movie genre preferences:', movieGenres);
         
-        // Load language preferences
-        const tvLanguage = await databaseStorageUtils.get('tvLanguagePreference', '');
-        console.log('Loaded TV language preference:', tvLanguage);
-        
-        const movieLanguage = await databaseStorageUtils.get('movieLanguagePreference', '');
-        console.log('Loaded movie language preference:', movieLanguage);
+        // Load universal language preference
+        const languagePreference = await databaseStorageUtils.get('languagePreference', '');
+        console.log('Loaded universal language preference:', languagePreference);
       } catch (prefError) {
         console.error('Error loading genre/language preferences:', prefError);
       }
@@ -2329,6 +2326,11 @@ export default {
       this.showTautulliConnect = false;
       this.showTraktConnect = false;
       this.activeTab = 'tv-recommendations';
+      
+      // Clear the database cache to ensure a fresh load for the next user
+      databaseStorageUtils.cache = {};
+      databaseStorageUtils.cacheLoaded = false;
+      console.log('Database cache cleared for next user login');
     }
   }
 }

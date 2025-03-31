@@ -860,24 +860,14 @@ export default {
         }
       }
       
-      // Load genre preferences - use async get method for reliability
-      const genreKey = this.isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
-      const savedGenres = await databaseStorageUtils.getJSON(genreKey);
-      if (savedGenres && Array.isArray(savedGenres)) {
-        this.$emit('update:selectedGenres', savedGenres);
-        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} genre preferences:`, savedGenres);
-      } else {
-        console.log(`No ${this.isMovieMode ? 'movie' : 'tv'} genre preferences found in database`);
-        // Initialize with empty array to prevent undefined issues
-        this.$emit('update:selectedGenres', []);
-      }
+      // Load genre preferences - use our dedicated method
+      await this.loadGenrePreferences();
       
-      // Load language preference
-      const langKey = this.isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
-      const savedLanguage = await databaseStorageUtils.get(langKey);
+      // Load universal language preference
+      const savedLanguage = await databaseStorageUtils.get('languagePreference');
       if (savedLanguage !== null && savedLanguage !== undefined) {
         this.$emit('update:selectedLanguage', String(savedLanguage));
-        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} language preference:`, savedLanguage);
+        console.log('Loaded universal language preference:', savedLanguage);
       }
       
       // Load prompt style
@@ -888,21 +878,19 @@ export default {
         console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
       }
       
-      // Load custom vibe
-      const customVibeKey = this.isMovieMode ? 'movieCustomVibe' : 'tvCustomVibe';
-      const savedCustomVibe = await databaseStorageUtils.get(customVibeKey);
+      // Load custom vibe (universal)
+      const savedCustomVibe = await databaseStorageUtils.get('customVibe');
       if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
         this.$emit('update:customVibe', savedCustomVibe);
-        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} custom vibe:`, savedCustomVibe);
+        console.log('Loaded universal custom vibe:', savedCustomVibe);
       }
       
-      // Load custom prompt only preference
-      const customPromptOnlyKey = this.isMovieMode ? 'movieUseCustomPromptOnly' : 'tvUseCustomPromptOnly';
-      const useCustomPromptOnly = await databaseStorageUtils.get(customPromptOnlyKey);
+      // Load custom prompt only preference (universal)
+      const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
       if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
         const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
         this.$emit('update:useCustomPromptOnly', boolValue);
-        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} custom prompt only preference:`, boolValue);
+        console.log('Loaded universal custom prompt only preference:', boolValue);
       }
     } catch (error) {
       console.error('Error loading settings in RecommendationSettings:', error);
@@ -921,25 +909,20 @@ export default {
         try {
           console.log(`Mode changed to ${newVal ? 'movie' : 'TV'} mode, loading appropriate preferences`);
           
-          // When mode changes, load the appropriate genre and language preferences
-          const genreKey = newVal ? 'movieGenrePreferences' : 'tvGenrePreferences';
-          const savedGenres = await databaseStorageUtils.getJSON(genreKey);
-          if (savedGenres && Array.isArray(savedGenres)) {
-            this.$emit('update:selectedGenres', savedGenres);
-            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} genre preferences:`, savedGenres);
-          } else {
-            // Clear genres if none saved for this mode
-            console.log(`No genre preferences found for ${newVal ? 'movie' : 'tv'} mode, initializing with empty array`);
-            this.$emit('update:selectedGenres', []);
-          }
+          // Force a fresh load of the database cache to ensure we have the latest data
+          await databaseStorageUtils.loadCache();
+          console.log('Database cache refreshed for mode change');
           
-          const langKey = newVal ? 'movieLanguagePreference' : 'tvLanguagePreference';
-          const savedLanguage = await databaseStorageUtils.get(langKey);
+          // Load genre preferences for the current mode
+          await this.loadGenrePreferences();
+          
+          // Load universal language preference
+          const savedLanguage = await databaseStorageUtils.get('languagePreference');
           if (savedLanguage !== null && savedLanguage !== undefined) {
             this.$emit('update:selectedLanguage', String(savedLanguage));
-            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} language preference:`, savedLanguage);
+            console.log('Mode changed: Loaded universal language preference:', savedLanguage);
           } else {
-            // Clear language if none saved for this mode
+            // Clear language if none saved
             this.$emit('update:selectedLanguage', '');
           }
           
@@ -954,24 +937,22 @@ export default {
             this.$emit('update:promptStyle', 'vibe');
           }
           
-          // Load custom vibe for the current mode
-          const customVibeKey = newVal ? 'movieCustomVibe' : 'tvCustomVibe';
-          const savedCustomVibe = await databaseStorageUtils.get(customVibeKey);
+          // Load custom vibe (universal)
+          const savedCustomVibe = await databaseStorageUtils.get('customVibe');
           if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
             this.$emit('update:customVibe', savedCustomVibe);
-            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} custom vibe:`, savedCustomVibe);
+            console.log('Mode changed: Loaded universal custom vibe:', savedCustomVibe);
           } else {
             // Clear custom vibe if none saved
             this.$emit('update:customVibe', '');
           }
           
-          // Load custom prompt only preference for the current mode
-          const customPromptOnlyKey = newVal ? 'movieUseCustomPromptOnly' : 'tvUseCustomPromptOnly';
-          const useCustomPromptOnly = await databaseStorageUtils.get(customPromptOnlyKey);
+          // Load custom prompt only preference (universal)
+          const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
           if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
             const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
             this.$emit('update:useCustomPromptOnly', boolValue);
-            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} custom prompt only preference:`, boolValue);
+            console.log('Mode changed: Loaded universal custom prompt only preference:', boolValue);
           } else {
             // Set default value if none saved
             this.$emit('update:useCustomPromptOnly', false);
@@ -1208,6 +1189,31 @@ export default {
     }
   },
   methods: {
+    // Load genre preferences (universal across TV and movies)
+    async loadGenrePreferences() {
+      try {
+        // Force a fresh load from the database
+        await databaseStorageUtils.loadCache();
+        
+        // Load from universal key
+        console.log('Loading universal genre preferences from database...');
+        const savedGenres = await databaseStorageUtils.getJSON('genrePreferences');
+        
+        if (savedGenres && Array.isArray(savedGenres)) {
+          this.$emit('update:selectedGenres', savedGenres);
+          console.log('Loaded universal genre preferences:', savedGenres);
+        } else {
+          console.log('No universal genre preferences found in database');
+          // Initialize with empty array to prevent undefined issues
+          this.$emit('update:selectedGenres', []);
+        }
+      } catch (error) {
+        console.error('Error loading universal genre preferences:', error);
+        // Initialize with empty array on error
+        this.$emit('update:selectedGenres', []);
+      }
+    },
+    
     toggleSettings() {
       this.$emit('toggle-settings');
     },
@@ -1336,34 +1342,26 @@ export default {
       this.saveGenrePreferences();
     },
     saveGenrePreferences() {
-      // Determine if we're in movie or TV mode
-      const isMovieMode = this.isMovieMode;
-      
-      // Create the key based on mode
-      const key = isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
-      
-      // Save to database
-      databaseStorageUtils.setJSON(key, this.selectedGenres || [])
+      // Save to database with universal key
+      databaseStorageUtils.setJSON('genrePreferences', this.selectedGenres || [])
         .then(() => {
-          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} genre preferences to database:`, this.selectedGenres);
+          console.log('Saved universal genre preferences to database:', this.selectedGenres);
         })
         .catch(error => {
-          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} genre preferences to database:`, error);
+          console.error('Failed to save universal genre preferences to database:', error);
         });
     },
     savePromptStyle(value) {
       this.$emit('save-prompt-style', value);
     },
     saveCustomVibe(value) {
-      // Save to database
-      const key = this.isMovieMode ? 'movieCustomVibe' : 'tvCustomVibe';
-      
-      databaseStorageUtils.set(key, value)
+      // Save to database with universal key
+      databaseStorageUtils.set('customVibe', value)
         .then(() => {
-          console.log(`Saved ${this.isMovieMode ? 'movie' : 'tv'} custom vibe to database:`, value);
+          console.log('Saved universal custom vibe to database:', value);
         })
         .catch(error => {
-          console.error(`Failed to save ${this.isMovieMode ? 'movie' : 'tv'} custom vibe to database:`, error);
+          console.error('Failed to save universal custom vibe to database:', error);
         });
       
       // Also emit the event for parent component
@@ -1373,25 +1371,29 @@ export default {
       this.$emit('clear-custom-vibe');
     },
     saveCustomPromptOnlyPreference(value) {
+      // Save to database with universal key
+      databaseStorageUtils.set('useCustomPromptOnly', value)
+        .then(() => {
+          console.log('Saved universal custom prompt only preference to database:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save universal custom prompt only preference to database:', error);
+        });
+      
+      // Also emit the event for parent component
       this.$emit('save-custom-prompt-only-preference', value);
     },
     saveLanguagePreference(value) {
       // Ensure value is a string
       const stringValue = String(value);
       
-      // Determine if we're in movie or TV mode
-      const isMovieMode = this.isMovieMode;
-      
-      // Create the key based on mode
-      const key = isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
-      
-      // Save to database
-      databaseStorageUtils.set(key, stringValue)
+      // Save to database with universal key
+      databaseStorageUtils.set('languagePreference', stringValue)
         .then(() => {
-          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} language preference to database:`, stringValue);
+          console.log('Saved universal language preference to database:', stringValue);
         })
         .catch(error => {
-          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} language preference to database:`, error);
+          console.error('Failed to save universal language preference to database:', error);
         });
       
       // Also emit the event for parent component
@@ -1405,6 +1407,9 @@ export default {
     },
     savePlexCustomHistoryDays(value) {
       this.$emit('save-plex-custom-history-days', Number(value));
+    },
+    savePlexOnlyMode(value) {
+      this.$emit('save-plex-only-mode', value);
     },
     saveJellyfinUseHistory(value) {
       this.$emit('save-jellyfin-use-history', value);

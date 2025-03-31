@@ -4533,7 +4533,7 @@ export default {
     this.openaiConfigured = openAIService.isConfigured();
     
     // Initialize model selection from user-specific storage
-    const currentModel = databaseStorageUtils.get('openaiModel') || openAIService.model || 'gpt-3.5-turbo';
+    const currentModel = await databaseStorageUtils.get('openaiModel') || openAIService.model || 'gpt-3.5-turbo';
     
     // Set to custom by default, we'll update once models are fetched
     this.customModel = currentModel;
@@ -4547,7 +4547,7 @@ export default {
     // Only check storageUtils or service if the temperature is still at default (0.8)
     if (this.temperature === 0.8) {
       // Try to get from storageUtils first
-      const savedTemp = databaseStorageUtils.get('aiTemperature');
+      const savedTemp = await databaseStorageUtils.get('aiTemperature');
       if (savedTemp !== null) {
         const temp = parseFloat(savedTemp);
         // Validate the value is within range
@@ -4598,7 +4598,7 @@ export default {
     // But check storageUtils as a fallback if server settings didn't include these
     if (this.numRecommendations === 5) { // 5 is the default - if it's still default, check storageUtils
       // Restore saved recommendation count from storageUtils (if exists)
-      const savedCount = databaseStorageUtils.get('numRecommendations');
+      const savedCount = await databaseStorageUtils.get('numRecommendations');
       if (savedCount !== null) {
         const numRecs = parseInt(savedCount, 10);
         // Validate the value is within range
@@ -4610,7 +4610,7 @@ export default {
     }
     
     // Check for structured output setting in user-specific storage if we didn't get it from server
-    const savedStructuredOutput = databaseStorageUtils.get('useStructuredOutput');
+    const savedStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
     if (savedStructuredOutput !== null) {
       this.useStructuredOutput = savedStructuredOutput === true || savedStructuredOutput === 'true';
       openAIService.useStructuredOutput = this.useStructuredOutput;
@@ -4620,7 +4620,7 @@ export default {
     
     if (this.columnsCount === 2) { // 2 is the default - if it's still default, check storageUtils
       // Restore saved columns count from storageUtils (if exists)
-      const savedColumnsCount = databaseStorageUtils.get('columnsCount');
+      const savedColumnsCount = await databaseStorageUtils.get('columnsCount');
       if (savedColumnsCount !== null) {
         const columns = parseInt(savedColumnsCount, 10);
         // Validate the value is within range
@@ -4636,11 +4636,11 @@ export default {
       this.isMovieMode = true;
     } else {
       // Restore saved content type preference (movie/TV toggle)
-      this.isMovieMode = databaseStorageUtils.get('isMovieMode', this.isMovieMode);
+      this.isMovieMode = await databaseStorageUtils.get('isMovieMode', this.isMovieMode);
     }
     
     // Restore saved genre preferences if they exist
-    const savedGenres = databaseStorageUtils.getJSON('tvGenrePreferences');
+    const savedGenres = await databaseStorageUtils.getJSON('tvGenrePreferences');
     if (savedGenres) {
       this.selectedGenres = savedGenres;
     } else {
@@ -4650,7 +4650,7 @@ export default {
         try {
           this.selectedGenres = JSON.parse(legacySavedGenres);
           // Migrate to new storage
-          databaseStorageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
+          await databaseStorageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
         } catch (error) {
           console.error('Error parsing legacy saved genres:', error);
           this.selectedGenres = [];
@@ -4666,38 +4666,38 @@ export default {
       this.customVibe = settings.tvCustomVibe;
     } else {
       // Fallback to storageUtils if not in server settings
-      const savedVibe = databaseStorageUtils.get('tvCustomVibe');
+      const savedVibe = await databaseStorageUtils.get('tvCustomVibe');
       if (savedVibe) {
         this.customVibe = savedVibe;
       }
     }
     
     // Restore saved language preference if it exists
-    const savedLanguage = databaseStorageUtils.get('tvLanguagePreference');
+    const savedLanguage = await databaseStorageUtils.get('tvLanguagePreference');
     if (savedLanguage) {
       this.selectedLanguage = savedLanguage;
     }
     
     // Restore saved Plex history mode if it exists
-    const savedPlexHistoryMode = databaseStorageUtils.get('plexHistoryMode');
+    const savedPlexHistoryMode = await databaseStorageUtils.get('plexHistoryMode');
     if (savedPlexHistoryMode) {
       this.plexHistoryMode = savedPlexHistoryMode;
     }
     
     // Restore saved Plex only mode if it exists
-    const savedPlexOnlyMode = databaseStorageUtils.get('plexOnlyMode');
+    const savedPlexOnlyMode = await databaseStorageUtils.get('plexOnlyMode');
     if (savedPlexOnlyMode !== null) {
       this.plexOnlyMode = savedPlexOnlyMode === 'true' || savedPlexOnlyMode === true;
     }
     
     // Restore saved Plex use history setting
-    const savedPlexUseHistory = databaseStorageUtils.get('plexUseHistory');
+    const savedPlexUseHistory = await databaseStorageUtils.get('plexUseHistory');
     if (savedPlexUseHistory !== null) {
       this.plexUseHistory = savedPlexUseHistory === 'true' || savedPlexUseHistory === true;
     }
     
     // Restore saved Plex custom history days
-    const savedPlexCustomHistoryDays = databaseStorageUtils.get('plexCustomHistoryDays');
+    const savedPlexCustomHistoryDays = await databaseStorageUtils.get('plexCustomHistoryDays');
     if (savedPlexCustomHistoryDays !== null) {
       this.plexCustomHistoryDays = parseInt(savedPlexCustomHistoryDays, 10);
     }

@@ -141,6 +141,8 @@ export default {
         } else {
           console.log('OAuth login failed after multiple attempts');
           this.error = 'OAuth login failed. Please try again.';
+          // Clean up URL even if authentication fails to prevent reload loops
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
       }
     } catch (error) {

@@ -32,13 +32,20 @@ class ApiService {
                                error.config.url && 
                                skipPaths.some(path => error.config.url.includes(path));
           
-          // Only trigger logout for non-auth pages when user is actually logged in 
-          // We need to check if we're on login page to avoid infinite refreshes
-          const isLoginPage = window.location.pathname === '/login' || 
-                             document.querySelector('.login-container') !== null;
-          
-          // Don't trigger logout flow if we're already on the login page or if it's an auth request
-          if (!isAuthRequest && !isLoginPage) {
+      // Only trigger logout for non-auth pages when user is actually logged in 
+      // We need to check if we're on login page to avoid infinite refreshes
+      const isLoginPage = window.location.pathname === '/login' || 
+                         window.location.pathname === '/' || 
+                         document.querySelector('.login-container') !== null;
+      
+      // Don't trigger logout flow if we're already on the login page or if it's an auth request
+      // Also don't reload if we're getting credentials or settings
+      const isCredentialsRequest = error.config && 
+                                  error.config.url && 
+                                  (error.config.url.includes('/credentials/') || 
+                                   error.config.url.includes('/settings'));
+      
+      if (!isAuthRequest && !isLoginPage && !isCredentialsRequest) {
             console.log('Session expired, clearing auth data...');
             
             // Force clear the auth cookie by setting it to expire in the past

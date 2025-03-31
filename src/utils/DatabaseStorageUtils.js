@@ -30,21 +30,51 @@ class DatabaseStorageUtils {
     async loadCache() {
         // If already loading, return the existing promise
         if (this.loadPromise) {
+            console.log('Database cache already loading, waiting for completion');
             return this.loadPromise;
         }
 
-        // Create a new loading promise
+        console.log('Loading database cache from server');
+        
+        // Create a new loading promise with timeout
         this.loadPromise = new Promise((resolve) => {
+            // Set a timeout to prevent hanging indefinitely
+            const timeoutId = setTimeout(() => {
+                console.warn('Database cache loading timed out after 5 seconds');
+                this.loadPromise = null;
+                // Initialize with empty cache to prevent blocking the app
+                if (!this.cacheLoaded) {
+                    this.cache = {};
+                    this.cacheLoaded = true;
+                }
+                resolve(false);
+            }, 5000);
+            
+            // Attempt to load settings from API
             apiService.getSettings()
                 .then(settings => {
+                    // Clear timeout since we got a response
+                    clearTimeout(timeoutId);
+                    
+                    // Update cache with settings
                     this.cache = settings || {};
                     this.cacheLoaded = true;
                     this.loadPromise = null; // Clear the promise
+                    
+                    console.log('Database cache loaded successfully with', Object.keys(this.cache).length, 'keys');
                     resolve(true);
                 })
                 .catch(error => {
+                    // Clear timeout since we got a response
+                    clearTimeout(timeoutId);
+                    
                     console.error('Error loading settings cache:', error);
+                    
+                    // Initialize with empty cache to prevent blocking the app
+                    this.cache = {};
+                    this.cacheLoaded = true;
                     this.loadPromise = null; // Clear the promise
+                    
                     resolve(false);
                 });
         });
@@ -59,11 +89,26 @@ class DatabaseStorageUtils {
      * @returns {Promise<*>} The value or defaultValue
      */
     async get(key, defaultValue = null) {
-        if (!this.cacheLoaded) {
-            await this.loadCache();
-        }
+        try {
+            // Ensure cache is loaded
+            if (!this.cacheLoaded) {
+                console.log(`Cache not loaded when getting ${key}, loading now`);
+                const loadResult = await this.loadCache();
+                if (!loadResult) {
+                    console.warn(`Failed to load cache when getting ${key}, using default value`);
+                }
+            }
 
-        return this.cache[key] !== undefined ? this.cache[key] : defaultValue;
+            const value = this.cache[key];
+            if (value === undefined) {
+                return defaultValue;
+            }
+            
+            return value;
+        } catch (error) {
+            console.error(`Error getting ${key} from database:`, error);
+            return defaultValue;
+        }
     }
 
     /**
@@ -97,22 +142,27 @@ class DatabaseStorageUtils {
      * @returns {Promise<*>} Parsed object or defaultValue
      */
     async getJSON(key, defaultValue = null) {
-        const value = await this.get(key);
-
-        if (value === null) {
-            return defaultValue;
-        }
-
-        // If it's already an object, return it
-        if (typeof value === 'object' && value !== null) {
-            return value;
-        }
-
-        // Otherwise, try to parse it
         try {
-            return JSON.parse(value);
+            const value = await this.get(key);
+
+            if (value === null || value === undefined) {
+                return defaultValue;
+            }
+
+            // If it's already an object, return it
+            if (typeof value === 'object' && value !== null) {
+                return value;
+            }
+
+            // Otherwise, try to parse it
+            try {
+                return JSON.parse(value);
+            } catch (error) {
+                console.error(`Error parsing JSON for ${key}:`, error);
+                return defaultValue;
+            }
         } catch (error) {
-            console.error(`Error parsing JSON for ${key}:`, error);
+            console.error(`Error in getJSON for ${key}:`, error);
             return defaultValue;
         }
     }
@@ -198,22 +248,27 @@ class DatabaseStorageUtils {
      * @returns {*} The parsed value or defaultValue
      */
     getJSONSync(key, defaultValue = null) {
-        const value = this.getSync(key);
-
-        if (value === null) {
-            return defaultValue;
-        }
-
-        // If it's already an object, return it
-        if (typeof value === 'object' && value !== null) {
-            return value;
-        }
-
-        // Otherwise, try to parse it
         try {
-            return JSON.parse(value);
+            const value = this.getSync(key);
+
+            if (value === null || value === undefined) {
+                return defaultValue;
+            }
+
+            // If it's already an object, return it
+            if (typeof value === 'object' && value !== null) {
+                return value;
+            }
+
+            // Otherwise, try to parse it
+            try {
+                return JSON.parse(value);
+            } catch (error) {
+                console.error(`Error parsing JSON for ${key}:`, error);
+                return defaultValue;
+            }
         } catch (error) {
-            console.error(`Error parsing JSON for ${key}:`, error);
+            console.error(`Error in getJSONSync for ${key}:`, error);
             return defaultValue;
         }
     }

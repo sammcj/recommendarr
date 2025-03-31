@@ -811,101 +811,103 @@ export default {
     };
   },
   async mounted() {
-    // Initialize database cache if needed
-    if (!databaseStorageUtils.cacheLoaded) {
-      await databaseStorageUtils.loadCache();
-    }
-    
-    // Load model preference
-    const savedModel = databaseStorageUtils.getSync('openaiModel');
-    if (savedModel !== null && savedModel !== undefined) {
-      this.$emit('update:selectedModel', savedModel);
-      console.log('Loaded model preference:', savedModel);
-    }
-    
-    // Load temperature
-    const savedTemperature = databaseStorageUtils.getSync('temperature');
-    if (savedTemperature !== null && savedTemperature !== undefined) {
-      const numValue = parseFloat(savedTemperature);
-      if (!isNaN(numValue)) {
-        this.$emit('update:temperature', numValue);
-        console.log('Loaded temperature:', numValue);
+    try {
+      // Ensure database cache is fully loaded before proceeding
+      console.log('RecommendationSettings: Ensuring database cache is loaded');
+      if (!databaseStorageUtils.cacheLoaded) {
+        await databaseStorageUtils.loadCache();
+        console.log('Database cache loaded successfully');
       }
-    }
-    
-    // Load structured output preference
-    const useStructuredOutput = databaseStorageUtils.getSync('useStructuredOutput');
-    if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
-      const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
-      this.$emit('update:useStructuredOutput', boolValue);
-      console.log('Loaded structured output preference:', boolValue);
-    }
-    
-    // Load sampled library mode preference
-    const useSampledLibrary = databaseStorageUtils.getSync('useSampledLibrary');
-    if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
-      const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
-      this.$emit('update:useSampledLibrary', boolValue);
-    }
-    
-    // Load sample size
-    const librarySampleSize = databaseStorageUtils.getSync('librarySampleSize');
-    if (librarySampleSize !== null && librarySampleSize !== undefined) {
-      const numValue = parseInt(librarySampleSize, 10);
-      if (!isNaN(numValue)) {
-        this.$emit('update:sampleSize', numValue);
+      
+      // Load model preference
+      const savedModel = await databaseStorageUtils.get('openaiModel');
+      if (savedModel !== null && savedModel !== undefined) {
+        this.$emit('update:selectedModel', savedModel);
+        console.log('Loaded model preference:', savedModel);
       }
-    }
-    
-    // Load genre preferences
-    const genreKey = this.isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
-    const savedGenres = databaseStorageUtils.getJSONSync(genreKey);
-    if (savedGenres && Array.isArray(savedGenres)) {
-      this.$emit('update:selectedGenres', savedGenres);
-      console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} genre preferences:`, savedGenres);
-    }
-    
-    // Load language preference
-    const langKey = this.isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
-    const savedLanguage = databaseStorageUtils.getSync(langKey);
-    if (savedLanguage !== null && savedLanguage !== undefined) {
-      // Make sure we're not passing a Promise
-      if (savedLanguage instanceof Promise) {
-        savedLanguage.then(value => {
-          if (value !== null && value !== undefined) {
-            this.$emit('update:selectedLanguage', String(value));
-            console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} language preference:`, value);
-          }
-        });
+      
+      // Load temperature
+      const savedTemperature = await databaseStorageUtils.get('temperature');
+      if (savedTemperature !== null && savedTemperature !== undefined) {
+        const numValue = parseFloat(savedTemperature);
+        if (!isNaN(numValue)) {
+          this.$emit('update:temperature', numValue);
+          console.log('Loaded temperature:', numValue);
+        }
+      }
+      
+      // Load structured output preference
+      const useStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
+      if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
+        const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
+        this.$emit('update:useStructuredOutput', boolValue);
+        console.log('Loaded structured output preference:', boolValue);
+      }
+      
+      // Load sampled library mode preference
+      const useSampledLibrary = await databaseStorageUtils.get('useSampledLibrary');
+      if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
+        const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
+        this.$emit('update:useSampledLibrary', boolValue);
+      }
+      
+      // Load sample size
+      const librarySampleSize = await databaseStorageUtils.get('librarySampleSize');
+      if (librarySampleSize !== null && librarySampleSize !== undefined) {
+        const numValue = parseInt(librarySampleSize, 10);
+        if (!isNaN(numValue)) {
+          this.$emit('update:sampleSize', numValue);
+        }
+      }
+      
+      // Load genre preferences - use async get method for reliability
+      const genreKey = this.isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
+      const savedGenres = await databaseStorageUtils.getJSON(genreKey);
+      if (savedGenres && Array.isArray(savedGenres)) {
+        this.$emit('update:selectedGenres', savedGenres);
+        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} genre preferences:`, savedGenres);
       } else {
+        console.log(`No ${this.isMovieMode ? 'movie' : 'tv'} genre preferences found in database`);
+        // Initialize with empty array to prevent undefined issues
+        this.$emit('update:selectedGenres', []);
+      }
+      
+      // Load language preference
+      const langKey = this.isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
+      const savedLanguage = await databaseStorageUtils.get(langKey);
+      if (savedLanguage !== null && savedLanguage !== undefined) {
         this.$emit('update:selectedLanguage', String(savedLanguage));
         console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} language preference:`, savedLanguage);
       }
-    }
-    
-    // Load prompt style
-    const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
-    const savedPromptStyle = databaseStorageUtils.getSync(promptStyleKey);
-    if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
-      this.$emit('update:promptStyle', savedPromptStyle);
-      console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
-    }
-    
-    // Load custom vibe
-    const customVibeKey = this.isMovieMode ? 'movieCustomVibe' : 'tvCustomVibe';
-    const savedCustomVibe = databaseStorageUtils.getSync(customVibeKey);
-    if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
-      this.$emit('update:customVibe', savedCustomVibe);
-      console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} custom vibe:`, savedCustomVibe);
-    }
-    
-    // Load custom prompt only preference
-    const customPromptOnlyKey = this.isMovieMode ? 'movieUseCustomPromptOnly' : 'tvUseCustomPromptOnly';
-    const useCustomPromptOnly = databaseStorageUtils.getSync(customPromptOnlyKey);
-    if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
-      const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
-      this.$emit('update:useCustomPromptOnly', boolValue);
-      console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} custom prompt only preference:`, boolValue);
+      
+      // Load prompt style
+      const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
+      const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
+      if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
+        this.$emit('update:promptStyle', savedPromptStyle);
+        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
+      }
+      
+      // Load custom vibe
+      const customVibeKey = this.isMovieMode ? 'movieCustomVibe' : 'tvCustomVibe';
+      const savedCustomVibe = await databaseStorageUtils.get(customVibeKey);
+      if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
+        this.$emit('update:customVibe', savedCustomVibe);
+        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} custom vibe:`, savedCustomVibe);
+      }
+      
+      // Load custom prompt only preference
+      const customPromptOnlyKey = this.isMovieMode ? 'movieUseCustomPromptOnly' : 'tvUseCustomPromptOnly';
+      const useCustomPromptOnly = await databaseStorageUtils.get(customPromptOnlyKey);
+      if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
+        const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
+        this.$emit('update:useCustomPromptOnly', boolValue);
+        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} custom prompt only preference:`, boolValue);
+      }
+    } catch (error) {
+      console.error('Error loading settings in RecommendationSettings:', error);
+      // Initialize with empty values to prevent undefined issues
+      this.$emit('update:selectedGenres', []);
     }
   },
   computed: {
@@ -915,76 +917,76 @@ export default {
   },
   watch: {
     isMovieMode: {
-      handler: function(newVal) {
-        // When mode changes, load the appropriate genre and language preferences
-        const genreKey = newVal ? 'movieGenrePreferences' : 'tvGenrePreferences';
-        const savedGenres = databaseStorageUtils.getJSONSync(genreKey);
-        if (savedGenres && Array.isArray(savedGenres)) {
-          this.$emit('update:selectedGenres', savedGenres);
-          console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} genre preferences:`, savedGenres);
-        } else {
-          // Clear genres if none saved for this mode
-          this.$emit('update:selectedGenres', []);
-        }
-        
-        const langKey = newVal ? 'movieLanguagePreference' : 'tvLanguagePreference';
-        const savedLanguage = databaseStorageUtils.getSync(langKey);
-        if (savedLanguage !== null && savedLanguage !== undefined) {
-          // Make sure we're not passing a Promise
-          if (savedLanguage instanceof Promise) {
-            savedLanguage.then(value => {
-              if (value !== null && value !== undefined) {
-                this.$emit('update:selectedLanguage', String(value));
-                console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} language preference:`, value);
-              } else {
-                // Clear language if none saved for this mode
-                this.$emit('update:selectedLanguage', '');
-              }
-            });
+      handler: async function(newVal) {
+        try {
+          console.log(`Mode changed to ${newVal ? 'movie' : 'TV'} mode, loading appropriate preferences`);
+          
+          // When mode changes, load the appropriate genre and language preferences
+          const genreKey = newVal ? 'movieGenrePreferences' : 'tvGenrePreferences';
+          const savedGenres = await databaseStorageUtils.getJSON(genreKey);
+          if (savedGenres && Array.isArray(savedGenres)) {
+            this.$emit('update:selectedGenres', savedGenres);
+            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} genre preferences:`, savedGenres);
           } else {
+            // Clear genres if none saved for this mode
+            console.log(`No genre preferences found for ${newVal ? 'movie' : 'tv'} mode, initializing with empty array`);
+            this.$emit('update:selectedGenres', []);
+          }
+          
+          const langKey = newVal ? 'movieLanguagePreference' : 'tvLanguagePreference';
+          const savedLanguage = await databaseStorageUtils.get(langKey);
+          if (savedLanguage !== null && savedLanguage !== undefined) {
             this.$emit('update:selectedLanguage', String(savedLanguage));
             console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} language preference:`, savedLanguage);
+          } else {
+            // Clear language if none saved for this mode
+            this.$emit('update:selectedLanguage', '');
           }
-        } else {
-          // Clear language if none saved for this mode
+          
+          // Load prompt style for the current mode
+          const promptStyleKey = newVal ? 'moviePromptStyle' : 'tvPromptStyle';
+          const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
+          if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
+            this.$emit('update:promptStyle', savedPromptStyle);
+            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
+          } else {
+            // Set default prompt style if none saved
+            this.$emit('update:promptStyle', 'vibe');
+          }
+          
+          // Load custom vibe for the current mode
+          const customVibeKey = newVal ? 'movieCustomVibe' : 'tvCustomVibe';
+          const savedCustomVibe = await databaseStorageUtils.get(customVibeKey);
+          if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
+            this.$emit('update:customVibe', savedCustomVibe);
+            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} custom vibe:`, savedCustomVibe);
+          } else {
+            // Clear custom vibe if none saved
+            this.$emit('update:customVibe', '');
+          }
+          
+          // Load custom prompt only preference for the current mode
+          const customPromptOnlyKey = newVal ? 'movieUseCustomPromptOnly' : 'tvUseCustomPromptOnly';
+          const useCustomPromptOnly = await databaseStorageUtils.get(customPromptOnlyKey);
+          if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
+            const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
+            this.$emit('update:useCustomPromptOnly', boolValue);
+            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} custom prompt only preference:`, boolValue);
+          } else {
+            // Set default value if none saved
+            this.$emit('update:useCustomPromptOnly', false);
+          }
+        } catch (error) {
+          console.error(`Error loading preferences after mode change to ${newVal ? 'movie' : 'TV'} mode:`, error);
+          // Initialize with empty values to prevent undefined issues
+          this.$emit('update:selectedGenres', []);
           this.$emit('update:selectedLanguage', '');
-        }
-        
-        // Load prompt style for the current mode
-        const promptStyleKey = newVal ? 'moviePromptStyle' : 'tvPromptStyle';
-        const savedPromptStyle = databaseStorageUtils.getSync(promptStyleKey);
-        if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
-          this.$emit('update:promptStyle', savedPromptStyle);
-          console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
-        } else {
-          // Set default prompt style if none saved
           this.$emit('update:promptStyle', 'vibe');
-        }
-        
-        // Load custom vibe for the current mode
-        const customVibeKey = newVal ? 'movieCustomVibe' : 'tvCustomVibe';
-        const savedCustomVibe = databaseStorageUtils.getSync(customVibeKey);
-        if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
-          this.$emit('update:customVibe', savedCustomVibe);
-          console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} custom vibe:`, savedCustomVibe);
-        } else {
-          // Clear custom vibe if none saved
           this.$emit('update:customVibe', '');
-        }
-        
-        // Load custom prompt only preference for the current mode
-        const customPromptOnlyKey = newVal ? 'movieUseCustomPromptOnly' : 'tvUseCustomPromptOnly';
-        const useCustomPromptOnly = databaseStorageUtils.getSync(customPromptOnlyKey);
-        if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
-          const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
-          this.$emit('update:useCustomPromptOnly', boolValue);
-          console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} custom prompt only preference:`, boolValue);
-        } else {
-          // Set default value if none saved
           this.$emit('update:useCustomPromptOnly', false);
         }
       },
-      immediate: false
+      immediate: true // Run immediately when component is mounted
     }
   },
   props: {

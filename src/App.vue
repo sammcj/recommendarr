@@ -6,7 +6,13 @@
     <!-- Show login screen if user is not authenticated -->
     <Login v-else-if="!isAuthenticated" @authenticated="handleAuthenticated" />
     
-    <!-- Regular app content if user is authenticated and it's not a callback URL -->
+    <!-- Show loading indicator while data is being loaded -->
+    <div v-else-if="isLoading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Loading your preferences...</p>
+    </div>
+    
+    <!-- Regular app content if user is authenticated, not loading, and it's not a callback URL -->
     <template v-else>
       <header class="app-header">
         <div class="header-content">
@@ -334,6 +340,7 @@ export default {
     return {
       isTraktCallback: window.location.pathname === '/trakt-callback',
       isAuthenticated: authService.isAuthenticated(),
+      isLoading: true, // Add loading state
       sonarrConnected: false,
       radarrConnected: false,
       plexConnected: false,
@@ -389,6 +396,7 @@ export default {
   async created() {
     // If this is a Trakt callback URL, we only need to show the callback component
     if (this.isTraktCallback) {
+      this.isLoading = false;
       return; // No need to do the other initializations yet
     }
     
@@ -407,36 +415,51 @@ export default {
       try {
         // Load database cache first - this will get all settings at once
         console.log('Loading database cache...');
-        await databaseStorageUtils.loadCache();
-        console.log('Database cache loaded successfully');
+        const cacheResult = await databaseStorageUtils.loadCache();
+        if (!cacheResult) {
+          console.warn('Database cache loading failed or timed out, proceeding with empty cache');
+        } else {
+          console.log('Database cache loaded successfully');
+        }
         
-        // Check if services have credentials stored server-side
-        // This will also set up connections and fetch data if credentials are found
-        await this.checkStoredCredentials();
-        
-        // Load settings from the cache
-        await this.loadLocalSettings();
-
-        // Load cached watch history from database
-        await this.loadCachedWatchHistory();
+        // Run these operations in parallel for better performance
+        await Promise.all([
+          // Check if services have credentials stored server-side
+          this.checkStoredCredentials().catch(err => {
+            console.error('Error checking stored credentials:', err);
+            return false;
+          }),
+          
+          // Load settings from the cache
+          this.loadLocalSettings().catch(err => {
+            console.error('Error loading local settings:', err);
+            return false;
+          }),
+          
+          // Load cached watch history from database
+          this.loadCachedWatchHistory().catch(err => {
+            console.error('Error loading cached watch history:', err);
+            return false;
+          })
+        ]);
         
         // Sync selectedUserId from services
         this.selectedPlexUserId = plexService.selectedUserId;
         
         // For Jellyfin, get from cache, then fall back to service
-        const savedJellyfinUserId = databaseStorageUtils.cache.selectedJellyfinUserId;
+        const savedJellyfinUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
         if (savedJellyfinUserId) {
           this.selectedJellyfinUserId = savedJellyfinUserId;
-          console.log(`Loaded Jellyfin user ID from database cache: ${savedJellyfinUserId}`);
+          console.log(`Loaded Jellyfin user ID from database: ${savedJellyfinUserId}`);
         } else {
           this.selectedJellyfinUserId = jellyfinService.userId;
         }
         
         // For Tautulli, get from cache
-        const savedTautulliUserId = databaseStorageUtils.cache.selectedTautulliUserId;
+        const savedTautulliUserId = await databaseStorageUtils.get('selectedTautulliUserId');
         if (savedTautulliUserId) {
           this.selectedTautulliUserId = savedTautulliUserId;
-          console.log(`Loaded Tautulli user ID from database cache: ${savedTautulliUserId}`);
+          console.log(`Loaded Tautulli user ID from database: ${savedTautulliUserId}`);
         }
 
         // After connections are established, fetch and store watch history
@@ -452,9 +475,13 @@ export default {
           this.isAuthenticated = false;
           await authService.logout();
         }
+      } finally {
+        // Mark loading as complete
+        this.isLoading = false;
       }
     } else {
       console.log('User is not authenticated, showing login form');
+      this.isLoading = false;
     }
   },
 
@@ -596,110 +623,164 @@ export default {
       }
     },
     
-    // Handle successful authentication
-    async handleAuthenticated() {
-      console.log('User authenticated successfully');
-      this.isAuthenticated = true;
-      
-      // Set auth header for API requests
-      authService.setAuthHeader();
-      console.log('Auth header set after login');
-      
-      try {
-        // Start parallel tasks for efficiency
-        const tasks = [];
-        
-        // Try to fetch AI models after login to check if OpenAI is configured
-        // This is important enough to await separately
-        console.log('Starting AI model fetch process...');
-        tasks.push(this.fetchAIModels());
-        
-        // Load stored credentials and other data
-        console.log('Loading data after authentication...');
-        tasks.push(this.checkStoredCredentials());
-        
-        // Wait for both tasks to complete
-        await Promise.all(tasks);
-        
-        // Load settings from localStorage
-        this.loadLocalSettings();
-
-        // Load cached watch history
-        this.loadCachedWatchHistory();
-        
-        console.log('Data loaded successfully after authentication');
-      } catch (error) {
-        console.error('Error loading data after authentication:', error);
-      }
-    },
+  // Handle successful authentication
+  async handleAuthenticated() {
+    console.log('User authenticated successfully');
+    this.isAuthenticated = true;
+    this.isLoading = true; // Set loading state while we fetch data
     
-    // Load cached watch history from database
-    async loadCachedWatchHistory() {
-      try {
-        // Initialize database cache
-        await databaseStorageUtils.loadCache();
-        
-        // Try to load movies watch history from database
-        this.recentlyWatchedMovies = await databaseStorageUtils.getJSON('watchHistoryMovies', []);
-        if (this.recentlyWatchedMovies.length > 0) {
-          console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from database cache`);
-        }
-        
-        // Try to load shows watch history from database
-        this.recentlyWatchedShows = await databaseStorageUtils.getJSON('watchHistoryShows', []);
-        if (this.recentlyWatchedShows.length > 0) {
-          console.log(`Loaded ${this.recentlyWatchedShows.length} shows from database cache`);
-        }
-
-        // Try to load jellyfin history
-        this.jellyfinRecentlyWatchedMovies = await databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies', []);
-        if (this.jellyfinRecentlyWatchedMovies.length > 0) {
-          console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from database cache`);
-        }
-
-        this.jellyfinRecentlyWatchedShows = await databaseStorageUtils.getJSON('jellyfinWatchHistoryShows', []);
-        if (this.jellyfinRecentlyWatchedShows.length > 0) {
-          console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from database cache`);
-        }
-
-        // Try to load tautulli history
-        this.tautulliRecentlyWatchedMovies = await databaseStorageUtils.getJSON('tautulliWatchHistoryMovies', []);
-        if (this.tautulliRecentlyWatchedMovies.length > 0) {
-          console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from database cache`);
-        }
-
-        this.tautulliRecentlyWatchedShows = await databaseStorageUtils.getJSON('tautulliWatchHistoryShows', []);
-        if (this.tautulliRecentlyWatchedShows.length > 0) {
-          console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from database cache`);
-        }
-
-        // Try to load trakt history
-        this.traktRecentlyWatchedMovies = await databaseStorageUtils.getJSON('traktWatchHistoryMovies', []);
-        if (this.traktRecentlyWatchedMovies.length > 0) {
-          console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from database cache`);
-        }
-
-        this.traktRecentlyWatchedShows = await databaseStorageUtils.getJSON('traktWatchHistoryShows', []);
-        if (this.traktRecentlyWatchedShows.length > 0) {
-          console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from database cache`);
-        }
-
-        // Also try to load from server if available
-        await this.loadWatchHistoryFromServer();
-      } catch (error) {
-        console.error('Error loading cached watch history from database:', error);
-        
-        // Use empty arrays if database loading fails
-        this.recentlyWatchedMovies = [];
-        this.recentlyWatchedShows = [];
-        this.jellyfinRecentlyWatchedMovies = [];
-        this.jellyfinRecentlyWatchedShows = [];
-        this.tautulliRecentlyWatchedMovies = [];
-        this.tautulliRecentlyWatchedShows = [];
-        this.traktRecentlyWatchedMovies = [];
-        this.traktRecentlyWatchedShows = [];
+    // Set auth header for API requests
+    authService.setAuthHeader();
+    console.log('Auth header set after login');
+    
+    try {
+      // Ensure database cache is loaded first
+      console.log('Loading database cache after authentication...');
+      const cacheResult = await databaseStorageUtils.loadCache();
+      if (!cacheResult) {
+        console.warn('Database cache loading failed or timed out after login, proceeding with empty cache');
       }
-    },
+      
+      // Start parallel tasks for efficiency
+      const tasks = [];
+      
+      // Try to fetch AI models after login to check if OpenAI is configured
+      console.log('Starting AI model fetch process...');
+      tasks.push(this.fetchAIModels().catch(err => {
+        console.error('Error fetching AI models:', err);
+        return false;
+      }));
+      
+      // Load stored credentials and other data
+      console.log('Loading data after authentication...');
+      tasks.push(this.checkStoredCredentials().catch(err => {
+        console.error('Error checking stored credentials:', err);
+        return false;
+      }));
+      
+      // Wait for both tasks to complete
+      await Promise.all(tasks);
+      
+      // Load settings from database
+      await this.loadLocalSettings().catch(err => {
+        console.error('Error loading local settings after login:', err);
+      });
+
+      // Load cached watch history
+      await this.loadCachedWatchHistory().catch(err => {
+        console.error('Error loading cached watch history after login:', err);
+      });
+      
+      // Explicitly load genre and language preferences for both TV and movie modes
+      try {
+        console.log('Loading genre and language preferences for current user...');
+        // Load TV genre preferences
+        const tvGenres = await databaseStorageUtils.getJSON('tvGenrePreferences', []);
+        console.log('Loaded TV genre preferences:', tvGenres);
+        
+        // Load movie genre preferences
+        const movieGenres = await databaseStorageUtils.getJSON('movieGenrePreferences', []);
+        console.log('Loaded movie genre preferences:', movieGenres);
+        
+        // Load language preferences
+        const tvLanguage = await databaseStorageUtils.get('tvLanguagePreference', '');
+        console.log('Loaded TV language preference:', tvLanguage);
+        
+        const movieLanguage = await databaseStorageUtils.get('movieLanguagePreference', '');
+        console.log('Loaded movie language preference:', movieLanguage);
+      } catch (prefError) {
+        console.error('Error loading genre/language preferences:', prefError);
+      }
+      
+      console.log('Data loaded successfully after authentication');
+    } catch (error) {
+      console.error('Error loading data after authentication:', error);
+    } finally {
+      this.isLoading = false; // Clear loading state
+    }
+  },
+    
+  // Load cached watch history from database
+  async loadCachedWatchHistory() {
+    try {
+      console.log('Loading cached watch history from database...');
+      
+      // Ensure database cache is loaded
+      if (!databaseStorageUtils.cacheLoaded) {
+        console.log('Database cache not loaded, loading now...');
+        await databaseStorageUtils.loadCache();
+      }
+      
+      // Try to load movies watch history from database
+      this.recentlyWatchedMovies = await databaseStorageUtils.getJSON('watchHistoryMovies', []);
+      if (this.recentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from database cache`);
+      } else {
+        console.log('No movie watch history found in database cache');
+      }
+      
+      // Try to load shows watch history from database
+      this.recentlyWatchedShows = await databaseStorageUtils.getJSON('watchHistoryShows', []);
+      if (this.recentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.recentlyWatchedShows.length} shows from database cache`);
+      } else {
+        console.log('No TV show watch history found in database cache');
+      }
+
+      // Try to load jellyfin history
+      this.jellyfinRecentlyWatchedMovies = await databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies', []);
+      if (this.jellyfinRecentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from database cache`);
+      }
+
+      this.jellyfinRecentlyWatchedShows = await databaseStorageUtils.getJSON('jellyfinWatchHistoryShows', []);
+      if (this.jellyfinRecentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from database cache`);
+      }
+
+      // Try to load tautulli history
+      this.tautulliRecentlyWatchedMovies = await databaseStorageUtils.getJSON('tautulliWatchHistoryMovies', []);
+      if (this.tautulliRecentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from database cache`);
+      }
+
+      this.tautulliRecentlyWatchedShows = await databaseStorageUtils.getJSON('tautulliWatchHistoryShows', []);
+      if (this.tautulliRecentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from database cache`);
+      }
+
+      // Try to load trakt history
+      this.traktRecentlyWatchedMovies = await databaseStorageUtils.getJSON('traktWatchHistoryMovies', []);
+      if (this.traktRecentlyWatchedMovies.length > 0) {
+        console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from database cache`);
+      }
+
+      this.traktRecentlyWatchedShows = await databaseStorageUtils.getJSON('traktWatchHistoryShows', []);
+      if (this.traktRecentlyWatchedShows.length > 0) {
+        console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from database cache`);
+      }
+
+      // Also try to load from server if available
+      await this.loadWatchHistoryFromServer();
+      
+      console.log('Finished loading cached watch history');
+      return true;
+    } catch (error) {
+      console.error('Error loading cached watch history from database:', error);
+      
+      // Use empty arrays if database loading fails
+      this.recentlyWatchedMovies = [];
+      this.recentlyWatchedShows = [];
+      this.jellyfinRecentlyWatchedMovies = [];
+      this.jellyfinRecentlyWatchedShows = [];
+      this.tautulliRecentlyWatchedMovies = [];
+      this.tautulliRecentlyWatchedShows = [];
+      this.traktRecentlyWatchedMovies = [];
+      this.traktRecentlyWatchedShows = [];
+      
+      return false;
+    }
+  },
 
     // Load watch history from server
     async loadWatchHistoryFromServer() {
@@ -2423,6 +2504,35 @@ body.dark-theme .logo {
   filter: brightness(1.3) contrast(1.1);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   border-radius: 8px;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100%;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(48, 65, 86, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--button-primary-bg);
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+.loading-text {
+  font-size: 18px;
+  color: var(--text-color);
+  margin: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 h1 {

@@ -101,18 +101,22 @@ export default {
     };
   },
   async mounted() {
-    // Simple check if user is already authenticated
-    if (AuthService.isAuthenticated()) {
-      this.$emit('authenticated');
-    }
-    
-    // Clean URL parameters if any exist to prevent reload issues
-    if (window.location.search) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-        // Check for successful OAuth login
-        try {
+    try {
+      // Get URL parameters first before cleaning them
+      const urlParams = new URLSearchParams(window.location.search);
+      const codeParam = urlParams.get('code');
+      const errorParam = urlParams.get('error');
+      
+      // Simple check if user is already authenticated
+      if (AuthService.isAuthenticated()) {
+        // Only clean URL and emit authenticated if not coming from OAuth callback
+        if (!codeParam) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        this.$emit('authenticated');
+        return;
+      }
+      
       // First verify session immediately
       let isAuthenticated = await AuthService.verifySession();
       if (isAuthenticated) {
@@ -120,18 +124,13 @@ export default {
         return;
       }
 
-      // Get URL parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const codeParam = urlParams.get('code');
-      const errorParam = urlParams.get('error');
-      
       // If we're returning from OAuth callback (has code param but no error)
       if (codeParam && !errorParam) {
         // Show loading state
         this.loading = true;
         
         // Verify session with increasing delays to account for cookie setting
-        let isAuthenticated = false;
+        isAuthenticated = false;
         for (let i = 0; i < 3; i++) {
           await new Promise(resolve => setTimeout(resolve, 300 * (i + 1)));
           isAuthenticated = await AuthService.verifySession();

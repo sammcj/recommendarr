@@ -312,7 +312,7 @@ import credentialsService from './services/CredentialsService'
 import apiService from './services/ApiService'
 import authService from './services/AuthService'
 import openAIService from './services/OpenAIService'
-import storageUtils from './utils/StorageUtils'
+import databaseStorageUtils from './utils/DatabaseStorageUtils'
 
 export default {
   name: 'App',
@@ -418,20 +418,29 @@ export default {
         // Sync selectedUserId from services
         this.selectedPlexUserId = plexService.selectedUserId;
         
-        // For Jellyfin, try localStorage first, then fall back to service
-        const savedJellyfinUserId = storageUtils.get('selectedJellyfinUserId');
-        if (savedJellyfinUserId) {
-          this.selectedJellyfinUserId = savedJellyfinUserId;
-          console.log(`Loaded Jellyfin user ID from localStorage: ${savedJellyfinUserId}`);
-        } else {
+        // For Jellyfin, try database first, then fall back to service
+        try {
+          const savedJellyfinUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
+          if (savedJellyfinUserId) {
+            this.selectedJellyfinUserId = savedJellyfinUserId;
+            console.log(`Loaded Jellyfin user ID from database: ${savedJellyfinUserId}`);
+          } else {
+            this.selectedJellyfinUserId = jellyfinService.userId;
+          }
+        } catch (error) {
+          console.error('Error loading Jellyfin user ID from database:', error);
           this.selectedJellyfinUserId = jellyfinService.userId;
         }
         
-        // For Tautulli, we need to load from localStorage since it's not stored in the service
-        const savedTautulliUserId = storageUtils.get('selectedTautulliUserId');
-        if (savedTautulliUserId) {
-          this.selectedTautulliUserId = savedTautulliUserId;
-          console.log(`Loaded Tautulli user ID from localStorage: ${savedTautulliUserId}`);
+        // For Tautulli, load from database
+        try {
+          const savedTautulliUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+          if (savedTautulliUserId) {
+            this.selectedTautulliUserId = savedTautulliUserId;
+            console.log(`Loaded Tautulli user ID from database: ${savedTautulliUserId}`);
+          }
+        } catch (error) {
+          console.error('Error loading Tautulli user ID from database:', error);
         }
 
         // After connections are established, fetch and store watch history
@@ -485,57 +494,8 @@ export default {
         console.error("Error clearing server-side data:", error);
       }
       
-      // Clear all stored credentials from localStorage 
-      localStorage.removeItem('sonarrBaseUrl');
-      localStorage.removeItem('sonarrApiKey');
-      localStorage.removeItem('radarrBaseUrl');
-      localStorage.removeItem('radarrApiKey');
-      localStorage.removeItem('plexBaseUrl');
-      localStorage.removeItem('plexToken');
-      localStorage.removeItem('plexRecentLimit');
-      localStorage.removeItem('jellyfinBaseUrl');
-      localStorage.removeItem('jellyfinApiKey');
-      localStorage.removeItem('jellyfinUserId');
-      localStorage.removeItem('jellyfinRecentLimit');
-      localStorage.removeItem('tautulliBaseUrl');
-      localStorage.removeItem('tautulliApiKey');
-      localStorage.removeItem('tautulliRecentLimit');
-      localStorage.removeItem('traktClientId');
-      localStorage.removeItem('traktAccessToken');
-      localStorage.removeItem('traktRecentLimit');
-      localStorage.removeItem('openaiApiKey');
-      localStorage.removeItem('openaiModel');
-      localStorage.removeItem('plexHistoryMode');
-      localStorage.removeItem('jellyfinHistoryMode');
-      localStorage.removeItem('tautulliHistoryMode');
-      localStorage.removeItem('traktHistoryMode');
-      localStorage.removeItem('plexOnlyMode');
-      localStorage.removeItem('jellyfinOnlyMode');
-      localStorage.removeItem('tautulliOnlyMode');
-      localStorage.removeItem('traktOnlyMode');
-      
-      // Also clear recommendation history and preferences
-      localStorage.removeItem('previousTVRecommendations');
-      localStorage.removeItem('previousMovieRecommendations');
-      localStorage.removeItem('currentTVRecommendations');
-      localStorage.removeItem('currentMovieRecommendations');
-      localStorage.removeItem('likedTVRecommendations');
-      localStorage.removeItem('dislikedTVRecommendations');
-      localStorage.removeItem('likedMovieRecommendations');
-      localStorage.removeItem('dislikedMovieRecommendations');
-      
-      // Additional localStorage history that might exist
-      localStorage.removeItem('historyColumnsCount');
-      
-      // Clear cached watch history
-      localStorage.removeItem('watchHistoryMovies');
-      localStorage.removeItem('watchHistoryShows');
-      localStorage.removeItem('jellyfinWatchHistoryMovies');
-      localStorage.removeItem('jellyfinWatchHistoryShows');
-      localStorage.removeItem('tautulliWatchHistoryMovies');
-      localStorage.removeItem('tautulliWatchHistoryShows');
-      localStorage.removeItem('traktWatchHistoryMovies');
-      localStorage.removeItem('traktWatchHistoryShows');
+      // We're preserving database settings on logout
+      console.log('Database settings preserved for next login');
       
       // Reset service configurations
       sonarrService.configure('', '');
@@ -677,58 +637,71 @@ export default {
       }
     },
     
-    // Load cached watch history from localStorage
-    loadCachedWatchHistory() {
+    // Load cached watch history from database
+    async loadCachedWatchHistory() {
       try {
-      // Try to load movies watch history from localStorage
-      this.recentlyWatchedMovies = storageUtils.getJSON('watchHistoryMovies', []);
-      if (this.recentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from localStorage cache`);
-      }
-      
-      // Try to load shows watch history from localStorage
-      this.recentlyWatchedShows = storageUtils.getJSON('watchHistoryShows', []);
-      if (this.recentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.recentlyWatchedShows.length} shows from localStorage cache`);
-      }
+        // Initialize database cache
+        await databaseStorageUtils.loadCache();
+        
+        // Try to load movies watch history from database
+        this.recentlyWatchedMovies = await databaseStorageUtils.getJSON('watchHistoryMovies', []);
+        if (this.recentlyWatchedMovies.length > 0) {
+          console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from database cache`);
+        }
+        
+        // Try to load shows watch history from database
+        this.recentlyWatchedShows = await databaseStorageUtils.getJSON('watchHistoryShows', []);
+        if (this.recentlyWatchedShows.length > 0) {
+          console.log(`Loaded ${this.recentlyWatchedShows.length} shows from database cache`);
+        }
 
-      // Try to load jellyfin history
-      this.jellyfinRecentlyWatchedMovies = storageUtils.getJSON('jellyfinWatchHistoryMovies', []);
-      if (this.jellyfinRecentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from localStorage cache`);
-      }
+        // Try to load jellyfin history
+        this.jellyfinRecentlyWatchedMovies = await databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies', []);
+        if (this.jellyfinRecentlyWatchedMovies.length > 0) {
+          console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from database cache`);
+        }
 
-      this.jellyfinRecentlyWatchedShows = storageUtils.getJSON('jellyfinWatchHistoryShows', []);
-      if (this.jellyfinRecentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from localStorage cache`);
-      }
+        this.jellyfinRecentlyWatchedShows = await databaseStorageUtils.getJSON('jellyfinWatchHistoryShows', []);
+        if (this.jellyfinRecentlyWatchedShows.length > 0) {
+          console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from database cache`);
+        }
 
-      // Try to load tautulli history
-      this.tautulliRecentlyWatchedMovies = storageUtils.getJSON('tautulliWatchHistoryMovies', []);
-      if (this.tautulliRecentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from localStorage cache`);
-      }
+        // Try to load tautulli history
+        this.tautulliRecentlyWatchedMovies = await databaseStorageUtils.getJSON('tautulliWatchHistoryMovies', []);
+        if (this.tautulliRecentlyWatchedMovies.length > 0) {
+          console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from database cache`);
+        }
 
-      this.tautulliRecentlyWatchedShows = storageUtils.getJSON('tautulliWatchHistoryShows', []);
-      if (this.tautulliRecentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from localStorage cache`);
-      }
+        this.tautulliRecentlyWatchedShows = await databaseStorageUtils.getJSON('tautulliWatchHistoryShows', []);
+        if (this.tautulliRecentlyWatchedShows.length > 0) {
+          console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from database cache`);
+        }
 
-      // Try to load trakt history
-      this.traktRecentlyWatchedMovies = storageUtils.getJSON('traktWatchHistoryMovies', []);
-      if (this.traktRecentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from localStorage cache`);
-      }
+        // Try to load trakt history
+        this.traktRecentlyWatchedMovies = await databaseStorageUtils.getJSON('traktWatchHistoryMovies', []);
+        if (this.traktRecentlyWatchedMovies.length > 0) {
+          console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from database cache`);
+        }
 
-      this.traktRecentlyWatchedShows = storageUtils.getJSON('traktWatchHistoryShows', []);
-      if (this.traktRecentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from localStorage cache`);
-      }
+        this.traktRecentlyWatchedShows = await databaseStorageUtils.getJSON('traktWatchHistoryShows', []);
+        if (this.traktRecentlyWatchedShows.length > 0) {
+          console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from database cache`);
+        }
 
         // Also try to load from server if available
-        this.loadWatchHistoryFromServer();
+        await this.loadWatchHistoryFromServer();
       } catch (error) {
-        console.error('Error loading cached watch history from localStorage:', error);
+        console.error('Error loading cached watch history from database:', error);
+        
+        // Use empty arrays if database loading fails
+        this.recentlyWatchedMovies = [];
+        this.recentlyWatchedShows = [];
+        this.jellyfinRecentlyWatchedMovies = [];
+        this.jellyfinRecentlyWatchedShows = [];
+        this.tautulliRecentlyWatchedMovies = [];
+        this.tautulliRecentlyWatchedShows = [];
+        this.traktRecentlyWatchedMovies = [];
+        this.traktRecentlyWatchedShows = [];
       }
     },
 
@@ -806,70 +779,70 @@ export default {
 
       // Plex
       if (this.plexConnected) {
-        fetchPromises.push(this.fetchPlexData().then(() => {
-      if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
-        this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
-        storageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
-      }
-      if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
-        this.recentlyWatchedShows.forEach(item => item.source = 'plex');
-        storageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
-      }
+        fetchPromises.push(this.fetchPlexData().then(async () => {
+          if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
+            this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
+            await databaseStorageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
+          }
+          if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
+            this.recentlyWatchedShows.forEach(item => item.source = 'plex');
+            await databaseStorageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
+          }
         }));
       }
 
-  // Jellyfin - Check both the connected flag AND if the service is configured
-  if (this.jellyfinConnected || jellyfinService.isConfigured()) {
-    // If service is configured but not marked as connected, try to set the flag
-    if (!this.jellyfinConnected && jellyfinService.isConfigured()) {
-      console.log('Jellyfin service is configured but not marked as connected. Setting connected flag.');
-      this.jellyfinConnected = true;
-    }
-    
-    fetchPromises.push(this.fetchJellyfinData().then(() => {
-      if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
-        this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
-        storageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
+      // Jellyfin - Check both the connected flag AND if the service is configured
+      if (this.jellyfinConnected || jellyfinService.isConfigured()) {
+        // If service is configured but not marked as connected, try to set the flag
+        if (!this.jellyfinConnected && jellyfinService.isConfigured()) {
+          console.log('Jellyfin service is configured but not marked as connected. Setting connected flag.');
+          this.jellyfinConnected = true;
+        }
+        
+        fetchPromises.push(this.fetchJellyfinData().then(async () => {
+          if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
+            this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
+            await databaseStorageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
+          }
+          if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
+            this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
+            await databaseStorageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
+          }
+        }));
       }
-      if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
-        this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
-        storageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
-      }
-    }));
-  }
 
       // Tautulli
       if (this.tautulliConnected) {
-        fetchPromises.push(this.fetchTautulliData().then(() => {
-      if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
-        this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
-        storageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
-      }
-      if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
-        this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
-        storageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
-      }
+        fetchPromises.push(this.fetchTautulliData().then(async () => {
+          if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
+            this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
+            await databaseStorageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
+          }
+          if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
+            this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
+            await databaseStorageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
+          }
         }));
       }
 
       // Trakt
       if (this.traktConnected) {
-        fetchPromises.push(this.fetchTraktData().then(() => {
-      if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
-        this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
-        storageUtils.setJSON('traktWatchHistoryMovies', this.traktRecentlyWatchedMovies);
-      }
-      if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
-        this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
-        storageUtils.setJSON('traktWatchHistoryShows', this.traktRecentlyWatchedShows);
-      }
+        fetchPromises.push(this.fetchTraktData().then(async () => {
+          if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+            this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
+            await databaseStorageUtils.setJSON('traktWatchHistoryMovies', this.traktRecentlyWatchedMovies);
+          }
+          if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+            this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
+            await databaseStorageUtils.setJSON('traktWatchHistoryShows', this.traktRecentlyWatchedShows);
+          }
         }));
       }
 
       try {
         // Wait for all fetches to complete
         await Promise.all(fetchPromises);
-        console.log('All watch history fetched and stored locally');
+        console.log('All watch history fetched and stored in database');
 
         // Combine all watch history for server storage
         const allMovies = [
@@ -901,7 +874,7 @@ export default {
       }
     },
 
-    // Load settings from server or localStorage
+    // Load settings from server or database
     async loadLocalSettings() {
       try {
         // First try to get settings from server
@@ -966,34 +939,34 @@ export default {
           }
           
           // The following settings are used by RequestRecommendations.vue component
-          // but are not part of App.vue's data properties, so we store them in localStorage
+          // but are not part of App.vue's data properties, so we store them in database
           
           // Load genre preferences for RequestRecommendations.vue
           if (settings.tvGenrePreferences) {
-            storageUtils.setJSON('tvGenrePreferences', settings.tvGenrePreferences);
+            await databaseStorageUtils.setJSON('tvGenrePreferences', settings.tvGenrePreferences);
           }
           
           if (settings.movieGenrePreferences) {
-            storageUtils.setJSON('movieGenrePreferences', settings.movieGenrePreferences);
+            await databaseStorageUtils.setJSON('movieGenrePreferences', settings.movieGenrePreferences);
           }
           
           // Load sampled library mode for RequestRecommendations.vue
           if (settings.useSampledLibrary !== undefined) {
-            storageUtils.set('useSampledLibrary', settings.useSampledLibrary.toString());
+            await databaseStorageUtils.set('useSampledLibrary', settings.useSampledLibrary.toString());
           }
           
           // Load sample size for RequestRecommendations.vue
           if (settings.librarySampleSize) {
-            storageUtils.set('librarySampleSize', settings.librarySampleSize.toString());
+            await databaseStorageUtils.set('librarySampleSize', settings.librarySampleSize.toString());
           }
           
           // Load language preferences for RequestRecommendations.vue
           if (settings.tvLanguagePreference) {
-            storageUtils.set('tvLanguagePreference', settings.tvLanguagePreference);
+            await databaseStorageUtils.set('tvLanguagePreference', settings.tvLanguagePreference);
           }
           
           if (settings.movieLanguagePreference) {
-            storageUtils.set('movieLanguagePreference', settings.movieLanguagePreference);
+            await databaseStorageUtils.set('movieLanguagePreference', settings.movieLanguagePreference);
           }
           
           return;
@@ -1002,54 +975,98 @@ export default {
         console.error('Error loading settings from server:', error);
       }
       
-      // Fall back to localStorage if server loading fails
-      console.log('Falling back to localStorage for settings');
-      
-      // Load Plex recent limit from localStorage if available
-      this.plexRecentLimit = storageUtils.get('plexRecentLimit', 100);
-      
-      // Load Jellyfin recent limit from localStorage if available
-      this.jellyfinRecentLimit = storageUtils.get('jellyfinRecentLimit', 100);
-      
-      // Load Plex history mode from localStorage if available
-      this.plexHistoryMode = storageUtils.get('plexHistoryMode', 'all');
-      
-      // Load Jellyfin history mode from localStorage if available
-      this.jellyfinHistoryMode = storageUtils.get('jellyfinHistoryMode', 'all');
-      
-      // Load Plex only mode from localStorage if available
-      this.plexOnlyMode = storageUtils.get('plexOnlyMode', false);
-      
-      // Load Jellyfin only mode from localStorage if available
-      this.jellyfinOnlyMode = storageUtils.get('jellyfinOnlyMode', false);
-      
-      // Load Tautulli history mode from localStorage if available
-      this.tautulliHistoryMode = storageUtils.get('tautulliHistoryMode', 'all');
-      
-      // Load Tautulli only mode from localStorage if available
-      this.tautulliOnlyMode = storageUtils.get('tautulliOnlyMode', false);
-      
-      // Load Trakt recent limit from localStorage if available
-      this.traktRecentLimit = storageUtils.get('traktRecentLimit', 50);
-      
-      // Load Trakt history mode from localStorage if available
-      this.traktHistoryMode = storageUtils.get('traktHistoryMode', 'all');
-      
-      // Load Trakt only mode from localStorage if available
-      this.traktOnlyMode = storageUtils.get('traktOnlyMode', false);
-      
-      // Load sampled library mode from localStorage if available
-      const useSampledLibrary = storageUtils.get('useSampledLibrary');
-      if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
-        // Already stored in localStorage, no need to set it again
-        console.log('Loaded useSampledLibrary from localStorage:', useSampledLibrary);
-      }
-      
-      // Load library sample size from localStorage if available
-      const librarySampleSize = storageUtils.get('librarySampleSize');
-      if (librarySampleSize !== null && librarySampleSize !== undefined) {
-        // Already stored in localStorage, no need to set it again
-        console.log('Loaded librarySampleSize from localStorage:', librarySampleSize);
+      try {
+        // Try to load settings from database
+        console.log('Loading settings from database');
+        
+        // Initialize database cache if not already loaded
+        if (!databaseStorageUtils.cacheLoaded) {
+          await databaseStorageUtils.loadCache();
+        }
+        
+        // Load Plex recent limit from database if available
+        const plexRecentLimit = await databaseStorageUtils.get('plexRecentLimit');
+        if (plexRecentLimit !== null) {
+          this.plexRecentLimit = parseInt(plexRecentLimit, 10) || 100;
+        }
+        
+        // Load Jellyfin recent limit from database if available
+        const jellyfinRecentLimit = await databaseStorageUtils.get('jellyfinRecentLimit');
+        if (jellyfinRecentLimit !== null) {
+          this.jellyfinRecentLimit = parseInt(jellyfinRecentLimit, 10) || 100;
+        }
+        
+        // Load Plex history mode from database if available
+        const plexHistoryMode = await databaseStorageUtils.get('plexHistoryMode');
+        if (plexHistoryMode !== null) {
+          this.plexHistoryMode = plexHistoryMode;
+        }
+        
+        // Load Jellyfin history mode from database if available
+        const jellyfinHistoryMode = await databaseStorageUtils.get('jellyfinHistoryMode');
+        if (jellyfinHistoryMode !== null) {
+          this.jellyfinHistoryMode = jellyfinHistoryMode;
+        }
+        
+        // Load Plex only mode from database if available
+        const plexOnlyMode = await databaseStorageUtils.get('plexOnlyMode');
+        if (plexOnlyMode !== null) {
+          this.plexOnlyMode = plexOnlyMode === true || plexOnlyMode === 'true';
+        }
+        
+        // Load Jellyfin only mode from database if available
+        const jellyfinOnlyMode = await databaseStorageUtils.get('jellyfinOnlyMode');
+        if (jellyfinOnlyMode !== null) {
+          this.jellyfinOnlyMode = jellyfinOnlyMode === true || jellyfinOnlyMode === 'true';
+        }
+        
+        // Load Tautulli history mode from database if available
+        const tautulliHistoryMode = await databaseStorageUtils.get('tautulliHistoryMode');
+        if (tautulliHistoryMode !== null) {
+          this.tautulliHistoryMode = tautulliHistoryMode;
+        }
+        
+        // Load Tautulli only mode from database if available
+        const tautulliOnlyMode = await databaseStorageUtils.get('tautulliOnlyMode');
+        if (tautulliOnlyMode !== null) {
+          this.tautulliOnlyMode = tautulliOnlyMode === true || tautulliOnlyMode === 'true';
+        }
+        
+        // Load Trakt recent limit from database if available
+        const traktRecentLimit = await databaseStorageUtils.get('traktRecentLimit');
+        if (traktRecentLimit !== null) {
+          this.traktRecentLimit = parseInt(traktRecentLimit, 10) || 50;
+        }
+        
+        // Load Trakt history mode from database if available
+        const traktHistoryMode = await databaseStorageUtils.get('traktHistoryMode');
+        if (traktHistoryMode !== null) {
+          this.traktHistoryMode = traktHistoryMode;
+        }
+        
+        // Load Trakt only mode from database if available
+        const traktOnlyMode = await databaseStorageUtils.get('traktOnlyMode');
+        if (traktOnlyMode !== null) {
+          this.traktOnlyMode = traktOnlyMode === true || traktOnlyMode === 'true';
+        }
+        
+        console.log('Settings loaded from database');
+      } catch (error) {
+        console.error('Error loading settings from database:', error);
+        
+        // Use default values if database loading fails
+        console.log('Using default settings since database loading failed');
+        this.plexRecentLimit = 100;
+        this.jellyfinRecentLimit = 100;
+        this.plexHistoryMode = 'all';
+        this.jellyfinHistoryMode = 'all';
+        this.plexOnlyMode = false;
+        this.jellyfinOnlyMode = false;
+        this.tautulliHistoryMode = 'all';
+        this.tautulliOnlyMode = false;
+        this.traktRecentLimit = 50;
+        this.traktHistoryMode = 'all';
+        this.traktOnlyMode = false;
       }
     },
     
@@ -1190,8 +1207,8 @@ export default {
               // Update the component's state with the user ID from credentials
               this.selectedJellyfinUserId = credentials.userId || '';
               
-              // Save the userId to localStorage for extra persistence
-              storageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
+              // Save the userId to database for persistence
+              await databaseStorageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
               
               const result = await jellyfinService.testConnection();
               if (result.success) {
@@ -1207,10 +1224,20 @@ export default {
             if (credentials.baseUrl && credentials.apiKey) {
               await tautulliService.configure(credentials.baseUrl, credentials.apiKey);
               
-              // Load saved user ID from localStorage if available
-              const savedUserId = storageUtils.get('selectedTautulliUserId');
-              if (savedUserId) {
-                this.selectedTautulliUserId = savedUserId;
+              try {
+                // Load saved user ID from database if available
+                const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+                if (savedUserId) {
+                  this.selectedTautulliUserId = savedUserId;
+                }
+              } catch (dbError) {
+                console.error('Error loading Tautulli user ID from database:', dbError);
+                
+                // Fall back to localStorage if database fails
+                const savedUserId = databaseStorageUtils.get('selectedTautulliUserId');
+                if (savedUserId) {
+                  this.selectedTautulliUserId = savedUserId;
+                }
               }
               
               // Update tautulliRecentLimit from credentials if available
@@ -1274,9 +1301,7 @@ export default {
       this.showSonarrConnect = false; // Don't show connect modal
       this.series = [];
       
-      // Clean up localStorage (for backwards compatibility)
-      storageUtils.remove('sonarrBaseUrl');
-      storageUtils.remove('sonarrApiKey');
+      // No need to clean up localStorage anymore
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('sonarr');
@@ -1293,9 +1318,7 @@ export default {
       this.showRadarrConnect = false; // Don't show connect modal
       this.movies = [];
       
-      // Clean up localStorage (for backwards compatibility)
-      storageUtils.remove('radarrBaseUrl');
-      storageUtils.remove('radarrApiKey');
+      // No need to clean up localStorage anymore
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('radarr');
@@ -1313,10 +1336,7 @@ export default {
       this.recentlyWatchedMovies = [];
       this.recentlyWatchedShows = [];
       
-      // Clean up localStorage (for backwards compatibility)
-      storageUtils.remove('plexBaseUrl');
-      storageUtils.remove('plexToken');
-      storageUtils.remove('plexRecentLimit');
+      // No need to clean up localStorage anymore
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('plex');
@@ -1328,11 +1348,7 @@ export default {
       this.jellyfinRecentlyWatchedMovies = [];
       this.jellyfinRecentlyWatchedShows = [];
       
-      // Clean up localStorage (for backwards compatibility)
-      storageUtils.remove('jellyfinBaseUrl');
-      storageUtils.remove('jellyfinApiKey');
-      storageUtils.remove('jellyfinUserId');
-      storageUtils.remove('jellyfinRecentLimit');
+      // No need to clean up localStorage anymore
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('jellyfin');
@@ -1344,10 +1360,6 @@ export default {
       this.tautulliRecentlyWatchedMovies = [];
       this.tautulliRecentlyWatchedShows = [];
       
-      // Clean up localStorage
-      storageUtils.remove('tautulliBaseUrl');
-      storageUtils.remove('tautulliApiKey');
-      storageUtils.remove('tautulliRecentLimit');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('tautulli');
@@ -1366,10 +1378,6 @@ export default {
       this.traktRecentlyWatchedMovies = [];
       this.traktRecentlyWatchedShows = [];
       
-      // Clean up localStorage
-      storageUtils.remove('traktClientId');
-      storageUtils.remove('traktAccessToken');
-      storageUtils.remove('traktRecentLimit');
       
       // Delete credentials from server
       await credentialsService.deleteCredentials('trakt');
@@ -1446,20 +1454,41 @@ export default {
       this.jellyfinUsersLoading = true;
       this.jellyfinUsers = [];
       
-      // Try to load the user ID from localStorage first (for extra persistence)
-      const savedUserId = storageUtils.get('selectedJellyfinUserId');
-      if (savedUserId) {
-        this.selectedJellyfinUserId = savedUserId;
-        console.log(`Loaded Jellyfin user ID from localStorage: ${savedUserId}`);
-      } else {
-        // Fall back to the service's stored user ID
-        this.selectedJellyfinUserId = jellyfinService.userId;
-      }
-      
       try {
+        // Try to load the user ID from database first (for extra persistence)
+        const savedUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
+        if (savedUserId) {
+          this.selectedJellyfinUserId = savedUserId;
+          console.log(`Loaded Jellyfin user ID from database: ${savedUserId}`);
+        } else {
+          // Fall back to the service's stored user ID
+          this.selectedJellyfinUserId = jellyfinService.userId;
+        }
+        
         this.jellyfinUsers = await jellyfinService.getUsers();
       } catch (error) {
-        console.error('Error fetching Jellyfin users:', error);
+        console.error('Error in openJellyfinUserSelect:', error);
+        
+        // Try to get from database again with a different approach
+        try {
+          await databaseStorageUtils.loadCache();
+          const savedUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
+          if (savedUserId) {
+            this.selectedJellyfinUserId = savedUserId;
+            console.log(`Loaded Jellyfin user ID from database retry: ${savedUserId}`);
+          } else {
+            this.selectedJellyfinUserId = jellyfinService.userId;
+          }
+        } catch (secondDbError) {
+          console.error('Second attempt to load Jellyfin user ID from database failed:', secondDbError);
+          this.selectedJellyfinUserId = jellyfinService.userId;
+        }
+        
+        try {
+          this.jellyfinUsers = await jellyfinService.getUsers();
+        } catch (userError) {
+          console.error('Error fetching Jellyfin users:', userError);
+        }
       } finally {
         this.jellyfinUsersLoading = false;
       }
@@ -1469,10 +1498,10 @@ export default {
       this.showJellyfinUserSelect = false;
     },
     
-    selectJellyfinUser(user) {
+    async selectJellyfinUser(user) {
       this.selectedJellyfinUserId = user.id;
-      // Also store the selection in localStorage for extra safety
-      storageUtils.set('selectedJellyfinUserId', user.id);
+      // Store the selection in database
+      await databaseStorageUtils.set('selectedJellyfinUserId', user.id);
     },
     
     async applyJellyfinUserSelection() {
@@ -1482,38 +1511,38 @@ export default {
         return;
       }
       
-      // Save current history limit to ensure it persists across user changes
-      storageUtils.set('jellyfinHistoryLimit', this.jellyfinRecentLimit.toString());
-      // Always persist the user ID selection to localStorage
-      storageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
-      
-      // Update the Jellyfin service with the new user ID
-      await jellyfinService.configure(
-        jellyfinService.baseUrl,
-        jellyfinService.apiKey,
-        this.selectedJellyfinUserId,
-        this.jellyfinRecentLimit
-      );
-      
-      // Close the modal
-      this.showJellyfinUserSelect = false;
-      
-      // Fetch updated watch history with the explicitly selected user ID
-      console.log(`Applying Jellyfin user selection: ${this.selectedJellyfinUserId}`);
-      
       try {
+        // Save current history limit to ensure it persists across user changes
+        await databaseStorageUtils.set('jellyfinHistoryLimit', this.jellyfinRecentLimit.toString());
+        // Always persist the user ID selection to database
+        await databaseStorageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
+        
+        // Update the Jellyfin service with the new user ID
+        await jellyfinService.configure(
+          jellyfinService.baseUrl,
+          jellyfinService.apiKey,
+          this.selectedJellyfinUserId,
+          this.jellyfinRecentLimit
+        );
+        
+        // Close the modal
+        this.showJellyfinUserSelect = false;
+        
+        // Fetch updated watch history with the explicitly selected user ID
+        console.log(`Applying Jellyfin user selection: ${this.selectedJellyfinUserId}`);
+        
         // Fetch the user history
         await this.fetchJellyfinData(this.selectedJellyfinUserId);
         
-        // Save the history data to localStorage
+        // Save the history data to database
         if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
           this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
-          storageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
+          await databaseStorageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
         }
         
         if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
           this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
-          storageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
+          await databaseStorageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
         }
         
         // Save to server
@@ -1544,14 +1573,17 @@ export default {
       this.tautulliUsersLoading = true;
       this.tautulliUsers = [];
       
-      // Load the previously selected user ID if available
-      const savedUserId = storageUtils.get('selectedTautulliUserId');
-      this.selectedTautulliUserId = savedUserId || '';
-      
       try {
+        // Try to load the user ID from database
+        const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+        if (savedUserId) {
+          this.selectedTautulliUserId = savedUserId;
+          console.log(`Loaded Tautulli user ID from database: ${savedUserId}`);
+        }
+        
         this.tautulliUsers = await tautulliService.getUsers();
       } catch (error) {
-        console.error('Error fetching Tautulli users:', error);
+        console.error('Error in openTautulliUserSelect:', error);
       } finally {
         this.tautulliUsersLoading = false;
       }
@@ -1561,40 +1593,40 @@ export default {
       this.showTautulliUserSelect = false;
     },
     
-    selectTautulliUser(user) {
+    async selectTautulliUser(user) {
       this.selectedTautulliUserId = user.user_id;
-      // Store the selection immediately to ensure it's available on page reload
-      storageUtils.set('selectedTautulliUserId', user.user_id);
+      // Store the selection in database
+      await databaseStorageUtils.set('selectedTautulliUserId', user.user_id);
     },
     
     async applyTautulliUserSelection() {
-      // Save current history limit to ensure it persists
-      storageUtils.set('tautulliRecentLimit', this.tautulliRecentLimit.toString());
-      
-      // Always persist the user ID selection to localStorage
-      storageUtils.set('selectedTautulliUserId', this.selectedTautulliUserId || '');
-      
-      // Close the modal
-      this.showTautulliUserSelect = false;
-      
-      // Fetch updated watch history with the new user filter
-      // If selectedTautulliUserId is empty, pass null to indicate "all users"
-      const userId = this.selectedTautulliUserId ? this.selectedTautulliUserId : null;
-      console.log(`Applying Tautulli user selection: ${userId || 'all users'}`);
-      
       try {
+        // Save current history limit to ensure it persists
+        await databaseStorageUtils.set('tautulliRecentLimit', this.tautulliRecentLimit.toString());
+        
+        // Always persist the user ID selection to database
+        await databaseStorageUtils.set('selectedTautulliUserId', this.selectedTautulliUserId || '');
+        
+        // Close the modal
+        this.showTautulliUserSelect = false;
+        
+        // Fetch updated watch history with the new user filter
+        // If selectedTautulliUserId is empty, pass null to indicate "all users"
+        const userId = this.selectedTautulliUserId ? this.selectedTautulliUserId : null;
+        console.log(`Applying Tautulli user selection: ${userId || 'all users'}`);
+        
         // Fetch the user history
         await this.fetchTautulliData(userId);
         
-        // Save the history data to localStorage
+        // Save the history data to database
         if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
           this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
-          storageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
+          await databaseStorageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
         }
         
         if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
           this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
-          storageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
+          await databaseStorageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
         }
         
         // Save to server
@@ -1646,33 +1678,34 @@ export default {
     async applyPlexUserSelection() {
       if (!this.selectedPlexUserId) return;
       
-      // Save current history limit to ensure it persists across user changes
-      storageUtils.set('plexRecentLimit', this.plexRecentLimit.toString());
-      
-      // Update the Plex service with the new user ID
-      plexService.configure(
-        plexService.baseUrl,
-        plexService.token,
-        this.selectedPlexUserId,
-        this.plexRecentLimit
-      );
-      
-      // Close the modal
-      this.showPlexUserSelect = false;
-      
       try {
+        // Save current history limit to ensure it persists across user changes
+        await databaseStorageUtils.set('plexRecentLimit', this.plexRecentLimit.toString());
+        await databaseStorageUtils.set('selectedPlexUserId', this.selectedPlexUserId);
+        
+        // Update the Plex service with the new user ID
+        plexService.configure(
+          plexService.baseUrl,
+          plexService.token,
+          this.selectedPlexUserId,
+          this.plexRecentLimit
+        );
+        
+        // Close the modal
+        this.showPlexUserSelect = false;
+        
         // Fetch updated watch history
         await this.fetchPlexData();
         
-        // Save the history data to localStorage
+        // Save the history data to database
         if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
           this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
-          storageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
+          await databaseStorageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
         }
         
         if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
           this.recentlyWatchedShows.forEach(item => item.source = 'plex');
-          storageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
+          await databaseStorageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
         }
         
         // Save to server
@@ -1776,10 +1809,25 @@ export default {
         if (success) {
           this.tautulliConnected = true;
           
-          // Load saved user ID from localStorage if available
-          const savedUserId = localStorage.getItem('selectedTautulliUserId');
-          if (savedUserId) {
-            this.selectedTautulliUserId = savedUserId;
+          try {
+            // Load saved user ID from database if available
+            const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+            if (savedUserId) {
+              this.selectedTautulliUserId = savedUserId;
+            }
+          } catch (dbError) {
+            console.error('Error loading Tautulli user ID from database:', dbError);
+            
+            // Try to get from database again with a different approach
+            try {
+              await databaseStorageUtils.loadCache();
+              const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+              if (savedUserId) {
+                this.selectedTautulliUserId = savedUserId;
+              }
+            } catch (secondDbError) {
+              console.error('Second attempt to load Tautulli user ID from database failed:', secondDbError);
+            }
           }
           
           // Pass the userId explicitly to ensure it's used
@@ -2118,10 +2166,10 @@ export default {
           userIdToUse = this.selectedTautulliUserId;
         }
         
-        // Store the selected user ID in component state for future use
+        // Store the selected user ID in component state and database for future use
         if (userIdToUse && userIdToUse !== this.selectedTautulliUserId) {
           this.selectedTautulliUserId = userIdToUse;
-          localStorage.setItem('selectedTautulliUserId', userIdToUse);
+          await databaseStorageUtils.set('selectedTautulliUserId', userIdToUse);
         }
         
         console.log(`Fetching Tautulli history with user ID: ${userIdToUse || 'all users'}`);
@@ -2289,58 +2337,8 @@ export default {
         console.log('Logout from server failed, but local logout was successful:', err);
       });
       
-      // Clear all stored credentials from localStorage (for backwards compatibility)
-      localStorage.removeItem('sonarrBaseUrl');
-      localStorage.removeItem('sonarrApiKey');
-      localStorage.removeItem('radarrBaseUrl');
-      localStorage.removeItem('radarrApiKey');
-      localStorage.removeItem('plexBaseUrl');
-      localStorage.removeItem('plexToken');
-      localStorage.removeItem('plexRecentLimit');
-      localStorage.removeItem('jellyfinBaseUrl');
-      localStorage.removeItem('jellyfinApiKey');
-      localStorage.removeItem('jellyfinUserId');
-      localStorage.removeItem('jellyfinRecentLimit');
-      localStorage.removeItem('tautulliBaseUrl');
-      localStorage.removeItem('tautulliApiKey');
-      localStorage.removeItem('tautulliRecentLimit');
-      localStorage.removeItem('traktClientId');
-      localStorage.removeItem('traktAccessToken');
-      localStorage.removeItem('traktRecentLimit');
-      localStorage.removeItem('openaiApiKey');
-      localStorage.removeItem('openaiModel');
-      localStorage.removeItem('plexHistoryMode');
-      localStorage.removeItem('jellyfinHistoryMode');
-      localStorage.removeItem('tautulliHistoryMode');
-      localStorage.removeItem('traktHistoryMode');
-      localStorage.removeItem('plexOnlyMode');
-      localStorage.removeItem('jellyfinOnlyMode');
-      localStorage.removeItem('tautulliOnlyMode');
-      localStorage.removeItem('traktOnlyMode');
-      
-      // Also clear recommendation history and preferences
-      // Remove from localStorage as well to ensure clear doesn't persist after reload
-      localStorage.removeItem('previousTVRecommendations');
-      localStorage.removeItem('previousMovieRecommendations');
-      localStorage.removeItem('currentTVRecommendations');
-      localStorage.removeItem('currentMovieRecommendations');
-      localStorage.removeItem('likedTVRecommendations');
-      localStorage.removeItem('dislikedTVRecommendations');
-      localStorage.removeItem('likedMovieRecommendations');
-      localStorage.removeItem('dislikedMovieRecommendations');
-      
-      // Additional localStorage history that might exist
-      localStorage.removeItem('historyColumnsCount');
-      
-      // Clear cached watch history
-      localStorage.removeItem('watchHistoryMovies');
-      localStorage.removeItem('watchHistoryShows');
-      localStorage.removeItem('jellyfinWatchHistoryMovies');
-      localStorage.removeItem('jellyfinWatchHistoryShows');
-      localStorage.removeItem('tautulliWatchHistoryMovies');
-      localStorage.removeItem('tautulliWatchHistoryShows');
-      localStorage.removeItem('traktWatchHistoryMovies');
-      localStorage.removeItem('traktWatchHistoryShows');
+      // We're preserving database settings on logout
+      console.log('Database settings preserved for next login');
       
       // We're no longer resetting user data on logout
       // This preserves the user's settings between sessions

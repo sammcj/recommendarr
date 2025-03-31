@@ -88,67 +88,117 @@ class OpenAIService {
   }
   
   /**
-   * Load the model from localStorage if it exists
-   * Falls back to the model stored in credentials if localStorage model doesn't exist
+   * Load the model from database if it exists
+   * Falls back to the model stored in credentials if database model doesn't exist
    */
   loadModelFromLocalStorage() {
-    // Import storageUtils dynamically to avoid circular dependency
-    import('../utils/StorageUtils.js').then(module => {
-      const storageUtils = module.default;
-      const savedModel = storageUtils.get('openaiModel');
-      if (savedModel) {
-        this.model = savedModel;
+    // Import databaseStorageUtils dynamically to avoid circular dependency
+    import('../utils/DatabaseStorageUtils.js').then(module => {
+      const databaseStorageUtils = module.default;
+      // Initialize cache if needed
+      if (!databaseStorageUtils.cacheLoaded) {
+        databaseStorageUtils.loadCache().then(() => {
+          const savedModel = databaseStorageUtils.getSync('openaiModel');
+          if (savedModel) {
+            this.model = savedModel;
+          }
+        });
+      } else {
+        const savedModel = databaseStorageUtils.getSync('openaiModel');
+        if (savedModel) {
+          this.model = savedModel;
+        }
       }
     }).catch(error => {
-      console.error('Error loading storageUtils:', error);
-      // Fallback to localStorage if storageUtils fails
-      const localStorageModel = localStorage.getItem('openaiModel');
-      if (localStorageModel) {
-        this.model = localStorageModel;
-      }
+      console.error('Error loading databaseStorageUtils:', error);
     });
   }
   
   /**
-   * Load the prompt style from localStorage if it exists
-   * Falls back to the default 'vibe' style if localStorage style doesn't exist
+   * Load the prompt style from database if it exists
+   * Falls back to the default 'vibe' style if database style doesn't exist
    */
   loadPromptStyleFromLocalStorage() {
-    const localStoragePromptStyle = localStorage.getItem('openaiPromptStyle');
-    if (localStoragePromptStyle) {
-      this.promptStyle = localStoragePromptStyle;
-    }
+    // Import databaseStorageUtils dynamically to avoid circular dependency
+    import('../utils/DatabaseStorageUtils.js').then(module => {
+      const databaseStorageUtils = module.default;
+      // Initialize cache if needed
+      if (!databaseStorageUtils.cacheLoaded) {
+        databaseStorageUtils.loadCache().then(() => {
+          const savedPromptStyle = databaseStorageUtils.getSync('openaiPromptStyle');
+          if (savedPromptStyle) {
+            this.promptStyle = savedPromptStyle;
+          }
+        });
+      } else {
+        const savedPromptStyle = databaseStorageUtils.getSync('openaiPromptStyle');
+        if (savedPromptStyle) {
+          this.promptStyle = savedPromptStyle;
+        }
+      }
+    }).catch(error => {
+      console.error('Error loading databaseStorageUtils:', error);
+    });
   }
   
   /**
-   * Load the useCustomPromptOnly setting from localStorage if it exists
-   * Falls back to false if setting doesn't exist in localStorage
+   * Load the useCustomPromptOnly setting from database if it exists
+   * Falls back to false if setting doesn't exist in database
    */
   loadCustomPromptOnlyFromLocalStorage() {
-    const storedValue = localStorage.getItem('useCustomPromptOnly');
-    if (storedValue !== null) {
-      this.useCustomPromptOnly = storedValue === 'true';
-      console.log(`OpenAIService: Loaded useCustomPromptOnly from localStorage: ${this.useCustomPromptOnly}`);
-    }
+    // Import databaseStorageUtils dynamically to avoid circular dependency
+    import('../utils/DatabaseStorageUtils.js').then(module => {
+      const databaseStorageUtils = module.default;
+      // Initialize cache if needed
+      if (!databaseStorageUtils.cacheLoaded) {
+        databaseStorageUtils.loadCache().then(() => {
+          const storedValue = databaseStorageUtils.getSync('useCustomPromptOnly');
+          if (storedValue !== null) {
+            this.useCustomPromptOnly = storedValue === true || storedValue === 'true';
+            console.log(`OpenAIService: Loaded useCustomPromptOnly from database: ${this.useCustomPromptOnly}`);
+          }
+        });
+      } else {
+        const storedValue = databaseStorageUtils.getSync('useCustomPromptOnly');
+        if (storedValue !== null) {
+          this.useCustomPromptOnly = storedValue === true || storedValue === 'true';
+          console.log(`OpenAIService: Loaded useCustomPromptOnly from database: ${this.useCustomPromptOnly}`);
+        }
+      }
+    }).catch(error => {
+      console.error('Error loading databaseStorageUtils:', error);
+    });
   }
   
   /**
-   * Set the prompt style and save it to localStorage
+   * Set the prompt style and save it to database
    * @param {string} style - The prompt style ('vibe', 'analytical', 'creative', 'technical')
    */
   setPromptStyle(style) {
     this.promptStyle = style;
-    localStorage.setItem('openaiPromptStyle', style);
+    // Import databaseStorageUtils dynamically to avoid circular dependency
+    import('../utils/DatabaseStorageUtils.js').then(module => {
+      const databaseStorageUtils = module.default;
+      databaseStorageUtils.set('openaiPromptStyle', style);
+    }).catch(error => {
+      console.error('Error loading databaseStorageUtils:', error);
+    });
   }
   
   /**
-   * Set the useCustomPromptOnly flag and save it to localStorage
+   * Set the useCustomPromptOnly flag and save it to database
    * @param {boolean} value - Whether to use only the custom prompt for recommendations
    */
   setUseCustomPromptOnly(value) {
     this.useCustomPromptOnly = value === true;
-    localStorage.setItem('useCustomPromptOnly', this.useCustomPromptOnly.toString());
-    console.log(`OpenAIService: useCustomPromptOnly set to ${this.useCustomPromptOnly}`);
+    // Import databaseStorageUtils dynamically to avoid circular dependency
+    import('../utils/DatabaseStorageUtils.js').then(module => {
+      const databaseStorageUtils = module.default;
+      databaseStorageUtils.set('useCustomPromptOnly', this.useCustomPromptOnly);
+      console.log(`OpenAIService: useCustomPromptOnly set to ${this.useCustomPromptOnly}`);
+    }).catch(error => {
+      console.error('Error loading databaseStorageUtils:', error);
+    });
   }
   
   /**
@@ -801,15 +851,13 @@ From these insights, recommend series that evoke comparable emotional states and
     
     if (model) {
       this.model = model;
-      // When model is updated, store it in storageUtils for user-specific access
-      // Import storageUtils dynamically to avoid circular dependency
-      import('../utils/StorageUtils.js').then(module => {
-        const storageUtils = module.default;
-        storageUtils.set('openaiModel', model);
+      // When model is updated, store it in databaseStorageUtils for user-specific access
+      // Import databaseStorageUtils dynamically to avoid circular dependency
+      import('../utils/DatabaseStorageUtils.js').then(module => {
+        const databaseStorageUtils = module.default;
+        databaseStorageUtils.set('openaiModel', model);
       }).catch(error => {
-        console.error('Error loading storageUtils:', error);
-        // Fallback to localStorage if storageUtils fails
-        localStorage.setItem('openaiModel', model);
+        console.error('Error loading databaseStorageUtils:', error);
       });
     }
     
@@ -1105,9 +1153,13 @@ CRITICAL REQUIREMENTS:
       // Perform final verification to ensure no existing/liked content is returned
       // This is a critical second check even though we instructed the AI to not include these
       console.log("Verifying TV recommendations don't include library, liked, disliked, or previous items");
+      
+      // Always use the full library for verification, regardless of what was sent to the AI
+      // This ensures we catch any recommendations that might be in the user's library
+      // even if we only sent a sample to the AI
       return this.verifyRecommendations(
         recommendations,
-        series,                   // Library items
+        series,                   // Library items - always use full library for verification
         likedRecommendations,     // Liked items
         dislikedRecommendations,  // Disliked items
         previousRecommendations   // Previous recommendations
@@ -1360,7 +1412,7 @@ CRITICAL REQUIREMENTS:
       console.log("Verifying movie recommendations don't include library, liked, disliked, or previous items");
       const verifiedRecommendations = this.verifyRecommendations(
         recommendations,
-        movies,                   // Library items
+        movies,                   // Library items - always use full library for verification
         likedRecommendations,     // Liked items
         dislikedRecommendations,  // Disliked items
         previousRecommendations   // Previous recommendations
@@ -2314,17 +2366,14 @@ CRITICAL REQUIREMENTS:
     const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
     const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
     
-    // All titles to check against
-    const allExistingTitles = [...libraryTitles, ...likedTitles, ...dislikedTitles, ...previousRecTitles];
+    // Log the number of items we're checking against
+    console.log(`Verifying ${recommendations.length} recommendations against ${libraryTitles.length} library items, ${likedTitles.length} liked items, ${dislikedTitles.length} disliked items, and ${previousRecTitles.length} previous recommendations`);
 
     // Filter out any recommendations that match existing items
     const filteredRecommendations = recommendations.filter(rec => {
       if (!rec || !rec.title) return false; // Skip invalid recommendations
       
       const title = rec.title;
-      
-      // Enhanced debugging of the recommendation being checked
-      console.log(`Verifying recommendation: "${title}" against ${libraryTitles.length} library items, ${allExistingTitles.length} total items`);
       
       // First check library items (priority and most important)
       for (const existingTitle of libraryTitles) {

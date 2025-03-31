@@ -4,15 +4,29 @@ import axios from 'axios';
 import credentialsService from './CredentialsService';
 import apiService from './ApiService';
 import AuthService from './AuthService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class PlexService {
   constructor() {
     this.token = '';
     this.baseUrl = '';
-    this.selectedUserId = storageUtils.get('selectedPlexUserId') || '';
+    this.selectedUserId = '';
+    // Initialize selectedUserId
+    this.initSelectedUserId();
     // Load credentials when instantiated
     this.loadCredentials();
+  }
+
+  /**
+   * Initialize selectedUserId from database
+   */
+  async initSelectedUserId() {
+    try {
+      this.selectedUserId = await databaseStorageUtils.getSync('selectedPlexUserId') || '';
+    } catch (error) {
+      console.error('Error initializing selectedPlexUserId:', error);
+      this.selectedUserId = '';
+    }
   }
 
   /**
@@ -23,11 +37,11 @@ class PlexService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.token = credentials.token || '';
-      // selectedUserId is stored separately via StorageUtils
+      // selectedUserId is stored separately via DatabaseStorageUtils
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
-        storageUtils.set('plexRecentLimit', credentials.recentLimit);
+        await databaseStorageUtils.set('plexRecentLimit', credentials.recentLimit);
       }
     }
   }
@@ -43,7 +57,7 @@ class PlexService {
     this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.token = token;
     this.selectedUserId = selectedUserId;
-    storageUtils.set('selectedPlexUserId', selectedUserId);
+    await databaseStorageUtils.set('selectedPlexUserId', selectedUserId);
     
     const credentials = {
       baseUrl: this.baseUrl,
@@ -53,8 +67,8 @@ class PlexService {
     // If recentLimit is provided, store it with the credentials
     if (recentLimit !== null) {
       credentials.recentLimit = recentLimit;
-      // Also store in storageUtils for client-side access
-      storageUtils.set('plexRecentLimit', recentLimit);
+      // Also store in database for client-side access
+      await databaseStorageUtils.set('plexRecentLimit', recentLimit);
     }
     
     // Store credentials server-side (single set of credentials)

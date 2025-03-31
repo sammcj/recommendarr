@@ -213,7 +213,7 @@
               <div 
                 v-for="genre in availableGenres" 
                 :key="genre.value"
-                :class="['genre-tag', {'selected': selectedGenres && selectedGenres.includes(genre.value)}]"
+                :class="['genre-tag', {'selected': selectedGenres && Array.isArray(selectedGenres) && selectedGenres.includes(genre.value)}]"
                 @click="toggleGenre(genre.value)"
               >
                 {{ genre.label }}
@@ -798,8 +798,7 @@
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import authService from '../services/AuthService';
-import apiService from '../services/ApiService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 export default {
   name: 'RecommendationSettings',
@@ -811,16 +810,21 @@ export default {
       radarrRefreshSuccess: false
     };
   },
-  mounted() {
+  async mounted() {
+    // Initialize database cache if needed
+    if (!databaseStorageUtils.cacheLoaded) {
+      await databaseStorageUtils.loadCache();
+    }
+    
     // Load sampled library mode preference
-    const useSampledLibrary = storageUtils.get('useSampledLibrary');
+    const useSampledLibrary = databaseStorageUtils.getSync('useSampledLibrary');
     if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
-      const boolValue = useSampledLibrary === 'true' || useSampledLibrary === true;
+      const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
       this.$emit('update:useSampledLibrary', boolValue);
     }
     
     // Load sample size
-    const librarySampleSize = storageUtils.get('librarySampleSize');
+    const librarySampleSize = databaseStorageUtils.getSync('librarySampleSize');
     if (librarySampleSize !== null && librarySampleSize !== undefined) {
       const numValue = parseInt(librarySampleSize, 10);
       if (!isNaN(numValue)) {
@@ -1098,48 +1102,33 @@ export default {
       this.$emit('update-temperature', Number(value));
     },
     saveLibraryModePreference(value) {
-      // Save to server
-      const settings = {
-        useSampledLibrary: value
-      };
-      
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database
+      databaseStorageUtils.set('useSampledLibrary', value)
         .then(() => {
-          console.log('Saved sampled library mode to server:', value);
-          // Also save to localStorage as a backup
-          storageUtils.set('useSampledLibrary', value.toString());
+          console.log('Saved sampled library mode to database:', value);
         })
         .catch(error => {
-          console.error('Failed to save sampled library mode to server:', error);
-          // Fall back to localStorage if server save fails
-          storageUtils.set('useSampledLibrary', value.toString());
+          console.error('Failed to save sampled library mode to database:', error);
         });
       
       // Also emit the event for parent component
       this.$emit('save-library-mode-preference', value);
     },
     saveSampleSize(value) {
-      // Save to server
-      const settings = {
-        librarySampleSize: Number(value)
-      };
+      // Save to database
+      const numValue = Number(value);
       
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database
+      databaseStorageUtils.set('librarySampleSize', numValue)
         .then(() => {
-          console.log('Saved library sample size to server:', value);
-          // Also save to localStorage as a backup
-          storageUtils.set('librarySampleSize', value.toString());
+          console.log('Saved library sample size to database:', numValue);
         })
         .catch(error => {
-          console.error('Failed to save library sample size to server:', error);
-          // Fall back to localStorage if server save fails
-          storageUtils.set('librarySampleSize', value.toString());
+          console.error('Failed to save library sample size to database:', error);
         });
       
       // Also emit the event for parent component
-      this.$emit('save-sample-size', Number(value));
+      this.$emit('save-sample-size', numValue);
     },
     saveStructuredOutputPreference(value) {
       this.$emit('save-structured-output-preference', value);
@@ -1172,24 +1161,16 @@ export default {
       // Determine if we're in movie or TV mode
       const isMovieMode = this.isMovieMode;
       
-      // Create the settings object with the appropriate key
-      const settings = {};
-      if (isMovieMode) {
-        settings.movieGenrePreferences = this.selectedGenres || [];
-      } else {
-        settings.tvGenrePreferences = this.selectedGenres || [];
-      }
+      // Create the key based on mode
+      const key = isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
       
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database
+      databaseStorageUtils.setJSON(key, this.selectedGenres || [])
         .then(() => {
-          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} genre preferences to server:`, this.selectedGenres);
+          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} genre preferences to database:`, this.selectedGenres);
         })
         .catch(error => {
-          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} genre preferences to server:`, error);
-          // Fall back to localStorage if server save fails
-          const key = isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
-          storageUtils.setJSON(key, this.selectedGenres || []);
+          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} genre preferences to database:`, error);
         });
     },
     savePromptStyle(value) {
@@ -1208,24 +1189,16 @@ export default {
       // Determine if we're in movie or TV mode
       const isMovieMode = this.isMovieMode;
       
-      // Create the settings object with the appropriate key
-      const settings = {};
-      if (isMovieMode) {
-        settings.movieLanguagePreference = value;
-      } else {
-        settings.tvLanguagePreference = value;
-      }
+      // Create the key based on mode
+      const key = isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
       
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database
+      databaseStorageUtils.set(key, value)
         .then(() => {
-          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} language preference to server:`, value);
+          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} language preference to database:`, value);
         })
         .catch(error => {
-          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} language preference to server:`, error);
-          // Fall back to localStorage if server save fails
-          const key = isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
-          storageUtils.set(key, value);
+          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} language preference to database:`, error);
         });
       
       // Also emit the event for parent component

@@ -2,19 +2,34 @@ import axios from 'axios';
 import apiService from './ApiService';
 import credentialsService from './CredentialsService';
 import AuthService from './AuthService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class TautulliService {
   constructor() {
     this.baseUrl = '';
     this.apiKey = '';
     this.configured = false;
-    this.selectedUserId = storageUtils.get('selectedTautulliUserId') || '';
+    this.selectedUserId = '';
     // Flag to determine if we should use the proxy
     this.useProxy = true;
     
+    // Initialize selectedUserId
+    this.initSelectedUserId();
+    
     // Try to load saved credentials
     this.loadCredentials();
+  }
+  
+  /**
+   * Initialize selectedUserId from database
+   */
+  async initSelectedUserId() {
+    try {
+      this.selectedUserId = await databaseStorageUtils.getSync('selectedTautulliUserId') || '';
+    } catch (error) {
+      console.error('Error initializing selectedTautulliUserId:', error);
+      this.selectedUserId = '';
+    }
   }
   
   /**
@@ -30,7 +45,7 @@ class TautulliService {
         
       // Load recentLimit if available
       if (credentials.recentLimit) {
-        storageUtils.set('tautulliRecentLimit', credentials.recentLimit);
+        await databaseStorageUtils.set('tautulliRecentLimit', credentials.recentLimit);
       }
         
         return true;
@@ -57,7 +72,7 @@ class TautulliService {
       this.selectedUserId = userId;
       this.configured = true;
       
-      storageUtils.set('selectedTautulliUserId', this.selectedUserId);
+      await databaseStorageUtils.set('selectedTautulliUserId', this.selectedUserId);
       
       // Create credentials object with baseUrl and apiKey
       const credentials = {
@@ -68,8 +83,8 @@ class TautulliService {
       // If recentLimit is provided, store it with the credentials
       if (recentLimit !== null) {
         credentials.recentLimit = recentLimit;
-        // Also store in storageUtils for client-side access
-        storageUtils.set('tautulliRecentLimit', recentLimit);
+        // Also store in database for client-side access
+        await databaseStorageUtils.set('tautulliRecentLimit', recentLimit);
       }
       
       // Store credentials server-side (single set of credentials)
@@ -310,8 +325,8 @@ class TautulliService {
       // Remove credentials from storage
       await credentialsService.deleteCredentials('tautulli');
       
-      // Remove recent limit from storageUtils
-      storageUtils.remove('tautulliRecentLimit');
+      // Remove recent limit from database
+      await databaseStorageUtils.remove('tautulliRecentLimit');
       
       return true;
     } catch (error) {

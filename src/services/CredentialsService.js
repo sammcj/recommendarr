@@ -1,4 +1,5 @@
 import apiService from './ApiService';
+import { migrateKnownKeys } from '../utils/MigrationUtils';
 
 /**
  * Service for managing API credentials (stored server-side)
@@ -8,6 +9,56 @@ class CredentialsService {
     this.baseUrl = apiService.baseUrl;
     // Used for migration from localStorage
     this.migrated = {};
+  }
+  
+  /**
+   * Migrate credentials from localStorage to server storage
+   * 
+   * @param {string} serviceName - Name of the service
+   * @returns {Promise<Object|null>} - Migrated credentials or null
+   */
+  async migrateFromLocalStorage(serviceName) {
+    // Check if we've already tried to migrate this service
+    if (this.migrated[serviceName]) {
+      return null;
+    }
+    
+    // Mark as migrated to avoid repeated attempts
+    this.migrated[serviceName] = true;
+    
+    try {
+      console.log(`Attempting to migrate ${serviceName} credentials from localStorage`);
+      
+      // Try to get legacy credentials from localStorage
+      const legacyKey = `${serviceName}_credentials`;
+      const legacyCredentials = localStorage.getItem(legacyKey);
+      
+      if (!legacyCredentials) {
+        console.log(`No legacy ${serviceName} credentials found in localStorage`);
+        return null;
+      }
+      
+      // Parse the credentials
+      const credentials = JSON.parse(legacyCredentials);
+      
+      // Store them server-side
+      const success = await this.storeCredentials(serviceName, credentials);
+      
+      if (success) {
+        console.log(`Successfully migrated ${serviceName} credentials to server storage`);
+        
+        // Run the general migration to ensure other settings are migrated too
+        await migrateKnownKeys();
+        
+        return credentials;
+      } else {
+        console.error(`Failed to migrate ${serviceName} credentials to server storage`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`Error migrating ${serviceName} credentials:`, error);
+      return null;
+    }
   }
   
   /**

@@ -116,7 +116,7 @@
 
 <script>
 import tautulliService from '../services/TautulliService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 import apiService from '../services/ApiService';
 import credentialsService from '../services/CredentialsService';
 
@@ -152,9 +152,19 @@ export default {
         this.baseUrl = tautulliService.baseUrl;
         this.apiKey = tautulliService.apiKey;
         
-        // Load recent limit from storageUtils instead of localStorage
-        this.recentLimit = storageUtils.get('tautulliRecentLimit', 50);
-        this.newLimit = this.recentLimit;
+        // Load recent limit from database
+        try {
+          const recentLimit = await databaseStorageUtils.getSync('tautulliRecentLimit');
+          if (recentLimit !== null) {
+            this.recentLimit = recentLimit;
+            this.newLimit = this.recentLimit;
+          }
+        } catch (error) {
+          console.error('Error loading Tautulli recent limit from database:', error);
+          // Use default value if there's an error
+          this.recentLimit = 50;
+          this.newLimit = 50;
+        }
       }
     }
   },
@@ -188,8 +198,8 @@ export default {
         const success = await tautulliService.testConnection();
         
         if (success) {
-          // Save the recent limit to storageUtils instead of localStorage
-          storageUtils.set('tautulliRecentLimit', this.recentLimit);
+          // Save the recent limit to database
+          await databaseStorageUtils.set('tautulliRecentLimit', this.recentLimit);
           
           // Save to user settings in database
           try {
@@ -233,8 +243,8 @@ export default {
       
       this.recentLimit = this.newLimit;
       
-      // Use storageUtils instead of localStorage
-      storageUtils.set('tautulliRecentLimit', this.recentLimit);
+      // Save to database
+      await databaseStorageUtils.set('tautulliRecentLimit', this.recentLimit);
       this.editLimit = false;
       
       // Save to user settings in database

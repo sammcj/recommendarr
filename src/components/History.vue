@@ -551,7 +551,7 @@ import tmdbService from '../services/TMDBService.js';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 import apiService from '../services/ApiService.js';
 import authService from '../services/AuthService.js';
-import storageUtils from '../utils/StorageUtils.js';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils.js'; // Replaced StorageUtils
 import axios from 'axios';
 
 // Debug services availability
@@ -788,8 +788,8 @@ export default {
       // Reset pagination when filters change
       this.resetPagination();
       
-      // Save to localStorage
-      storageUtils.set('historyHideExisting', this.hideExistingContent);
+      // Save to database storage
+      await databaseStorageUtils.set('historyHideExisting', this.hideExistingContent);
       
       // Save to server
       try {
@@ -805,8 +805,8 @@ export default {
       // Reset pagination when filters change
       this.resetPagination();
       
-      // Save to localStorage
-      storageUtils.set('historyHideLiked', this.hideLikedContent);
+      // Save to database storage
+      await databaseStorageUtils.set('historyHideLiked', this.hideLikedContent);
       
       // Save to server
       try {
@@ -822,8 +822,8 @@ export default {
       // Reset pagination when filters change
       this.resetPagination();
       
-      // Save to localStorage
-      storageUtils.set('historyHideDisliked', this.hideDislikedContent);
+      // Save to database storage
+      await databaseStorageUtils.set('historyHideDisliked', this.hideDislikedContent);
       
       // Save to server
       try {
@@ -972,30 +972,19 @@ export default {
           // Normalize recommendations to ensure they're all strings
           this.tvRecommendations = this.normalizeArray(tvRecommendations);
           console.log('Normalized TV recommendations:', this.tvRecommendations);
-          // Update localStorage with server data - include user ID in the key
-          storageUtils.setJSON(`previousTVRecommendations`, this.tvRecommendations);
+          // Update database storage with server data - include user ID in the key (add await)
+          // We might remove this later if DatabaseStorageUtils becomes just a cache
+          await databaseStorageUtils.setJSON(`previousTVRecommendations`, this.tvRecommendations); 
         } else if (!signal.aborted) {
-          // If server returns empty, check if we recently cleared history
-          const recentlyClearedTV = storageUtils.get('recentlyClearedTVHistory');
-          
-          if (recentlyClearedTV) {
-            console.log('Recently cleared TV history detected, using empty array');
-            this.tvRecommendations = [];
-          } else {
-            // Only fallback to localStorage if we haven't recently cleared
-            const tvHistory = storageUtils.getJSON('previousTVRecommendations');
-            if (tvHistory) {
-              this.tvRecommendations = this.normalizeArray(tvHistory);
-              console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
-              // Don't save to server - server was empty by design (likely after a reset)
-            } else {
-              this.tvRecommendations = [];
-            }
-          }
-        }
+          // If server returns empty or null, history is empty. No fallback needed.
+          console.log('Server returned no TV recommendations, using empty array.');
+          this.tvRecommendations = [];
+          // Clear potentially stale data from local DB storage
+          await databaseStorageUtils.remove(`previousTVRecommendations`);
+        } // End of TV recommendations handling
         
         // Then try to load movie recommendations from server with abort signal
-        if (!signal.aborted) {
+        if (!signal.aborted) { 
           const movieRecommendations = await this.fetchWithAbort(
             () => apiService.getRecommendationsReadOnly('movie', this.username),
             signal,
@@ -1007,65 +996,26 @@ export default {
             // Normalize recommendations to ensure they're all strings
             this.movieRecommendations = this.normalizeArray(movieRecommendations);
             console.log('Normalized movie recommendations:', this.movieRecommendations);
-            // Update localStorage with server data - include user ID in the key
-            storageUtils.setJSON(`previousMovieRecommendations`, this.movieRecommendations);
+            // Update database storage with server data - include user ID in the key (add await)
+            // We might remove this later if DatabaseStorageUtils becomes just a cache
+            await databaseStorageUtils.setJSON(`previousMovieRecommendations`, this.movieRecommendations);
           } else if (!signal.aborted) {
-            // If server returns empty, check if we recently cleared history
-            const recentlyClearedMovies = storageUtils.get('recentlyClearedMovieHistory');
-            
-            if (recentlyClearedMovies) {
-              console.log('Recently cleared movie history detected, using empty array');
-              this.movieRecommendations = [];
-            } else {
-              // Only fallback to localStorage if we haven't recently cleared
-              const movieHistory = storageUtils.getJSON('previousMovieRecommendations');
-              if (movieHistory) {
-                this.movieRecommendations = this.normalizeArray(movieHistory);
-                console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
-                // Don't save to server - server was empty by design (likely after a reset)
-              } else {
-                this.movieRecommendations = [];
-              }
-            }
-          }
+            // If server returns empty or null, history is empty. No fallback needed.
+            console.log('Server returned no movie recommendations, using empty array.');
+            this.movieRecommendations = [];
+            // Clear potentially stale data from local DB storage
+            await databaseStorageUtils.remove(`previousMovieRecommendations`);
+          } // End of movie recommendations handling
         }
       } catch (error) {
         // Only log and handle errors if not aborted
-        if (!signal.aborted) {
+        if (!signal.aborted) { 
           console.error('Error loading recommendations from server:', error);
           
-          // Check if we have any data already loaded
-          if (this.tvRecommendations.length === 0) {
-            // Only try localStorage if we haven't cleared history recently
-            const recentlyClearedTV = storageUtils.get('recentlyClearedTVHistory');
-            
-            if (!recentlyClearedTV) {
-              // Try to load from localStorage
-              const tvHistory = storageUtils.getJSON('previousTVRecommendations');
-              if (tvHistory) {
-                this.tvRecommendations = this.normalizeArray(tvHistory);
-                console.log('Loaded TV recommendations from localStorage (after server error)');
-              }
-            } else {
-              console.log('Recently cleared TV history, not loading from localStorage');
-            }
-          }
-          
-          if (this.movieRecommendations.length === 0) {
-            // Only try localStorage if we haven't cleared history recently
-            const recentlyClearedMovies = storageUtils.get('recentlyClearedMovieHistory');
-            
-            if (!recentlyClearedMovies) {
-              // Try to load from localStorage
-              const movieHistory = storageUtils.getJSON('previousMovieRecommendations');
-              if (movieHistory) {
-                this.movieRecommendations = this.normalizeArray(movieHistory);
-                console.log('Loaded movie recommendations from localStorage (after server error)');
-              }
-            } else {
-              console.log('Recently cleared movie history, not loading from localStorage');
-            }
-          }
+          // Server failed, set history to empty as we can't rely on local cache as source of truth
+          console.warn('Server error loading recommendations. Displaying empty history.');
+          this.tvRecommendations = [];
+          this.movieRecommendations = [];
           
           // Show error notification
           this.showNotification('Error loading recommendations from server. Some data may be missing.', 'error');
@@ -1124,11 +1074,11 @@ export default {
         if (settings && settings.historyColumnsCount) {
           console.log('Loaded history columns count from server:', settings.historyColumnsCount);
           this.columnsCount = settings.historyColumnsCount;
-          // Update localStorage
-          storageUtils.set('historyColumnsCount', settings.historyColumnsCount);
+          // Update database storage (add await)
+          await databaseStorageUtils.set('historyColumnsCount', settings.historyColumnsCount);
         } else {
-          // Fall back to localStorage
-          const savedCount = storageUtils.get('historyColumnsCount');
+          // Fall back to database storage (add await)
+          const savedCount = await databaseStorageUtils.get('historyColumnsCount');
           if (savedCount) {
             this.columnsCount = parseInt(savedCount);
             // Save to server for future use
@@ -1140,17 +1090,17 @@ export default {
         }
       } catch (error) {
         console.error('Error loading columns count from server:', error);
-        // Fall back to localStorage
-        const savedCount = storageUtils.get('historyColumnsCount');
+        // Fall back to database storage (add await)
+        const savedCount = await databaseStorageUtils.get('historyColumnsCount');
         if (savedCount) {
           this.columnsCount = parseInt(savedCount);
         }
       }
     },
     
-    async saveColumnsCount() {
-      // Save to localStorage
-      storageUtils.set('historyColumnsCount', this.columnsCount);
+    async saveColumnsCount() { // Already async
+      // Save to database storage (add await)
+      await databaseStorageUtils.set('historyColumnsCount', this.columnsCount);
       
       // Save to server
       try {
@@ -1171,11 +1121,11 @@ export default {
         if (settings && settings.historyHideExisting !== undefined) {
           console.log('Loaded historyHideExisting from server:', settings.historyHideExisting);
           this.hideExistingContent = settings.historyHideExisting;
-          // Update localStorage
-          storageUtils.set('historyHideExisting', settings.historyHideExisting);
+          // Update database storage (add await)
+          await databaseStorageUtils.set('historyHideExisting', settings.historyHideExisting);
         } else {
-          // Fall back to localStorage
-          const hideExisting = storageUtils.get('historyHideExisting');
+          // Fall back to database storage (add await)
+          const hideExisting = await databaseStorageUtils.get('historyHideExisting');
           if (hideExisting !== null) {
             this.hideExistingContent = hideExisting;
             // Save to server for future use
@@ -1190,11 +1140,11 @@ export default {
         if (settings && settings.historyHideLiked !== undefined) {
           console.log('Loaded historyHideLiked from server:', settings.historyHideLiked);
           this.hideLikedContent = settings.historyHideLiked;
-          // Update localStorage
-          storageUtils.set('historyHideLiked', settings.historyHideLiked);
+          // Update database storage (add await)
+          await databaseStorageUtils.set('historyHideLiked', settings.historyHideLiked);
         } else {
-          // Fall back to localStorage
-          const hideLiked = storageUtils.get('historyHideLiked');
+          // Fall back to database storage (add await)
+          const hideLiked = await databaseStorageUtils.get('historyHideLiked');
           if (hideLiked !== null) {
             this.hideLikedContent = hideLiked;
             // Save to server for future use
@@ -1209,11 +1159,11 @@ export default {
         if (settings && settings.historyHideDisliked !== undefined) {
           console.log('Loaded historyHideDisliked from server:', settings.historyHideDisliked);
           this.hideDislikedContent = settings.historyHideDisliked;
-          // Update localStorage
-          storageUtils.set('historyHideDisliked', settings.historyHideDisliked);
+          // Update database storage (add await)
+          await databaseStorageUtils.set('historyHideDisliked', settings.historyHideDisliked);
         } else {
-          // Fall back to localStorage
-          const hideDisliked = storageUtils.get('historyHideDisliked');
+          // Fall back to database storage (add await)
+          const hideDisliked = await databaseStorageUtils.get('historyHideDisliked');
           if (hideDisliked !== null) {
             this.hideDislikedContent = hideDisliked;
             // Save to server for future use
@@ -1228,17 +1178,17 @@ export default {
         if (settings && settings.historyHideHidden !== undefined) {
           console.log('Loaded historyHideHidden from server:', settings.historyHideHidden);
           this.hideHiddenContent = settings.historyHideHidden;
-          // Update localStorage
-          storageUtils.set('historyHideHidden', settings.historyHideHidden);
+          // Update database storage (add await)
+          await databaseStorageUtils.set('historyHideHidden', settings.historyHideHidden);
         } else {
-          // Fall back to localStorage or default to true
-          const hideHidden = storageUtils.get('historyHideHidden');
+          // Fall back to database storage or default to true (add await)
+          const hideHidden = await databaseStorageUtils.get('historyHideHidden');
           if (hideHidden !== null) {
             this.hideHiddenContent = hideHidden;
           } else {
             // Set default to true if no setting exists anywhere
             this.hideHiddenContent = true;
-            storageUtils.set('historyHideHidden', true);
+            await databaseStorageUtils.set('historyHideHidden', true); // Add await
           }
           
           // Save to server for future use
@@ -1253,11 +1203,11 @@ export default {
         if (hiddenTVFromServer && hiddenTVFromServer.length > 0) {
           console.log('Loaded hidden TV shows from server:', hiddenTVFromServer.length);
           this.hiddenTVShows = new Set(hiddenTVFromServer.map(show => show.toLowerCase()));
-          // Update localStorage
-          storageUtils.setJSON('hiddenTVShows', hiddenTVFromServer);
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('hiddenTVShows', hiddenTVFromServer);
         } else {
-          // Fall back to localStorage
-          const hiddenTV = storageUtils.getJSON('hiddenTVShows');
+          // Fall back to database storage (add await)
+          const hiddenTV = await databaseStorageUtils.getJSON('hiddenTVShows');
           if (hiddenTV) {
             this.hiddenTVShows = new Set(hiddenTV.map(show => show.toLowerCase()));
             console.log('Loaded hidden TV shows from localStorage:', hiddenTV.length);
@@ -1271,11 +1221,11 @@ export default {
         if (hiddenMoviesFromServer && hiddenMoviesFromServer.length > 0) {
           console.log('Loaded hidden movies from server:', hiddenMoviesFromServer.length);
           this.hiddenMovies = new Set(hiddenMoviesFromServer.map(movie => movie.toLowerCase()));
-          // Update localStorage
-          storageUtils.setJSON('hiddenMovies', hiddenMoviesFromServer);
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('hiddenMovies', hiddenMoviesFromServer);
         } else {
-          // Fall back to localStorage
-          const hiddenMovies = storageUtils.getJSON('hiddenMovies');
+          // Fall back to database storage (add await)
+          const hiddenMovies = await databaseStorageUtils.getJSON('hiddenMovies');
           if (hiddenMovies) {
             this.hiddenMovies = new Set(hiddenMovies.map(movie => movie.toLowerCase()));
             console.log('Loaded hidden movies from localStorage:', hiddenMovies.length);
@@ -1286,43 +1236,43 @@ export default {
       } catch (error) {
         console.error('Error loading filter preferences from server:', error);
         
-        // Fall back to localStorage on error
+        // Fall back to database storage on error (add await)
         // Load existing content preference
-        const hideExisting = storageUtils.get('historyHideExisting');
+        const hideExisting = await databaseStorageUtils.get('historyHideExisting');
         if (hideExisting !== null) {
           this.hideExistingContent = hideExisting;
         }
         
         // Load liked content preference
-        const hideLiked = storageUtils.get('historyHideLiked');
+        const hideLiked = await databaseStorageUtils.get('historyHideLiked');
         if (hideLiked !== null) {
           this.hideLikedContent = hideLiked;
         }
         
         // Load disliked content preference
-        const hideDisliked = storageUtils.get('historyHideDisliked');
+        const hideDisliked = await databaseStorageUtils.get('historyHideDisliked');
         if (hideDisliked !== null) {
           this.hideDislikedContent = hideDisliked;
         }
         
         // Load hidden content preference (default to true if not found)
-        const hideHidden = storageUtils.get('historyHideHidden');
+        const hideHidden = await databaseStorageUtils.get('historyHideHidden');
         if (hideHidden !== null) {
           this.hideHiddenContent = hideHidden;
         } else {
           // If no setting exists, default to true (hide hidden items)
           this.hideHiddenContent = true;
-          storageUtils.set('historyHideHidden', true);
+          await databaseStorageUtils.set('historyHideHidden', true); // Add await
         }
         
         // Load hidden TV shows
-        const hiddenTV = storageUtils.getJSON('hiddenTVShows');
+        const hiddenTV = await databaseStorageUtils.getJSON('hiddenTVShows');
         if (hiddenTV) {
           this.hiddenTVShows = new Set(hiddenTV.map(show => show.toLowerCase()));
         }
         
         // Load hidden movies
-        const hiddenMovies = storageUtils.getJSON('hiddenMovies');
+        const hiddenMovies = await databaseStorageUtils.getJSON('hiddenMovies');
         if (hiddenMovies) {
           this.hiddenMovies = new Set(hiddenMovies.map(movie => movie.toLowerCase()));
         }
@@ -1341,11 +1291,11 @@ export default {
         if (likedTVFromServer && likedTVFromServer.length > 0) {
           console.log('Loaded liked TV shows from server:', likedTVFromServer.length);
           this.likedTVShows = new Set(likedTVFromServer.map(show => show.toLowerCase()));
-          // Update localStorage
-          storageUtils.setJSON('likedTVRecommendations', likedTVFromServer);
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('likedTVRecommendations', likedTVFromServer);
         } else {
-          // Fall back to localStorage
-          const likedTV = storageUtils.getJSON('likedTVRecommendations');
+          // Fall back to database storage (add await)
+          const likedTV = await databaseStorageUtils.getJSON('likedTVRecommendations');
           if (likedTV) {
             this.likedTVShows = new Set(likedTV.map(show => show.toLowerCase()));
             console.log('Loaded liked TV shows from localStorage:', likedTV.length);
@@ -1359,11 +1309,11 @@ export default {
         if (dislikedTVFromServer && dislikedTVFromServer.length > 0) {
           console.log('Loaded disliked TV shows from server:', dislikedTVFromServer.length);
           this.dislikedTVShows = new Set(dislikedTVFromServer.map(show => show.toLowerCase()));
-          // Update localStorage
-          storageUtils.setJSON('dislikedTVRecommendations', dislikedTVFromServer);
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('dislikedTVRecommendations', dislikedTVFromServer);
         } else {
-          // Fall back to localStorage
-          const dislikedTV = storageUtils.getJSON('dislikedTVRecommendations');
+          // Fall back to database storage (add await)
+          const dislikedTV = await databaseStorageUtils.getJSON('dislikedTVRecommendations');
           if (dislikedTV) {
             this.dislikedTVShows = new Set(dislikedTV.map(show => show.toLowerCase()));
             console.log('Loaded disliked TV shows from localStorage:', dislikedTV.length);
@@ -1377,11 +1327,11 @@ export default {
         if (likedMoviesFromServer && likedMoviesFromServer.length > 0) {
           console.log('Loaded liked movies from server:', likedMoviesFromServer.length);
           this.likedMovies = new Set(likedMoviesFromServer.map(movie => movie.toLowerCase()));
-          // Update localStorage
-          storageUtils.setJSON('likedMovieRecommendations', likedMoviesFromServer);
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('likedMovieRecommendations', likedMoviesFromServer);
         } else {
-          // Fall back to localStorage
-          const likedMovies = storageUtils.getJSON('likedMovieRecommendations');
+          // Fall back to database storage (add await)
+          const likedMovies = await databaseStorageUtils.getJSON('likedMovieRecommendations');
           if (likedMovies) {
             this.likedMovies = new Set(likedMovies.map(movie => movie.toLowerCase()));
             console.log('Loaded liked movies from localStorage:', likedMovies.length);
@@ -1395,11 +1345,11 @@ export default {
         if (dislikedMoviesFromServer && dislikedMoviesFromServer.length > 0) {
           console.log('Loaded disliked movies from server:', dislikedMoviesFromServer.length);
           this.dislikedMovies = new Set(dislikedMoviesFromServer.map(movie => movie.toLowerCase()));
-          // Update localStorage
-          storageUtils.setJSON('dislikedMovieRecommendations', dislikedMoviesFromServer);
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('dislikedMovieRecommendations', dislikedMoviesFromServer);
         } else {
-          // Fall back to localStorage
-          const dislikedMovies = storageUtils.getJSON('dislikedMovieRecommendations');
+          // Fall back to database storage (add await)
+          const dislikedMovies = await databaseStorageUtils.getJSON('dislikedMovieRecommendations');
           if (dislikedMovies) {
             this.dislikedMovies = new Set(dislikedMovies.map(movie => movie.toLowerCase()));
             console.log('Loaded disliked movies from localStorage:', dislikedMovies.length);
@@ -1410,23 +1360,23 @@ export default {
       } catch (error) {
         console.error('Error loading liked/disliked content from server:', error);
         
-        // Fall back to localStorage on error
-        const likedTV = storageUtils.getJSON('likedTVRecommendations');
+        // Fall back to database storage on error (add await)
+        const likedTV = await databaseStorageUtils.getJSON('likedTVRecommendations');
         if (likedTV) {
           this.likedTVShows = new Set(likedTV.map(show => show.toLowerCase()));
         }
         
-        const dislikedTV = storageUtils.getJSON('dislikedTVRecommendations');
+        const dislikedTV = await databaseStorageUtils.getJSON('dislikedTVRecommendations');
         if (dislikedTV) {
           this.dislikedTVShows = new Set(dislikedTV.map(show => show.toLowerCase()));
         }
         
-        const likedMovies = storageUtils.getJSON('likedMovieRecommendations');
+        const likedMovies = await databaseStorageUtils.getJSON('likedMovieRecommendations');
         if (likedMovies) {
           this.likedMovies = new Set(likedMovies.map(movie => movie.toLowerCase()));
         }
         
-        const dislikedMovies = storageUtils.getJSON('dislikedMovieRecommendations');
+        const dislikedMovies = await databaseStorageUtils.getJSON('dislikedMovieRecommendations');
         if (dislikedMovies) {
           this.dislikedMovies = new Set(dislikedMovies.map(movie => movie.toLowerCase()));
         }
@@ -1742,20 +1692,20 @@ export default {
       this.saveFilterPreferences();
     },
     
-    async saveFilterPreferences() {
-      // Save filter preferences to localStorage
-      storageUtils.set('historyHideExisting', this.hideExistingContent);
-      storageUtils.set('historyHideLiked', this.hideLikedContent);
-      storageUtils.set('historyHideDisliked', this.hideDislikedContent);
-      storageUtils.set('historyHideHidden', this.hideHiddenContent);
+    async saveFilterPreferences() { // Already async
+      // Save filter preferences to database storage (add await)
+      await databaseStorageUtils.set('historyHideExisting', this.hideExistingContent);
+      await databaseStorageUtils.set('historyHideLiked', this.hideLikedContent);
+      await databaseStorageUtils.set('historyHideDisliked', this.hideDislikedContent);
+      await databaseStorageUtils.set('historyHideHidden', this.hideHiddenContent);
       
       // Convert Sets to arrays for storage
       const hiddenTVArray = Array.from(this.hiddenTVShows);
       const hiddenMoviesArray = Array.from(this.hiddenMovies);
       
-      // Save hidden items to localStorage
-      storageUtils.setJSON('hiddenTVShows', hiddenTVArray);
-      storageUtils.setJSON('hiddenMovies', hiddenMoviesArray);
+      // Save hidden items to database storage (add await)
+      await databaseStorageUtils.setJSON('hiddenTVShows', hiddenTVArray);
+      await databaseStorageUtils.setJSON('hiddenMovies', hiddenMoviesArray);
       
       // Also save to server if possible
       try {
@@ -2026,11 +1976,11 @@ export default {
       });
     },
     
-    async clearTVHistory() {
+    async clearTVHistory() { // Already async
       if (confirm('Are you sure you want to clear your TV show recommendation history?')) {
         try {
-          // Clear from localStorage using StorageUtils
-          storageUtils.remove('previousTVRecommendations', true); // Remove legacy key too
+          // Clear from database storage using DatabaseStorageUtils (add await)
+          await databaseStorageUtils.remove('previousTVRecommendations'); // Remove legacy key too? No, just the main one.
           
           // Clear from server
           await apiService.saveRecommendations('tv', []);
@@ -2041,13 +1991,7 @@ export default {
           this.filteredTVRecommendations = [];
           this.displayedTVShows = [];
           
-          // Set a flag to prevent reloading from localStorage
-          storageUtils.set('recentlyClearedTVHistory', true);
-          
-          // Clear this flag after 1 minute
-          setTimeout(() => {
-            storageUtils.remove('recentlyClearedTVHistory');
-          }, 60000);
+          // Remove flag logic (already removed)
           
           // Show success notification
           this.showNotification('TV show history has been cleared successfully', 'success');
@@ -2061,11 +2005,11 @@ export default {
       }
     },
     
-    async clearMovieHistory() {
+    async clearMovieHistory() { // Already async
       if (confirm('Are you sure you want to clear your movie recommendation history?')) {
         try {
-          // Clear from localStorage using StorageUtils
-          storageUtils.remove('previousMovieRecommendations', true); // Remove legacy key too
+          // Clear from database storage using DatabaseStorageUtils (add await)
+          await databaseStorageUtils.remove('previousMovieRecommendations'); // Remove legacy key too? No, just the main one.
           
           // Clear from server
           await apiService.saveRecommendations('movie', []);
@@ -2076,13 +2020,7 @@ export default {
           this.filteredMovieRecommendations = [];
           this.displayedMovies = [];
           
-          // Set a flag to prevent reloading from localStorage
-          storageUtils.set('recentlyClearedMovieHistory', true);
-          
-          // Clear this flag after 1 minute
-          setTimeout(() => {
-            storageUtils.remove('recentlyClearedMovieHistory');
-          }, 60000);
+          // Remove flag logic (already removed)
           
           // Show success notification
           this.showNotification('Movie history has been cleared successfully', 'success');

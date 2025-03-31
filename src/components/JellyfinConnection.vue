@@ -98,7 +98,7 @@
 <script>
 import JellyfinService from '@/services/JellyfinService.js';
 import credentialsService from '@/services/CredentialsService.js';
-import storageUtils from '@/utils/StorageUtils';
+import databaseStorageUtils from '@/utils/DatabaseStorageUtils';
 import apiService from '@/services/ApiService';
 
 export default {
@@ -123,8 +123,17 @@ export default {
     };
   },
   async created() {
-    // Load history limit from storageUtils
-    this.jellyfinHistoryLimit = storageUtils.get('jellyfinHistoryLimit', 50);
+    // Load history limit from database
+    try {
+      const historyLimit = await databaseStorageUtils.getSync('jellyfinHistoryLimit');
+      if (historyLimit !== null) {
+        this.jellyfinHistoryLimit = historyLimit;
+      }
+    } catch (error) {
+      console.error('Error loading Jellyfin history limit from database:', error);
+      // Use default value if there's an error
+      this.jellyfinHistoryLimit = 50;
+    }
     
     // If already connected, load current values from service
     if (this.connected) {
@@ -211,8 +220,8 @@ export default {
         return;
       }
 
-      // Save the history limit using storageUtils instead of localStorage
-      storageUtils.set('jellyfinHistoryLimit', this.jellyfinHistoryLimit);
+      // Save the history limit to database
+      await databaseStorageUtils.set('jellyfinHistoryLimit', this.jellyfinHistoryLimit);
       
       // Save to user settings in database
       try {

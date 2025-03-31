@@ -53,7 +53,7 @@
             :traktHistoryExpanded="traktHistoryExpanded"
             :isMovieMode="isMovieMode"
             :modelOptions="modelOptions"
-            :selectedModel="selectedModel"
+            v-model:selectedModel="selectedModel"
             :customModel="customModel"
             :isCustomModel="isCustomModel"
             :fetchingModels="fetchingModels"
@@ -1759,27 +1759,32 @@ export default {
       }
     },
     
-    // Toggle a genre selection
-    toggleGenre(genreValue) {
-      const index = this.selectedGenres.indexOf(genreValue);
-      if (index === -1) {
-        // Genre not selected, add it
-        this.selectedGenres.push(genreValue);
-      } else {
-        // Genre already selected, remove it
-        this.selectedGenres.splice(index, 1);
-      }
-      this.saveGenrePreference();
-      
-      // Reset conversation when genre selection changes
-      openAIService.resetConversation();
-      
-      // Clear current recommendations if any
-      if (this.recommendations.length > 0) {
-        this.recommendations = [];
-        this.recommendationsRequested = false;
-      }
-    },
+  // Toggle a genre selection
+  toggleGenre(genreValue) {
+    // Ensure selectedGenres is always an array
+    if (!this.selectedGenres || !Array.isArray(this.selectedGenres)) {
+      this.selectedGenres = [];
+    }
+    
+    const index = this.selectedGenres.indexOf(genreValue);
+    if (index === -1) {
+      // Genre not selected, add it
+      this.selectedGenres.push(genreValue);
+    } else {
+      // Genre already selected, remove it
+      this.selectedGenres.splice(index, 1);
+    }
+    this.saveGenrePreference();
+    
+    // Reset conversation when genre selection changes
+    openAIService.resetConversation();
+    
+    // Clear current recommendations if any
+    if (this.recommendations.length > 0) {
+      this.recommendations = [];
+      this.recommendationsRequested = false;
+    }
+  },
     
     // Clear all selected genres
     clearGenres() {
@@ -3032,7 +3037,7 @@ export default {
       if (!this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && !this.traktOnlyMode && activeServices.length > 0) {
         baseMessage = `Analyzing your ${contentType} library and ${activeServices.join('/')} watch history...`;
       }
-      
+            
       this.currentLoadingMessage = baseMessage;
       
       // Clear any existing interval

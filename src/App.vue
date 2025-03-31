@@ -405,42 +405,38 @@ export default {
       console.log('Initialized API with authentication');
       
       try {
+        // Load database cache first - this will get all settings at once
+        console.log('Loading database cache...');
+        await databaseStorageUtils.loadCache();
+        console.log('Database cache loaded successfully');
+        
         // Check if services have credentials stored server-side
         // This will also set up connections and fetch data if credentials are found
         await this.checkStoredCredentials();
         
-        // Load settings from localStorage
-        this.loadLocalSettings();
+        // Load settings from the cache
+        await this.loadLocalSettings();
 
-        // Load cached watch history from localStorage first
-        this.loadCachedWatchHistory();
+        // Load cached watch history from database
+        await this.loadCachedWatchHistory();
         
         // Sync selectedUserId from services
         this.selectedPlexUserId = plexService.selectedUserId;
         
-        // For Jellyfin, try database first, then fall back to service
-        try {
-          const savedJellyfinUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
-          if (savedJellyfinUserId) {
-            this.selectedJellyfinUserId = savedJellyfinUserId;
-            console.log(`Loaded Jellyfin user ID from database: ${savedJellyfinUserId}`);
-          } else {
-            this.selectedJellyfinUserId = jellyfinService.userId;
-          }
-        } catch (error) {
-          console.error('Error loading Jellyfin user ID from database:', error);
+        // For Jellyfin, get from cache, then fall back to service
+        const savedJellyfinUserId = databaseStorageUtils.cache.selectedJellyfinUserId;
+        if (savedJellyfinUserId) {
+          this.selectedJellyfinUserId = savedJellyfinUserId;
+          console.log(`Loaded Jellyfin user ID from database cache: ${savedJellyfinUserId}`);
+        } else {
           this.selectedJellyfinUserId = jellyfinService.userId;
         }
         
-        // For Tautulli, load from database
-        try {
-          const savedTautulliUserId = await databaseStorageUtils.get('selectedTautulliUserId');
-          if (savedTautulliUserId) {
-            this.selectedTautulliUserId = savedTautulliUserId;
-            console.log(`Loaded Tautulli user ID from database: ${savedTautulliUserId}`);
-          }
-        } catch (error) {
-          console.error('Error loading Tautulli user ID from database:', error);
+        // For Tautulli, get from cache
+        const savedTautulliUserId = databaseStorageUtils.cache.selectedTautulliUserId;
+        if (savedTautulliUserId) {
+          this.selectedTautulliUserId = savedTautulliUserId;
+          console.log(`Loaded Tautulli user ID from database cache: ${savedTautulliUserId}`);
         }
 
         // After connections are established, fetch and store watch history
@@ -875,200 +871,67 @@ export default {
     },
 
     // Load settings from server or database
-    async loadLocalSettings() {
-      try {
-        // First try to get settings from server
-        const settings = await apiService.getSettings();
-        
-        if (settings) {
-          console.log('Loaded settings from server:', settings);
-          
-          // Load Plex recent limit
-          if (settings.plexRecentLimit) {
-            this.plexRecentLimit = parseInt(settings.plexRecentLimit, 10) || 100;
-          }
-          
-          // Load Jellyfin recent limit
-          if (settings.jellyfinRecentLimit) {
-            this.jellyfinRecentLimit = parseInt(settings.jellyfinRecentLimit, 10) || 100;
-          }
-          
-          // Load Plex history mode
-          if (settings.plexHistoryMode) {
-            this.plexHistoryMode = settings.plexHistoryMode;
-          }
-          
-          // Load Jellyfin history mode
-          if (settings.jellyfinHistoryMode) {
-            this.jellyfinHistoryMode = settings.jellyfinHistoryMode;
-          }
-          
-          // Load Plex only mode
-          if (settings.plexOnlyMode !== undefined) {
-            this.plexOnlyMode = settings.plexOnlyMode === true || settings.plexOnlyMode === 'true';
-          }
-          
-          // Load Jellyfin only mode
-          if (settings.jellyfinOnlyMode !== undefined) {
-            this.jellyfinOnlyMode = settings.jellyfinOnlyMode === true || settings.jellyfinOnlyMode === 'true';
-          }
-          
-          // Load Tautulli history mode
-          if (settings.tautulliHistoryMode) {
-            this.tautulliHistoryMode = settings.tautulliHistoryMode;
-          }
-          
-          // Load Tautulli only mode
-          if (settings.tautulliOnlyMode !== undefined) {
-            this.tautulliOnlyMode = settings.tautulliOnlyMode === true || settings.tautulliOnlyMode === 'true';
-          }
-          
-          // Load Trakt recent limit
-          if (settings.traktRecentLimit) {
-            this.traktRecentLimit = parseInt(settings.traktRecentLimit, 10) || 50;
-          }
-          
-          // Load Trakt history mode
-          if (settings.traktHistoryMode) {
-            this.traktHistoryMode = settings.traktHistoryMode;
-          }
-          
-          // Load Trakt only mode
-          if (settings.traktOnlyMode !== undefined) {
-            this.traktOnlyMode = settings.traktOnlyMode === true || settings.traktOnlyMode === 'true';
-          }
-          
-          // The following settings are used by RequestRecommendations.vue component
-          // but are not part of App.vue's data properties, so we store them in database
-          
-          // Load genre preferences for RequestRecommendations.vue
-          if (settings.tvGenrePreferences) {
-            await databaseStorageUtils.setJSON('tvGenrePreferences', settings.tvGenrePreferences);
-          }
-          
-          if (settings.movieGenrePreferences) {
-            await databaseStorageUtils.setJSON('movieGenrePreferences', settings.movieGenrePreferences);
-          }
-          
-          // Load sampled library mode for RequestRecommendations.vue
-          if (settings.useSampledLibrary !== undefined) {
-            await databaseStorageUtils.set('useSampledLibrary', settings.useSampledLibrary.toString());
-          }
-          
-          // Load sample size for RequestRecommendations.vue
-          if (settings.librarySampleSize) {
-            await databaseStorageUtils.set('librarySampleSize', settings.librarySampleSize.toString());
-          }
-          
-          // Load language preferences for RequestRecommendations.vue
-          if (settings.tvLanguagePreference) {
-            await databaseStorageUtils.set('tvLanguagePreference', settings.tvLanguagePreference);
-          }
-          
-          if (settings.movieLanguagePreference) {
-            await databaseStorageUtils.set('movieLanguagePreference', settings.movieLanguagePreference);
-          }
-          
-          return;
-        }
-      } catch (error) {
-        console.error('Error loading settings from server:', error);
+  async loadLocalSettings() {
+    try {
+      // Load all settings at once from the database
+      console.log('Loading all settings from database');
+      
+      // Initialize database cache if not already loaded
+      if (!databaseStorageUtils.cacheLoaded) {
+        await databaseStorageUtils.loadCache();
       }
       
-      try {
-        // Try to load settings from database
-        console.log('Loading settings from database');
+      // Get all settings from the cache
+      const settings = databaseStorageUtils.cache;
+      
+      if (settings) {
+        console.log('Loaded settings from database cache');
         
-        // Initialize database cache if not already loaded
-        if (!databaseStorageUtils.cacheLoaded) {
-          await databaseStorageUtils.loadCache();
-        }
+        // Apply all settings at once
         
-        // Load Plex recent limit from database if available
-        const plexRecentLimit = await databaseStorageUtils.get('plexRecentLimit');
-        if (plexRecentLimit !== null) {
-          this.plexRecentLimit = parseInt(plexRecentLimit, 10) || 100;
-        }
+        // Media service limits
+        this.plexRecentLimit = parseInt(settings.plexRecentLimit, 10) || 100;
+        this.jellyfinRecentLimit = parseInt(settings.jellyfinRecentLimit, 10) || 100;
+        this.tautulliRecentLimit = parseInt(settings.tautulliRecentLimit, 10) || 50;
+        this.traktRecentLimit = parseInt(settings.traktRecentLimit, 10) || 50;
         
-        // Load Jellyfin recent limit from database if available
-        const jellyfinRecentLimit = await databaseStorageUtils.get('jellyfinRecentLimit');
-        if (jellyfinRecentLimit !== null) {
-          this.jellyfinRecentLimit = parseInt(jellyfinRecentLimit, 10) || 100;
-        }
+        // History modes
+        this.plexHistoryMode = settings.plexHistoryMode || 'all';
+        this.jellyfinHistoryMode = settings.jellyfinHistoryMode || 'all';
+        this.tautulliHistoryMode = settings.tautulliHistoryMode || 'all';
+        this.traktHistoryMode = settings.traktHistoryMode || 'all';
         
-        // Load Plex history mode from database if available
-        const plexHistoryMode = await databaseStorageUtils.get('plexHistoryMode');
-        if (plexHistoryMode !== null) {
-          this.plexHistoryMode = plexHistoryMode;
-        }
+        // Only modes (convert string 'true' to boolean if needed)
+        this.plexOnlyMode = settings.plexOnlyMode === true || settings.plexOnlyMode === 'true' || false;
+        this.jellyfinOnlyMode = settings.jellyfinOnlyMode === true || settings.jellyfinOnlyMode === 'true' || false;
+        this.tautulliOnlyMode = settings.tautulliOnlyMode === true || settings.tautulliOnlyMode === 'true' || false;
+        this.traktOnlyMode = settings.traktOnlyMode === true || settings.traktOnlyMode === 'true' || false;
         
-        // Load Jellyfin history mode from database if available
-        const jellyfinHistoryMode = await databaseStorageUtils.get('jellyfinHistoryMode');
-        if (jellyfinHistoryMode !== null) {
-          this.jellyfinHistoryMode = jellyfinHistoryMode;
-        }
+        // The following settings are used by RequestRecommendations.vue component
+        // but are not part of App.vue's data properties, so we don't need to do anything
+        // as they're already in the database cache
         
-        // Load Plex only mode from database if available
-        const plexOnlyMode = await databaseStorageUtils.get('plexOnlyMode');
-        if (plexOnlyMode !== null) {
-          this.plexOnlyMode = plexOnlyMode === true || plexOnlyMode === 'true';
-        }
-        
-        // Load Jellyfin only mode from database if available
-        const jellyfinOnlyMode = await databaseStorageUtils.get('jellyfinOnlyMode');
-        if (jellyfinOnlyMode !== null) {
-          this.jellyfinOnlyMode = jellyfinOnlyMode === true || jellyfinOnlyMode === 'true';
-        }
-        
-        // Load Tautulli history mode from database if available
-        const tautulliHistoryMode = await databaseStorageUtils.get('tautulliHistoryMode');
-        if (tautulliHistoryMode !== null) {
-          this.tautulliHistoryMode = tautulliHistoryMode;
-        }
-        
-        // Load Tautulli only mode from database if available
-        const tautulliOnlyMode = await databaseStorageUtils.get('tautulliOnlyMode');
-        if (tautulliOnlyMode !== null) {
-          this.tautulliOnlyMode = tautulliOnlyMode === true || tautulliOnlyMode === 'true';
-        }
-        
-        // Load Trakt recent limit from database if available
-        const traktRecentLimit = await databaseStorageUtils.get('traktRecentLimit');
-        if (traktRecentLimit !== null) {
-          this.traktRecentLimit = parseInt(traktRecentLimit, 10) || 50;
-        }
-        
-        // Load Trakt history mode from database if available
-        const traktHistoryMode = await databaseStorageUtils.get('traktHistoryMode');
-        if (traktHistoryMode !== null) {
-          this.traktHistoryMode = traktHistoryMode;
-        }
-        
-        // Load Trakt only mode from database if available
-        const traktOnlyMode = await databaseStorageUtils.get('traktOnlyMode');
-        if (traktOnlyMode !== null) {
-          this.traktOnlyMode = traktOnlyMode === true || traktOnlyMode === 'true';
-        }
-        
-        console.log('Settings loaded from database');
-      } catch (error) {
-        console.error('Error loading settings from database:', error);
-        
-        // Use default values if database loading fails
-        console.log('Using default settings since database loading failed');
-        this.plexRecentLimit = 100;
-        this.jellyfinRecentLimit = 100;
-        this.plexHistoryMode = 'all';
-        this.jellyfinHistoryMode = 'all';
-        this.plexOnlyMode = false;
-        this.jellyfinOnlyMode = false;
-        this.tautulliHistoryMode = 'all';
-        this.tautulliOnlyMode = false;
-        this.traktRecentLimit = 50;
-        this.traktHistoryMode = 'all';
-        this.traktOnlyMode = false;
+        console.log('Settings applied from database cache');
+        return;
       }
-    },
+    } catch (error) {
+      console.error('Error loading settings from database:', error);
+      
+      // Use default values if database loading fails
+      console.log('Using default settings since database loading failed');
+      this.plexRecentLimit = 100;
+      this.jellyfinRecentLimit = 100;
+      this.plexHistoryMode = 'all';
+      this.jellyfinHistoryMode = 'all';
+      this.plexOnlyMode = false;
+      this.jellyfinOnlyMode = false;
+      this.tautulliHistoryMode = 'all';
+      this.tautulliOnlyMode = false;
+      this.traktRecentLimit = 50;
+      this.traktHistoryMode = 'all';
+      this.traktOnlyMode = false;
+    }
+  },
     
     // Check if we have credentials stored server-side
     async checkStoredCredentials() {
@@ -1455,11 +1318,16 @@ export default {
       this.jellyfinUsers = [];
       
       try {
-        // Try to load the user ID from database first (for extra persistence)
-        const savedUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
+        // Ensure database cache is loaded
+        if (!databaseStorageUtils.cacheLoaded) {
+          await databaseStorageUtils.loadCache();
+        }
+        
+        // Get the user ID from cache
+        const savedUserId = databaseStorageUtils.cache.selectedJellyfinUserId;
         if (savedUserId) {
           this.selectedJellyfinUserId = savedUserId;
-          console.log(`Loaded Jellyfin user ID from database: ${savedUserId}`);
+          console.log(`Loaded Jellyfin user ID from database cache: ${savedUserId}`);
         } else {
           // Fall back to the service's stored user ID
           this.selectedJellyfinUserId = jellyfinService.userId;
@@ -1469,20 +1337,8 @@ export default {
       } catch (error) {
         console.error('Error in openJellyfinUserSelect:', error);
         
-        // Try to get from database again with a different approach
-        try {
-          await databaseStorageUtils.loadCache();
-          const savedUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
-          if (savedUserId) {
-            this.selectedJellyfinUserId = savedUserId;
-            console.log(`Loaded Jellyfin user ID from database retry: ${savedUserId}`);
-          } else {
-            this.selectedJellyfinUserId = jellyfinService.userId;
-          }
-        } catch (secondDbError) {
-          console.error('Second attempt to load Jellyfin user ID from database failed:', secondDbError);
-          this.selectedJellyfinUserId = jellyfinService.userId;
-        }
+        // Fall back to the service's stored user ID
+        this.selectedJellyfinUserId = jellyfinService.userId;
         
         try {
           this.jellyfinUsers = await jellyfinService.getUsers();
@@ -1574,11 +1430,16 @@ export default {
       this.tautulliUsers = [];
       
       try {
-        // Try to load the user ID from database
-        const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+        // Ensure database cache is loaded
+        if (!databaseStorageUtils.cacheLoaded) {
+          await databaseStorageUtils.loadCache();
+        }
+        
+        // Get the user ID from cache
+        const savedUserId = databaseStorageUtils.cache.selectedTautulliUserId;
         if (savedUserId) {
           this.selectedTautulliUserId = savedUserId;
-          console.log(`Loaded Tautulli user ID from database: ${savedUserId}`);
+          console.log(`Loaded Tautulli user ID from database cache: ${savedUserId}`);
         }
         
         this.tautulliUsers = await tautulliService.getUsers();

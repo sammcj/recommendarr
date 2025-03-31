@@ -147,7 +147,7 @@
 
 <script>
 import traktService from '../services/TraktService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 import apiService from '../services/ApiService';
 
 export default {
@@ -203,9 +203,19 @@ export default {
         this.clientSecret = traktService.clientSecret;
         this.expiresAt = traktService.expiresAt;
         
-        // Load recent limit from storageUtils instead of localStorage
-        this.recentLimit = storageUtils.get('traktRecentLimit', 50);
-        this.newLimit = this.recentLimit;
+        // Load recent limit from database
+        try {
+          const recentLimit = await databaseStorageUtils.getSync('traktRecentLimit');
+          if (recentLimit !== null) {
+            this.recentLimit = recentLimit;
+            this.newLimit = this.recentLimit;
+          }
+        } catch (error) {
+          console.error('Error loading Trakt recent limit from database:', error);
+          // Use default value if there's an error
+          this.recentLimit = 50;
+          this.newLimit = 50;
+        }
       }
     }
   },
@@ -231,8 +241,8 @@ export default {
         // Configure Trakt service with client ID and secret
         await traktService.configure(this.clientId, this.clientSecret);
         
-        // Save the recent limit to storageUtils instead of localStorage
-        storageUtils.set('traktRecentLimit', this.recentLimit);
+        // Save the recent limit to database
+        await databaseStorageUtils.set('traktRecentLimit', this.recentLimit);
         
         // Save to user settings in database
         try {
@@ -268,8 +278,16 @@ export default {
         const success = await traktService.testConnection();
         
         if (success) {
-          // Get the recent limit from storageUtils instead of localStorage
-          const recentLimit = storageUtils.get('traktRecentLimit', 50);
+          // Get the recent limit from database
+          let recentLimit = 50; // Default value
+          try {
+            const storedLimit = await databaseStorageUtils.getSync('traktRecentLimit');
+            if (storedLimit !== null) {
+              recentLimit = storedLimit;
+            }
+          } catch (error) {
+            console.error('Error getting Trakt recent limit from database:', error);
+          }
           
           // Fetch and cache watch history after successful connection
           try {

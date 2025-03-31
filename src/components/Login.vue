@@ -26,7 +26,7 @@
             <i v-else class="fas fa-user"></i>
           </span>
           <span v-if="provider === 'custom'">Login with OAuth2</span>
-    <span v-else>Continue with {{ capitalizeProvider(provider) }}</span>
+          <span v-else>Continue with {{ capitalizeProvider(provider) }}</span>
         </button>
       </div>
 
@@ -57,6 +57,7 @@
             placeholder="Enter your password" 
             required
             :disabled="loading"
+            autocomplete="current-password"
           >
         </div>
         
@@ -99,18 +100,23 @@ export default {
       localAuth: true
     };
   },
-  async created() {
-    // Check for authentication error in URL query parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const errorParam = urlParams.get('error');
-    if (errorParam === 'auth-failed') {
-      this.error = 'Authentication failed. Please try another method.';
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    // Check for successful OAuth login
+  async mounted() {
     try {
+      // Get URL parameters first before cleaning them
+      const urlParams = new URLSearchParams(window.location.search);
+      const codeParam = urlParams.get('code');
+      const errorParam = urlParams.get('error');
+      
+      // Simple check if user is already authenticated
+      if (AuthService.isAuthenticated()) {
+        // Only clean URL and emit authenticated if not coming from OAuth callback
+        if (!codeParam) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        this.$emit('authenticated');
+        return;
+      }
+      
       // First verify session immediately
       let isAuthenticated = await AuthService.verifySession();
       if (isAuthenticated) {
@@ -119,13 +125,12 @@ export default {
       }
 
       // If we're returning from OAuth callback (has code param but no error)
-      const codeParam = urlParams.get('code');
       if (codeParam && !errorParam) {
         // Show loading state
         this.loading = true;
         
         // Verify session with increasing delays to account for cookie setting
-        let isAuthenticated = false;
+        isAuthenticated = false;
         for (let i = 0; i < 3; i++) {
           await new Promise(resolve => setTimeout(resolve, 300 * (i + 1)));
           isAuthenticated = await AuthService.verifySession();
@@ -141,6 +146,8 @@ export default {
         } else {
           console.log('OAuth login failed after multiple attempts');
           this.error = 'OAuth login failed. Please try again.';
+          // Clean up URL even if authentication fails to prevent reload loops
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
       }
     } catch (error) {
@@ -149,19 +156,23 @@ export default {
     } finally {
       this.loading = false;
     }
-
+    
     // Get enabled authentication providers
-    try {
-      const providersData = await AuthService.getEnabledProviders();
-      this.providers = providersData.providers || [];
-      this.localAuth = providersData.localAuth !== false;
-    } catch (err) {
-      console.error('Error fetching auth providers:', err);
-      this.providers = [];
-      this.localAuth = true;
-    }
+    this.getProviders();
   },
   methods: {
+    async getProviders() {
+      try {
+        const providersData = await AuthService.getEnabledProviders();
+        this.providers = providersData.providers || [];
+        this.localAuth = providersData.localAuth !== false;
+      } catch (err) {
+        console.error('Error fetching auth providers:', err);
+        this.providers = [];
+        this.localAuth = true;
+      }
+    },
+    
     async handleLogin() {
       this.loading = true;
       this.error = null;

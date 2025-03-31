@@ -23,17 +23,27 @@ class RadarrService {
       if (credentials && credentials.baseUrl && credentials.apiKey) {
         console.log('Found Radarr credentials in server storage');
         
-        // Only update if the credentials are valid (non-empty)
-        this.baseUrl = credentials.baseUrl;
-        this.apiKey = credentials.apiKey;
-        
-        return true;
+        // Only update if the credentials are valid (non-empty strings)
+        if (typeof credentials.baseUrl === 'string' && credentials.baseUrl.trim() !== '' &&
+            typeof credentials.apiKey === 'string' && credentials.apiKey.trim() !== '') {
+          this.baseUrl = credentials.baseUrl;
+          this.apiKey = credentials.apiKey;
+          
+          console.log('Successfully loaded valid Radarr credentials');
+          return true;
+        } else {
+          console.warn('Found Radarr credentials but they contain empty values - not updating local credentials');
+          // Important: Don't update this.baseUrl or this.apiKey with invalid values
+          return false;
+        }
       } else {
         console.log('No valid Radarr credentials found in server storage');
         return false;
       }
     } catch (error) {
       console.error('Error loading Radarr credentials:', error);
+      // Don't clear existing credentials on error
+      console.log('Keeping existing Radarr credentials after load error');
       return false;
     }
   }
@@ -52,12 +62,19 @@ class RadarrService {
     const baseDelay = 1000; // 1 second
     let retryCount = 0;
     
+    // Check if service is configured with valid credentials
     if (!this.isConfigured()) {
-      // Try to load credentials again in case they weren't ready during init
-      await this.loadCredentials();
+      console.log('Radarr service not configured, attempting to load credentials');
       
+      // Try to load credentials again in case they weren't ready during init
+      const credentialsLoaded = await this.loadCredentials();
+      
+      // Double-check configuration after loading credentials
       if (!this.isConfigured()) {
-        throw new Error('Radarr service is not configured. Please set baseUrl and apiKey.');
+        console.error('Radarr service is not configured after credential load attempt');
+        throw new Error('Radarr service is not configured. Please set valid baseUrl and apiKey.');
+      } else if (credentialsLoaded) {
+        console.log('Successfully loaded Radarr credentials for API request');
       }
     }
 
@@ -126,17 +143,44 @@ class RadarrService {
    * Configure the Radarr service with API details
    * @param {string} baseUrl - The base URL of your Radarr instance (e.g., http://localhost:7878)
    * @param {string} apiKey - Your Radarr API key
+   * @returns {Promise<boolean>} - Whether the configuration was successful
    */
   async configure(baseUrl, apiKey) {
+    // Validate inputs before storing
+    if (!baseUrl || typeof baseUrl !== 'string' || baseUrl.trim() === '') {
+      console.error('Invalid baseUrl provided to Radarr configure method');
+      return false;
+    }
+    
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+      console.error('Invalid apiKey provided to Radarr configure method');
+      return false;
+    }
+    
     // Normalize the URL by removing trailing slashes
-    this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.apiKey = apiKey;
     
-    // Store credentials server-side
-    await credentialsService.storeCredentials('radarr', {
-      baseUrl: this.baseUrl,
-      apiKey: this.apiKey
-    });
+    console.log('Storing valid Radarr credentials to server');
+    
+    try {
+      // Store credentials server-side
+      const success = await credentialsService.storeCredentials('radarr', {
+        baseUrl: this.baseUrl,
+        apiKey: this.apiKey
+      });
+      
+      if (!success) {
+        console.error('Failed to store Radarr credentials');
+        return false;
+      }
+      
+      console.log('Successfully stored Radarr credentials');
+      return true;
+    } catch (error) {
+      console.error('Error storing Radarr credentials:', error);
+      return false;
+    }
   }
 
   /**
@@ -144,7 +188,9 @@ class RadarrService {
    * @returns {boolean} - Whether the service is configured
    */
   isConfigured() {
-    return this.apiKey && this.baseUrl;
+    // Check for valid non-empty strings
+    return typeof this.apiKey === 'string' && this.apiKey.trim() !== '' && 
+           typeof this.baseUrl === 'string' && this.baseUrl.trim() !== '';
   }
 
   /**
@@ -346,15 +392,58 @@ class RadarrService {
 
   /**
    * Test the connection to Radarr
-   * @returns {Promise<boolean>} - Whether the connection is successful
+   * @returns {Promise<{success: boolean, message: string}>} - Connection test result with message
    */
   async testConnection() {
     try {
-      await this._apiRequest('/api/v3/system/status');
-      return true;
+      // First ensure we have valid credentials
+      if (!this.isConfigured()) {
+        console.log('Attempting to load credentials for connection test');
+        await this.loadCredentials();
+        
+        if (!this.isConfigured()) {
+          console.error('Cannot test connection: Radarr service is not configured with valid credentials');
+          return { 
+            success: false, 
+            message: 'Radarr service is not configured with valid credentials. Please configure baseUrl and apiKey.'
+          };
+        }
+      }
+      
+      console.log(`Testing Radarr connection to ${this.baseUrl}`);
+      const systemStatus = await this._apiRequest('/api/v3/system/status');
+      
+      // Log successful connection with version info if available
+      if (systemStatus && systemStatus.version) {
+        console.log(`Successfully connected to Radarr v${systemStatus.version}`);
+        return { 
+          success: true, 
+          message: `Successfully connected to Radarr v${systemStatus.version}` 
+        };
+      }
+      
+      return { 
+        success: true, 
+        message: 'Successfully connected to Radarr' 
+      };
     } catch (error) {
       console.error('Error connecting to Radarr:', error);
-      return false;
+      
+      // Provide a more helpful error message
+      let errorMessage = 'Failed to connect to Radarr';
+      
+      if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      if (error.response && error.response.status) {
+        errorMessage += ` (Status: ${error.response.status})`;
+      }
+      
+      return { 
+        success: false, 
+        message: errorMessage
+      };
     }
   }
 

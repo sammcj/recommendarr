@@ -213,7 +213,7 @@
               <div 
                 v-for="genre in availableGenres" 
                 :key="genre.value"
-                :class="['genre-tag', {'selected': selectedGenres && selectedGenres.includes(genre.value)}]"
+                :class="['genre-tag', {'selected': selectedGenres && Array.isArray(selectedGenres) && selectedGenres.includes(genre.value)}]"
                 @click="toggleGenre(genre.value)"
               >
                 {{ genre.label }}
@@ -798,8 +798,7 @@
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import authService from '../services/AuthService';
-import apiService from '../services/ApiService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 export default {
   name: 'RecommendationSettings',
@@ -811,26 +810,164 @@ export default {
       radarrRefreshSuccess: false
     };
   },
-  mounted() {
-    // Load sampled library mode preference
-    const useSampledLibrary = storageUtils.get('useSampledLibrary');
-    if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
-      const boolValue = useSampledLibrary === 'true' || useSampledLibrary === true;
-      this.$emit('update:useSampledLibrary', boolValue);
-    }
-    
-    // Load sample size
-    const librarySampleSize = storageUtils.get('librarySampleSize');
-    if (librarySampleSize !== null && librarySampleSize !== undefined) {
-      const numValue = parseInt(librarySampleSize, 10);
-      if (!isNaN(numValue)) {
-        this.$emit('update:sampleSize', numValue);
+  async mounted() {
+    try {
+      // Ensure database cache is fully loaded before proceeding
+      console.log('RecommendationSettings: Ensuring database cache is loaded');
+      if (!databaseStorageUtils.cacheLoaded) {
+        await databaseStorageUtils.loadCache();
+        console.log('Database cache loaded successfully');
       }
+      
+      // Load model preference
+      const savedModel = await databaseStorageUtils.get('openaiModel');
+      if (savedModel !== null && savedModel !== undefined) {
+        this.$emit('update:selectedModel', savedModel);
+        console.log('Loaded model preference:', savedModel);
+      }
+      
+      // Load temperature
+      const savedTemperature = await databaseStorageUtils.get('temperature');
+      if (savedTemperature !== null && savedTemperature !== undefined) {
+        const numValue = parseFloat(savedTemperature);
+        if (!isNaN(numValue)) {
+          this.$emit('update:temperature', numValue);
+          console.log('Loaded temperature:', numValue);
+        }
+      }
+      
+      // Load structured output preference
+      const useStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
+      if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
+        const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
+        this.$emit('update:useStructuredOutput', boolValue);
+        console.log('Loaded structured output preference:', boolValue);
+      }
+      
+      // Load sampled library mode preference
+      const useSampledLibrary = await databaseStorageUtils.get('useSampledLibrary');
+      if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
+        const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
+        this.$emit('update:useSampledLibrary', boolValue);
+      }
+      
+      // Load sample size
+      const librarySampleSize = await databaseStorageUtils.get('librarySampleSize');
+      if (librarySampleSize !== null && librarySampleSize !== undefined) {
+        const numValue = parseInt(librarySampleSize, 10);
+        if (!isNaN(numValue)) {
+          this.$emit('update:sampleSize', numValue);
+        }
+      }
+      
+      // Load genre preferences - use our dedicated method
+      await this.loadGenrePreferences();
+      
+      // Load universal language preference
+      const savedLanguage = await databaseStorageUtils.get('languagePreference');
+      if (savedLanguage !== null && savedLanguage !== undefined) {
+        this.$emit('update:selectedLanguage', String(savedLanguage));
+        console.log('Loaded universal language preference:', savedLanguage);
+      }
+      
+      // Load prompt style
+      const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
+      const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
+      if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
+        this.$emit('update:promptStyle', savedPromptStyle);
+        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
+      }
+      
+      // Load custom vibe (universal)
+      const savedCustomVibe = await databaseStorageUtils.get('customVibe');
+      if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
+        this.$emit('update:customVibe', savedCustomVibe);
+        console.log('Loaded universal custom vibe:', savedCustomVibe);
+      }
+      
+      // Load custom prompt only preference (universal)
+      const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
+      if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
+        const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
+        this.$emit('update:useCustomPromptOnly', boolValue);
+        console.log('Loaded universal custom prompt only preference:', boolValue);
+      }
+    } catch (error) {
+      console.error('Error loading settings in RecommendationSettings:', error);
+      // Initialize with empty values to prevent undefined issues
+      this.$emit('update:selectedGenres', []);
     }
   },
   computed: {
     isAdmin() {
       return authService.isAdmin();
+    }
+  },
+  watch: {
+    isMovieMode: {
+      handler: async function(newVal) {
+        try {
+          console.log(`Mode changed to ${newVal ? 'movie' : 'TV'} mode, loading appropriate preferences`);
+          
+          // Force a fresh load of the database cache to ensure we have the latest data
+          await databaseStorageUtils.loadCache();
+          console.log('Database cache refreshed for mode change');
+          
+          // Load genre preferences for the current mode
+          await this.loadGenrePreferences();
+          
+          // Load universal language preference
+          const savedLanguage = await databaseStorageUtils.get('languagePreference');
+          if (savedLanguage !== null && savedLanguage !== undefined) {
+            this.$emit('update:selectedLanguage', String(savedLanguage));
+            console.log('Mode changed: Loaded universal language preference:', savedLanguage);
+          } else {
+            // Clear language if none saved
+            this.$emit('update:selectedLanguage', '');
+          }
+          
+          // Load prompt style for the current mode
+          const promptStyleKey = newVal ? 'moviePromptStyle' : 'tvPromptStyle';
+          const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
+          if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
+            this.$emit('update:promptStyle', savedPromptStyle);
+            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
+          } else {
+            // Set default prompt style if none saved
+            this.$emit('update:promptStyle', 'vibe');
+          }
+          
+          // Load custom vibe (universal)
+          const savedCustomVibe = await databaseStorageUtils.get('customVibe');
+          if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
+            this.$emit('update:customVibe', savedCustomVibe);
+            console.log('Mode changed: Loaded universal custom vibe:', savedCustomVibe);
+          } else {
+            // Clear custom vibe if none saved
+            this.$emit('update:customVibe', '');
+          }
+          
+          // Load custom prompt only preference (universal)
+          const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
+          if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
+            const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
+            this.$emit('update:useCustomPromptOnly', boolValue);
+            console.log('Mode changed: Loaded universal custom prompt only preference:', boolValue);
+          } else {
+            // Set default value if none saved
+            this.$emit('update:useCustomPromptOnly', false);
+          }
+        } catch (error) {
+          console.error(`Error loading preferences after mode change to ${newVal ? 'movie' : 'TV'} mode:`, error);
+          // Initialize with empty values to prevent undefined issues
+          this.$emit('update:selectedGenres', []);
+          this.$emit('update:selectedLanguage', '');
+          this.$emit('update:promptStyle', 'vibe');
+          this.$emit('update:customVibe', '');
+          this.$emit('update:useCustomPromptOnly', false);
+        }
+      },
+      immediate: true // Run immediately when component is mounted
     }
   },
   props: {
@@ -1052,6 +1189,31 @@ export default {
     }
   },
   methods: {
+    // Load genre preferences (universal across TV and movies)
+    async loadGenrePreferences() {
+      try {
+        // Force a fresh load from the database
+        await databaseStorageUtils.loadCache();
+        
+        // Load from universal key
+        console.log('Loading universal genre preferences from database...');
+        const savedGenres = await databaseStorageUtils.getJSON('genrePreferences');
+        
+        if (savedGenres && Array.isArray(savedGenres)) {
+          this.$emit('update:selectedGenres', savedGenres);
+          console.log('Loaded universal genre preferences:', savedGenres);
+        } else {
+          console.log('No universal genre preferences found in database');
+          // Initialize with empty array to prevent undefined issues
+          this.$emit('update:selectedGenres', []);
+        }
+      } catch (error) {
+        console.error('Error loading universal genre preferences:', error);
+        // Initialize with empty array on error
+        this.$emit('update:selectedGenres', []);
+      }
+    },
+    
     toggleSettings() {
       this.$emit('toggle-settings');
     },
@@ -1089,59 +1251,70 @@ export default {
       this.$emit('fetch-models');
     },
     updateModel(value) {
-      this.$emit('update-model', value);
-    },
-    updateCustomModel(value) {
-      this.$emit('update-custom-model', value);
-    },
-    updateTemperature(value) {
-      this.$emit('update-temperature', Number(value));
-    },
-    saveLibraryModePreference(value) {
-      // Save to server
-      const settings = {
-        useSampledLibrary: value
-      };
-      
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database
+      databaseStorageUtils.set('openaiModel', value)
         .then(() => {
-          console.log('Saved sampled library mode to server:', value);
-          // Also save to localStorage as a backup
-          storageUtils.set('useSampledLibrary', value.toString());
+          console.log('Saved model preference to database:', value);
         })
         .catch(error => {
-          console.error('Failed to save sampled library mode to server:', error);
-          // Fall back to localStorage if server save fails
-          storageUtils.set('useSampledLibrary', value.toString());
+          console.error('Failed to save model preference to database:', error);
+        });
+      
+      this.$emit('update-model', value);
+    },
+    updateTemperature(value) {
+      const numValue = Number(value);
+      
+      // Save to database
+      databaseStorageUtils.set('temperature', numValue)
+        .then(() => {
+          console.log('Saved temperature to database:', numValue);
+        })
+        .catch(error => {
+          console.error('Failed to save temperature to database:', error);
+        });
+      
+      this.$emit('update-temperature', numValue);
+    },
+    saveLibraryModePreference(value) {
+      // Save to database
+      databaseStorageUtils.set('useSampledLibrary', value)
+        .then(() => {
+          console.log('Saved sampled library mode to database:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save sampled library mode to database:', error);
         });
       
       // Also emit the event for parent component
       this.$emit('save-library-mode-preference', value);
     },
     saveSampleSize(value) {
-      // Save to server
-      const settings = {
-        librarySampleSize: Number(value)
-      };
+      // Save to database
+      const numValue = Number(value);
       
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database
+      databaseStorageUtils.set('librarySampleSize', numValue)
         .then(() => {
-          console.log('Saved library sample size to server:', value);
-          // Also save to localStorage as a backup
-          storageUtils.set('librarySampleSize', value.toString());
+          console.log('Saved library sample size to database:', numValue);
         })
         .catch(error => {
-          console.error('Failed to save library sample size to server:', error);
-          // Fall back to localStorage if server save fails
-          storageUtils.set('librarySampleSize', value.toString());
+          console.error('Failed to save library sample size to database:', error);
         });
       
       // Also emit the event for parent component
-      this.$emit('save-sample-size', Number(value));
+      this.$emit('save-sample-size', numValue);
     },
     saveStructuredOutputPreference(value) {
+      // Save to database
+      databaseStorageUtils.set('useStructuredOutput', value)
+        .then(() => {
+          console.log('Saved structured output preference to database:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save structured output preference to database:', error);
+        });
+      
       this.$emit('save-structured-output-preference', value);
     },
     clearRecommendationHistory() {
@@ -1169,67 +1342,62 @@ export default {
       this.saveGenrePreferences();
     },
     saveGenrePreferences() {
-      // Determine if we're in movie or TV mode
-      const isMovieMode = this.isMovieMode;
-      
-      // Create the settings object with the appropriate key
-      const settings = {};
-      if (isMovieMode) {
-        settings.movieGenrePreferences = this.selectedGenres || [];
-      } else {
-        settings.tvGenrePreferences = this.selectedGenres || [];
-      }
-      
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database with universal key
+      databaseStorageUtils.setJSON('genrePreferences', this.selectedGenres || [])
         .then(() => {
-          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} genre preferences to server:`, this.selectedGenres);
+          console.log('Saved universal genre preferences to database:', this.selectedGenres);
         })
         .catch(error => {
-          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} genre preferences to server:`, error);
-          // Fall back to localStorage if server save fails
-          const key = isMovieMode ? 'movieGenrePreferences' : 'tvGenrePreferences';
-          storageUtils.setJSON(key, this.selectedGenres || []);
+          console.error('Failed to save universal genre preferences to database:', error);
         });
     },
     savePromptStyle(value) {
       this.$emit('save-prompt-style', value);
     },
     saveCustomVibe(value) {
+      // Save to database with universal key
+      databaseStorageUtils.set('customVibe', value)
+        .then(() => {
+          console.log('Saved universal custom vibe to database:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save universal custom vibe to database:', error);
+        });
+      
+      // Also emit the event for parent component
       this.$emit('save-custom-vibe', value);
     },
     clearCustomVibe() {
       this.$emit('clear-custom-vibe');
     },
     saveCustomPromptOnlyPreference(value) {
-      this.$emit('save-custom-prompt-only-preference', value);
-    },
-    saveLanguagePreference(value) {
-      // Determine if we're in movie or TV mode
-      const isMovieMode = this.isMovieMode;
-      
-      // Create the settings object with the appropriate key
-      const settings = {};
-      if (isMovieMode) {
-        settings.movieLanguagePreference = value;
-      } else {
-        settings.tvLanguagePreference = value;
-      }
-      
-      // Try to save to server first
-      apiService.saveSettings(settings)
+      // Save to database with universal key
+      databaseStorageUtils.set('useCustomPromptOnly', value)
         .then(() => {
-          console.log(`Saved ${isMovieMode ? 'movie' : 'tv'} language preference to server:`, value);
+          console.log('Saved universal custom prompt only preference to database:', value);
         })
         .catch(error => {
-          console.error(`Failed to save ${isMovieMode ? 'movie' : 'tv'} language preference to server:`, error);
-          // Fall back to localStorage if server save fails
-          const key = isMovieMode ? 'movieLanguagePreference' : 'tvLanguagePreference';
-          storageUtils.set(key, value);
+          console.error('Failed to save universal custom prompt only preference to database:', error);
         });
       
       // Also emit the event for parent component
-      this.$emit('save-language-preference', value);
+      this.$emit('save-custom-prompt-only-preference', value);
+    },
+    saveLanguagePreference(value) {
+      // Ensure value is a string
+      const stringValue = String(value);
+      
+      // Save to database with universal key
+      databaseStorageUtils.set('languagePreference', stringValue)
+        .then(() => {
+          console.log('Saved universal language preference to database:', stringValue);
+        })
+        .catch(error => {
+          console.error('Failed to save universal language preference to database:', error);
+        });
+      
+      // Also emit the event for parent component
+      this.$emit('save-language-preference', stringValue);
     },
     savePlexUseHistory(value) {
       this.$emit('save-plex-use-history', value);
@@ -1239,6 +1407,9 @@ export default {
     },
     savePlexCustomHistoryDays(value) {
       this.$emit('save-plex-custom-history-days', Number(value));
+    },
+    savePlexOnlyMode(value) {
+      this.$emit('save-plex-only-mode', value);
     },
     saveJellyfinUseHistory(value) {
       this.$emit('save-jellyfin-use-history', value);

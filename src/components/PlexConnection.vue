@@ -54,7 +54,7 @@
 <script>
 import plexService from '../services/PlexService';
 import credentialsService from '../services/CredentialsService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 import apiService from '../services/ApiService';
 
 export default {
@@ -76,8 +76,17 @@ export default {
     };
   },
   async created() {
-    // Load recent limit from storageUtils instead of localStorage
-    this.recentLimit = storageUtils.get('plexRecentLimit', 50);
+    // Load recent limit from database
+    try {
+      const recentLimit = await databaseStorageUtils.getSync('plexRecentLimit');
+      if (recentLimit !== null) {
+        this.recentLimit = recentLimit;
+      }
+    } catch (error) {
+      console.error('Error loading Plex recent limit from database:', error);
+      // Use default value if there's an error
+      this.recentLimit = 50;
+    }
     
     // If connected prop is true, set connection status right away
     if (this.connected) {
@@ -230,8 +239,8 @@ export default {
       if (this.recentLimit < 1) this.recentLimit = 1;
       if (this.recentLimit > 10000) this.recentLimit = 10000;
       
-      // Use storageUtils instead of localStorage
-      storageUtils.set('plexRecentLimit', this.recentLimit);
+      // Save to database
+      await databaseStorageUtils.set('plexRecentLimit', this.recentLimit);
       
       // Save to user settings in database
       try {

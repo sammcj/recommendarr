@@ -3,15 +3,41 @@ import axios from 'axios';
 /* eslint-enable no-unused-vars */
 import credentialsService from './CredentialsService';
 import apiService from './ApiService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class JellyfinService {
   constructor() {
     this.baseUrl = '';
     this.apiKey = '';
-    this.userId = storageUtils.get('selectedJellyfinUserId') || '';
+    this.userId = '';
+    
+    // Initialize cache loading
+    databaseStorageUtils.loadCache();
+    
+    // Try to get userId from cache if already loaded
+    if (databaseStorageUtils.cacheLoaded) {
+      this.userId = databaseStorageUtils.getSync('selectedJellyfinUserId') || '';
+    }
+    
     // Load credentials when instantiated
     this.loadCredentials();
+    
+    // Load userId asynchronously if not already loaded
+    this.loadUserId();
+  }
+  
+  /**
+   * Load userId from database
+   */
+  async loadUserId() {
+    try {
+      const userId = await databaseStorageUtils.get('selectedJellyfinUserId');
+      if (userId) {
+        this.userId = userId;
+      }
+    } catch (error) {
+      console.error('Error loading Jellyfin user ID:', error);
+    }
   }
 
   /**
@@ -22,11 +48,11 @@ class JellyfinService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.apiKey = credentials.apiKey || '';
-      // userId is now stored separately via StorageUtils
+      // userId is now stored separately via DatabaseStorageUtils
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
-        storageUtils.set('jellyfinRecentLimit', credentials.recentLimit);
+        await databaseStorageUtils.set('jellyfinRecentLimit', credentials.recentLimit);
       }
     }
   }
@@ -36,7 +62,7 @@ class JellyfinService {
     this.baseUrl = baseUrl ? baseUrl.replace(/\/$/, '') : '';
     this.apiKey = apiKey || '';
     this.userId = userId || '';
-    storageUtils.set('selectedJellyfinUserId', this.userId);
+    await databaseStorageUtils.set('selectedJellyfinUserId', this.userId);
 
     const credentials = {
       baseUrl: this.baseUrl,
@@ -46,8 +72,8 @@ class JellyfinService {
     // If recentLimit is provided, store it with the credentials
     if (recentLimit !== null) {
       credentials.recentLimit = recentLimit;
-      // Also store in storageUtils for client-side access
-      storageUtils.set('jellyfinRecentLimit', recentLimit);
+      // Also store in databaseStorageUtils for client-side access
+      await databaseStorageUtils.set('jellyfinRecentLimit', recentLimit);
     }
     
     // Store credentials server-side (single set of credentials)
@@ -175,11 +201,19 @@ class JellyfinService {
       }
     }
     
-    // Always reload credentials to get the stored limit value
-    const credentials = await credentialsService.getCredentials('jellyfin');
-    if (credentials && credentials.recentLimit !== undefined) {
-      // Override the provided limit with the stored limit
-      limit = credentials.recentLimit;
+    // Try to get the limit from database first
+    const storedLimit = await databaseStorageUtils.get('jellyfinRecentLimit');
+    if (storedLimit !== null) {
+      limit = storedLimit;
+    } else {
+      // Fall back to credentials if not in database
+      const credentials = await credentialsService.getCredentials('jellyfin');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the stored limit
+        limit = credentials.recentLimit;
+        // Store it in the database for next time
+        await databaseStorageUtils.set('jellyfinRecentLimit', limit);
+      }
     }
 
     try {
@@ -229,11 +263,19 @@ class JellyfinService {
       }
     }
     
-    // Always reload credentials to get the stored limit value
-    const credentials = await credentialsService.getCredentials('jellyfin');
-    if (credentials && credentials.recentLimit !== undefined) {
-      // Override the provided limit with the stored limit
-      limit = credentials.recentLimit;
+    // Try to get the limit from database first
+    const storedLimit = await databaseStorageUtils.get('jellyfinRecentLimit');
+    if (storedLimit !== null) {
+      limit = storedLimit;
+    } else {
+      // Fall back to credentials if not in database
+      const credentials = await credentialsService.getCredentials('jellyfin');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the stored limit
+        limit = credentials.recentLimit;
+        // Store it in the database for next time
+        await databaseStorageUtils.set('jellyfinRecentLimit', limit);
+      }
     }
 
     try {

@@ -53,7 +53,7 @@
             :traktHistoryExpanded="traktHistoryExpanded"
             :isMovieMode="isMovieMode"
             :modelOptions="modelOptions"
-            :selectedModel="selectedModel"
+            v-model:selectedModel="selectedModel"
             :customModel="customModel"
             :isCustomModel="isCustomModel"
             :fetchingModels="fetchingModels"
@@ -627,7 +627,7 @@ import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
 import authService from '../services/AuthService';
-import storageUtils from '../utils/StorageUtils'; // Already imported, ensure it's used
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 import RecommendationResults from './RecommendationResults.vue';
 import RecommendationSettings from './RecommendationSettings.vue';
@@ -826,6 +826,7 @@ export default {
       traktUseHistory: true, // Whether to include Trakt watch history at all
       traktCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
       localMovies: [], // Local copy of movies prop to avoid direct mutation
+      localSeries: [], // Local copy of series prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
@@ -1405,15 +1406,6 @@ export default {
           }
         } catch (error) {
           console.error("Error reloading data after content type change:", error);
-          
-          // Fallback to localStorage if server request fails
-          if (isMovie) {
-            this.likedRecommendations = storageUtils.getJSON('likedMovieRecommendations', []);
-            this.dislikedRecommendations = storageUtils.getJSON('dislikedMovieRecommendations', []);
-          } else {
-            this.likedRecommendations = storageUtils.getJSON('likedTVRecommendations', []);
-            this.dislikedRecommendations = storageUtils.getJSON('dislikedTVRecommendations', []);
-          }
         }
       }
     },
@@ -1427,9 +1419,9 @@ export default {
         });
       } catch (error) {
         console.error('Error saving content type preference to server:', error);
-        // Fallback to localStorage
-        storageUtils.set('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
-        storageUtils.set('isMovieMode', this.isMovieMode);
+        // Fallback to database storage
+        await databaseStorageUtils.set('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
+        await databaseStorageUtils.set('isMovieMode', this.isMovieMode);
       }
       
       // Update the current recommendations list based on mode
@@ -1718,12 +1710,12 @@ export default {
         console.log('Saving numRecommendations to server:', this.numRecommendations);
         await apiService.saveSettings({ numRecommendations: value });
         
-        // Also save to storageUtils as a backup
-        storageUtils.set('numRecommendations', value.toString());
+        // Also save to databaseStorageUtils as a backup
+        await databaseStorageUtils.set('numRecommendations', value.toString());
       } catch (error) {
         console.error('Error saving recommendation count to server:', error);
-        // Fallback to storageUtils only
-        storageUtils.set('numRecommendations', value.toString());
+        // Fallback to databaseStorageUtils only
+        await databaseStorageUtils.set('numRecommendations', value.toString());
       }
     },
     
@@ -1734,8 +1726,8 @@ export default {
         console.log('Saving columnsCount to server:', this.columnsCount);
         await apiService.saveSettings({ columnsCount: value });
         
-        // Also save to storageUtils as a backup
-        storageUtils.set('columnsCount', value.toString());
+        // Also save to databaseStorageUtils as a backup
+        await databaseStorageUtils.set('columnsCount', value.toString());
         
         // expandedCards handling moved to RecommendationResults.vue
         
@@ -1745,8 +1737,8 @@ export default {
         });
       } catch (error) {
         console.error('Error saving columns count to server:', error);
-        // Fallback to storageUtils only
-        storageUtils.set('columnsCount', value.toString());
+        // Fallback to databaseStorageUtils only
+        await databaseStorageUtils.set('columnsCount', value.toString());
         
         // expandedCards handling moved to RecommendationResults.vue
         
@@ -1763,32 +1755,37 @@ export default {
         await apiService.saveSettings({ tvGenrePreferences: this.selectedGenres });
       } catch (error) {
         console.error('Error saving genre preferences to server:', error);
-        // Fallback to storageUtils
-        storageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
+        // Fallback to databaseStorageUtils
+        await databaseStorageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
       }
     },
     
-    // Toggle a genre selection
-    toggleGenre(genreValue) {
-      const index = this.selectedGenres.indexOf(genreValue);
-      if (index === -1) {
-        // Genre not selected, add it
-        this.selectedGenres.push(genreValue);
-      } else {
-        // Genre already selected, remove it
-        this.selectedGenres.splice(index, 1);
-      }
-      this.saveGenrePreference();
-      
-      // Reset conversation when genre selection changes
-      openAIService.resetConversation();
-      
-      // Clear current recommendations if any
-      if (this.recommendations.length > 0) {
-        this.recommendations = [];
-        this.recommendationsRequested = false;
-      }
-    },
+  // Toggle a genre selection
+  toggleGenre(genreValue) {
+    // Ensure selectedGenres is always an array
+    if (!this.selectedGenres || !Array.isArray(this.selectedGenres)) {
+      this.selectedGenres = [];
+    }
+    
+    const index = this.selectedGenres.indexOf(genreValue);
+    if (index === -1) {
+      // Genre not selected, add it
+      this.selectedGenres.push(genreValue);
+    } else {
+      // Genre already selected, remove it
+      this.selectedGenres.splice(index, 1);
+    }
+    this.saveGenrePreference();
+    
+    // Reset conversation when genre selection changes
+    openAIService.resetConversation();
+    
+    // Clear current recommendations if any
+    if (this.recommendations.length > 0) {
+      this.recommendations = [];
+      this.recommendationsRequested = false;
+    }
+  },
     
     // Clear all selected genres
     clearGenres() {
@@ -1815,8 +1812,8 @@ export default {
         console.log('Custom vibe updated, conversation history cleared');
       } catch (error) {
         console.error('Error saving custom vibe to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('tvCustomVibe', value);
+        // Fallback to databaseStorageUtils
+        await databaseStorageUtils.set('tvCustomVibe', value);
         // Still reset conversation even if server save fails
         openAIService.resetConversation();
       }
@@ -1847,10 +1844,10 @@ export default {
         this.recommendationsRequested = false;
       } catch (error) {
         console.error('Error saving prompt style to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('promptStyle', value);
-        // Still reset conversation even if server save fails
-        openAIService.resetConversation();
+          // Fallback to databaseStorageUtils
+          databaseStorageUtils.set('promptStyle', value);
+          // Still reset conversation even if server save fails
+          openAIService.resetConversation();
       }
     },
     
@@ -1877,8 +1874,8 @@ export default {
         this.recommendationsRequested = false;
       } catch (error) {
         console.error('Error saving custom prompt only preference to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('useCustomPromptOnly', value.toString());
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('useCustomPromptOnly', value.toString());
         
         // Still set in OpenAIService in case of server error
         if (typeof openAIService.setUseCustomPromptOnly === 'function') {
@@ -1904,15 +1901,15 @@ export default {
             console.log('Loaded useCustomPromptOnly from server:', this.useCustomPromptOnly);
           }
         } else {
-          // If not available from server, try storageUtils
-          const localPromptStyle = storageUtils.get('promptStyle');
+          // If not available from server, try databaseStorageUtils
+          const localPromptStyle = databaseStorageUtils.get('promptStyle');
           if (localPromptStyle) {
             this.promptStyle = localPromptStyle;
             console.log('Loaded prompt style from storageUtils:', this.promptStyle);
           }
           
-          // Try to load useCustomPromptOnly from storageUtils
-          const localCustomPromptOnly = storageUtils.get('useCustomPromptOnly');
+          // Try to load useCustomPromptOnly from databaseStorageUtils
+          const localCustomPromptOnly = databaseStorageUtils.get('useCustomPromptOnly');
           if (localCustomPromptOnly !== null) { // Check for null explicitly
             this.useCustomPromptOnly = localCustomPromptOnly === 'true' || localCustomPromptOnly === true; // Handle boolean or string
             console.log('Loaded useCustomPromptOnly from storageUtils:', this.useCustomPromptOnly);
@@ -1923,15 +1920,15 @@ export default {
         openAIService.setPromptStyle(this.promptStyle);
       } catch (error) {
         console.error('Error loading prompt style:', error);
-        // If error loading from server, try storageUtils
-        const localPromptStyle = storageUtils.get('promptStyle');
+        // If error loading from server, try databaseStorageUtils
+        const localPromptStyle = databaseStorageUtils.get('promptStyle');
         if (localPromptStyle) {
           this.promptStyle = localPromptStyle;
           openAIService.setPromptStyle(this.promptStyle);
         }
         
-        // Try to load useCustomPromptOnly from storageUtils
-        const localCustomPromptOnly = storageUtils.get('useCustomPromptOnly');
+        // Try to load useCustomPromptOnly from databaseStorageUtils
+        const localCustomPromptOnly = databaseStorageUtils.get('useCustomPromptOnly');
         if (localCustomPromptOnly !== null) {
           this.useCustomPromptOnly = localCustomPromptOnly === 'true' || localCustomPromptOnly === true;
         }
@@ -1945,8 +1942,8 @@ export default {
         await apiService.saveSettings({ tvLanguagePreference: value });
       } catch (error) {
         console.error('Error saving language preference to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('tvLanguagePreference', value);
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('tvLanguagePreference', value);
       }
     },
     
@@ -2113,26 +2110,26 @@ export default {
         this.$emit('plexOnlyModeChanged', value);
       } catch (error) {
         console.error('Error saving Plex only mode to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('plexOnlyMode', value.toString());
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('plexOnlyMode', value.toString());
         
         // If enabling Plex only mode, disable other only modes
         if (value) {
           if (this.jellyfinOnlyMode) {
             this.jellyfinOnlyMode = false;
-            storageUtils.set('jellyfinOnlyMode', 'false');
+            databaseStorageUtils.set('jellyfinOnlyMode', 'false');
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           
           if (this.tautulliOnlyMode) {
             this.tautulliOnlyMode = false;
-            storageUtils.set('tautulliOnlyMode', 'false');
+            databaseStorageUtils.set('tautulliOnlyMode', 'false');
             this.$emit('tautulliOnlyModeChanged', false);
           }
           
           if (this.traktOnlyMode) {
             this.traktOnlyMode = false;
-            storageUtils.set('traktOnlyMode', 'false');
+            databaseStorageUtils.set('traktOnlyMode', 'false');
             this.$emit('traktOnlyModeChanged', false);
           }
         }
@@ -2175,26 +2172,26 @@ export default {
         this.$emit('jellyfinOnlyModeChanged', value);
       } catch (error) {
         console.error('Error saving Jellyfin only mode to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('jellyfinOnlyMode', value.toString());
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('jellyfinOnlyMode', value.toString());
         
         // If enabling Jellyfin only mode, disable other only modes
         if (value) {
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
-            storageUtils.set('plexOnlyMode', 'false');
+            databaseStorageUtils.set('plexOnlyMode', 'false');
             this.$emit('plexOnlyModeChanged', false);
           }
           
           if (this.tautulliOnlyMode) {
             this.tautulliOnlyMode = false;
-            storageUtils.set('tautulliOnlyMode', 'false');
+            databaseStorageUtils.set('tautulliOnlyMode', 'false');
             this.$emit('tautulliOnlyModeChanged', false);
           }
           
           if (this.traktOnlyMode) {
             this.traktOnlyMode = false;
-            storageUtils.set('traktOnlyMode', 'false');
+            databaseStorageUtils.set('traktOnlyMode', 'false');
             this.$emit('traktOnlyModeChanged', false);
           }
         }
@@ -2280,24 +2277,24 @@ export default {
         this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
       } catch (error) {
         console.error('Error saving Tautulli only mode to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('tautulliOnlyMode', this.tautulliOnlyMode.toString());
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('tautulliOnlyMode', this.tautulliOnlyMode.toString());
         
         // If enabling Tautulli only mode, disable other only modes
         if (this.tautulliOnlyMode) {
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
-            storageUtils.set('plexOnlyMode', 'false');
+            databaseStorageUtils.set('plexOnlyMode', 'false');
             this.$emit('plexOnlyModeChanged', false);
           }
           if (this.jellyfinOnlyMode) {
             this.jellyfinOnlyMode = false;
-            storageUtils.set('jellyfinOnlyMode', 'false');
+            databaseStorageUtils.set('jellyfinOnlyMode', 'false');
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           if (this.traktOnlyMode) {
             this.traktOnlyMode = false;
-            storageUtils.set('traktOnlyMode', 'false');
+            databaseStorageUtils.set('traktOnlyMode', 'false');
             this.$emit('traktOnlyModeChanged', false);
           }
         }
@@ -2389,24 +2386,24 @@ export default {
         this.$emit('traktOnlyModeChanged', this.traktOnlyMode);
       } catch (error) {
         console.error('Error saving Trakt only mode to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('traktOnlyMode', this.traktOnlyMode.toString());
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('traktOnlyMode', this.traktOnlyMode.toString());
         
         // If enabling Trakt only mode, disable other only modes
         if (this.traktOnlyMode) {
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
-            storageUtils.set('plexOnlyMode', 'false');
+            databaseStorageUtils.set('plexOnlyMode', 'false');
             this.$emit('plexOnlyModeChanged', false);
           }
           if (this.jellyfinOnlyMode) {
             this.jellyfinOnlyMode = false;
-            storageUtils.set('jellyfinOnlyMode', 'false');
+            databaseStorageUtils.set('jellyfinOnlyMode', 'false');
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           if (this.tautulliOnlyMode) {
             this.tautulliOnlyMode = false;
-            storageUtils.set('tautulliOnlyMode', 'false');
+            databaseStorageUtils.set('tautulliOnlyMode', 'false');
             this.$emit('tautulliOnlyModeChanged', false);
           }
         }
@@ -2441,15 +2438,15 @@ export default {
         // Fallback to storageUtils
         if (this.isMovieMode) {
           // Save both history and current recommendations
-          storageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
           if (this.recommendations && this.recommendations.length > 0) {
-            storageUtils.setJSON('currentMovieRecommendations', this.recommendations);
+            databaseStorageUtils.setJSON('currentMovieRecommendations', this.recommendations);
           }
         } else {
           // Save both history and current recommendations
-          storageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
+          databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
           if (this.recommendations && this.recommendations.length > 0) {
-            storageUtils.setJSON('currentTVRecommendations', this.recommendations);
+            databaseStorageUtils.setJSON('currentTVRecommendations', this.recommendations);
           }
         }
       }
@@ -2504,8 +2501,8 @@ export default {
           await apiService.saveRecommendations('movie', this.previousMovieRecommendations, this.username);
           
           // Store in storageUtils for backup only after successfully saving to server
-          storageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
-          storageUtils.setJSON('currentMovieRecommendations', newRecommendations);
+          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+          databaseStorageUtils.setJSON('currentMovieRecommendations', newRecommendations);
         } else {
           // Save only the titles array to the server
           // Ensure all items are valid strings before saving
@@ -2515,14 +2512,14 @@ export default {
           await apiService.saveRecommendations('tv', sanitizedRecommendations, this.username);
           
           // Store in storageUtils for backup only after successfully saving to server
-          storageUtils.setJSON('previousTVRecommendations', sanitizedRecommendations);
+          databaseStorageUtils.setJSON('previousTVRecommendations', sanitizedRecommendations);
           
           // Also update our local array with the sanitized version to maintain consistency
           this.previousShowRecommendations = sanitizedRecommendations;
           this.previousRecommendations = sanitizedRecommendations;
           
           // Store current recommendations separately
-          storageUtils.setJSON('currentTVRecommendations', newRecommendations);
+          databaseStorageUtils.setJSON('currentTVRecommendations', newRecommendations);
         }
         
         console.log(`Saved ${this.isMovieMode ? 'movie' : 'TV'} recommendation history to server (${this.previousRecommendations.length} items)`);
@@ -2531,21 +2528,21 @@ export default {
         
         // Fallback to storageUtils
         if (this.isMovieMode) {
-          storageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
-          storageUtils.setJSON('currentMovieRecommendations', newRecommendations);
+          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+          databaseStorageUtils.setJSON('currentMovieRecommendations', newRecommendations);
         } else {
           // Ensure all items are valid strings before saving to storageUtils
           const sanitizedRecommendations = this.previousShowRecommendations
             .filter(item => item !== null && item !== undefined)
             .map(item => String(item));
             
-          storageUtils.setJSON('previousTVRecommendations', sanitizedRecommendations);
+          databaseStorageUtils.setJSON('previousTVRecommendations', sanitizedRecommendations);
           
           // Also update our local array with the sanitized version to maintain consistency
           this.previousShowRecommendations = sanitizedRecommendations;
           this.previousRecommendations = sanitizedRecommendations;
           
-          storageUtils.setJSON('currentTVRecommendations', newRecommendations);
+          databaseStorageUtils.setJSON('currentTVRecommendations', newRecommendations);
         }
       }
     },
@@ -2561,14 +2558,14 @@ export default {
           this.previousRecommendations = [];
           
           // Clear from storageUtils
-          storageUtils.remove('previousMovieRecommendations');
+          databaseStorageUtils.remove('previousMovieRecommendations');
           
           // Set a flag to prevent reloading from storageUtils
-          storageUtils.set('recentlyClearedMovieHistory', 'true');
+          databaseStorageUtils.set('recentlyClearedMovieHistory', 'true');
           
           // Clear this flag after 1 minute
           setTimeout(() => {
-            storageUtils.remove('recentlyClearedMovieHistory');
+            databaseStorageUtils.remove('recentlyClearedMovieHistory');
           }, 60000);
           
           // Clear from server
@@ -2584,14 +2581,14 @@ export default {
           this.previousRecommendations = [];
           
           // Clear from storageUtils
-          storageUtils.remove('previousTVRecommendations');
+          databaseStorageUtils.remove('previousTVRecommendations');
           
           // Set a flag to prevent reloading from storageUtils
-          storageUtils.set('recentlyClearedTVHistory', 'true');
+          databaseStorageUtils.set('recentlyClearedTVHistory', 'true');
           
           // Clear this flag after 1 minute
           setTimeout(() => {
-            storageUtils.remove('recentlyClearedTVHistory');
+            databaseStorageUtils.remove('recentlyClearedTVHistory');
           }, 60000);
           
           // Clear from server
@@ -2641,7 +2638,7 @@ export default {
         } catch (error) {
         console.error('Error saving model settings:', error);
         // Fallback to storageUtils (already using it)
-        storageUtils.set('openaiModel', value);
+        databaseStorageUtils.set('openaiModel', value);
         openAIService.model = value;
       }
       }
@@ -2671,7 +2668,7 @@ export default {
         } catch (error) {
         console.error('Error saving custom model settings:', error);
         // Fallback to storageUtils (already using it)
-        storageUtils.set('openaiModel', value);
+        databaseStorageUtils.set('openaiModel', value);
         openAIService.model = value;
       }
       }
@@ -2686,15 +2683,15 @@ export default {
         console.log('Saving temperature to server:', value);
         await apiService.saveSettings({ aiTemperature: value.toString() });
         
-        // Also save to storageUtils as a backup
-        storageUtils.set('aiTemperature', value.toString());
-        
-        // Update in OpenAI service
-        openAIService.temperature = value;
+          // Also save to databaseStorageUtils as a backup
+          databaseStorageUtils.set('aiTemperature', value.toString());
+          
+          // Update in OpenAI service
+          openAIService.temperature = value;
       } catch (error) {
         console.error('Error saving temperature to server:', error);
-        // Fallback to storageUtils only
-        storageUtils.set('aiTemperature', value.toString());
+        // Fallback to databaseStorageUtils only
+        databaseStorageUtils.set('aiTemperature', value.toString());
         openAIService.temperature = value;
       }
     },
@@ -2709,8 +2706,8 @@ export default {
         openAIService.useSampledLibrary = value;
       } catch (error) {
         console.error('Error saving library mode preference to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('useSampledLibrary', value.toString());
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('useSampledLibrary', value.toString());
         openAIService.useSampledLibrary = value;
       }
     },
@@ -2723,8 +2720,8 @@ export default {
         openAIService.sampleSize = value;
       } catch (error) {
         console.error('Error saving sample size to server:', error);
-        // Fallback to storageUtils
-        storageUtils.set('librarySampleSize', value.toString());
+        // Fallback to databaseStorageUtils
+        databaseStorageUtils.set('librarySampleSize', value.toString());
         openAIService.sampleSize = value;
       }
     },
@@ -2739,7 +2736,7 @@ export default {
         await apiService.saveSettings({ useStructuredOutput: value });
         
         // Also save to localStorage as a backup
-        storageUtils.set('useStructuredOutput', value);
+        databaseStorageUtils.set('useStructuredOutput', value);
         
         // Set the useStructuredOutput property on the OpenAIService
         openAIService.useStructuredOutput = value;
@@ -2757,7 +2754,7 @@ export default {
       } catch (error) {
         console.error('Error saving structured output preference to server:', error);
         // Fallback to localStorage only
-        storageUtils.set('useStructuredOutput', value);
+        databaseStorageUtils.set('useStructuredOutput', value);
         openAIService.useStructuredOutput = value;
         
         // Still reset the conversation even if there was an error saving
@@ -2878,8 +2875,8 @@ export default {
       } catch (error) {
         console.error('Error saving preferences to server:', error);
         // Fallback to storageUtils
-        storageUtils.setJSON('likedTVRecommendations', this.likedRecommendations);
-        storageUtils.setJSON('dislikedTVRecommendations', this.dislikedRecommendations);
+        databaseStorageUtils.setJSON('likedTVRecommendations', this.likedRecommendations);
+        databaseStorageUtils.setJSON('dislikedTVRecommendations', this.dislikedRecommendations);
       }
     },
     
@@ -3041,7 +3038,7 @@ export default {
       if (!this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && !this.traktOnlyMode && activeServices.length > 0) {
         baseMessage = `Analyzing your ${contentType} library and ${activeServices.join('/')} watch history...`;
       }
-      
+            
       this.currentLoadingMessage = baseMessage;
       
       // Clear any existing interval
@@ -3091,14 +3088,14 @@ export default {
       }
     },
     
-    async getRecommendations() {
+  async getRecommendations() {
       // Debug the radarrConfigured prop state when requesting recommendations
       console.log('RequestRecommendations: Starting getRecommendations');
       console.log('radarrConfigured prop:', this.radarrConfigured);
       console.log('radarrService.isConfigured():', radarrService.isConfigured());
       console.log('radarrService state:', {
         baseUrl: radarrService.baseUrl,
-        apiKey: radarrService.apiKey ? 'set' : 'not set'
+        apiKey: radarrService.apiKey ? '✓ Set' : '✗ Not set'
       });
       
       // Check if we have any watch history providers configured
@@ -3192,6 +3189,35 @@ export default {
         }
       }
       
+      // Try to load cached library data from database if not already loaded
+      if (this.isMovieMode && (!this.localMovies || this.localMovies.length === 0) && this.movies.length === 0) {
+        console.log('Attempting to load cached Radarr library from database');
+        try {
+          const cachedMovies = await databaseStorageUtils.getJSON('radarrLibrary', []);
+          if (cachedMovies && cachedMovies.length > 0) {
+            console.log(`Loaded ${cachedMovies.length} movies from database cache`);
+            this.localMovies = cachedMovies;
+          } else {
+            console.log('No cached Radarr library found in database');
+          }
+        } catch (error) {
+          console.error('Error loading cached Radarr library:', error);
+        }
+      } else if (!this.isMovieMode && this.series.length === 0) {
+        console.log('Attempting to load cached Sonarr library from database');
+        try {
+          const cachedSeries = await databaseStorageUtils.getJSON('sonarrLibrary', []);
+          if (cachedSeries && cachedSeries.length > 0) {
+            console.log(`Loaded ${cachedSeries.length} series from database cache`);
+            this.localSeries = cachedSeries;
+          } else {
+            console.log('No cached Sonarr library found in database');
+          }
+        } catch (error) {
+          console.error('Error loading cached Sonarr library:', error);
+        }
+      }
+      
       if (!openAIService.isConfigured()) {
         this.error = 'AI service is not configured. Please provide an API key.';
         this.goToSettings();
@@ -3236,12 +3262,12 @@ export default {
         if (this.plexUseHistory) {
           let plexHistory;
           if (this.isMovieMode) {
-            plexHistory = storageUtils.getJSON('watchHistoryMovies');
+            plexHistory = await databaseStorageUtils.getJSON('watchHistoryMovies');
             if (!plexHistory) {
               plexHistory = this.recentlyWatchedMovies || [];
             }
           } else {
-            plexHistory = storageUtils.getJSON('watchHistoryShows');
+            plexHistory = await databaseStorageUtils.getJSON('watchHistoryShows');
             if (!plexHistory) {
               plexHistory = this.recentlyWatchedShows || [];
             }
@@ -3253,12 +3279,12 @@ export default {
         if (this.jellyfinUseHistory) {
           let jellyfinHistory;
           if (this.isMovieMode) {
-            jellyfinHistory = storageUtils.getJSON('jellyfinWatchHistoryMovies');
+            jellyfinHistory = await databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies');
             if (!jellyfinHistory) {
               jellyfinHistory = this.jellyfinRecentlyWatchedMovies || [];
             }
           } else {
-            jellyfinHistory = storageUtils.getJSON('jellyfinWatchHistoryShows');
+            jellyfinHistory = await databaseStorageUtils.getJSON('jellyfinWatchHistoryShows');
             if (!jellyfinHistory) {
               jellyfinHistory = this.jellyfinRecentlyWatchedShows || [];
             }
@@ -3270,12 +3296,12 @@ export default {
         if (this.tautulliUseHistory) {
           let tautulliHistory;
           if (this.isMovieMode) {
-            tautulliHistory = storageUtils.getJSON('tautulliWatchHistoryMovies');
+            tautulliHistory = await databaseStorageUtils.getJSON('tautulliWatchHistoryMovies');
             if (!tautulliHistory) {
               tautulliHistory = this.tautulliRecentlyWatchedMovies || [];
             }
           } else {
-            tautulliHistory = storageUtils.getJSON('tautulliWatchHistoryShows');
+            tautulliHistory = await databaseStorageUtils.getJSON('tautulliWatchHistoryShows');
             if (!tautulliHistory) {
               tautulliHistory = this.tautulliRecentlyWatchedShows || [];
             }
@@ -3287,12 +3313,12 @@ export default {
         if (this.traktUseHistory) {
           let traktHistory;
           if (this.isMovieMode) {
-            traktHistory = storageUtils.getJSON('traktWatchHistoryMovies');
+            traktHistory = await databaseStorageUtils.getJSON('traktWatchHistoryMovies');
             if (!traktHistory) {
               traktHistory = this.traktRecentlyWatchedMovies || [];
             }
           } else {
-            traktHistory = storageUtils.getJSON('traktWatchHistoryShows');
+            traktHistory = await databaseStorageUtils.getJSON('traktWatchHistoryShows');
             if (!traktHistory) {
               traktHistory = this.traktRecentlyWatchedShows || [];
             }
@@ -3799,7 +3825,6 @@ export default {
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
           
-          // Check for exact matches
           if (existingTitles.has(normalizedTitle) || 
               likedRecommendationTitles.has(normalizedTitle) || 
               dislikedRecommendationTitles.has(normalizedTitle) || 
@@ -4367,7 +4392,7 @@ export default {
           openAIService.useSampledLibrary = this.useSampledLibrary;
           
           // Save to localStorage as backup
-          storageUtils.set('useSampledLibrary', this.useSampledLibrary.toString());
+          databaseStorageUtils.set('useSampledLibrary', this.useSampledLibrary.toString());
         }
         
         if (settings.librarySampleSize !== undefined) {
@@ -4380,7 +4405,7 @@ export default {
             openAIService.sampleSize = this.sampleSize;
             
             // Save to localStorage as backup
-            storageUtils.set('librarySampleSize', this.sampleSize.toString());
+            databaseStorageUtils.set('librarySampleSize', this.sampleSize.toString());
           }
         }
         
@@ -4537,7 +4562,7 @@ export default {
     this.openaiConfigured = openAIService.isConfigured();
     
     // Initialize model selection from user-specific storage
-    const currentModel = storageUtils.get('openaiModel') || openAIService.model || 'gpt-3.5-turbo';
+    const currentModel = await databaseStorageUtils.get('openaiModel') || openAIService.model || 'gpt-3.5-turbo';
     
     // Set to custom by default, we'll update once models are fetched
     this.customModel = currentModel;
@@ -4551,7 +4576,7 @@ export default {
     // Only check storageUtils or service if the temperature is still at default (0.8)
     if (this.temperature === 0.8) {
       // Try to get from storageUtils first
-      const savedTemp = storageUtils.get('aiTemperature');
+      const savedTemp = await databaseStorageUtils.get('aiTemperature');
       if (savedTemp !== null) {
         const temp = parseFloat(savedTemp);
         // Validate the value is within range
@@ -4602,7 +4627,7 @@ export default {
     // But check storageUtils as a fallback if server settings didn't include these
     if (this.numRecommendations === 5) { // 5 is the default - if it's still default, check storageUtils
       // Restore saved recommendation count from storageUtils (if exists)
-      const savedCount = storageUtils.get('numRecommendations');
+      const savedCount = await databaseStorageUtils.get('numRecommendations');
       if (savedCount !== null) {
         const numRecs = parseInt(savedCount, 10);
         // Validate the value is within range
@@ -4614,7 +4639,7 @@ export default {
     }
     
     // Check for structured output setting in user-specific storage if we didn't get it from server
-    const savedStructuredOutput = storageUtils.get('useStructuredOutput');
+    const savedStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
     if (savedStructuredOutput !== null) {
       this.useStructuredOutput = savedStructuredOutput === true || savedStructuredOutput === 'true';
       openAIService.useStructuredOutput = this.useStructuredOutput;
@@ -4624,7 +4649,7 @@ export default {
     
     if (this.columnsCount === 2) { // 2 is the default - if it's still default, check storageUtils
       // Restore saved columns count from storageUtils (if exists)
-      const savedColumnsCount = storageUtils.get('columnsCount');
+      const savedColumnsCount = await databaseStorageUtils.get('columnsCount');
       if (savedColumnsCount !== null) {
         const columns = parseInt(savedColumnsCount, 10);
         // Validate the value is within range
@@ -4640,11 +4665,11 @@ export default {
       this.isMovieMode = true;
     } else {
       // Restore saved content type preference (movie/TV toggle)
-      this.isMovieMode = storageUtils.get('isMovieMode', this.isMovieMode);
+      this.isMovieMode = await databaseStorageUtils.get('isMovieMode', this.isMovieMode);
     }
     
     // Restore saved genre preferences if they exist
-    const savedGenres = storageUtils.getJSON('tvGenrePreferences');
+    const savedGenres = await databaseStorageUtils.getJSON('tvGenrePreferences');
     if (savedGenres) {
       this.selectedGenres = savedGenres;
     } else {
@@ -4654,7 +4679,7 @@ export default {
         try {
           this.selectedGenres = JSON.parse(legacySavedGenres);
           // Migrate to new storage
-          storageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
+          await databaseStorageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
         } catch (error) {
           console.error('Error parsing legacy saved genres:', error);
           this.selectedGenres = [];
@@ -4670,38 +4695,38 @@ export default {
       this.customVibe = settings.tvCustomVibe;
     } else {
       // Fallback to storageUtils if not in server settings
-      const savedVibe = storageUtils.get('tvCustomVibe');
+      const savedVibe = await databaseStorageUtils.get('tvCustomVibe');
       if (savedVibe) {
         this.customVibe = savedVibe;
       }
     }
     
     // Restore saved language preference if it exists
-    const savedLanguage = storageUtils.get('tvLanguagePreference');
+    const savedLanguage = await databaseStorageUtils.get('tvLanguagePreference');
     if (savedLanguage) {
       this.selectedLanguage = savedLanguage;
     }
     
     // Restore saved Plex history mode if it exists
-    const savedPlexHistoryMode = storageUtils.get('plexHistoryMode');
+    const savedPlexHistoryMode = await databaseStorageUtils.get('plexHistoryMode');
     if (savedPlexHistoryMode) {
       this.plexHistoryMode = savedPlexHistoryMode;
     }
     
     // Restore saved Plex only mode if it exists
-    const savedPlexOnlyMode = storageUtils.get('plexOnlyMode');
+    const savedPlexOnlyMode = await databaseStorageUtils.get('plexOnlyMode');
     if (savedPlexOnlyMode !== null) {
       this.plexOnlyMode = savedPlexOnlyMode === 'true' || savedPlexOnlyMode === true;
     }
     
     // Restore saved Plex use history setting
-    const savedPlexUseHistory = storageUtils.get('plexUseHistory');
+    const savedPlexUseHistory = await databaseStorageUtils.get('plexUseHistory');
     if (savedPlexUseHistory !== null) {
       this.plexUseHistory = savedPlexUseHistory === 'true' || savedPlexUseHistory === true;
     }
     
     // Restore saved Plex custom history days
-    const savedPlexCustomHistoryDays = storageUtils.get('plexCustomHistoryDays');
+    const savedPlexCustomHistoryDays = await databaseStorageUtils.get('plexCustomHistoryDays');
     if (savedPlexCustomHistoryDays !== null) {
       this.plexCustomHistoryDays = parseInt(savedPlexCustomHistoryDays, 10);
     }
@@ -4739,7 +4764,7 @@ export default {
           // Store them as full recommendations if we're in TV mode
           if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
             this.recommendations = tvRecsResponse;
-            storageUtils.setJSON('currentTVRecommendations', tvRecsResponse); // Save current to storage
+            databaseStorageUtils.setJSON('currentTVRecommendations', tvRecsResponse); // Save current to storage
           }
           
           // Extract titles for the history
@@ -4763,10 +4788,10 @@ export default {
         
         // Save history to storageUtils (or clear if empty)
         if (this.previousShowRecommendations.length > 0) {
-          storageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
+          databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
         } else {
-          storageUtils.remove('previousTVRecommendations');
-          storageUtils.remove('currentTVRecommendations'); // Also clear current if history is empty
+          databaseStorageUtils.remove('previousTVRecommendations');
+          databaseStorageUtils.remove('currentTVRecommendations'); // Also clear current if history is empty
         }
       }
       
@@ -4783,7 +4808,7 @@ export default {
           // Store them as full recommendations if we're in movie mode
           if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
             this.recommendations = movieRecsResponse;
-            storageUtils.setJSON('currentMovieRecommendations', movieRecsResponse); // Save current to storage
+            databaseStorageUtils.setJSON('currentMovieRecommendations', movieRecsResponse); // Save current to storage
           }
           
           // Extract titles for the history
@@ -4807,10 +4832,10 @@ export default {
         
         // Save history to storageUtils (or clear if empty)
         if (this.previousMovieRecommendations.length > 0) {
-          storageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
         } else {
-          storageUtils.remove('previousMovieRecommendations');
-          storageUtils.remove('currentMovieRecommendations'); // Also clear current if history is empty
+          databaseStorageUtils.remove('previousMovieRecommendations');
+          databaseStorageUtils.remove('currentMovieRecommendations'); // Also clear current if history is empty
         }
       }
       
@@ -4842,23 +4867,23 @@ export default {
       
       // Fall back to loading from storageUtils
       // Load previous TV recommendations from storageUtils
-      this.previousShowRecommendations = storageUtils.getJSON('previousTVRecommendations', []);
+      this.previousShowRecommendations = databaseStorageUtils.getJSON('previousTVRecommendations', []);
       
       // Load previous movie recommendations from storageUtils
-      this.previousMovieRecommendations = storageUtils.getJSON('previousMovieRecommendations', []);
+      this.previousMovieRecommendations = databaseStorageUtils.getJSON('previousMovieRecommendations', []);
       
       // Also try to load current recommendations
       if (this.isMovieMode) {
-        this.recommendations = storageUtils.getJSON('currentMovieRecommendations', []);
+        this.recommendations = databaseStorageUtils.getJSON('currentMovieRecommendations', []);
       } else {
-        this.recommendations = storageUtils.getJSON('currentTVRecommendations', []);
+        this.recommendations = databaseStorageUtils.getJSON('currentTVRecommendations', []);
       }
       
       // Load liked TV recommendations from storageUtils
-      this.likedRecommendations = storageUtils.getJSON('likedTVRecommendations', []);
+      this.likedRecommendations = databaseStorageUtils.getJSON('likedTVRecommendations', []);
       
       // Load disliked TV recommendations from storageUtils
-      this.dislikedRecommendations = storageUtils.getJSON('dislikedTVRecommendations', []);
+      this.dislikedRecommendations = databaseStorageUtils.getJSON('dislikedTVRecommendations', []);
     }
     
     // Set the active recommendations based on current mode
@@ -4875,14 +4900,14 @@ export default {
     // Only save to storageUtils for backup, but don't make server API calls
     try {
       if (this.isMovieMode) {
-        storageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+        databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
         if (this.recommendations && this.recommendations.length > 0) {
-          storageUtils.setJSON('currentMovieRecommendations', this.recommendations);
+          databaseStorageUtils.setJSON('currentMovieRecommendations', this.recommendations);
         }
       } else {
-        storageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
+        databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
         if (this.recommendations && this.recommendations.length > 0) {
-          storageUtils.setJSON('currentTVRecommendations', this.recommendations);
+          databaseStorageUtils.setJSON('currentTVRecommendations', this.recommendations);
         }
       }
       console.log('Saved recommendations to storageUtils only (no server call) before unmount');

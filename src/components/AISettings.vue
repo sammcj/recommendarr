@@ -1004,7 +1004,7 @@ import traktService from '../services/TraktService';
 import credentialsService from '../services/CredentialsService';
 import authService from '../services/AuthService';
 import apiService from '../services/ApiService';
-import storageUtils from '../utils/StorageUtils';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 import PlexConnection from './PlexConnection.vue';
 import JellyfinConnection from './JellyfinConnection.vue';
 import TautulliConnection from './TautulliConnection.vue';
@@ -1179,7 +1179,12 @@ export default {
       return authService.isAdmin();
     }
   },
-  created() {
+  async created() {
+    // Initialize database cache if needed
+    if (!databaseStorageUtils.cacheLoaded) {
+      await databaseStorageUtils.loadCache();
+    }
+    
     // Load saved settings initially
     this.loadAllSettings();
   },
@@ -1500,7 +1505,7 @@ export default {
         if (plexService.isConfigured()) {
           this.plexSettings.baseUrl = plexService.baseUrl;
           this.plexSettings.token = plexService.token;
-          this.plexSettings.recentLimit = storageUtils.get('plexRecentLimit', 10);
+          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit', 10);
           return;
         }
         
@@ -1508,7 +1513,7 @@ export default {
         const credentials = await credentialsService.getCredentials('plex');
         if (credentials) {
           this.plexSettings.token = credentials.token || '';
-          this.plexSettings.recentLimit = storageUtils.get('plexRecentLimit', 10);
+          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit', 10);
         }
       } catch (error) {
         console.error('Error loading Plex settings:', error);
@@ -1522,7 +1527,7 @@ export default {
           this.jellyfinSettings.baseUrl = jellyfinService.baseUrl;
           this.jellyfinSettings.apiKey = jellyfinService.apiKey;
           this.jellyfinSettings.userId = jellyfinService.userId;
-          this.jellyfinSettings.recentLimit = storageUtils.get('jellyfinRecentLimit', 10);
+          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit', 10);
           
           // Try to look up the username for the current userId
           if (this.jellyfinSettings.userId) {
@@ -1546,7 +1551,7 @@ export default {
           this.jellyfinSettings.baseUrl = credentials.baseUrl || '';
           this.jellyfinSettings.apiKey = credentials.apiKey || '';
           this.jellyfinSettings.userId = credentials.userId || '';
-          this.jellyfinSettings.recentLimit = storageUtils.get('jellyfinRecentLimit', 10);
+          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit', 10);
           
           // If we have credentials but no service configured yet, configure it temporarily to look up username
           if (this.jellyfinSettings.baseUrl && this.jellyfinSettings.apiKey && this.jellyfinSettings.userId) {
@@ -1580,7 +1585,7 @@ export default {
         if (tautulliService.isConfigured()) {
           this.tautulliSettings.baseUrl = tautulliService.baseUrl;
           this.tautulliSettings.apiKey = tautulliService.apiKey;
-          this.tautulliSettings.recentLimit = storageUtils.get('tautulliRecentLimit', 50);
+          this.tautulliSettings.recentLimit = databaseStorageUtils.getSync('tautulliRecentLimit', 50);
           return;
         }
         
@@ -1589,7 +1594,7 @@ export default {
         if (credentials) {
           this.tautulliSettings.baseUrl = credentials.baseUrl || '';
           this.tautulliSettings.apiKey = credentials.apiKey || '';
-          this.tautulliSettings.recentLimit = storageUtils.get('tautulliRecentLimit', 50);
+          this.tautulliSettings.recentLimit = databaseStorageUtils.getSync('tautulliRecentLimit', 50);
         }
       } catch (error) {
         console.error('Error loading Tautulli settings:', error);
@@ -1601,7 +1606,7 @@ export default {
         // First try to get from service directly
         if (traktService.isConfigured()) {
           this.traktSettings.clientId = traktService.clientId;
-          this.traktSettings.recentLimit = storageUtils.get('traktRecentLimit', 50);
+          this.traktSettings.recentLimit = databaseStorageUtils.getSync('traktRecentLimit', 50);
           return;
         }
         
@@ -1609,7 +1614,7 @@ export default {
         const credentials = await credentialsService.getCredentials('trakt');
         if (credentials) {
           this.traktSettings.clientId = credentials.clientId || '';
-          this.traktSettings.recentLimit = storageUtils.get('traktRecentLimit', 50);
+          this.traktSettings.recentLimit = databaseStorageUtils.getSync('traktRecentLimit', 50);
         }
       } catch (error) {
         console.error('Error loading Trakt settings:', error);
@@ -1923,8 +1928,8 @@ export default {
         // Configure the service with provided details
         await plexService.configure(this.plexSettings.baseUrl, this.plexSettings.token);
         
-        // Store the recent limit in storageUtils (server doesn't need this)
-        storageUtils.set('plexRecentLimit', this.plexSettings.recentLimit);
+        // Store the recent limit in database (server doesn't need this)
+        await databaseStorageUtils.set('plexRecentLimit', this.plexSettings.recentLimit);
         
         // Test the connection
         const success = await plexService.testConnection();
@@ -1998,8 +2003,8 @@ export default {
     
     async savePlexLimit() {
       try {
-        // Store the limit in storageUtils instead of direct localStorage
-        storageUtils.set('plexRecentLimit', this.plexSettings.recentLimit);
+        // Store the limit in database
+        await databaseStorageUtils.set('plexRecentLimit', this.plexSettings.recentLimit);
         
         // Update the server with the new limit
         await plexService.configure(
@@ -2095,8 +2100,8 @@ export default {
           userId
         );
         
-        // Store the recent limit in storageUtils (server doesn't need this)
-        storageUtils.set('jellyfinRecentLimit', this.jellyfinSettings.recentLimit);
+        // Store the recent limit in database (server doesn't need this)
+        await databaseStorageUtils.set('jellyfinRecentLimit', this.jellyfinSettings.recentLimit);
         
         // Test the connection
         const result = await jellyfinService.testConnection();
@@ -2199,8 +2204,8 @@ export default {
     
     async saveJellyfinLimit() {
       try {
-        // Store the limit in storageUtils instead of direct localStorage
-        storageUtils.set('jellyfinRecentLimit', this.jellyfinSettings.recentLimit);
+        // Store the limit in database
+        await databaseStorageUtils.set('jellyfinRecentLimit', this.jellyfinSettings.recentLimit);
         
         // Update the server with the new limit
         await jellyfinService.configure(
@@ -2262,8 +2267,8 @@ export default {
         // Configure the service with provided details
         await tautulliService.configure(this.tautulliSettings.baseUrl, this.tautulliSettings.apiKey);
         
-        // Store the recent limit in storageUtils (server doesn't need this)
-        storageUtils.set('tautulliRecentLimit', this.tautulliSettings.recentLimit);
+        // Store the recent limit in database (server doesn't need this)
+        await databaseStorageUtils.set('tautulliRecentLimit', this.tautulliSettings.recentLimit);
         
         // Test the connection
         const success = await tautulliService.testConnection();
@@ -2338,8 +2343,8 @@ export default {
     
     async saveTautulliLimit() {
       try {
-        // Store the limit in storageUtils instead of direct localStorage
-        storageUtils.set('tautulliRecentLimit', this.tautulliSettings.recentLimit);
+        // Store the limit in database
+        await databaseStorageUtils.set('tautulliRecentLimit', this.tautulliSettings.recentLimit);
         
         // Update the server with the new limit
         await tautulliService.configure(
@@ -2405,15 +2410,15 @@ export default {
     
     onTraktLimitChange(limit) {
       this.traktSettings.recentLimit = limit;
-      storageUtils.set('traktRecentLimit', limit);
+      databaseStorageUtils.set('traktRecentLimit', limit);
       this.$emit('trakt-limit-changed', limit);
     },
     
     async saveTraktLimit() {
-      // Store the limit in storageUtils instead of direct localStorage
-      storageUtils.set('traktRecentLimit', this.traktSettings.recentLimit);
-      
       try {
+        // Store the limit in database
+        await databaseStorageUtils.set('traktRecentLimit', this.traktSettings.recentLimit);
+        
         // Update the server with the new limit
         await traktService.configure(
           traktService.clientId,
@@ -2547,8 +2552,8 @@ export default {
       // Also update the model in the OpenAI service to ensure it's saved in both localStorage and server-side credentials
       try {
         if (this.aiSettings.selectedModel) {
-          // Store model in storageUtils
-          storageUtils.set('openaiModel', this.aiSettings.selectedModel);
+          // Store model in database
+          await databaseStorageUtils.set('openaiModel', this.aiSettings.selectedModel);
           
           // Configure the service with the updated model, which will also save to credentials
           await openAIService.configure(

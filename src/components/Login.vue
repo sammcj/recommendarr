@@ -100,7 +100,7 @@ export default {
       localAuth: true
     };
   },
-  mounted() {
+  async mounted() {
     // Simple check if user is already authenticated
     if (AuthService.isAuthenticated()) {
       this.$emit('authenticated');
@@ -109,6 +109,53 @@ export default {
     // Clean URL parameters if any exist to prevent reload issues
     if (window.location.search) {
       window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+        // Check for successful OAuth login
+        try {
+      // First verify session immediately
+      let isAuthenticated = await AuthService.verifySession();
+      if (isAuthenticated) {
+        this.$emit('authenticated');
+        return;
+      }
+
+      // Get URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const codeParam = urlParams.get('code');
+      const errorParam = urlParams.get('error');
+      
+      // If we're returning from OAuth callback (has code param but no error)
+      if (codeParam && !errorParam) {
+        // Show loading state
+        this.loading = true;
+        
+        // Verify session with increasing delays to account for cookie setting
+        let isAuthenticated = false;
+        for (let i = 0; i < 3; i++) {
+          await new Promise(resolve => setTimeout(resolve, 300 * (i + 1)));
+          isAuthenticated = await AuthService.verifySession();
+          if (isAuthenticated) break;
+        }
+        
+        if (isAuthenticated) {
+          console.log('OAuth login successful');
+          // Clean up URL and emit authenticated event
+          window.history.replaceState({}, document.title, window.location.pathname);
+          this.$emit('authenticated');
+          return;
+        } else {
+          console.log('OAuth login failed after multiple attempts');
+          this.error = 'OAuth login failed. Please try again.';
+          // Clean up URL even if authentication fails to prevent reload loops
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    } catch (error) {
+      console.error('Error verifying session:', error);
+      this.error = 'Failed to verify authentication. Please try again.';
+    } finally {
+      this.loading = false;
     }
     
     // Get enabled authentication providers

@@ -826,6 +826,7 @@ export default {
       traktUseHistory: true, // Whether to include Trakt watch history at all
       traktCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
       localMovies: [], // Local copy of movies prop to avoid direct mutation
+      localSeries: [], // Local copy of series prop to avoid direct mutation
       useSampledLibrary: false, // Whether to use sampled library or full library
       sampleSize: 20, // Default sample size when using sampled library
       useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
@@ -3087,14 +3088,14 @@ export default {
       }
     },
     
-    async getRecommendations() {
+  async getRecommendations() {
       // Debug the radarrConfigured prop state when requesting recommendations
       console.log('RequestRecommendations: Starting getRecommendations');
       console.log('radarrConfigured prop:', this.radarrConfigured);
       console.log('radarrService.isConfigured():', radarrService.isConfigured());
       console.log('radarrService state:', {
         baseUrl: radarrService.baseUrl,
-        apiKey: radarrService.apiKey ? 'set' : 'not set'
+        apiKey: radarrService.apiKey ? '✓ Set' : '✗ Not set'
       });
       
       // Check if we have any watch history providers configured
@@ -3188,6 +3189,35 @@ export default {
         }
       }
       
+      // Try to load cached library data from database if not already loaded
+      if (this.isMovieMode && (!this.localMovies || this.localMovies.length === 0) && this.movies.length === 0) {
+        console.log('Attempting to load cached Radarr library from database');
+        try {
+          const cachedMovies = await databaseStorageUtils.getJSON('radarrLibrary', []);
+          if (cachedMovies && cachedMovies.length > 0) {
+            console.log(`Loaded ${cachedMovies.length} movies from database cache`);
+            this.localMovies = cachedMovies;
+          } else {
+            console.log('No cached Radarr library found in database');
+          }
+        } catch (error) {
+          console.error('Error loading cached Radarr library:', error);
+        }
+      } else if (!this.isMovieMode && this.series.length === 0) {
+        console.log('Attempting to load cached Sonarr library from database');
+        try {
+          const cachedSeries = await databaseStorageUtils.getJSON('sonarrLibrary', []);
+          if (cachedSeries && cachedSeries.length > 0) {
+            console.log(`Loaded ${cachedSeries.length} series from database cache`);
+            this.localSeries = cachedSeries;
+          } else {
+            console.log('No cached Sonarr library found in database');
+          }
+        } catch (error) {
+          console.error('Error loading cached Sonarr library:', error);
+        }
+      }
+      
       if (!openAIService.isConfigured()) {
         this.error = 'AI service is not configured. Please provide an API key.';
         this.goToSettings();
@@ -3232,12 +3262,12 @@ export default {
         if (this.plexUseHistory) {
           let plexHistory;
           if (this.isMovieMode) {
-            plexHistory = databaseStorageUtils.getJSON('watchHistoryMovies');
+            plexHistory = await databaseStorageUtils.getJSON('watchHistoryMovies');
             if (!plexHistory) {
               plexHistory = this.recentlyWatchedMovies || [];
             }
           } else {
-            plexHistory = databaseStorageUtils.getJSON('watchHistoryShows');
+            plexHistory = await databaseStorageUtils.getJSON('watchHistoryShows');
             if (!plexHistory) {
               plexHistory = this.recentlyWatchedShows || [];
             }
@@ -3249,12 +3279,12 @@ export default {
         if (this.jellyfinUseHistory) {
           let jellyfinHistory;
           if (this.isMovieMode) {
-            jellyfinHistory = databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies');
+            jellyfinHistory = await databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies');
             if (!jellyfinHistory) {
               jellyfinHistory = this.jellyfinRecentlyWatchedMovies || [];
             }
           } else {
-            jellyfinHistory = databaseStorageUtils.getJSON('jellyfinWatchHistoryShows');
+            jellyfinHistory = await databaseStorageUtils.getJSON('jellyfinWatchHistoryShows');
             if (!jellyfinHistory) {
               jellyfinHistory = this.jellyfinRecentlyWatchedShows || [];
             }
@@ -3266,12 +3296,12 @@ export default {
         if (this.tautulliUseHistory) {
           let tautulliHistory;
           if (this.isMovieMode) {
-            tautulliHistory = databaseStorageUtils.getJSON('tautulliWatchHistoryMovies');
+            tautulliHistory = await databaseStorageUtils.getJSON('tautulliWatchHistoryMovies');
             if (!tautulliHistory) {
               tautulliHistory = this.tautulliRecentlyWatchedMovies || [];
             }
           } else {
-            tautulliHistory = databaseStorageUtils.getJSON('tautulliWatchHistoryShows');
+            tautulliHistory = await databaseStorageUtils.getJSON('tautulliWatchHistoryShows');
             if (!tautulliHistory) {
               tautulliHistory = this.tautulliRecentlyWatchedShows || [];
             }
@@ -3283,12 +3313,12 @@ export default {
         if (this.traktUseHistory) {
           let traktHistory;
           if (this.isMovieMode) {
-            traktHistory = databaseStorageUtils.getJSON('traktWatchHistoryMovies');
+            traktHistory = await databaseStorageUtils.getJSON('traktWatchHistoryMovies');
             if (!traktHistory) {
               traktHistory = this.traktRecentlyWatchedMovies || [];
             }
           } else {
-            traktHistory = databaseStorageUtils.getJSON('traktWatchHistoryShows');
+            traktHistory = await databaseStorageUtils.getJSON('traktWatchHistoryShows');
             if (!traktHistory) {
               traktHistory = this.traktRecentlyWatchedShows || [];
             }
@@ -3795,7 +3825,6 @@ export default {
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
           
-          // Check for exact matches
           if (existingTitles.has(normalizedTitle) || 
               likedRecommendationTitles.has(normalizedTitle) || 
               dislikedRecommendationTitles.has(normalizedTitle) || 

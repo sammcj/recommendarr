@@ -1585,8 +1585,8 @@ export default {
         // Fetch updated watch history with the explicitly selected user ID
         console.log(`Applying Jellyfin user selection: ${this.selectedJellyfinUserId}`);
         
-        // Fetch the user history
-        await this.fetchJellyfinData(this.selectedJellyfinUserId);
+        // Fetch the user history with force refresh
+        await this.fetchJellyfinData(this.selectedJellyfinUserId, true);
         
         // Save the history data to database
         if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
@@ -1674,8 +1674,8 @@ export default {
         const userId = this.selectedTautulliUserId ? this.selectedTautulliUserId : null;
         console.log(`Applying Tautulli user selection: ${userId || 'all users'}`);
         
-        // Fetch the user history
-        await this.fetchTautulliData(userId);
+        // Fetch the user history with force refresh
+        await this.fetchTautulliData(userId, true);
         
         // Save the history data to database
         if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
@@ -1753,8 +1753,8 @@ export default {
         // Close the modal
         this.showPlexUserSelect = false;
         
-        // Fetch updated watch history
-        await this.fetchPlexData();
+        // Fetch updated watch history with force refresh
+        await this.fetchPlexData(null, true);
         
         // Save the history data to database
         if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {

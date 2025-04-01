@@ -910,7 +910,7 @@ export default {
             // Update timestamp directly to database column
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
-            await apiService.post('/settings/lastPlexHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            await apiService.post('/settings/lastPlexHistoryRefresh', now);
             console.log(`Updated Plex history refresh timestamp: ${now}`);
           }));
         } else {
@@ -943,7 +943,7 @@ export default {
             // Update timestamp directly to database column
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
-            await apiService.post('/settings/lastJellyfinHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            await apiService.post('/settings/lastJellyfinHistoryRefresh', now);
             console.log(`Updated Jellyfin history refresh timestamp: ${now}`);
           }));
         } else {
@@ -970,7 +970,7 @@ export default {
             // Update timestamp directly to database column
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
-            await apiService.post('/settings/lastTautulliHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            await apiService.post('/settings/lastTautulliHistoryRefresh', now);
             console.log(`Updated Tautulli history refresh timestamp: ${now}`);
           }));
         } else {
@@ -997,7 +997,7 @@ export default {
             // Update timestamp directly to database column
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
-            await apiService.post('/settings/lastTraktHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            await apiService.post('/settings/lastTraktHistoryRefresh', now);
             console.log(`Updated Trakt history refresh timestamp: ${now}`);
           }));
         } else {
@@ -1492,7 +1492,7 @@ export default {
         
         // Update the timestamp
         const now = new Date().toISOString();
-        await apiService.post('/settings/lastTraktHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        await apiService.post('/settings/lastTraktHistoryRefresh', now);
         console.log(`Updated Trakt history refresh timestamp: ${now}`);
         
         // Save to database
@@ -2152,7 +2152,7 @@ export default {
         
         // Update the timestamp
         const now = new Date().toISOString();
-        await apiService.post('/settings/lastPlexHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        await apiService.post('/settings/lastPlexHistoryRefresh',now);
         console.log(`Updated Plex history refresh timestamp: ${now}`);
         
         // Save to database
@@ -2245,7 +2245,7 @@ export default {
         
         // Update the timestamp
         const now = new Date().toISOString();
-        await apiService.post('/settings/lastJellyfinHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        await apiService.post('/settings/lastJellyfinHistoryRefresh', now);
         console.log(`Updated Jellyfin history refresh timestamp: ${now}`);
         
         // Save to database
@@ -2324,7 +2324,7 @@ export default {
         
         // Update the timestamp
         const now = new Date().toISOString();
-        await apiService.post('/settings/lastTautulliHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        await apiService.post('/settings/lastTautulliHistoryRefresh', now);
         console.log(`Updated Tautulli history refresh timestamp: ${now}`);
         
         // Save to database

@@ -134,6 +134,12 @@ class DatabaseService {
         traktHistoryMode TEXT DEFAULT 'all',
         traktOnlyMode INTEGER DEFAULT 0,
         
+        -- Watch history refresh timestamps
+        lastPlexHistoryRefresh TEXT DEFAULT NULL,
+        lastJellyfinHistoryRefresh TEXT DEFAULT NULL,
+        lastTautulliHistoryRefresh TEXT DEFAULT NULL,
+        lastTraktHistoryRefresh TEXT DEFAULT NULL,
+        
         -- Watch history
         watchHistoryMovies TEXT DEFAULT '[]',
         watchHistoryShows TEXT DEFAULT '[]',
@@ -867,6 +873,12 @@ class DatabaseService {
         traktHistoryMode: userData.traktHistoryMode || 'all',
         traktOnlyMode: Boolean(userData.traktOnlyMode),
         
+        // Watch history refresh timestamps
+        lastPlexHistoryRefresh: userData.lastPlexHistoryRefresh || null,
+        lastJellyfinHistoryRefresh: userData.lastJellyfinHistoryRefresh || null,
+        lastTautulliHistoryRefresh: userData.lastTautulliHistoryRefresh || null,
+        lastTraktHistoryRefresh: userData.lastTraktHistoryRefresh || null,
+        
         // Watch history
         watchHistoryMovies: userData.watchHistoryMovies ? JSON.parse(userData.watchHistoryMovies) : [],
         watchHistoryShows: userData.watchHistoryShows ? JSON.parse(userData.watchHistoryShows) : [],
@@ -923,136 +935,237 @@ class DatabaseService {
       // Extract settings from the settings object
       const settings = userData.settings || {};
       
-      const stmt = this.db.prepare(`
-        INSERT OR REPLACE INTO user_data (
-          userId, tvRecommendations, movieRecommendations, likedTV, dislikedTV, hiddenTV,
-          likedMovies, dislikedMovies, hiddenMovies, watchHistory, settings,
-          numRecommendations, columnsCount, historyColumnsCount, darkTheme,
-          historyHideExisting, historyHideLiked, historyHideDisliked, historyHideHidden,
-          contentTypePreference, isMovieMode, tvGenrePreferences, tvCustomVibe, tvLanguagePreference,
-          movieGenrePreferences, movieCustomVibe, movieLanguagePreference,
-          useSampledLibrary, librarySampleSize,
-          selectedPlexUserId, plexRecentLimit, plexHistoryMode, plexCustomHistoryDays, plexOnlyMode,
-          selectedJellyfinUserId, jellyfinRecentLimit, jellyfinHistoryMode, jellyfinOnlyMode,
-          selectedTautulliUserId, tautulliRecentLimit, tautulliHistoryMode, tautulliOnlyMode,
-          traktRecentLimit, traktHistoryMode, traktOnlyMode,
-          watchHistoryMovies, watchHistoryShows,
-          jellyfinWatchHistoryMovies, jellyfinWatchHistoryShows,
-          tautulliWatchHistoryMovies, tautulliWatchHistoryShows,
-          traktWatchHistoryMovies, traktWatchHistoryShows,
-          genrePreferences, languagePreference,
-          openaiModel, previousTVRecommendations, currentTVRecommendations,
-          fullDatabaseStorageMigrationComplete
-        ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?,
-          ?, ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?,
-          ?, ?,
-          ?, ?,
-          ?, ?,
-          ?, ?,
-          ?, ?, ?,
-          ?
-        )
-      `);
+      // Log watch history refresh timestamps
+      console.log('Saving watch history refresh timestamps:', {
+        lastPlexHistoryRefresh: settings.lastPlexHistoryRefresh,
+        lastJellyfinHistoryRefresh: settings.lastJellyfinHistoryRefresh,
+        lastTautulliHistoryRefresh: settings.lastTautulliHistoryRefresh,
+        lastTraktHistoryRefresh: settings.lastTraktHistoryRefresh
+      });
       
-      stmt.run(
-        userId,
-        JSON.stringify(userData.tvRecommendations),
-        JSON.stringify(userData.movieRecommendations),
-        JSON.stringify(userData.likedTV),
-        JSON.stringify(userData.dislikedTV),
-        JSON.stringify(userData.hiddenTV),
-        JSON.stringify(userData.likedMovies),
-        JSON.stringify(userData.dislikedMovies),
-        JSON.stringify(userData.hiddenMovies),
-        JSON.stringify(userData.watchHistory),
-        JSON.stringify(userData.settings),
-        
-        // Basic UI settings
-        settings.numRecommendations || 6,
-        settings.columnsCount || 3,
-        settings.historyColumnsCount || 3,
-        settings.darkTheme ? 1 : 0,
-        
-        // History display settings
-        settings.historyHideExisting ? 1 : 0,
-        settings.historyHideLiked ? 1 : 0,
-        settings.historyHideDisliked ? 1 : 0,
-        settings.historyHideHidden ? 1 : 0,
-        
-        // Content preferences
-        settings.contentTypePreference || 'tv',
-        settings.isMovieMode ? 1 : 0,
-        JSON.stringify(settings.tvGenrePreferences || []),
-        settings.tvCustomVibe || '',
-        settings.tvLanguagePreference || 'en',
-        JSON.stringify(settings.movieGenrePreferences || []),
-        settings.movieCustomVibe || '',
-        settings.movieLanguagePreference || 'en',
-        
-        // Library settings
-        settings.useSampledLibrary ? 1 : 0,
-        settings.librarySampleSize || 100,
-        
-        // Plex-specific settings
-        settings.selectedPlexUserId || '',
-        settings.plexRecentLimit || 6500,
-        settings.plexHistoryMode || 'recent',
-        settings.plexCustomHistoryDays || 30,
-        settings.plexOnlyMode ? 1 : 0,
-        
-        // Jellyfin-specific settings
-        settings.selectedJellyfinUserId || '',
-        settings.jellyfinRecentLimit || 100,
-        settings.jellyfinHistoryMode || 'all',
-        settings.jellyfinOnlyMode ? 1 : 0,
-        
-        // Tautulli-specific settings
-        settings.selectedTautulliUserId || '',
-        settings.tautulliRecentLimit || 50,
-        settings.tautulliHistoryMode || 'all',
-        settings.tautulliOnlyMode ? 1 : 0,
-        
-        // Trakt-specific settings
-        settings.traktRecentLimit || 50,
-        settings.traktHistoryMode || 'all',
-        settings.traktOnlyMode ? 1 : 0,
-        
-        // Watch history
-        JSON.stringify(settings.watchHistoryMovies || []),
-        JSON.stringify(settings.watchHistoryShows || []),
-        
-        // Service-specific watch history
-        JSON.stringify(settings.jellyfinWatchHistoryMovies || []),
-        JSON.stringify(settings.jellyfinWatchHistoryShows || []),
-        JSON.stringify(settings.tautulliWatchHistoryMovies || []),
-        JSON.stringify(settings.tautulliWatchHistoryShows || []),
-        JSON.stringify(settings.traktWatchHistoryMovies || []),
-        JSON.stringify(settings.traktWatchHistoryShows || []),
-        
-        // General preferences
-        JSON.stringify(settings.genrePreferences || []),
-        settings.languagePreference || 'en',
-        
-        // AI model settings
-        settings.openaiModel || 'google/gemini-2.0-flash-exp:free',
-        
-        // Recommendation history
-        JSON.stringify(settings.previousTVRecommendations || []),
-        JSON.stringify(settings.currentTVRecommendations || []),
-        
-        // Migration flags
-        settings.fullDatabaseStorageMigrationComplete ? 1 : 0
-      );
+      // Get the table info to determine columns
+      const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
+      
+      // Dynamically build the SQL statement based on the actual columns in the table
+      const columnNames = tableInfo.map(col => col.name).filter(name => name !== 'rowid');
+      const placeholders = columnNames.map(() => '?').join(', ');
+      
+      const sql = `
+        INSERT OR REPLACE INTO user_data (
+          ${columnNames.join(', ')}
+        ) VALUES (
+          ${placeholders}
+        )
+      `;
+      
+      // Prepare the statement with the dynamic SQL
+      const stmt = this.db.prepare(sql);
+      
+      // Create an array of values in the same order as the columns
+      const values = [];
+      
+      // Add values for each column in the correct order
+      for (const col of columnNames) {
+        switch (col) {
+          case 'userId':
+            values.push(userId);
+            break;
+          case 'tvRecommendations':
+            values.push(JSON.stringify(userData.tvRecommendations));
+            break;
+          case 'movieRecommendations':
+            values.push(JSON.stringify(userData.movieRecommendations));
+            break;
+          case 'likedTV':
+            values.push(JSON.stringify(userData.likedTV));
+            break;
+          case 'dislikedTV':
+            values.push(JSON.stringify(userData.dislikedTV));
+            break;
+          case 'hiddenTV':
+            values.push(JSON.stringify(userData.hiddenTV));
+            break;
+          case 'likedMovies':
+            values.push(JSON.stringify(userData.likedMovies));
+            break;
+          case 'dislikedMovies':
+            values.push(JSON.stringify(userData.dislikedMovies));
+            break;
+          case 'hiddenMovies':
+            values.push(JSON.stringify(userData.hiddenMovies));
+            break;
+          case 'watchHistory':
+            values.push(JSON.stringify(userData.watchHistory));
+            break;
+          case 'settings':
+            values.push(JSON.stringify(userData.settings));
+            break;
+          case 'numRecommendations':
+            values.push(settings.numRecommendations || 6);
+            break;
+          case 'columnsCount':
+            values.push(settings.columnsCount || 3);
+            break;
+          case 'historyColumnsCount':
+            values.push(settings.historyColumnsCount || 3);
+            break;
+          case 'darkTheme':
+            values.push(settings.darkTheme ? 1 : 0);
+            break;
+          case 'historyHideExisting':
+            values.push(settings.historyHideExisting ? 1 : 0);
+            break;
+          case 'historyHideLiked':
+            values.push(settings.historyHideLiked ? 1 : 0);
+            break;
+          case 'historyHideDisliked':
+            values.push(settings.historyHideDisliked ? 1 : 0);
+            break;
+          case 'historyHideHidden':
+            values.push(settings.historyHideHidden ? 1 : 0);
+            break;
+          case 'contentTypePreference':
+            values.push(settings.contentTypePreference || 'tv');
+            break;
+          case 'isMovieMode':
+            values.push(settings.isMovieMode ? 1 : 0);
+            break;
+          case 'tvGenrePreferences':
+            values.push(JSON.stringify(settings.tvGenrePreferences || []));
+            break;
+          case 'tvCustomVibe':
+            values.push(settings.tvCustomVibe || '');
+            break;
+          case 'tvLanguagePreference':
+            values.push(settings.tvLanguagePreference || 'en');
+            break;
+          case 'movieGenrePreferences':
+            values.push(JSON.stringify(settings.movieGenrePreferences || []));
+            break;
+          case 'movieCustomVibe':
+            values.push(settings.movieCustomVibe || '');
+            break;
+          case 'movieLanguagePreference':
+            values.push(settings.movieLanguagePreference || 'en');
+            break;
+          case 'useSampledLibrary':
+            values.push(settings.useSampledLibrary ? 1 : 0);
+            break;
+          case 'librarySampleSize':
+            values.push(settings.librarySampleSize || 100);
+            break;
+          case 'selectedPlexUserId':
+            values.push(settings.selectedPlexUserId || '');
+            break;
+          case 'plexRecentLimit':
+            values.push(settings.plexRecentLimit || 6500);
+            break;
+          case 'plexHistoryMode':
+            values.push(settings.plexHistoryMode || 'recent');
+            break;
+          case 'plexCustomHistoryDays':
+            values.push(settings.plexCustomHistoryDays || 30);
+            break;
+          case 'plexOnlyMode':
+            values.push(settings.plexOnlyMode ? 1 : 0);
+            break;
+          case 'selectedJellyfinUserId':
+            values.push(settings.selectedJellyfinUserId || '');
+            break;
+          case 'jellyfinRecentLimit':
+            values.push(settings.jellyfinRecentLimit || 100);
+            break;
+          case 'jellyfinHistoryMode':
+            values.push(settings.jellyfinHistoryMode || 'all');
+            break;
+          case 'jellyfinOnlyMode':
+            values.push(settings.jellyfinOnlyMode ? 1 : 0);
+            break;
+          case 'selectedTautulliUserId':
+            values.push(settings.selectedTautulliUserId || '');
+            break;
+          case 'tautulliRecentLimit':
+            values.push(settings.tautulliRecentLimit || 50);
+            break;
+          case 'tautulliHistoryMode':
+            values.push(settings.tautulliHistoryMode || 'all');
+            break;
+          case 'tautulliOnlyMode':
+            values.push(settings.tautulliOnlyMode ? 1 : 0);
+            break;
+          case 'traktRecentLimit':
+            values.push(settings.traktRecentLimit || 50);
+            break;
+          case 'traktHistoryMode':
+            values.push(settings.traktHistoryMode || 'all');
+            break;
+          case 'traktOnlyMode':
+            values.push(settings.traktOnlyMode ? 1 : 0);
+            break;
+          case 'lastPlexHistoryRefresh':
+            values.push(settings.lastPlexHistoryRefresh ? String(settings.lastPlexHistoryRefresh) : null);
+            break;
+          case 'lastJellyfinHistoryRefresh':
+            values.push(settings.lastJellyfinHistoryRefresh ? String(settings.lastJellyfinHistoryRefresh) : null);
+            break;
+          case 'lastTautulliHistoryRefresh':
+            values.push(settings.lastTautulliHistoryRefresh ? String(settings.lastTautulliHistoryRefresh) : null);
+            break;
+          case 'lastTraktHistoryRefresh':
+            values.push(settings.lastTraktHistoryRefresh ? String(settings.lastTraktHistoryRefresh) : null);
+            break;
+          case 'watchHistoryMovies':
+            values.push(JSON.stringify(settings.watchHistoryMovies || []));
+            break;
+          case 'watchHistoryShows':
+            values.push(JSON.stringify(settings.watchHistoryShows || []));
+            break;
+          case 'jellyfinWatchHistoryMovies':
+            values.push(JSON.stringify(settings.jellyfinWatchHistoryMovies || []));
+            break;
+          case 'jellyfinWatchHistoryShows':
+            values.push(JSON.stringify(settings.jellyfinWatchHistoryShows || []));
+            break;
+          case 'tautulliWatchHistoryMovies':
+            values.push(JSON.stringify(settings.tautulliWatchHistoryMovies || []));
+            break;
+          case 'tautulliWatchHistoryShows':
+            values.push(JSON.stringify(settings.tautulliWatchHistoryShows || []));
+            break;
+          case 'traktWatchHistoryMovies':
+            values.push(JSON.stringify(settings.traktWatchHistoryMovies || []));
+            break;
+          case 'traktWatchHistoryShows':
+            values.push(JSON.stringify(settings.traktWatchHistoryShows || []));
+            break;
+          case 'genrePreferences':
+            values.push(JSON.stringify(settings.genrePreferences || []));
+            break;
+          case 'languagePreference':
+            values.push(settings.languagePreference || 'en');
+            break;
+          case 'openaiModel':
+            values.push(settings.openaiModel || 'google/gemini-2.0-flash-exp:free');
+            break;
+          case 'previousTVRecommendations':
+            values.push(JSON.stringify(settings.previousTVRecommendations || []));
+            break;
+          case 'currentTVRecommendations':
+            values.push(JSON.stringify(settings.currentTVRecommendations || []));
+            break;
+          case 'fullDatabaseStorageMigrationComplete':
+            values.push(settings.fullDatabaseStorageMigrationComplete ? 1 : 0);
+            break;
+          default:
+            // For any other columns, push null or a default value
+            values.push(null);
+        }
+      }
+      
+      console.log(`Executing SQL with ${values.length} values for ${columnNames.length} columns`);
+      
+      // Execute the statement with the values
+      stmt.run(...values);
       
       return true;
     } catch (err) {
@@ -1411,6 +1524,63 @@ class DatabaseService {
     } catch (err) {
       console.error(`Error getting Radarr library for user: ${userId}`, err);
       return null;
+    }
+  }
+  
+  // Update a specific user setting directly in the database column
+  updateUserSetting(userId, settingName, value) {
+    try {
+      console.log(`Updating user setting ${settingName} to ${value} for userId: ${userId}`);
+      
+      // Validate that this is a valid column name to prevent SQL injection
+      const validColumnNames = [
+        'lastPlexHistoryRefresh',
+        'lastJellyfinHistoryRefresh',
+        'lastTautulliHistoryRefresh',
+        'lastTraktHistoryRefresh'
+      ];
+      
+      if (!validColumnNames.includes(settingName)) {
+        console.error(`Invalid setting name: ${settingName}`);
+        return false;
+      }
+      
+      // For timestamp values, ensure they are properly formatted as strings
+      let processedValue = value;
+      if (value !== null && typeof value === 'string' && value.includes('T')) {
+        // This looks like an ISO date string, make sure it's properly formatted
+        try {
+          // Try to create a date object and convert back to ISO string to ensure valid format
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            processedValue = date.toISOString();
+            console.log(`Converted timestamp to ISO format: ${processedValue}`);
+          }
+        } catch (e) {
+          console.log('Failed to parse date string, using as-is');
+        }
+      }
+      
+      // Create a dynamic SQL query with the column name
+      // This is safe because we've validated the column name against a whitelist
+      const sql = `UPDATE user_data SET ${settingName} = ? WHERE userId = ?`;
+      
+      // Execute the query
+      const result = this.db.prepare(sql).run(processedValue, userId);
+      
+      // Also update the settings JSON column for backward compatibility
+      const userData = this.getUserData(userId);
+      if (userData && userData.settings) {
+        userData.settings[settingName] = processedValue;
+        const settingsJson = JSON.stringify(userData.settings);
+        this.db.prepare('UPDATE user_data SET settings = ? WHERE userId = ?').run(settingsJson, userId);
+      }
+      
+      console.log(`Updated ${settingName} for userId: ${userId}, changes: ${result.changes}`);
+      return result.changes > 0;
+    } catch (err) {
+      console.error(`Error updating user setting ${settingName} for userId: ${userId}:`, err);
+      return false;
     }
   }
 }

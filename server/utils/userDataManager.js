@@ -116,6 +116,22 @@ class UserDataManager {
         throw new Error('Invalid userData object');
       }
       
+      // Check if settings contains any history refresh timestamps
+      const hasHistoryRefreshTimestamps = 
+        userData.settings?.lastPlexHistoryRefresh || 
+        userData.settings?.lastJellyfinHistoryRefresh || 
+        userData.settings?.lastTautulliHistoryRefresh || 
+        userData.settings?.lastTraktHistoryRefresh;
+      
+      if (hasHistoryRefreshTimestamps) {
+        console.log('userDataManager.saveUserData: Received settings with history refresh timestamps:', {
+          lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
+          lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
+          lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
+          lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh
+        });
+      }
+      
       // Ensure required properties exist
       if (!Array.isArray(userData.tvRecommendations)) userData.tvRecommendations = [];
       if (!Array.isArray(userData.movieRecommendations)) userData.movieRecommendations = [];
@@ -134,6 +150,10 @@ class UserDataManager {
       
       // Save to database
       const success = databaseService.saveUserData(userId, userData);
+      
+      if (hasHistoryRefreshTimestamps) {
+        console.log(`userDataManager.saveUserData: Result of databaseService.saveUserData:`, success);
+      }
       
       console.log(`User data saved successfully for userId: ${userId}`);
       return success;

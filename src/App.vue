@@ -846,23 +846,76 @@ export default {
       }
     },
 
+    // Helper method to check if refresh is needed based on timestamp
+    isRefreshNeeded(timestamp) {
+      if (!timestamp) {
+        console.log('No timestamp found, refresh needed');
+        return true; // No timestamp, refresh needed
+      }
+      
+      try {
+        const lastRefresh = new Date(timestamp);
+        const now = new Date();
+        const hoursSinceRefresh = (now - lastRefresh) / (1000 * 60 * 60);
+        
+        console.log(`Last refresh: ${lastRefresh.toISOString()}, hours since: ${hoursSinceRefresh.toFixed(2)}`);
+        
+        // Refresh if more than 24 hours have passed
+        return hoursSinceRefresh >= 24;
+      } catch (error) {
+        console.error('Error parsing timestamp:', error);
+        return true; // On error, refresh to be safe
+      }
+    },
+    
     // Fetch watch history from all connected services and store it
     async fetchAndStoreWatchHistory() {
       console.log('Fetching watch history from all connected services...');
       const fetchPromises = [];
 
+      // Fetch fresh settings from the server, including timestamp columns
+      let serverSettings = {};
+      try {
+        serverSettings = await apiService.getSettings();
+        console.log('Fetched server settings for refresh check:', serverSettings);
+        
+        // Log the timestamp values specifically for debugging
+        console.log('Timestamp values from server settings:', {
+          lastPlexHistoryRefresh: serverSettings.lastPlexHistoryRefresh,
+          lastJellyfinHistoryRefresh: serverSettings.lastJellyfinHistoryRefresh,
+          lastTautulliHistoryRefresh: serverSettings.lastTautulliHistoryRefresh,
+          lastTraktHistoryRefresh: serverSettings.lastTraktHistoryRefresh
+        });
+      } catch (error) {
+        console.error('Failed to fetch server settings for refresh check:', error);
+        // Proceed with empty settings, which will force a refresh
+      }
+
       // Plex
       if (this.plexConnected) {
-        fetchPromises.push(this.fetchPlexData().then(async () => {
-          if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
-            this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
-            await databaseStorageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
-          }
-          if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
-            this.recentlyWatchedShows.forEach(item => item.source = 'plex');
-            await databaseStorageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
-          }
-        }));
+        const plexRefreshNeeded = this.isRefreshNeeded(serverSettings.lastPlexHistoryRefresh);
+        console.log(`Plex refresh needed: ${plexRefreshNeeded}`);
+
+        if (plexRefreshNeeded) {
+          fetchPromises.push(this.fetchPlexData().then(async () => {
+            if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
+              this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
+              await databaseStorageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
+            }
+            if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
+              this.recentlyWatchedShows.forEach(item => item.source = 'plex');
+              await databaseStorageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
+            }
+            
+            // Update timestamp directly to database column
+            const now = new Date().toISOString();
+            // Save directly to database column instead of through settings object
+            await apiService.post('/settings/lastPlexHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            console.log(`Updated Plex history refresh timestamp: ${now}`);
+          }));
+        } else {
+          console.log('Skipping Plex history refresh (less than 24 hours since last refresh)');
+        }
       }
 
       // Jellyfin - Check both the connected flag AND if the service is configured
@@ -872,45 +925,84 @@ export default {
           console.log('Jellyfin service is configured but not marked as connected. Setting connected flag.');
           this.jellyfinConnected = true;
         }
-        
-        fetchPromises.push(this.fetchJellyfinData().then(async () => {
-          if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
-            this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
-            await databaseStorageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
-          }
-          if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
-            this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
-            await databaseStorageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
-          }
-        }));
+
+        const jellyfinRefreshNeeded = this.isRefreshNeeded(serverSettings.lastJellyfinHistoryRefresh);
+        console.log(`Jellyfin refresh needed: ${jellyfinRefreshNeeded}`);
+
+        if (jellyfinRefreshNeeded) {
+          fetchPromises.push(this.fetchJellyfinData().then(async () => {
+            if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
+              this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
+              await databaseStorageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
+            }
+            if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
+              this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
+              await databaseStorageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
+            }
+            
+            // Update timestamp directly to database column
+            const now = new Date().toISOString();
+            // Save directly to database column instead of through settings object
+            await apiService.post('/settings/lastJellyfinHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            console.log(`Updated Jellyfin history refresh timestamp: ${now}`);
+          }));
+        } else {
+          console.log('Skipping Jellyfin history refresh (less than 24 hours since last refresh)');
+        }
       }
 
       // Tautulli
       if (this.tautulliConnected) {
-        fetchPromises.push(this.fetchTautulliData().then(async () => {
-          if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
-            this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
-            await databaseStorageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
-          }
-          if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
-            this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
-            await databaseStorageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
-          }
-        }));
+        const tautulliRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTautulliHistoryRefresh);
+        console.log(`Tautulli refresh needed: ${tautulliRefreshNeeded}`);
+
+        if (tautulliRefreshNeeded) {
+          fetchPromises.push(this.fetchTautulliData().then(async () => {
+            if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
+              this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
+              await databaseStorageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
+            }
+            if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
+              this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
+              await databaseStorageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
+            }
+            
+            // Update timestamp directly to database column
+            const now = new Date().toISOString();
+            // Save directly to database column instead of through settings object
+            await apiService.post('/settings/lastTautulliHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            console.log(`Updated Tautulli history refresh timestamp: ${now}`);
+          }));
+        } else {
+          console.log('Skipping Tautulli history refresh (less than 24 hours since last refresh)');
+        }
       }
 
       // Trakt
       if (this.traktConnected) {
-        fetchPromises.push(this.fetchTraktData().then(async () => {
-          if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
-            this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
-            await databaseStorageUtils.setJSON('traktWatchHistoryMovies', this.traktRecentlyWatchedMovies);
-          }
-          if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
-            this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
-            await databaseStorageUtils.setJSON('traktWatchHistoryShows', this.traktRecentlyWatchedShows);
-          }
-        }));
+        const traktRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTraktHistoryRefresh);
+        console.log(`Trakt refresh needed: ${traktRefreshNeeded}`);
+
+        if (traktRefreshNeeded) {
+          fetchPromises.push(this.fetchTraktData(true).then(async () => {
+            if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+              this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
+              await databaseStorageUtils.setJSON('traktWatchHistoryMovies', this.traktRecentlyWatchedMovies);
+            }
+            if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+              this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
+              await databaseStorageUtils.setJSON('traktWatchHistoryShows', this.traktRecentlyWatchedShows);
+            }
+            
+            // Update timestamp directly to database column
+            const now = new Date().toISOString();
+            // Save directly to database column instead of through settings object
+            await apiService.post('/settings/lastTraktHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+            console.log(`Updated Trakt history refresh timestamp: ${now}`);
+          }));
+        } else {
+          console.log('Skipping Trakt history refresh (less than 24 hours since last refresh)');
+        }
       }
 
       try {
@@ -1329,7 +1421,7 @@ export default {
       await this.fetchTraktData();
     },
     
-    async fetchTraktData() {
+    async fetchTraktData(forceRefresh = false) {
       console.log('🔄 fetchTraktData called - refreshing Trakt history data');
       
       if (!traktService.isConfigured()) {
@@ -1338,6 +1430,18 @@ export default {
       }
       
       try {
+        // Check if we need to refresh the data
+        if (!forceRefresh) {
+          // Fetch settings to get the latest timestamp
+          const serverSettings = await apiService.getSettings();
+          const traktRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTraktHistoryRefresh);
+          
+          if (!traktRefreshNeeded) {
+            console.log('Skipping Trakt history refresh (less than 24 hours since last refresh)');
+            return;
+          }
+        }
+        
         console.log('🔍 Fetching Trakt watch history with settings:', {
           historyMode: this.traktHistoryMode,
           recentLimit: this.traktRecentLimit || 50,
@@ -1384,6 +1488,22 @@ export default {
           console.log('Trakt show sample:', this.traktRecentlyWatchedShows[0]);
         } else {
           console.log('No Trakt shows in watch history');
+        }
+        
+        // Update the timestamp
+        const now = new Date().toISOString();
+        await apiService.post('/settings/lastTraktHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        console.log(`Updated Trakt history refresh timestamp: ${now}`);
+        
+        // Save to database
+        if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
+          this.traktRecentlyWatchedMovies.forEach(item => item.source = 'trakt');
+          await databaseStorageUtils.setJSON('traktWatchHistoryMovies', this.traktRecentlyWatchedMovies);
+        }
+        
+        if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
+          this.traktRecentlyWatchedShows.forEach(item => item.source = 'trakt');
+          await databaseStorageUtils.setJSON('traktWatchHistoryShows', this.traktRecentlyWatchedShows);
         }
       } catch (error) {
         console.error('Failed to fetch Trakt watch history:', error);
@@ -1982,12 +2102,26 @@ export default {
       }
     },
     
-    async fetchPlexData(userId = '') {
+    async fetchPlexData(userId = '', forceRefresh = false) {
       if (!plexService.isConfigured()) {
         return;
       }
       
       try {
+        // Check if we need to refresh the data
+        if (!forceRefresh) {
+          // Fetch settings to get the latest timestamp
+          const serverSettings = await apiService.getSettings();
+          const plexRefreshNeeded = this.isRefreshNeeded(serverSettings.lastPlexHistoryRefresh);
+          
+          if (!plexRefreshNeeded) {
+            console.log('Skipping Plex history refresh (less than 24 hours since last refresh)');
+            return;
+          }
+        }
+        
+        console.log('Fetching Plex watch history...');
+        
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.plexHistoryMode === 'recent' ? 30 : 0;
         
@@ -2012,20 +2146,50 @@ export default {
         
         console.log('Fetched Plex watch history:', {
           userId: userIdToUse || 'none specified',
-          movies: this.recentlyWatchedMovies,
-          shows: this.recentlyWatchedShows
+          movies: this.recentlyWatchedMovies.length,
+          shows: this.recentlyWatchedShows.length
         });
+        
+        // Update the timestamp
+        const now = new Date().toISOString();
+        await apiService.post('/settings/lastPlexHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        console.log(`Updated Plex history refresh timestamp: ${now}`);
+        
+        // Save to database
+        if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
+          this.recentlyWatchedMovies.forEach(item => item.source = 'plex');
+          await databaseStorageUtils.setJSON('watchHistoryMovies', this.recentlyWatchedMovies);
+        }
+        
+        if (this.recentlyWatchedShows && this.recentlyWatchedShows.length > 0) {
+          this.recentlyWatchedShows.forEach(item => item.source = 'plex');
+          await databaseStorageUtils.setJSON('watchHistoryShows', this.recentlyWatchedShows);
+        }
       } catch (error) {
         console.error('Failed to fetch Plex watch history:', error);
       }
     },
     
-    async fetchJellyfinData(userId = '') {
+    async fetchJellyfinData(userId = '', forceRefresh = false) {
       if (!jellyfinService.isConfigured()) {
         return;
       }
       
       try {
+        // Check if we need to refresh the data
+        if (!forceRefresh) {
+          // Fetch settings to get the latest timestamp
+          const serverSettings = await apiService.getSettings();
+          const jellyfinRefreshNeeded = this.isRefreshNeeded(serverSettings.lastJellyfinHistoryRefresh);
+          
+          if (!jellyfinRefreshNeeded) {
+            console.log('Skipping Jellyfin history refresh (less than 24 hours since last refresh)');
+            return;
+          }
+        }
+        
+        console.log('Fetching Jellyfin watch history...');
+        
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.jellyfinHistoryMode === 'recent' ? 30 : 0;
         
@@ -2078,17 +2242,47 @@ export default {
           movies: this.jellyfinRecentlyWatchedMovies.length,
           shows: this.jellyfinRecentlyWatchedShows.length
         });
+        
+        // Update the timestamp
+        const now = new Date().toISOString();
+        await apiService.post('/settings/lastJellyfinHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        console.log(`Updated Jellyfin history refresh timestamp: ${now}`);
+        
+        // Save to database
+        if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
+          this.jellyfinRecentlyWatchedMovies.forEach(item => item.source = 'jellyfin');
+          await databaseStorageUtils.setJSON('jellyfinWatchHistoryMovies', this.jellyfinRecentlyWatchedMovies);
+        }
+        
+        if (this.jellyfinRecentlyWatchedShows && this.jellyfinRecentlyWatchedShows.length > 0) {
+          this.jellyfinRecentlyWatchedShows.forEach(item => item.source = 'jellyfin');
+          await databaseStorageUtils.setJSON('jellyfinWatchHistoryShows', this.jellyfinRecentlyWatchedShows);
+        }
       } catch (error) {
         console.error('Failed to fetch Jellyfin watch history:', error);
       }
     },
     
-    async fetchTautulliData(userId = null) {
+    async fetchTautulliData(userId = null, forceRefresh = false) {
       if (!tautulliService.isConfigured()) {
         return;
       }
       
       try {
+        // Check if we need to refresh the data
+        if (!forceRefresh) {
+          // Fetch settings to get the latest timestamp
+          const serverSettings = await apiService.getSettings();
+          const tautulliRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTautulliHistoryRefresh);
+          
+          if (!tautulliRefreshNeeded) {
+            console.log('Skipping Tautulli history refresh (less than 24 hours since last refresh)');
+            return;
+          }
+        }
+        
+        console.log('Fetching Tautulli watch history...');
+        
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.tautulliHistoryMode === 'recent' ? 30 : 0;
         
@@ -2123,10 +2317,26 @@ export default {
         this.tautulliRecentlyWatchedShows = showsResponse;
         
         console.log('Fetched Tautulli watch history:', {
-          movies: this.tautulliRecentlyWatchedMovies,
-          shows: this.tautulliRecentlyWatchedShows,
+          movies: this.tautulliRecentlyWatchedMovies.length,
+          shows: this.tautulliRecentlyWatchedShows.length,
           userId: userIdToUse || 'all users' 
         });
+        
+        // Update the timestamp
+        const now = new Date().toISOString();
+        await apiService.post('/settings/lastTautulliHistoryRefresh', { value: now }, { headers: { 'Content-Type': 'application/json' } });
+        console.log(`Updated Tautulli history refresh timestamp: ${now}`);
+        
+        // Save to database
+        if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
+          this.tautulliRecentlyWatchedMovies.forEach(item => item.source = 'tautulli');
+          await databaseStorageUtils.setJSON('tautulliWatchHistoryMovies', this.tautulliRecentlyWatchedMovies);
+        }
+        
+        if (this.tautulliRecentlyWatchedShows && this.tautulliRecentlyWatchedShows.length > 0) {
+          this.tautulliRecentlyWatchedShows.forEach(item => item.source = 'tautulli');
+          await databaseStorageUtils.setJSON('tautulliWatchHistoryShows', this.tautulliRecentlyWatchedShows);
+        }
       } catch (error) {
         console.error('Failed to fetch Tautulli watch history:', error);
       }

@@ -1195,11 +1195,43 @@ app.post('/api/preferences/:type/:preference', async (req, res) => {
 // Get settings
 app.get('/api/settings', async (req, res) => {
   const userId = req.user.userId;
-  
-  // Load user data
-  const userData = await userDataManager.getUserData(userId);
-  
-  res.json(userData.settings || {});
+
+  try {
+    // Load user data (which includes individual columns and the settings blob)
+    const userData = await userDataManager.getUserData(userId);
+
+    // Create a merged settings object
+    const mergedSettings = {
+      ...(userData.settings || {}), // Start with the JSON blob settings
+      // The timestamp values are already in the settings object, but let's make sure they're included
+      // by explicitly adding them here (they'll override any existing values with the same keys)
+      lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
+      lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
+      lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
+      lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh,
+      // Add any other individual setting columns here if needed in the future
+    };
+
+    // Log the timestamp values for debugging
+    console.log('Timestamp values in settings:', {
+      lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
+      lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
+      lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
+      lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh
+    });
+
+    // Remove null/undefined values to keep the response clean
+    Object.keys(mergedSettings).forEach(key => {
+      if (mergedSettings[key] === null || mergedSettings[key] === undefined) {
+        delete mergedSettings[key];
+      }
+    });
+
+    res.json(mergedSettings);
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    res.status(500).json({ error: 'Failed to retrieve settings' });
+  }
 });
 
 // Save settings
@@ -1214,6 +1246,82 @@ app.post('/api/settings', async (req, res) => {
   // Save the updated user data
   await userDataManager.saveUserData(userId, userData);
   res.json({ success: true });
+});
+
+// Save individual setting directly to database column
+app.post('/api/settings/:settingName', async (req, res) => {
+  console.log('POST /api/settings/:settingName endpoint hit');
+  console.log('Request params:', req.params);
+  console.log('Request body:', req.body);
+  console.log('Request user:', req.user);
+  
+  const userId = req.user.userId;
+  const { settingName } = req.params;
+  const value = req.body;
+  
+  console.log(`Saving individual setting ${settingName} directly to database column for userId: ${userId}, value:`, value);
+  
+  try {
+    // Validate that this is a valid column name to prevent SQL injection
+    const validColumnNames = [
+      'lastPlexHistoryRefresh',
+      'lastJellyfinHistoryRefresh',
+      'lastTautulliHistoryRefresh',
+      'lastTraktHistoryRefresh'
+    ];
+    
+    if (!validColumnNames.includes(settingName)) {
+      return res.status(400).json({ 
+        error: 'Invalid setting name',
+        message: `Setting name must be one of: ${validColumnNames.join(', ')}`
+      });
+    }
+    
+    // Load user data to ensure it exists
+    const userData = await userDataManager.getUserData(userId);
+    
+    // For timestamp values, they might come in as a JSON string, so we need to parse them
+    let processedValue = value;
+    if (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) {
+      try {
+        processedValue = JSON.parse(value);
+      } catch (e) {
+        console.log('Value is not valid JSON, using as-is');
+      }
+    } else if (typeof value === 'object' && Object.keys(value).length === 1 && value[Object.keys(value)[0]] === '') {
+        // Handle form-urlencoded data where the key is the date string and value is empty
+        const key = Object.keys(value)[0];
+        // Check if the key looks like an ISO date string before assigning
+        if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(key)) {
+          processedValue = key; // Use the key (the date string) as the value
+          console.log(`Extracted value from form-urlencoded data: ${processedValue}`);
+        } else {
+          console.log('Form-urlencoded key does not look like a date, using original object:', value);
+          processedValue = value; // Fallback to original object if key isn't a date
+        }
+    }
+
+
+    console.log(`Processed value for ${settingName}:`, processedValue);
+
+    // Update the specific column in the database
+    const success = await databaseService.updateUserSetting(userId, settingName, processedValue);
+    
+    if (success) {
+      // Also update the in-memory settings object for consistency
+      if (!userData.settings) userData.settings = {};
+      userData.settings[settingName] = processedValue;
+      
+      console.log(`Successfully saved ${settingName} = ${processedValue} directly to database column`);
+      res.json({ success: true });
+    } else {
+      console.error(`Failed to save ${settingName} directly to database column`);
+      res.status(500).json({ error: 'Failed to save setting' });
+    }
+  } catch (error) {
+    console.error(`Error saving setting ${settingName}:`, error);
+    res.status(500).json({ error: 'An error occurred while saving the setting', details: error.message });
+  }
 });
 
 // Get watch history

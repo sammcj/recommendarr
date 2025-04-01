@@ -72,6 +72,12 @@ async function migrateSettingsToColumns() {
       { name: 'traktHistoryMode', type: 'TEXT', default: "'all'" },
       { name: 'traktOnlyMode', type: 'INTEGER', default: 0 },
       
+      // Watch history refresh timestamps
+      { name: 'lastPlexHistoryRefresh', type: 'TEXT', default: "NULL" },
+      { name: 'lastJellyfinHistoryRefresh', type: 'TEXT', default: "NULL" },
+      { name: 'lastTautulliHistoryRefresh', type: 'TEXT', default: "NULL" },
+      { name: 'lastTraktHistoryRefresh', type: 'TEXT', default: "NULL" },
+      
       // Watch history
       { name: 'watchHistoryMovies', type: 'TEXT', default: "'[]'" },
       { name: 'watchHistoryShows', type: 'TEXT', default: "'[]'" },
@@ -171,6 +177,10 @@ async function migrateSettingsToColumns() {
             traktRecentLimit = ?,
             traktHistoryMode = ?,
             traktOnlyMode = ?,
+          lastPlexHistoryRefresh = ?,
+          lastJellyfinHistoryRefresh = ?,
+          lastTautulliHistoryRefresh = ?,
+          lastTraktHistoryRefresh = ?,
             watchHistoryMovies = ?,
             watchHistoryShows = ?,
             jellyfinWatchHistoryMovies = ?,
@@ -223,6 +233,10 @@ async function migrateSettingsToColumns() {
           settings.traktRecentLimit || 50,
           settings.traktHistoryMode || 'all',
           settings.traktOnlyMode ? 1 : 0,
+          settings.lastPlexHistoryRefresh ? String(settings.lastPlexHistoryRefresh) : null,
+          settings.lastJellyfinHistoryRefresh ? String(settings.lastJellyfinHistoryRefresh) : null,
+          settings.lastTautulliHistoryRefresh ? String(settings.lastTautulliHistoryRefresh) : null,
+          settings.lastTraktHistoryRefresh ? String(settings.lastTraktHistoryRefresh) : null,
           JSON.stringify(settings.watchHistoryMovies || []),
           JSON.stringify(settings.watchHistoryShows || []),
           JSON.stringify(settings.jellyfinWatchHistoryMovies || []),

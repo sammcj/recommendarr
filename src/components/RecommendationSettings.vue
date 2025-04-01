@@ -807,7 +807,10 @@ export default {
       refreshingSonarr: false,
       refreshingRadarr: false,
       sonarrRefreshSuccess: false,
-      radarrRefreshSuccess: false
+      radarrRefreshSuccess: false,
+      // Local copies of props to ensure reactivity
+      localUseSampledLibrary: this.useSampledLibrary,
+      localSampleSize: this.sampleSize
     };
   },
   async mounted() {
@@ -904,6 +907,20 @@ export default {
     }
   },
   watch: {
+    useSampledLibrary: {
+      immediate: true,
+      handler(newVal) {
+        console.log('useSampledLibrary prop changed:', newVal);
+        this.$emit('update:useSampledLibrary', newVal);
+      }
+    },
+    sampleSize: {
+      immediate: true,
+      handler(newVal) {
+        console.log('sampleSize prop changed:', newVal);
+        this.$emit('update:sampleSize', newVal);
+      }
+    },
     isMovieMode: {
       handler: async function(newVal) {
         try {

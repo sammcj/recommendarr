@@ -3,13 +3,15 @@ import apiService from './ApiService';
 import credentialsService from './CredentialsService';
 
 class TMDBService {
-  constructor() {
+constructor() {
     this.apiKey = '';
     this.baseUrl = 'https://api.themoviedb.org/3';
     this.imageBaseUrl = 'https://image.tmdb.org/t/p/w500'; // Default image base URL
     this.useProxy = true;
     this.initialized = false;
     this.initPromise = null;
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
     
     // Initialize the service asynchronously
     this.initPromise = this.initialize();
@@ -36,6 +38,11 @@ class TMDBService {
    * @returns {Promise<boolean>} - Whether credentials were loaded successfully
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return true;
+    }
+    
     try {
       const credentials = await credentialsService.getCredentials('tmdb');
       
@@ -49,6 +56,7 @@ class TMDBService {
         try {
           await this.fetchConfiguration();
           console.log('Successfully loaded and validated TMDB configuration');
+          this.credentialsLoaded = true; // Set flag after successful load
           return true;
         } catch (configError) {
           console.error('Failed to validate TMDB credentials:', configError);

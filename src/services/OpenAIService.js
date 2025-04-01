@@ -1,7 +1,7 @@
 import credentialsService from './CredentialsService';
 
 class OpenAIService {
-  constructor() {
+constructor() {
     this.apiKey = '';
     this.baseUrl = 'https://api.openai.com/v1';
     this.model = 'gpt-3.5-turbo';
@@ -12,6 +12,8 @@ class OpenAIService {
     this.useCustomPromptOnly = false; // Whether to only use custom prompt for recommendations
     this.useStructuredOutput = false; // Default to legacy output format
     this.promptStyle = 'vibe'; // Default prompt style
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -20,8 +22,7 @@ class OpenAIService {
     this.tvConversation = [];
     this.movieConversation = [];
     
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Removed automatic loading of credentials to prevent double loading
     
     // Try to get model from localStorage if it exists
     this.loadModelFromLocalStorage();
@@ -50,6 +51,11 @@ class OpenAIService {
    * @returns {Promise<boolean>} - Whether credentials were successfully loaded
    */
   async loadCredentials(retries = 1, delay = 1000) {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return true;
+    }
+    
     try {
       console.log('Loading OpenAI credentials from server...');
       const credentials = await credentialsService.getCredentials('openai');
@@ -68,6 +74,8 @@ class OpenAIService {
         
         // Update API URL if baseUrl changed
         this.apiUrl = this.getCompletionsUrl();
+        
+        this.credentialsLoaded = true; // Set flag after successful load
         return true;
       } else {
         console.log('No OpenAI credentials found on server');

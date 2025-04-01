@@ -7,14 +7,15 @@ import AuthService from './AuthService';
 import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class PlexService {
-  constructor() {
+constructor() {
     this.token = '';
     this.baseUrl = '';
     this.selectedUserId = '';
-    // Initialize selectedUserId
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
+    // Initialize selectedUserId - keep this as it's using a synchronous method
     this.initSelectedUserId();
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Removed automatic loading of credentials to prevent double loading
   }
 
   /**
@@ -33,6 +34,11 @@ class PlexService {
    * Load credentials from server-side storage
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return;
+    }
+    
     const credentials = await credentialsService.getCredentials('plex');
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
@@ -43,6 +49,8 @@ class PlexService {
       if (credentials.recentLimit) {
         await databaseStorageUtils.set('plexRecentLimit', credentials.recentLimit);
       }
+      
+      this.credentialsLoaded = true; // Set flag after successful load
     }
   }
 
@@ -89,9 +97,12 @@ class PlexService {
    */
   async testConnection() {
     try {
-      // Try to load credentials again in case they weren't ready during init
+      // Try to load credentials if not already configured
       if (!this.isConfigured()) {
-        await this.loadCredentials();
+        // Only load credentials if they haven't been loaded yet
+        if (!this.credentialsLoaded) {
+          await this.loadCredentials();
+        }
         
         if (!this.isConfigured()) {
           throw new Error('Plex service is not configured. Please set baseUrl and token.');
@@ -329,9 +340,12 @@ class PlexService {
    * @returns {Promise<Array>} - List of recently watched movies
    */
   async getRecentlyWatchedMovies(limit = 100, daysAgo = 0, userId = '') {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured()) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
@@ -515,9 +529,13 @@ class PlexService {
    * @returns {Promise<Array>} - List of recently watched TV shows
    */
   async getRecentlyWatchedShows(limit = 100, daysAgo = 0, userId = '') {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured()) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
+      
       if (!this.isConfigured()) {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
       }

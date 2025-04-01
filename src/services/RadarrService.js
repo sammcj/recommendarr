@@ -3,13 +3,14 @@ import apiService from './ApiService';
 import credentialsService from './CredentialsService';
 
 class RadarrService {
-  constructor() {
+constructor() {
     this.apiKey = '';
     this.baseUrl = '';
     // Flag to determine if we should use the proxy
     this.useProxy = true;
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
+    // Removed automatic loading of credentials to prevent double loading
   }
   
   /**
@@ -17,6 +18,11 @@ class RadarrService {
    * @returns {Promise<boolean>} - Whether credentials were loaded successfully
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return true;
+    }
+    
     try {
       const credentials = await credentialsService.getCredentials('radarr');
       
@@ -30,6 +36,7 @@ class RadarrService {
           this.apiKey = credentials.apiKey;
           
           console.log('Successfully loaded valid Radarr credentials');
+          this.credentialsLoaded = true; // Set flag after successful load
           return true;
         } else {
           console.warn('Found Radarr credentials but they contain empty values - not updating local credentials');
@@ -66,15 +73,21 @@ class RadarrService {
     if (!this.isConfigured()) {
       console.log('Radarr service not configured, attempting to load credentials');
       
-      // Try to load credentials again in case they weren't ready during init
-      const credentialsLoaded = await this.loadCredentials();
-      
-      // Double-check configuration after loading credentials
-      if (!this.isConfigured()) {
-        console.error('Radarr service is not configured after credential load attempt');
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        const credentialsLoaded = await this.loadCredentials();
+        
+        // Double-check configuration after loading credentials
+        if (!this.isConfigured()) {
+          console.error('Radarr service is not configured after credential load attempt');
+          throw new Error('Radarr service is not configured. Please set valid baseUrl and apiKey.');
+        } else if (credentialsLoaded) {
+          console.log('Successfully loaded Radarr credentials for API request');
+        }
+      } else {
+        // Credentials were already loaded but service is still not configured
+        console.error('Radarr service is not configured even though credentials were loaded');
         throw new Error('Radarr service is not configured. Please set valid baseUrl and apiKey.');
-      } else if (credentialsLoaded) {
-        console.log('Successfully loaded Radarr credentials for API request');
       }
     }
 

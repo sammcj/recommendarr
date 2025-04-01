@@ -6,10 +6,12 @@ import apiService from './ApiService';
 import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class JellyfinService {
-  constructor() {
+constructor() {
     this.baseUrl = '';
     this.apiKey = '';
     this.userId = '';
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
     
     // Initialize cache loading
     databaseStorageUtils.loadCache();
@@ -19,8 +21,7 @@ class JellyfinService {
       this.userId = databaseStorageUtils.getSync('selectedJellyfinUserId') || '';
     }
     
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Removed automatic loading of credentials to prevent double loading
     
     // Load userId asynchronously if not already loaded
     this.loadUserId();
@@ -44,6 +45,11 @@ class JellyfinService {
    * Load credentials from server-side storage
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return;
+    }
+    
     const credentials = await credentialsService.getCredentials('jellyfin');
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
@@ -54,6 +60,8 @@ class JellyfinService {
       if (credentials.recentLimit) {
         await databaseStorageUtils.set('jellyfinRecentLimit', credentials.recentLimit);
       }
+      
+      this.credentialsLoaded = true; // Set flag after successful load
     }
   }
 
@@ -85,9 +93,12 @@ class JellyfinService {
   }
   
   async getUsers() {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured()) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         return [];
@@ -135,9 +146,12 @@ class JellyfinService {
   }
 
   async testConnection() {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured()) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         return { success: false, message: 'Jellyfin URL and API key are required.' };
@@ -192,9 +206,12 @@ class JellyfinService {
   }
 
   async getRecentlyWatchedMovies(limit = 50, daysAgo = null) {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured() || !this.userId) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured() || !this.userId) {
         return [];
@@ -254,9 +271,12 @@ class JellyfinService {
   }
 
   async getRecentlyWatchedShows(limit = 50, daysAgo = null) {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured() || !this.userId) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured() || !this.userId) {
         return [];

@@ -5,19 +5,20 @@ import AuthService from './AuthService';
 import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class TautulliService {
-  constructor() {
+constructor() {
     this.baseUrl = '';
     this.apiKey = '';
     this.configured = false;
     this.selectedUserId = '';
     // Flag to determine if we should use the proxy
     this.useProxy = true;
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
     
     // Initialize selectedUserId
     this.initSelectedUserId();
     
-    // Try to load saved credentials
-    this.loadCredentials();
+    // Removed automatic loading of credentials to prevent double loading
   }
   
   /**
@@ -36,6 +37,11 @@ class TautulliService {
    * Load saved credentials from the server
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return true;
+    }
+    
     try {
       const credentials = await credentialsService.getCredentials('tautulli');
       if (credentials) {
@@ -43,11 +49,12 @@ class TautulliService {
         this.apiKey = credentials.apiKey || '';
         this.configured = !!(this.baseUrl && this.apiKey);
         
-      // Load recentLimit if available
-      if (credentials.recentLimit) {
-        await databaseStorageUtils.set('tautulliRecentLimit', credentials.recentLimit);
-      }
+        // Load recentLimit if available
+        if (credentials.recentLimit) {
+          await databaseStorageUtils.set('tautulliRecentLimit', credentials.recentLimit);
+        }
         
+        this.credentialsLoaded = true; // Set flag after successful load
         return true;
       }
     } catch (error) {
@@ -117,8 +124,10 @@ class TautulliService {
   
   async _apiRequest(cmd, params = {}) {
     if (!this.isConfigured()) {
-      // Try to load credentials again in case they weren't ready during init
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         throw new Error('Tautulli service is not configured');

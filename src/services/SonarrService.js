@@ -3,23 +3,30 @@ import apiService from './ApiService';
 import credentialsService from './CredentialsService';
 
 class SonarrService {
-  constructor() {
+constructor() {
     this.apiKey = '';
     this.baseUrl = '';
     // Flag to determine if we should use the proxy
     this.useProxy = true;
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
+    // Removed automatic loading of credentials to prevent double loading
   }
   
   /**
    * Load credentials from server-side storage
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return;
+    }
+    
     const credentials = await credentialsService.getCredentials('sonarr');
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.apiKey = credentials.apiKey || '';
+      this.credentialsLoaded = true; // Set flag after successful load
     }
   }
   
@@ -38,8 +45,10 @@ class SonarrService {
     let retryCount = 0;
     
     if (!this.isConfigured()) {
-      // Try to load credentials again in case they weren't ready during init
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');

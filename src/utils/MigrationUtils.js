@@ -27,7 +27,7 @@ export async function migrateLocalStorage(forceRun = false) {
   
   // Check if migration already happened for this user
   const migrationFlag = 'databaseStorageMigrationComplete';
-  const isMigrated = await databaseStorageUtils.getSync(migrationFlag) === true;
+  const isMigrated = await databaseStorageUtils.get(migrationFlag) === true;
   
   if (isMigrated) {
     console.log('Storage migration already completed for this user');
@@ -284,7 +284,7 @@ export async function runFullMigration(forceRun = false) {
   
   // Check if full migration already happened for this user
   const migrationFlag = 'fullDatabaseStorageMigrationComplete';
-  const isMigrated = await databaseStorageUtils.getSync(migrationFlag) === true;
+  const isMigrated = await databaseStorageUtils.get(migrationFlag) === true;
   
   if (isMigrated) {
     console.log('Full storage migration already completed for this user');

@@ -9,6 +9,8 @@ class CredentialsService {
     this.baseUrl = apiService.baseUrl;
     // Used for migration from localStorage
     this.migrated = {};
+    // Cache for storing credentials to avoid repeated API calls
+    this.credentialsCache = {};
   }
   
   /**
@@ -89,6 +91,11 @@ class CredentialsService {
       // Verify the reset was successful
       if (response.data && response.data.success) {
         console.log('✓ Server confirmed user_data.json was reset successfully');
+        
+        // Clear the credentials cache since all user data was reset
+        this.credentialsCache = {};
+        console.log('Credentials cache cleared after user data reset');
+        
         return true;
       } else {
         console.error('Server returned success=false for reset operation');
@@ -124,6 +131,12 @@ class CredentialsService {
       // Send credentials to server using ApiService with auth header
       const response = await apiService.post(`/credentials/${serviceName}`, credentials);
       console.log(`Credentials for ${serviceName} stored successfully`);
+      
+      // Update cache on successful store
+      if (response.data.success) {
+        this.credentialsCache[serviceName] = credentials;
+      }
+      
       return response.data.success;
     } catch (error) {
       console.error(`Error storing credentials for ${serviceName}:`, error);
@@ -138,17 +151,34 @@ class CredentialsService {
    * @returns {Promise<Object|null>} - Credentials object or null if not found
    */
   async getCredentials(serviceName) {
+    // Check if we have cached credentials
+    if (this.credentialsCache[serviceName]) {
+      console.log(`Using cached credentials for ${serviceName}`);
+      return this.credentialsCache[serviceName];
+    }
+    
     try {
       console.log(`Getting credentials for ${serviceName}`);
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.get(`/credentials/${serviceName}`);
       console.log(`Retrieved credentials for ${serviceName} successfully`);
+      
+      // Store in cache
+      this.credentialsCache[serviceName] = response.data;
+      
       return response.data;
     } catch (error) {
       if (error.response?.status === 404) {
         console.log(`${serviceName} credentials not found, trying localStorage migration`);
         // Service not found - try migrating from localStorage
-        return this.migrateFromLocalStorage(serviceName);
+        const migratedCredentials = await this.migrateFromLocalStorage(serviceName);
+        
+        // If migration successful, cache the credentials
+        if (migratedCredentials) {
+          this.credentialsCache[serviceName] = migratedCredentials;
+        }
+        
+        return migratedCredentials;
       }
       console.error(`Error retrieving credentials for ${serviceName}:`, error);
       return null;
@@ -165,6 +195,12 @@ class CredentialsService {
     try {
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.delete(`/credentials/${serviceName}`);
+      
+      // Remove from cache on successful delete
+      if (response.data.success) {
+        delete this.credentialsCache[serviceName];
+      }
+      
       return response.data.success;
     } catch (error) {
       console.error(`Error deleting credentials for ${serviceName}:`, error);
@@ -179,6 +215,12 @@ class CredentialsService {
    * @returns {Promise<boolean>} - Whether credentials exist
    */
   async hasCredentials(serviceName) {
+    // Check cache first
+    if (this.credentialsCache[serviceName]) {
+      console.log(`Credentials for ${serviceName} found in cache`);
+      return true;
+    }
+    
     try {
       console.log(`Checking if credentials exist for ${serviceName}`);
       
@@ -192,6 +234,67 @@ class CredentialsService {
     } catch (error) {
       console.error(`Error checking credentials for ${serviceName}:`, error);
       return false;
+    }
+  }
+  
+  /**
+   * Load all credentials at once to populate the cache
+   * This should be called during app initialization before any service tries to access credentials
+   * 
+   * @returns {Promise<Object>} - Object containing all credentials by service name
+   */
+  async loadAllCredentials() {
+    try {
+      console.log('Loading all credentials at once');
+      
+      // Use ApiService's axios instance which has the auth header properly setup
+      const response = await apiService.get('/credentials');
+      
+      if (response.data && response.data.services) {
+        const services = response.data.services;
+        const serviceNames = Object.keys(services);
+        
+        console.log(`Found ${serviceNames.length} services with credentials`);
+        
+        // Load each service's credentials into cache
+        const loadPromises = serviceNames.map(async (serviceName) => {
+          if (services[serviceName]) {
+            try {
+              // Get the full credentials for this service
+              const credentials = await this.getCredentials(serviceName);
+              if (credentials) {
+                console.log(`Loaded credentials for ${serviceName} into cache`);
+                // The getCredentials method already updates the cache
+              }
+              return { serviceName, credentials };
+            } catch (error) {
+              console.error(`Error loading credentials for ${serviceName}:`, error);
+              return { serviceName, credentials: null };
+            }
+          }
+          return { serviceName, credentials: null };
+        });
+        
+        // Wait for all credentials to be loaded
+        const results = await Promise.all(loadPromises);
+        
+        // Convert results array to object
+        const credentialsMap = {};
+        results.forEach(result => {
+          if (result.credentials) {
+            credentialsMap[result.serviceName] = result.credentials;
+          }
+        });
+        
+        console.log('All credentials loaded into cache');
+        return credentialsMap;
+      }
+      
+      console.log('No credentials found');
+      return {};
+    } catch (error) {
+      console.error('Error loading all credentials:', error);
+      return {};
     }
   }
 }

@@ -1112,15 +1112,13 @@ export default {
           this.loadingServices = true;
         }
         
-        // Get all services status from the server
-        const serviceResults = await Promise.all([
-          credentialsService.hasCredentials('sonarr'),
-          credentialsService.hasCredentials('radarr'),
-          credentialsService.hasCredentials('plex'),
-          credentialsService.hasCredentials('jellyfin'),
-          credentialsService.hasCredentials('tautulli'),
-          credentialsService.hasCredentials('trakt')
-        ]);
+        // Load all credentials at once to populate the cache
+        console.log('Loading all credentials at once to populate cache...');
+        const allCredentials = await credentialsService.loadAllCredentials();
+        
+        // Check which services have credentials
+        const serviceNames = ['sonarr', 'radarr', 'plex', 'jellyfin', 'tautulli', 'trakt'];
+        const serviceResults = serviceNames.map(name => !!allCredentials[name]);
         
         // Log service check results
         console.log('Service credential check results:', {

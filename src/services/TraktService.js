@@ -306,7 +306,7 @@ constructor() {
         recentLimit: this.recentLimit
       };
       
-      // Store in database for client-side access
+      // Store in database using individual setting API
       await databaseStorageUtils.set('traktRecentLimit', this.recentLimit);
       
       // Store updated credentials on the server

@@ -1248,6 +1248,42 @@ app.post('/api/settings', async (req, res) => {
   res.json({ success: true });
 });
 
+// Get individual setting directly from database column
+app.get('/api/settings/:settingName', async (req, res) => {
+  console.log('GET /api/settings/:settingName endpoint hit');
+  console.log('Request params:', req.params);
+  console.log('Request user:', req.user);
+  
+  const userId = req.user.userId;
+  const { settingName } = req.params;
+  
+  console.log(`Getting individual setting ${settingName} directly from database column for userId: ${userId}`);
+  
+  try {
+    // Load user data to get the setting value
+    const userData = await userDataManager.getUserData(userId);
+    
+    // Get the setting value from the appropriate source
+    let value = null;
+    
+    // Check if the setting exists in the userData object
+    if (userData && userData[settingName] !== undefined) {
+      value = userData[settingName];
+    } 
+    // Check if the setting exists in the settings object
+    else if (userData && userData.settings && userData.settings[settingName] !== undefined) {
+      value = userData.settings[settingName];
+    }
+    
+    console.log(`Retrieved value for ${settingName}:`, value);
+    
+    res.json({ value });
+  } catch (error) {
+    console.error(`Error getting setting ${settingName}:`, error);
+    res.status(500).json({ error: 'An error occurred while getting the setting', details: error.message });
+  }
+});
+
 // Save individual setting directly to database column
 app.post('/api/settings/:settingName', async (req, res) => {
   console.log('POST /api/settings/:settingName endpoint hit');
@@ -1257,47 +1293,53 @@ app.post('/api/settings/:settingName', async (req, res) => {
   
   const userId = req.user.userId;
   const { settingName } = req.params;
-  const value = req.body;
+  // Extract the value from the request body
+  // The client now sends { value: actualValue }
+  const rawValue = req.body.value !== undefined ? req.body.value : req.body;
   
-  console.log(`Saving individual setting ${settingName} directly to database column for userId: ${userId}, value:`, value);
+  console.log(`Saving individual setting ${settingName} directly to database column for userId: ${userId}, value:`, rawValue);
   
   try {
-    // Validate that this is a valid column name to prevent SQL injection
-    const validColumnNames = [
+    // Special handling for timestamp settings
+    const timestampSettings = [
       'lastPlexHistoryRefresh',
       'lastJellyfinHistoryRefresh',
       'lastTautulliHistoryRefresh',
       'lastTraktHistoryRefresh'
     ];
     
-    if (!validColumnNames.includes(settingName)) {
-      return res.status(400).json({ 
-        error: 'Invalid setting name',
-        message: `Setting name must be one of: ${validColumnNames.join(', ')}`
-      });
+    if (timestampSettings.includes(settingName)) {
+      // Use the existing updateUserSetting method for timestamp settings
+      const success = await databaseService.updateUserSetting(userId, settingName, rawValue);
+      
+      if (success) {
+        return res.json({ success: true });
+      } else {
+        return res.status(500).json({ error: 'Failed to save setting' });
+      }
     }
     
     // Load user data to ensure it exists
     const userData = await userDataManager.getUserData(userId);
     
     // For timestamp values, they might come in as a JSON string, so we need to parse them
-    let processedValue = value;
-    if (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) {
+    let processedValue = rawValue;
+    if (typeof rawValue === 'string' && rawValue.startsWith('"') && rawValue.endsWith('"')) {
       try {
-        processedValue = JSON.parse(value);
+        processedValue = JSON.parse(rawValue);
       } catch (e) {
         console.log('Value is not valid JSON, using as-is');
       }
-    } else if (typeof value === 'object' && Object.keys(value).length === 1 && value[Object.keys(value)[0]] === '') {
+    } else if (typeof rawValue === 'object' && Object.keys(rawValue).length === 1 && rawValue[Object.keys(rawValue)[0]] === '') {
         // Handle form-urlencoded data where the key is the date string and value is empty
-        const key = Object.keys(value)[0];
+        const key = Object.keys(rawValue)[0];
         // Check if the key looks like an ISO date string before assigning
         if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(key)) {
           processedValue = key; // Use the key (the date string) as the value
           console.log(`Extracted value from form-urlencoded data: ${processedValue}`);
         } else {
-          console.log('Form-urlencoded key does not look like a date, using original object:', value);
-          processedValue = value; // Fallback to original object if key isn't a date
+          console.log('Form-urlencoded key does not look like a date, using original object:', rawValue);
+          processedValue = rawValue; // Fallback to original object if key isn't a date
         }
     }
 

@@ -1530,24 +1530,53 @@ class DatabaseService {
   // Update a specific user setting directly in the database column
   updateUserSetting(userId, settingName, value) {
     try {
-      console.log(`Updating user setting ${settingName} to ${value} for userId: ${userId}`);
+      console.log(`Updating user setting ${settingName} for userId: ${userId}`);
       
-      // Validate that this is a valid column name to prevent SQL injection
-      const validColumnNames = [
+      // Special handling for timestamp values
+      const timestampSettings = [
         'lastPlexHistoryRefresh',
         'lastJellyfinHistoryRefresh',
         'lastTautulliHistoryRefresh',
         'lastTraktHistoryRefresh'
       ];
       
-      if (!validColumnNames.includes(settingName)) {
-        console.error(`Invalid setting name: ${settingName}`);
-        return false;
-      }
+      // Array-type settings that need to be JSON-stringified
+      const arraySettings = [
+        'previousTVRecommendations',
+        'currentTVRecommendations',
+        'tvGenrePreferences',
+        'movieGenrePreferences',
+        'genrePreferences',
+        'watchHistoryMovies',
+        'watchHistoryShows'
+      ];
+      
+      // Boolean settings that need to be converted to integers for SQLite
+      const booleanSettings = [
+        'useSampledLibrary',
+        'darkTheme',
+        'historyHideExisting',
+        'historyHideLiked',
+        'historyHideDisliked',
+        'historyHideHidden',
+        'isMovieMode',
+        'plexOnlyMode',
+        'jellyfinOnlyMode',
+        'tautulliOnlyMode',
+        'traktOnlyMode',
+        'useCustomPromptOnly',
+        'useStructuredOutput',
+        'fullDatabaseStorageMigrationComplete'
+      ];
       
       // For timestamp values, ensure they are properly formatted as strings
       let processedValue = value;
-      if (value !== null && typeof value === 'string' && value.includes('T')) {
+      
+      // Log the original value and its type
+      console.log(`Original value for ${settingName}:`, value, `(type: ${typeof value})`);
+      
+      // Handle timestamp settings
+      if (timestampSettings.includes(settingName) && value !== null && typeof value === 'string' && value.includes('T')) {
         // This looks like an ISO date string, make sure it's properly formatted
         try {
           // Try to create a date object and convert back to ISO string to ensure valid format
@@ -1561,14 +1590,95 @@ class DatabaseService {
         }
       }
       
-      // Create a dynamic SQL query with the column name
-      // This is safe because we've validated the column name against a whitelist
-      const sql = `UPDATE user_data SET ${settingName} = ? WHERE userId = ?`;
+      // Handle boolean settings
+      if (booleanSettings.includes(settingName)) {
+        // Convert boolean values to integers (1 for true, 0 for false)
+        if (typeof processedValue === 'boolean') {
+          processedValue = processedValue ? 1 : 0;
+          console.log(`Converted boolean to integer for ${settingName}: ${processedValue}`);
+        } else if (processedValue === 'true' || processedValue === 'false') {
+          // Handle string 'true'/'false' values
+          processedValue = processedValue === 'true' ? 1 : 0;
+          console.log(`Converted string boolean to integer for ${settingName}: ${processedValue}`);
+        } else if (typeof processedValue === 'object' && processedValue !== null && processedValue.value !== undefined) {
+          // Handle {value: true/false} format from API
+          const boolValue = processedValue.value === true || processedValue.value === 'true';
+          processedValue = boolValue ? 1 : 0;
+          console.log(`Extracted boolean from object for ${settingName}: ${processedValue}`);
+        } else if (processedValue === 1 || processedValue === 0 || processedValue === '1' || processedValue === '0') {
+          // Already in the right format, just ensure it's a number
+          processedValue = parseInt(processedValue, 10);
+          console.log(`Normalized integer boolean for ${settingName}: ${processedValue}`);
+        } else {
+          // Default to false for any other values
+          console.log(`Unrecognized boolean format for ${settingName}, defaulting to 0`);
+          processedValue = 0;
+        }
+      }
       
-      // Execute the query
-      const result = this.db.prepare(sql).run(processedValue, userId);
+      // Handle array settings
+      if (arraySettings.includes(settingName)) {
+        // Ensure arrays are properly JSON-stringified
+        if (Array.isArray(processedValue)) {
+          processedValue = JSON.stringify(processedValue);
+          console.log(`JSON-stringified array value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+        } else if (typeof processedValue === 'object' && processedValue !== null) {
+          // If it's an object with a value property (from API), extract the value
+          if (processedValue.value !== undefined) {
+            if (Array.isArray(processedValue.value)) {
+              processedValue = JSON.stringify(processedValue.value);
+              console.log(`JSON-stringified array from object.value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+            } else {
+              // If value is not an array but still an object, stringify it
+              processedValue = JSON.stringify(processedValue.value);
+              console.log(`JSON-stringified object.value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+            }
+          } else {
+            // If it's already an object (like from the request body), stringify it
+            processedValue = JSON.stringify(processedValue);
+            console.log(`JSON-stringified object value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+          }
+        } else if (typeof processedValue === 'string') {
+          // If it's already a string, check if it's valid JSON
+          try {
+            // Try to parse it to make sure it's valid JSON
+            JSON.parse(processedValue);
+            console.log(`Value for ${settingName} is already a valid JSON string`);
+          } catch (e) {
+            // If it's not valid JSON, wrap it in an array and stringify
+            processedValue = JSON.stringify([processedValue]);
+            console.log(`Converted string to JSON array for ${settingName}: ${processedValue}`);
+          }
+        }
+      }
       
-      // Also update the settings JSON column for backward compatibility
+      // Get the table info to determine if this is a direct column
+      const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
+      const columnNames = tableInfo.map(col => col.name);
+      
+      let result;
+      
+      // If the setting is a direct column in the database, update it directly
+      if (columnNames.includes(settingName)) {
+        console.log(`Updating column ${settingName} directly in database`);
+        const sql = `UPDATE user_data SET ${settingName} = ? WHERE userId = ?`;
+        result = this.db.prepare(sql).run(processedValue, userId);
+      } else {
+        console.log(`${settingName} is not a direct column, updating in settings JSON`);
+        // If not a direct column, update it in the settings JSON
+        const userData = this.getUserData(userId);
+        if (!userData || !userData.settings) {
+          console.error(`No user data or settings found for userId: ${userId}`);
+          return false;
+        }
+        
+        // Update the setting in the settings object
+        userData.settings[settingName] = processedValue;
+        const settingsJson = JSON.stringify(userData.settings);
+        result = this.db.prepare('UPDATE user_data SET settings = ? WHERE userId = ?').run(settingsJson, userId);
+      }
+      
+      // Always update the settings JSON for backward compatibility
       const userData = this.getUserData(userId);
       if (userData && userData.settings) {
         userData.settings[settingName] = processedValue;
@@ -1576,8 +1686,8 @@ class DatabaseService {
         this.db.prepare('UPDATE user_data SET settings = ? WHERE userId = ?').run(settingsJson, userId);
       }
       
-      console.log(`Updated ${settingName} for userId: ${userId}, changes: ${result.changes}`);
-      return result.changes > 0;
+      console.log(`Updated ${settingName} for userId: ${userId}, changes: ${result ? result.changes : 0}`);
+      return result && result.changes > 0;
     } catch (err) {
       console.error(`Error updating user setting ${settingName} for userId: ${userId}:`, err);
       return false;

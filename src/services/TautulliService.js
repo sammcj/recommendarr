@@ -324,6 +324,25 @@ constructor() {
     }
   }
 
+  /**
+   * Update the last history refresh timestamp
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateLastHistoryRefresh() {
+    try {
+      const now = new Date().toISOString();
+      
+      // Use individual setting API to update the timestamp
+      await databaseStorageUtils.set('lastTautulliHistoryRefresh', now);
+      
+      console.log(`Updated lastTautulliHistoryRefresh to ${now}`);
+      return true;
+    } catch (error) {
+      console.error('Error updating lastTautulliHistoryRefresh:', error);
+      return false;
+    }
+  }
+  
   async disconnect() {
     try {
       // Clear local credentials

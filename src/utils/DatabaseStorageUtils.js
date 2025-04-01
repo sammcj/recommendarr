@@ -51,6 +51,8 @@ class DatabaseStorageUtils {
             }, 5000);
             
             // Attempt to load settings from API
+            // Note: We're still using getSettings for initial load to get all settings at once
+            // This is more efficient than making individual calls for each setting
             apiService.getSettings()
                 .then(settings => {
                     // Clear timeout since we got a response
@@ -90,21 +92,36 @@ class DatabaseStorageUtils {
      */
     async get(key, defaultValue = null) {
         try {
-            // Ensure cache is loaded
-            if (!this.cacheLoaded) {
-                console.log(`Cache not loaded when getting ${key}, loading now`);
-                const loadResult = await this.loadCache();
-                if (!loadResult) {
-                    console.warn(`Failed to load cache when getting ${key}, using default value`);
-                }
-            }
-
-            const value = this.cache[key];
-            if (value === undefined) {
-                return defaultValue;
+            // Check cache first for performance
+            if (this.cacheLoaded && this.cache[key] !== undefined) {
+                return this.cache[key];
             }
             
-            return value;
+            // If not in cache or cache not loaded, get directly from API
+            try {
+                const value = await apiService.getSetting(key);
+                
+                // Update cache if it's loaded
+                if (this.cacheLoaded) {
+                    this.cache[key] = value;
+                }
+                
+                return value !== null && value !== undefined ? value : defaultValue;
+            } catch (error) {
+                // If API call fails, try to load from cache as fallback
+                if (!this.cacheLoaded) {
+                    console.log(`API call failed, loading cache for ${key}`);
+                    const loadResult = await this.loadCache();
+                    if (!loadResult) {
+                        console.warn(`Failed to load cache for ${key}, using default value`);
+                        return defaultValue;
+                    }
+                    
+                    return this.cache[key] !== undefined ? this.cache[key] : defaultValue;
+                }
+                
+                return defaultValue;
+            }
         } catch (error) {
             console.error(`Error getting ${key} from database:`, error);
             return defaultValue;
@@ -125,9 +142,9 @@ class DatabaseStorageUtils {
         // Update cache
         this.cache[key] = value;
 
-        // Save to server
+        // Save to server using individual setting API
         try {
-            await apiService.saveSettings(this.cache);
+            await apiService.saveSetting(key, value);
             return true;
         } catch (error) {
             console.error(`Error setting ${key} in database:`, error);
@@ -201,9 +218,10 @@ class DatabaseStorageUtils {
         // Remove from cache
         delete this.cache[key];
 
-        // Save to server
+        // Save to server using individual setting API
+        // We set the value to null to effectively remove it
         try {
-            await apiService.saveSettings(this.cache);
+            await apiService.saveSetting(key, null);
             return true;
         } catch (error) {
             console.error(`Error removing ${key} from database:`, error);

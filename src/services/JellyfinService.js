@@ -6,7 +6,7 @@ import apiService from './ApiService';
 import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class JellyfinService {
-constructor() {
+  constructor() {
     this.baseUrl = '';
     this.apiKey = '';
     this.userId = '';
@@ -32,15 +32,13 @@ constructor() {
    */
   async loadUserId() {
     try {
-      const userId = await databaseStorageUtils.get('selectedJellyfinUserId');
-      if (userId) {
-        this.userId = userId;
-      }
+      this.userId = await databaseStorageUtils.get('selectedJellyfinUserId') || '';
     } catch (error) {
-      console.error('Error loading Jellyfin user ID:', error);
+      console.error('Error loading selectedJellyfinUserId:', error);
+      this.userId = '';
     }
   }
-
+  
   /**
    * Load credentials from server-side storage
    */
@@ -62,6 +60,25 @@ constructor() {
       }
       
       this.credentialsLoaded = true; // Set flag after successful load
+    }
+  }
+  
+  /**
+   * Update the last history refresh timestamp
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateLastHistoryRefresh() {
+    try {
+      const now = new Date().toISOString();
+      
+      // Use individual setting API to update the timestamp
+      await databaseStorageUtils.set('lastJellyfinHistoryRefresh', now);
+      
+      console.log(`Updated lastJellyfinHistoryRefresh to ${now}`);
+      return true;
+    } catch (error) {
+      console.error('Error updating lastJellyfinHistoryRefresh:', error);
+      return false;
     }
   }
 

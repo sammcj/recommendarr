@@ -65,6 +65,8 @@ constructor() {
     this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
     this.token = token;
     this.selectedUserId = selectedUserId;
+    
+    // Use individual setting API for selectedUserId
     await databaseStorageUtils.set('selectedPlexUserId', selectedUserId);
     
     const credentials = {
@@ -75,7 +77,7 @@ constructor() {
     // If recentLimit is provided, store it with the credentials
     if (recentLimit !== null) {
       credentials.recentLimit = recentLimit;
-      // Also store in database for client-side access
+      // Also store in database using individual setting API
       await databaseStorageUtils.set('plexRecentLimit', recentLimit);
     }
     

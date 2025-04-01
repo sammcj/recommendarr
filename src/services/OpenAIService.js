@@ -106,16 +106,20 @@ constructor() {
       // Initialize cache if needed
       if (!databaseStorageUtils.cacheLoaded) {
         databaseStorageUtils.loadCache().then(() => {
-          const savedModel = databaseStorageUtils.getSync('openaiModel');
+          // Use individual setting API to get the model
+          databaseStorageUtils.get('openaiModel').then(savedModel => {
+            if (savedModel) {
+              this.model = savedModel;
+            }
+          });
+        });
+      } else {
+        // Use individual setting API to get the model
+        databaseStorageUtils.get('openaiModel').then(savedModel => {
           if (savedModel) {
             this.model = savedModel;
           }
         });
-      } else {
-        const savedModel = databaseStorageUtils.getSync('openaiModel');
-        if (savedModel) {
-          this.model = savedModel;
-        }
       }
     }).catch(error => {
       console.error('Error loading databaseStorageUtils:', error);
@@ -133,16 +137,20 @@ constructor() {
       // Initialize cache if needed
       if (!databaseStorageUtils.cacheLoaded) {
         databaseStorageUtils.loadCache().then(() => {
-          const savedPromptStyle = databaseStorageUtils.getSync('openaiPromptStyle');
+          // Use individual setting API to get the prompt style
+          databaseStorageUtils.get('openaiPromptStyle').then(savedPromptStyle => {
+            if (savedPromptStyle) {
+              this.promptStyle = savedPromptStyle;
+            }
+          });
+        });
+      } else {
+        // Use individual setting API to get the prompt style
+        databaseStorageUtils.get('openaiPromptStyle').then(savedPromptStyle => {
           if (savedPromptStyle) {
             this.promptStyle = savedPromptStyle;
           }
         });
-      } else {
-        const savedPromptStyle = databaseStorageUtils.getSync('openaiPromptStyle');
-        if (savedPromptStyle) {
-          this.promptStyle = savedPromptStyle;
-        }
       }
     }).catch(error => {
       console.error('Error loading databaseStorageUtils:', error);
@@ -363,7 +371,7 @@ From this technical analysis, recommend series that demonstrate similar technica
 3. Directorial presence: Identify the specific sensibilities of directors whose work appears in my collection, focusing on their unique approach to creating tone and atmosphere.
 4. Cinematic texture: Note preferences for certain visual and auditory experiences—like grain vs. sharpness, bold vs. muted colors, orchestral vs. electronic scores, dialogue-heavy vs. visual storytelling, etc.
 5. Emotional journey: Understand the emotional arc and viewing experience I might be seeking, rather than just similar story elements.
-          
+
 From these insights, recommend films that evoke comparable emotional states and atmospheres, even if their plots, settings, or genres seem different. Prioritize matching the ineffable feeling and unique sensory experience of the films I love. Your recommendations should aim to recreate specific emotional textures and moods rather than merely matching plot points or conventional categorizations.`
           : ` When exploring my library, please focus on identifying and matching the distinctive emotional atmosphere and sensory experience of these series:
           

@@ -272,6 +272,7 @@ class ApiService {
    * Get user settings
    * 
    * @returns {Promise<Object>} - User settings
+   * @deprecated Use getSetting for individual settings instead
    */
   async getSettings() {
     try {
@@ -284,10 +285,27 @@ class ApiService {
   }
 
   /**
+   * Get a specific user setting
+   * 
+   * @param {string} settingName - The name of the setting to get
+   * @returns {Promise<any>} - The setting value
+   */
+  async getSetting(settingName) {
+    try {
+      const response = await this.get(`/settings/${settingName}`);
+      return response.data.value;
+    } catch (error) {
+      console.error(`Failed to get setting ${settingName}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Save user settings
    * 
    * @param {Object} settings - Settings to save
    * @returns {Promise<boolean>} - Whether the save was successful
+   * @deprecated Use saveSetting for individual settings instead
    */
   async saveSettings(settings) {
     try {
@@ -295,6 +313,24 @@ class ApiService {
       return true;
     } catch (error) {
       console.error('Failed to save settings:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Save a specific user setting
+   * 
+   * @param {string} settingName - The name of the setting to save
+   * @param {any} value - The value to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async saveSetting(settingName, value) {
+    try {
+      // Wrap the value in an object to ensure it's sent as JSON
+      await this.post(`/settings/${settingName}`, { value });
+      return true;
+    } catch (error) {
+      console.error(`Failed to save setting ${settingName}:`, error);
       return false;
     }
   }

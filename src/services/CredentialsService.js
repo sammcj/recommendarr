@@ -1,5 +1,4 @@
 import apiService from './ApiService';
-import { migrateKnownKeys } from '../utils/MigrationUtils';
 
 /**
  * Service for managing API credentials (stored server-side)
@@ -56,13 +55,8 @@ class CredentialsService {
       if (success) {
         console.log(`Successfully migrated ${serviceName} credentials to server storage`);
         
-        // Only run general migration if user is authenticated
-        if (apiService.getCurrentUser()) {
-          // Run the general migration to ensure other settings are migrated too
-          await migrateKnownKeys();
-        } else {
-          console.log('Skipping general migration - user is not authenticated');
-        }
+        // Migration is no longer needed
+        console.log('Migration functionality has been removed');
         
         return credentials;
       } else {

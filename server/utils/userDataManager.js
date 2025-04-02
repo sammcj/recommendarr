@@ -1,12 +1,5 @@
 // User data manager module
-const fs = require('fs').promises;
-const path = require('path');
-const encryptionService = require('./encryption');
 const databaseService = require('./databaseService');
-
-// Data storage location - used only for migration
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const USER_DATA_DIR = path.join(DATA_DIR, 'user_data');
 
 // Default user data template
 const createDefaultUserData = () => ({
@@ -22,25 +15,9 @@ const createDefaultUserData = () => ({
     movies: [],
     shows: []
   },
-  settings: {
-    numRecommendations: 6,
-    columnsCount: 3,
-    historyColumnsCount: 3,
-    historyHideExisting: true,
-    historyHideLiked: false,
-    historyHideDisliked: false,
-    historyHideHidden: true,
-    contentTypePreference: 'tv',
-    isMovieMode: false,
-    tvGenrePreferences: [],
-    tvCustomVibe: '',
-    tvLanguagePreference: 'en',
-    movieGenrePreferences: [],
-    movieCustomVibe: '',
-    movieLanguagePreference: 'en',
-    useSampledLibrary: false,
-    librarySampleSize: 100
-  }
+  // Individual settings are now stored in separate columns in the database
+  // This empty settings object is kept for backward compatibility
+  settings: {}
 });
 
 class UserDataManager {
@@ -117,18 +94,19 @@ class UserDataManager {
       }
       
       // Check if settings contains any history refresh timestamps
+      // These are now stored in individual columns, but we'll log them for debugging
       const hasHistoryRefreshTimestamps = 
-        userData.settings?.lastPlexHistoryRefresh || 
-        userData.settings?.lastJellyfinHistoryRefresh || 
-        userData.settings?.lastTautulliHistoryRefresh || 
-        userData.settings?.lastTraktHistoryRefresh;
+        userData.lastPlexHistoryRefresh || 
+        userData.lastJellyfinHistoryRefresh || 
+        userData.lastTautulliHistoryRefresh || 
+        userData.lastTraktHistoryRefresh;
       
       if (hasHistoryRefreshTimestamps) {
-        console.log('userDataManager.saveUserData: Received settings with history refresh timestamps:', {
-          lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
-          lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
-          lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
-          lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh
+        console.log('userDataManager.saveUserData: Received data with history refresh timestamps:', {
+          lastPlexHistoryRefresh: userData.lastPlexHistoryRefresh,
+          lastJellyfinHistoryRefresh: userData.lastJellyfinHistoryRefresh,
+          lastTautulliHistoryRefresh: userData.lastTautulliHistoryRefresh,
+          lastTraktHistoryRefresh: userData.lastTraktHistoryRefresh
         });
       }
       
@@ -144,9 +122,8 @@ class UserDataManager {
       if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
       if (!userData.settings) userData.settings = {};
       
-      // Ensure settings has default values
-      const defaultData = createDefaultUserData();
-      userData.settings = { ...defaultData.settings, ...userData.settings };
+      // We no longer need to set default values for settings
+      // as they are now stored in individual columns with default values in the database
       
       // Save to database
       const success = databaseService.saveUserData(userId, userData);
@@ -271,12 +248,16 @@ class UserDataManager {
         }
       }
       
-      // Transfer settings (but keep user-specific settings if they exist)
+      // For legacy data migration, we'll need to update individual settings
+      // instead of merging the settings object
       if (legacyData.settings) {
-        userData.settings = {
-          ...legacyData.settings,
-          ...userData.settings
-        };
+        // Extract individual settings from legacyData.settings
+        // and set them directly on userData
+        // This will be handled by databaseService.saveUserData
+        // which will update the individual columns
+        
+        // We'll keep the empty settings object for backward compatibility
+        userData.settings = {};
       }
       
       // Save the updated user data

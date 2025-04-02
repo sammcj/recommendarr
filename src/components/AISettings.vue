@@ -1180,11 +1180,6 @@ export default {
     }
   },
   async created() {
-    // Initialize database cache if needed
-    if (!databaseStorageUtils.cacheLoaded) {
-      await databaseStorageUtils.loadCache();
-    }
-    
     // Load saved settings initially
     this.loadAllSettings();
   },
@@ -1505,7 +1500,7 @@ export default {
         if (plexService.isConfigured()) {
           this.plexSettings.baseUrl = plexService.baseUrl;
           this.plexSettings.token = plexService.token;
-          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit', 10);
+          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit');
           return;
         }
         
@@ -1513,7 +1508,7 @@ export default {
         const credentials = await credentialsService.getCredentials('plex');
         if (credentials) {
           this.plexSettings.token = credentials.token || '';
-          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit', 10);
+          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit');
         }
       } catch (error) {
         console.error('Error loading Plex settings:', error);
@@ -1527,7 +1522,7 @@ export default {
           this.jellyfinSettings.baseUrl = jellyfinService.baseUrl;
           this.jellyfinSettings.apiKey = jellyfinService.apiKey;
           this.jellyfinSettings.userId = jellyfinService.userId;
-          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit', 10);
+          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit');
           
           // Try to look up the username for the current userId
           if (this.jellyfinSettings.userId) {
@@ -1551,7 +1546,7 @@ export default {
           this.jellyfinSettings.baseUrl = credentials.baseUrl || '';
           this.jellyfinSettings.apiKey = credentials.apiKey || '';
           this.jellyfinSettings.userId = credentials.userId || '';
-          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit', 10);
+          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit');
           
           // If we have credentials but no service configured yet, configure it temporarily to look up username
           if (this.jellyfinSettings.baseUrl && this.jellyfinSettings.apiKey && this.jellyfinSettings.userId) {

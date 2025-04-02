@@ -55,7 +55,7 @@ constructor() {
         
         // Store recentLimit as a property of the service
         if (credentials.recentLimit) {
-          this.recentLimit = parseInt(credentials.recentLimit, 10);
+          this.recentLimit = parseInt(credentials.recentLimit);
           // Also store in database
           await databaseStorageUtils.set('traktRecentLimit', this.recentLimit);
           console.log(`Set TraktService.recentLimit to ${this.recentLimit} from user credentials`);
@@ -189,7 +189,7 @@ constructor() {
       
       // Include recentLimit if available
       if (recentLimit) {
-        credentials.recentLimit = parseInt(recentLimit, 10);
+        credentials.recentLimit = parseInt(recentLimit);
       }
       
       await credentialsService.storeCredentials('trakt', credentials);
@@ -265,7 +265,7 @@ constructor() {
       
       // Include recentLimit if available
       if (recentLimit) {
-        credentials.recentLimit = parseInt(recentLimit, 10);
+        credentials.recentLimit = parseInt(recentLimit);
       }
       
       await credentialsService.storeCredentials('trakt', credentials);
@@ -298,7 +298,7 @@ constructor() {
       }
       
       // Update the service property
-      this.recentLimit = parseInt(recentLimit, 10);
+      this.recentLimit = parseInt(recentLimit);
       
       // Update just the recentLimit while preserving all other credentials
       const updatedCredentials = {
@@ -913,7 +913,7 @@ constructor() {
       
       // Preserve recentLimit if available
       if (recentLimit) {
-        credentials.recentLimit = parseInt(recentLimit, 10);
+        credentials.recentLimit = parseInt(recentLimit);
       }
       
       await credentialsService.storeCredentials('trakt', credentials);

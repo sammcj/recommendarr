@@ -201,13 +201,12 @@ export default {
           // Save the recent limit to database
           await databaseStorageUtils.set('tautulliRecentLimit', this.recentLimit);
           
-          // Save to user settings in database
+          // Save to user settings in database using individual setting API
           try {
-            const userData = await apiService.getSettings();
-            userData.tautulliRecentLimit = this.recentLimit;
-            await apiService.saveSettings(userData);
+            await apiService.saveSetting('tautulliRecentLimit', this.recentLimit);
+            console.log('Saved tautulliRecentLimit to database:', this.recentLimit);
           } catch (settingsError) {
-            console.error('Error saving Tautulli limit to user settings:', settingsError);
+            console.error('Error saving tautulliRecentLimit to database:', settingsError);
             // Continue even if settings save fails
           }
           
@@ -247,13 +246,12 @@ export default {
       await databaseStorageUtils.set('tautulliRecentLimit', this.recentLimit);
       this.editLimit = false;
       
-      // Save to user settings in database
+      // Save to user settings in database using individual setting API
       try {
-        const userData = await apiService.getSettings();
-        userData.tautulliRecentLimit = this.recentLimit;
-        await apiService.saveSettings(userData);
+        await apiService.saveSetting('tautulliRecentLimit', this.recentLimit);
+        console.log('Saved tautulliRecentLimit to database:', this.recentLimit);
       } catch (settingsError) {
-        console.error('Error saving Tautulli limit to user settings:', settingsError);
+        console.error('Error saving tautulliRecentLimit to database:', settingsError);
         // Continue even if settings save fails
       }
       

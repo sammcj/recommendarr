@@ -103,24 +103,12 @@ constructor() {
     // Import databaseStorageUtils dynamically to avoid circular dependency
     import('../utils/DatabaseStorageUtils.js').then(module => {
       const databaseStorageUtils = module.default;
-      // Initialize cache if needed
-      if (!databaseStorageUtils.cacheLoaded) {
-        databaseStorageUtils.loadCache().then(() => {
-          // Use individual setting API to get the model
-          databaseStorageUtils.get('openaiModel').then(savedModel => {
-            if (savedModel) {
-              this.model = savedModel;
-            }
-          });
-        });
-      } else {
         // Use individual setting API to get the model
         databaseStorageUtils.get('openaiModel').then(savedModel => {
           if (savedModel) {
             this.model = savedModel;
           }
         });
-      }
     }).catch(error => {
       console.error('Error loading databaseStorageUtils:', error);
     });
@@ -134,24 +122,13 @@ constructor() {
     // Import databaseStorageUtils dynamically to avoid circular dependency
     import('../utils/DatabaseStorageUtils.js').then(module => {
       const databaseStorageUtils = module.default;
-      // Initialize cache if needed
-      if (!databaseStorageUtils.cacheLoaded) {
-        databaseStorageUtils.loadCache().then(() => {
-          // Use individual setting API to get the prompt style
-          databaseStorageUtils.get('openaiPromptStyle').then(savedPromptStyle => {
-            if (savedPromptStyle) {
-              this.promptStyle = savedPromptStyle;
-            }
-          });
-        });
-      } else {
         // Use individual setting API to get the prompt style
         databaseStorageUtils.get('openaiPromptStyle').then(savedPromptStyle => {
           if (savedPromptStyle) {
             this.promptStyle = savedPromptStyle;
           }
         });
-      }
+      
     }).catch(error => {
       console.error('Error loading databaseStorageUtils:', error);
     });
@@ -165,22 +142,12 @@ constructor() {
     // Import databaseStorageUtils dynamically to avoid circular dependency
     import('../utils/DatabaseStorageUtils.js').then(module => {
       const databaseStorageUtils = module.default;
-      // Initialize cache if needed
-      if (!databaseStorageUtils.cacheLoaded) {
-        databaseStorageUtils.loadCache().then(() => {
-          const storedValue = databaseStorageUtils.getSync('useCustomPromptOnly');
-          if (storedValue !== null) {
-            this.useCustomPromptOnly = storedValue === true || storedValue === 'true';
-            console.log(`OpenAIService: Loaded useCustomPromptOnly from database: ${this.useCustomPromptOnly}`);
-          }
-        });
-      } else {
+
         const storedValue = databaseStorageUtils.getSync('useCustomPromptOnly');
         if (storedValue !== null) {
           this.useCustomPromptOnly = storedValue === true || storedValue === 'true';
           console.log(`OpenAIService: Loaded useCustomPromptOnly from database: ${this.useCustomPromptOnly}`);
         }
-      }
     }).catch(error => {
       console.error('Error loading databaseStorageUtils:', error);
     });

@@ -813,94 +813,109 @@ export default {
       localSampleSize: this.sampleSize
     };
   },
-  async mounted() {
-    try {
-      // Ensure database cache is fully loaded before proceeding
-      console.log('RecommendationSettings: Ensuring database cache is loaded');
-      if (!databaseStorageUtils.cacheLoaded) {
-        await databaseStorageUtils.loadCache();
-        console.log('Database cache loaded successfully');
-      }
+  // async mounted() {
+  //   try {
+  //     console.log('RecommendationSettings: Loading settings directly from database');
       
-      // Load model preference
-      const savedModel = await databaseStorageUtils.get('openaiModel');
-      if (savedModel !== null && savedModel !== undefined) {
-        this.$emit('update:selectedModel', savedModel);
-        console.log('Loaded model preference:', savedModel);
-      }
+  //     // Load numRecommendations
+  //     const savedNumRecommendations = await databaseStorageUtils.get('numRecommendations');
+  //     if (savedNumRecommendations !== null && savedNumRecommendations !== undefined) {
+  //       const numValue = parseInt(savedNumRecommendations);
+  //       if (!isNaN(numValue)) {
+  //         this.$emit('update:numRecommendations', numValue);
+  //         console.log('Loaded numRecommendations:', numValue);
+  //       }
+  //     }
       
-      // Load temperature
-      const savedTemperature = await databaseStorageUtils.get('temperature');
-      if (savedTemperature !== null && savedTemperature !== undefined) {
-        const numValue = parseFloat(savedTemperature);
-        if (!isNaN(numValue)) {
-          this.$emit('update:temperature', numValue);
-          console.log('Loaded temperature:', numValue);
-        }
-      }
+  //     // Load columnsCount
+  //     const savedColumnsCount = await databaseStorageUtils.get('columnsCount');
+  //     if (savedColumnsCount !== null && savedColumnsCount !== undefined) {
+  //       const numValue = parseInt(savedColumnsCount);
+  //       if (!isNaN(numValue)) {
+  //         this.$emit('update:columnsCount', numValue);
+  //         console.log('Loaded columnsCount:', numValue);
+  //       }
+  //     }
       
-      // Load structured output preference
-      const useStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
-      if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
-        const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
-        this.$emit('update:useStructuredOutput', boolValue);
-        console.log('Loaded structured output preference:', boolValue);
-      }
+  //     // Load model preference
+  //     const savedModel = await databaseStorageUtils.get('openaiModel');
+  //     if (savedModel !== null && savedModel !== undefined) {
+  //       this.$emit('update:selectedModel', savedModel);
+  //       console.log('Loaded model preference:', savedModel);
+  //     }
       
-      // Load sampled library mode preference
-      const useSampledLibrary = await databaseStorageUtils.get('useSampledLibrary');
-      if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
-        const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
-        this.$emit('update:useSampledLibrary', boolValue);
-      }
+  //     // Load temperature
+  //     const savedTemperature = await databaseStorageUtils.get('temperature');
+  //     if (savedTemperature !== null && savedTemperature !== undefined) {
+  //       const numValue = parseFloat(savedTemperature);
+  //       if (!isNaN(numValue)) {
+  //         this.$emit('update:temperature', numValue);
+  //         console.log('Loaded temperature:', numValue);
+  //       }
+  //     }
       
-      // Load sample size
-      const librarySampleSize = await databaseStorageUtils.get('librarySampleSize');
-      if (librarySampleSize !== null && librarySampleSize !== undefined) {
-        const numValue = parseInt(librarySampleSize, 10);
-        if (!isNaN(numValue)) {
-          this.$emit('update:sampleSize', numValue);
-        }
-      }
+  //     // Load structured output preference
+  //     const useStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
+  //     if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
+  //       const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
+  //       this.$emit('update:useStructuredOutput', boolValue);
+  //       console.log('Loaded structured output preference:', boolValue);
+  //     }
       
-      // Load genre preferences - use our dedicated method
-      await this.loadGenrePreferences();
+  //     // Load sampled library mode preference
+  //     const useSampledLibrary = await databaseStorageUtils.get('useSampledLibrary');
+  //     if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
+  //       const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
+  //       this.$emit('update:useSampledLibrary', boolValue);
+  //     }
       
-      // Load universal language preference
-      const savedLanguage = await databaseStorageUtils.get('languagePreference');
-      if (savedLanguage !== null && savedLanguage !== undefined) {
-        this.$emit('update:selectedLanguage', String(savedLanguage));
-        console.log('Loaded universal language preference:', savedLanguage);
-      }
+  //     // Load sample size
+  //     const librarySampleSize = await databaseStorageUtils.get('librarySampleSize');
+  //     if (librarySampleSize !== null && librarySampleSize !== undefined) {
+  //       const numValue = parseInt(librarySampleSize);
+  //       if (!isNaN(numValue)) {
+  //         this.$emit('update:sampleSize', numValue);
+  //       }
+  //     }
       
-      // Load prompt style
-      const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
-      const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
-      if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
-        this.$emit('update:promptStyle', savedPromptStyle);
-        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
-      }
+  //     // Load genre preferences - use our dedicated method
+  //     await this.loadGenrePreferences();
       
-      // Load custom vibe (universal)
-      const savedCustomVibe = await databaseStorageUtils.get('customVibe');
-      if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
-        this.$emit('update:customVibe', savedCustomVibe);
-        console.log('Loaded universal custom vibe:', savedCustomVibe);
-      }
+  //     // Load universal language preference
+  //     const savedLanguage = await databaseStorageUtils.get('languagePreference');
+  //     if (savedLanguage !== null && savedLanguage !== undefined) {
+  //       this.$emit('update:selectedLanguage', String(savedLanguage));
+  //       console.log('Loaded universal language preference:', savedLanguage);
+  //     }
       
-      // Load custom prompt only preference (universal)
-      const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
-      if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
-        const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
-        this.$emit('update:useCustomPromptOnly', boolValue);
-        console.log('Loaded universal custom prompt only preference:', boolValue);
-      }
-    } catch (error) {
-      console.error('Error loading settings in RecommendationSettings:', error);
-      // Initialize with empty values to prevent undefined issues
-      this.$emit('update:selectedGenres', []);
-    }
-  },
+  //     // Load prompt style
+  //     const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
+  //     const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
+  //     if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
+  //       this.$emit('update:promptStyle', savedPromptStyle);
+  //       console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
+  //     }
+      
+  //     // Load custom vibe (universal)
+  //     const savedCustomVibe = await databaseStorageUtils.get('customVibe');
+  //     if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
+  //       this.$emit('update:customVibe', savedCustomVibe);
+  //       console.log('Loaded universal custom vibe:', savedCustomVibe);
+  //     }
+      
+  //     // Load custom prompt only preference (universal)
+  //     const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
+  //     if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
+  //       const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
+  //       this.$emit('update:useCustomPromptOnly', boolValue);
+  //       console.log('Loaded universal custom prompt only preference:', boolValue);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error loading settings in RecommendationSettings:', error);
+  //     // Initialize with empty values to prevent undefined issues
+  //     this.$emit('update:selectedGenres', []);
+  //   }
+  // },
   computed: {
     isAdmin() {
       return authService.isAdmin();
@@ -920,71 +935,6 @@ export default {
         console.log('sampleSize prop changed:', newVal);
         this.$emit('update:sampleSize', newVal);
       }
-    },
-    isMovieMode: {
-      handler: async function(newVal) {
-        try {
-          console.log(`Mode changed to ${newVal ? 'movie' : 'TV'} mode, loading appropriate preferences`);
-          
-          // Force a fresh load of the database cache to ensure we have the latest data
-          await databaseStorageUtils.loadCache();
-          console.log('Database cache refreshed for mode change');
-          
-          // Load genre preferences for the current mode
-          await this.loadGenrePreferences();
-          
-          // Load universal language preference
-          const savedLanguage = await databaseStorageUtils.get('languagePreference');
-          if (savedLanguage !== null && savedLanguage !== undefined) {
-            this.$emit('update:selectedLanguage', String(savedLanguage));
-            console.log('Mode changed: Loaded universal language preference:', savedLanguage);
-          } else {
-            // Clear language if none saved
-            this.$emit('update:selectedLanguage', '');
-          }
-          
-          // Load prompt style for the current mode
-          const promptStyleKey = newVal ? 'moviePromptStyle' : 'tvPromptStyle';
-          const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
-          if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
-            this.$emit('update:promptStyle', savedPromptStyle);
-            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
-          } else {
-            // Set default prompt style if none saved
-            this.$emit('update:promptStyle', 'vibe');
-          }
-          
-          // Load custom vibe (universal)
-          const savedCustomVibe = await databaseStorageUtils.get('customVibe');
-          if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
-            this.$emit('update:customVibe', savedCustomVibe);
-            console.log('Mode changed: Loaded universal custom vibe:', savedCustomVibe);
-          } else {
-            // Clear custom vibe if none saved
-            this.$emit('update:customVibe', '');
-          }
-          
-          // Load custom prompt only preference (universal)
-          const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
-          if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
-            const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
-            this.$emit('update:useCustomPromptOnly', boolValue);
-            console.log('Mode changed: Loaded universal custom prompt only preference:', boolValue);
-          } else {
-            // Set default value if none saved
-            this.$emit('update:useCustomPromptOnly', false);
-          }
-        } catch (error) {
-          console.error(`Error loading preferences after mode change to ${newVal ? 'movie' : 'TV'} mode:`, error);
-          // Initialize with empty values to prevent undefined issues
-          this.$emit('update:selectedGenres', []);
-          this.$emit('update:selectedLanguage', '');
-          this.$emit('update:promptStyle', 'vibe');
-          this.$emit('update:customVibe', '');
-          this.$emit('update:useCustomPromptOnly', false);
-        }
-      },
-      immediate: true // Run immediately when component is mounted
     }
   },
   props: {
@@ -1209,10 +1159,7 @@ export default {
     // Load genre preferences (universal across TV and movies)
     async loadGenrePreferences() {
       try {
-        // Force a fresh load from the database
-        await databaseStorageUtils.loadCache();
-        
-        // Load from universal key
+        // Load from universal key directly from the database
         console.log('Loading universal genre preferences from database...');
         const savedGenres = await databaseStorageUtils.getJSON('genrePreferences');
         

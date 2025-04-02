@@ -55,15 +55,6 @@ async function initStorage() {
     // Migrate data from JSON files to database
     await databaseService.migrateData();
     
-    // Migrate settings from JSON to individual columns
-    try {
-      const migrateSettingsToColumns = require('./utils/migrateSettingsToColumns');
-      const result = await migrateSettingsToColumns();
-      console.log('Settings migration result:', result);
-    } catch (err) {
-      console.error('Error migrating settings to columns:', err);
-    }
-    
     // Initialize other services
     await authService.init();
     await userDataManager.init();
@@ -1197,55 +1188,53 @@ app.get('/api/settings', async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    // Load user data (which includes individual columns and the settings blob)
+    // Load user data (which includes individual columns)
     const userData = await userDataManager.getUserData(userId);
 
-    // Create a merged settings object
-    const mergedSettings = {
-      ...(userData.settings || {}), // Start with the JSON blob settings
-      // The timestamp values are already in the settings object, but let's make sure they're included
-      // by explicitly adding them here (they'll override any existing values with the same keys)
-      lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
-      lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
-      lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
-      lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh,
-      // Add any other individual setting columns here if needed in the future
-    };
-
+    // Extract settings from userData.settings
+    const settings = userData.settings || {};
+    
     // Log the timestamp values for debugging
     console.log('Timestamp values in settings:', {
-      lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
-      lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
-      lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
-      lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh
+      lastPlexHistoryRefresh: settings.lastPlexHistoryRefresh,
+      lastJellyfinHistoryRefresh: settings.lastJellyfinHistoryRefresh,
+      lastTautulliHistoryRefresh: settings.lastTautulliHistoryRefresh,
+      lastTraktHistoryRefresh: settings.lastTraktHistoryRefresh
     });
 
     // Remove null/undefined values to keep the response clean
-    Object.keys(mergedSettings).forEach(key => {
-      if (mergedSettings[key] === null || mergedSettings[key] === undefined) {
-        delete mergedSettings[key];
+    Object.keys(settings).forEach(key => {
+      if (settings[key] === null || settings[key] === undefined) {
+        delete settings[key];
       }
     });
 
-    res.json(mergedSettings);
+    res.json(settings);
   } catch (error) {
     console.error('Error getting settings:', error);
     res.status(500).json({ error: 'Failed to retrieve settings' });
   }
 });
 
-// Save settings
+// Save settings - Update individual settings instead of the settings blob
 app.post('/api/settings', async (req, res) => {
   const userId = req.user.userId;
+  const settingsToUpdate = req.body;
   
-  // Load user data
-  const userData = await userDataManager.getUserData(userId);
-  
-  userData.settings = {...userData.settings, ...req.body};
-  
-  // Save the updated user data
-  await userDataManager.saveUserData(userId, userData);
-  res.json({ success: true });
+  try {
+    // Update each setting individually using the updateUserSetting method
+    const updatePromises = Object.entries(settingsToUpdate).map(([key, value]) => {
+      return databaseService.updateUserSetting(userId, key, value);
+    });
+    
+    // Wait for all updates to complete
+    await Promise.all(updatePromises);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
 });
 
 // Get individual setting directly from database column

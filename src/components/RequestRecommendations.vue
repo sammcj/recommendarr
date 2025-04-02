@@ -61,7 +61,7 @@
             :temperature="temperature"
             v-model:useSampledLibrary="useSampledLibrary"
             v-model:sampleSize="sampleSize"
-            :useStructuredOutput="useStructuredOutput"
+            v-model:useStructuredOutput="useStructuredOutput"
             :previousRecommendations="previousRecommendations"
             v-model:numRecommendations="numRecommendations"
             v-model:columnsCount="columnsCount"
@@ -1411,19 +1411,8 @@ export default {
     },
     
     // Save content type preference (TV or Movies)
-    async saveContentTypePreference() {
-      try {
-        await apiService.saveSettings({
-          contentTypePreference: this.isMovieMode ? 'movies' : 'tvshows',
-          isMovieMode: this.isMovieMode
-        });
-      } catch (error) {
-        console.error('Error saving content type preference to server:', error);
-        // Fallback to database storage
-        await databaseStorageUtils.set('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
-        await databaseStorageUtils.set('isMovieMode', this.isMovieMode);
-      }
-      
+    async saveContentTypePreference() {      
+      await databaseStorageUtils.set('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
       // Update the current recommendations list based on mode
       this.previousRecommendations = this.isMovieMode ? 
         this.previousMovieRecommendations : this.previousShowRecommendations;
@@ -1666,7 +1655,7 @@ export default {
       
       // If we find any match, return the first capture group as a number
       if (scoreMatch) {
-        return parseInt(scoreMatch[1], 10);
+        return parseInt(scoreMatch[1]);
       }
       
       // If no pattern matches, return 0
@@ -1690,7 +1679,7 @@ export default {
         return 'score-unknown';
       }
       
-      const score = parseInt(scoreValue, 10);
+      const score = parseInt(scoreValue);
       
       // Apply our rating scale
       if (score >= 90) {
@@ -1708,7 +1697,6 @@ export default {
       try {
         this.numRecommendations = value;
         console.log('Saving numRecommendations to server:', this.numRecommendations);
-        await apiService.saveSettings({ numRecommendations: value });
         
         // Also save to databaseStorageUtils as a backup
         await databaseStorageUtils.set('numRecommendations', value.toString());
@@ -1724,8 +1712,6 @@ export default {
       try {
         this.columnsCount = value;
         console.log('Saving columnsCount to server:', this.columnsCount);
-        await apiService.saveSettings({ columnsCount: value });
-        
         // Also save to databaseStorageUtils as a backup
         await databaseStorageUtils.set('columnsCount', value.toString());
         
@@ -1752,11 +1738,9 @@ export default {
     // Save genre preferences to server when they change
     async saveGenrePreference() {
       try {
-        await apiService.saveSettings({ tvGenrePreferences: this.selectedGenres });
+        await databaseStorageUtils.setJSON('genrePreferences', this.selectedGenres);
       } catch (error) {
         console.error('Error saving genre preferences to server:', error);
-        // Fallback to databaseStorageUtils
-        await databaseStorageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
       }
     },
     
@@ -1806,14 +1790,12 @@ export default {
     async saveCustomVibe(value) {
       try {
         this.customVibe = value;
-        await apiService.saveSettings({ tvCustomVibe: value });
+        await databaseStorageUtils.set('tvCustomVibe', value);
         // Reset OpenAI conversation context when vibe changes
         openAIService.resetConversation();
         console.log('Custom vibe updated, conversation history cleared');
       } catch (error) {
         console.error('Error saving custom vibe to server:', error);
-        // Fallback to databaseStorageUtils
-        await databaseStorageUtils.set('tvCustomVibe', value);
         // Still reset conversation even if server save fails
         openAIService.resetConversation();
       }
@@ -1834,7 +1816,7 @@ export default {
         openAIService.setPromptStyle(value);
         
         // Save to server
-        await apiService.saveSettings({ promptStyle: value });
+        await databaseStorageUtils.set('promptStyle', value);
         
         // Reset OpenAI conversation context when prompt style changes
         openAIService.resetConversation();
@@ -1844,10 +1826,8 @@ export default {
         this.recommendationsRequested = false;
       } catch (error) {
         console.error('Error saving prompt style to server:', error);
-          // Fallback to databaseStorageUtils
-          databaseStorageUtils.set('promptStyle', value);
-          // Still reset conversation even if server save fails
-          openAIService.resetConversation();
+        // Still reset conversation even if server save fails
+        openAIService.resetConversation();
       }
     },
     
@@ -1856,7 +1836,7 @@ export default {
       try {
         this.useCustomPromptOnly = value;
         // Save to server
-        await apiService.saveSettings({ useCustomPromptOnly: value });
+        await databaseStorageUtils.set('useCustomPromptOnly', value.toString());
         
         // Set in the OpenAIService
         if (typeof openAIService.setUseCustomPromptOnly === 'function') {
@@ -1874,8 +1854,6 @@ export default {
         this.recommendationsRequested = false;
       } catch (error) {
         console.error('Error saving custom prompt only preference to server:', error);
-        // Fallback to databaseStorageUtils
-        databaseStorageUtils.set('useCustomPromptOnly', value.toString());
         
         // Still set in OpenAIService in case of server error
         if (typeof openAIService.setUseCustomPromptOnly === 'function') {
@@ -1939,11 +1917,9 @@ export default {
     async saveLanguagePreference(value) {
       try {
         this.selectedLanguage = value;
-        await apiService.saveSettings({ tvLanguagePreference: value });
+        await databaseStorageUtils.set('tvLanguagePreference', value);
       } catch (error) {
         console.error('Error saving language preference to server:', error);
-        // Fallback to databaseStorageUtils
-        databaseStorageUtils.set('tvLanguagePreference', value);
       }
     },
     
@@ -1958,11 +1934,10 @@ export default {
     async savePlexHistoryMode(value) {
       try {
         this.plexHistoryMode = value;
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          plexHistoryMode: value,
-          plexCustomHistoryDays: this.plexCustomHistoryDays
-        });
+        // Save to database
+        await databaseStorageUtils.set('plexHistoryMode', value);
+        await databaseStorageUtils.set('plexCustomHistoryDays', this.plexCustomHistoryDays);
+        
         this.$emit('plexHistoryModeChanged', value);
         
         // Reset conversation when watch history settings change
@@ -1982,8 +1957,8 @@ export default {
     async savePlexUseHistory(value) {
       try {
         this.plexUseHistory = value;
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ plexUseHistory: value });
+        // Save to database
+        await databaseStorageUtils.set('plexUseHistory', value);
         
         // If turning off history usage, also turn off the plex-only mode
         if (!value && this.plexOnlyMode) {
@@ -1999,8 +1974,8 @@ export default {
     async savePlexCustomHistoryDays(value) {
       try {
         this.plexCustomHistoryDays = value;
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ plexCustomHistoryDays: value });
+        // Save to database
+        await databaseStorageUtils.set('plexCustomHistoryDays', value);
         
         // Reset conversation when watch history days change
         openAIService.resetConversation();
@@ -2019,11 +1994,10 @@ export default {
     async saveJellyfinHistoryMode(value) {
       try {
         this.jellyfinHistoryMode = value;
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          jellyfinHistoryMode: value,
-          jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays
-        });
+        // Save to database
+        await databaseStorageUtils.set('jellyfinHistoryMode', value);
+        await databaseStorageUtils.set('jellyfinCustomHistoryDays', this.jellyfinCustomHistoryDays);
+        
         this.$emit('jellyfinHistoryModeChanged', value);
         
         // Reset conversation when watch history settings change
@@ -2043,8 +2017,8 @@ export default {
     async saveJellyfinUseHistory(value) {
       try {
         this.jellyfinUseHistory = value;
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ jellyfinUseHistory: value });
+        // Save to database
+        await databaseStorageUtils.set('jellyfinUseHistory', value);
         
         // If turning off history usage, also turn off the jellyfin-only mode
         if (!value && this.jellyfinOnlyMode) {
@@ -2060,8 +2034,8 @@ export default {
     async saveJellyfinCustomHistoryDays(value) {
       try {
         this.jellyfinCustomHistoryDays = value;
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ jellyfinCustomHistoryDays: value });
+        // Save to database
+        await databaseStorageUtils.set('jellyfinCustomHistoryDays', value);
         
         // Reset conversation when watch history days change
         openAIService.resetConversation();
@@ -2080,60 +2054,33 @@ export default {
     async savePlexOnlyMode(value) {
       try {
         this.plexOnlyMode = value;
+        // Save to database
+        await databaseStorageUtils.set('plexOnlyMode', value.toString());
+        
         // If enabling Plex only mode, disable other only modes
         if (value) {
-          const settings = { plexOnlyMode: value };
-          
           if (this.jellyfinOnlyMode) {
             this.jellyfinOnlyMode = false;
-            settings.jellyfinOnlyMode = false;
+            await databaseStorageUtils.set('jellyfinOnlyMode', 'false');
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           
           if (this.tautulliOnlyMode) {
             this.tautulliOnlyMode = false;
-            settings.tautulliOnlyMode = false;
+            await databaseStorageUtils.set('tautulliOnlyMode', 'false');
             this.$emit('tautulliOnlyModeChanged', false);
           }
           
           if (this.traktOnlyMode) {
             this.traktOnlyMode = false;
-            settings.traktOnlyMode = false;
+            await databaseStorageUtils.set('traktOnlyMode', 'false');
             this.$emit('traktOnlyModeChanged', false);
           }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ plexOnlyMode: value });
         }
         
         this.$emit('plexOnlyModeChanged', value);
       } catch (error) {
         console.error('Error saving Plex only mode to server:', error);
-        // Fallback to databaseStorageUtils
-        databaseStorageUtils.set('plexOnlyMode', value.toString());
-        
-        // If enabling Plex only mode, disable other only modes
-        if (value) {
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            databaseStorageUtils.set('jellyfinOnlyMode', 'false');
-            this.$emit('jellyfinOnlyModeChanged', false);
-          }
-          
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            databaseStorageUtils.set('tautulliOnlyMode', 'false');
-            this.$emit('tautulliOnlyModeChanged', false);
-          }
-          
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            databaseStorageUtils.set('traktOnlyMode', 'false');
-            this.$emit('traktOnlyModeChanged', false);
-          }
-        }
-        
         this.$emit('plexOnlyModeChanged', value);
       }
     },
@@ -2142,60 +2089,33 @@ export default {
     async saveJellyfinOnlyMode(value) {
       try {
         this.jellyfinOnlyMode = value;
+        // Save to database
+        await databaseStorageUtils.set('jellyfinOnlyMode', value.toString());
+        
         // If enabling Jellyfin only mode, disable other only modes
         if (value) {
-          const settings = { jellyfinOnlyMode: value };
-          
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
-            settings.plexOnlyMode = false;
+            await databaseStorageUtils.set('plexOnlyMode', 'false');
             this.$emit('plexOnlyModeChanged', false);
           }
           
           if (this.tautulliOnlyMode) {
             this.tautulliOnlyMode = false;
-            settings.tautulliOnlyMode = false;
+            await databaseStorageUtils.set('tautulliOnlyMode', 'false');
             this.$emit('tautulliOnlyModeChanged', false);
           }
           
           if (this.traktOnlyMode) {
             this.traktOnlyMode = false;
-            settings.traktOnlyMode = false;
+            await databaseStorageUtils.set('traktOnlyMode', 'false');
             this.$emit('traktOnlyModeChanged', false);
           }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ jellyfinOnlyMode: value });
         }
         
         this.$emit('jellyfinOnlyModeChanged', value);
       } catch (error) {
         console.error('Error saving Jellyfin only mode to server:', error);
-        // Fallback to databaseStorageUtils
-        databaseStorageUtils.set('jellyfinOnlyMode', value.toString());
-        
-        // If enabling Jellyfin only mode, disable other only modes
-        if (value) {
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            databaseStorageUtils.set('plexOnlyMode', 'false');
-            this.$emit('plexOnlyModeChanged', false);
-          }
-          
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            databaseStorageUtils.set('tautulliOnlyMode', 'false');
-            this.$emit('tautulliOnlyModeChanged', false);
-          }
-          
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            databaseStorageUtils.set('traktOnlyMode', 'false');
-            this.$emit('traktOnlyModeChanged', false);
-          }
-        }
-        
         this.$emit('jellyfinOnlyModeChanged', value);
       }
     },
@@ -2204,11 +2124,10 @@ export default {
     async saveTautulliHistoryMode(value) {
       this.tautulliHistoryMode = value;
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          tautulliHistoryMode: value,
-          tautulliCustomHistoryDays: this.tautulliCustomHistoryDays
-        });
+        // Save to database
+        await databaseStorageUtils.set('tautulliHistoryMode', value);
+        await databaseStorageUtils.set('tautulliCustomHistoryDays', this.tautulliCustomHistoryDays);
+        
         this.$emit('tautulliHistoryModeChanged', value);
       } catch (error) {
         console.error('Error saving Tautulli history mode to server:', error);
@@ -2219,8 +2138,8 @@ export default {
     async saveTautulliUseHistory(value) {
       this.tautulliUseHistory = value;
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ tautulliUseHistory: value });
+        // Save to database
+        await databaseStorageUtils.set('tautulliUseHistory', value);
         
         // If turning off history usage, also turn off the tautulli-only mode
         if (!value && this.tautulliOnlyMode) {
@@ -2236,69 +2155,43 @@ export default {
     async saveTautulliCustomHistoryDays(value) {
       this.tautulliCustomHistoryDays = value;
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ tautulliCustomHistoryDays: value });
+        // Save to database
+        await databaseStorageUtils.set('tautulliCustomHistoryDays', value);
       } catch (error) {
         console.error('Error saving Tautulli custom history days to server:', error);
       }
     },
-    
     // Save Tautulli only mode preference
     async saveTautulliOnlyMode(value) {
       this.tautulliOnlyMode = value;
       try {
-        // If enabling Tautulli only mode, disable Plex only mode, Jellyfin only mode, and Trakt only mode
+        // Save to database
+        await databaseStorageUtils.set('tautulliOnlyMode', this.tautulliOnlyMode.toString());
+        
+        // If enabling Tautulli only mode, disable other only modes
         if (value) {
-          const settings = { tautulliOnlyMode: value };
-          
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
-            settings.plexOnlyMode = false;
+            await databaseStorageUtils.set('plexOnlyMode', 'false');
             this.$emit('plexOnlyModeChanged', false);
           }
           
           if (this.jellyfinOnlyMode) {
             this.jellyfinOnlyMode = false;
-            settings.jellyfinOnlyMode = false;
+            await databaseStorageUtils.set('jellyfinOnlyMode', 'false');
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           
           if (this.traktOnlyMode) {
             this.traktOnlyMode = false;
-            settings.traktOnlyMode = false;
+            await databaseStorageUtils.set('traktOnlyMode', 'false');
             this.$emit('traktOnlyModeChanged', false);
           }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ tautulliOnlyMode: this.tautulliOnlyMode });
         }
         
         this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
       } catch (error) {
         console.error('Error saving Tautulli only mode to server:', error);
-        // Fallback to databaseStorageUtils
-        databaseStorageUtils.set('tautulliOnlyMode', this.tautulliOnlyMode.toString());
-        
-        // If enabling Tautulli only mode, disable other only modes
-        if (this.tautulliOnlyMode) {
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            databaseStorageUtils.set('plexOnlyMode', 'false');
-            this.$emit('plexOnlyModeChanged', false);
-          }
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            databaseStorageUtils.set('jellyfinOnlyMode', 'false');
-            this.$emit('jellyfinOnlyModeChanged', false);
-          }
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            databaseStorageUtils.set('traktOnlyMode', 'false');
-            this.$emit('traktOnlyModeChanged', false);
-          }
-        }
-        
         this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
       }
     },
@@ -2307,11 +2200,10 @@ export default {
     async saveTraktHistoryMode(value) {
       this.traktHistoryMode = value;
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          traktHistoryMode: value,
-          traktCustomHistoryDays: this.traktCustomHistoryDays
-        });
+        // Save to database
+        await databaseStorageUtils.set('traktHistoryMode', value);
+        await databaseStorageUtils.set('traktCustomHistoryDays', this.traktCustomHistoryDays);
+        
         this.$emit('traktHistoryModeChanged', value);
       } catch (error) {
         console.error('Error saving Trakt history mode to server:', error);
@@ -2326,8 +2218,8 @@ export default {
         // Explicitly convert to boolean to avoid any string conversion issues
         const useHistoryValue = value === true;
         
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ traktUseHistory: useHistoryValue });
+        // Save to database
+        await databaseStorageUtils.set('traktUseHistory', useHistoryValue);
         console.log('Successfully saved traktUseHistory setting:', useHistoryValue);
         
         // If turning off history usage, also turn off the trakt-only mode
@@ -2345,8 +2237,8 @@ export default {
     async saveTraktCustomHistoryDays(value) {
       this.traktCustomHistoryDays = value;
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ traktCustomHistoryDays: value });
+        // Save to database
+        await databaseStorageUtils.set('traktCustomHistoryDays', value);
       } catch (error) {
         console.error('Error saving Trakt custom history days to server:', error);
       }
@@ -2356,58 +2248,33 @@ export default {
     async saveTraktOnlyMode(value) {
       this.traktOnlyMode = value;
       try {
+        // Save to database
+        await databaseStorageUtils.set('traktOnlyMode', this.traktOnlyMode.toString());
+        
         // If enabling Trakt only mode, disable other only modes
         if (value) {
-          const settings = { traktOnlyMode: value };
-          
           if (this.plexOnlyMode) {
             this.plexOnlyMode = false;
-            settings.plexOnlyMode = false;
+            await databaseStorageUtils.set('plexOnlyMode', 'false');
             this.$emit('plexOnlyModeChanged', false);
           }
           
           if (this.jellyfinOnlyMode) {
             this.jellyfinOnlyMode = false;
-            settings.jellyfinOnlyMode = false;
+            await databaseStorageUtils.set('jellyfinOnlyMode', 'false');
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           
           if (this.tautulliOnlyMode) {
             this.tautulliOnlyMode = false;
-            settings.tautulliOnlyMode = false;
+            await databaseStorageUtils.set('tautulliOnlyMode', 'false');
             this.$emit('tautulliOnlyModeChanged', false);
           }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ traktOnlyMode: this.traktOnlyMode });
         }
         
         this.$emit('traktOnlyModeChanged', this.traktOnlyMode);
       } catch (error) {
         console.error('Error saving Trakt only mode to server:', error);
-        // Fallback to databaseStorageUtils
-        databaseStorageUtils.set('traktOnlyMode', this.traktOnlyMode.toString());
-        
-        // If enabling Trakt only mode, disable other only modes
-        if (this.traktOnlyMode) {
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            databaseStorageUtils.set('plexOnlyMode', 'false');
-            this.$emit('plexOnlyModeChanged', false);
-          }
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            databaseStorageUtils.set('jellyfinOnlyMode', 'false');
-            this.$emit('jellyfinOnlyModeChanged', false);
-          }
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            databaseStorageUtils.set('tautulliOnlyMode', 'false');
-            this.$emit('tautulliOnlyModeChanged', false);
-          }
-        }
-        
         this.$emit('traktOnlyModeChanged', this.traktOnlyMode);
       }
     },
@@ -2618,8 +2485,8 @@ export default {
         this.isCustomModel = false;
         
         try {
-          // Save model setting to server
-          await apiService.saveSettings({ openaiModel: value });
+          // Save model setting to database
+          await databaseStorageUtils.set('openaiModel', value);
           
           console.log(value);
           // Update service
@@ -2636,11 +2503,11 @@ export default {
             openAIService.sampleSize
           );
         } catch (error) {
-        console.error('Error saving model settings:', error);
-        // Fallback to storageUtils (already using it)
-        databaseStorageUtils.set('openaiModel', value);
-        openAIService.model = value;
-      }
+          console.error('Error saving model settings:', error);
+          // Fallback to storageUtils (already using it)
+          databaseStorageUtils.set('openaiModel', value);
+          openAIService.model = value;
+        }
       }
     },
     
@@ -2649,8 +2516,8 @@ export default {
       this.customModel = value;
       if (this.customModel.trim()) {
         try {
-          // Save custom model setting to server
-          await apiService.saveSettings({ openaiModel: value });
+          // Save custom model setting to database
+          await databaseStorageUtils.set('openaiModel', value);
           
           // Update service
           openAIService.model = value;
@@ -2666,11 +2533,11 @@ export default {
             openAIService.sampleSize
           );
         } catch (error) {
-        console.error('Error saving custom model settings:', error);
-        // Fallback to storageUtils (already using it)
-        databaseStorageUtils.set('openaiModel', value);
-        openAIService.model = value;
-      }
+          console.error('Error saving custom model settings:', error);
+          // Fallback to storageUtils (already using it)
+          databaseStorageUtils.set('openaiModel', value);
+          openAIService.model = value;
+        }
       }
     },
     
@@ -2680,14 +2547,11 @@ export default {
         // Update the local temperature value with the new value
         this.temperature = value;
         
-        console.log('Saving temperature to server:', value);
-        await apiService.saveSettings({ aiTemperature: value.toString() });
+        console.log('Saving temperature to database:', value);
+        await databaseStorageUtils.set('aiTemperature', value.toString());
         
-          // Also save to databaseStorageUtils as a backup
-          databaseStorageUtils.set('aiTemperature', value.toString());
-          
-          // Update in OpenAI service
-          openAIService.temperature = value;
+        // Update in OpenAI service
+        openAIService.temperature = value;
       } catch (error) {
         console.error('Error saving temperature to server:', error);
         // Fallback to databaseStorageUtils only
@@ -2702,7 +2566,7 @@ export default {
         // Update the local value with the new value
         this.useSampledLibrary = value;
         
-        await apiService.saveSettings({ useSampledLibrary: value });
+        await databaseStorageUtils.set('useSampledLibrary', value.toString());
         openAIService.useSampledLibrary = value;
       } catch (error) {
         console.error('Error saving library mode preference to server:', error);
@@ -2716,7 +2580,7 @@ export default {
     async saveSampleSize(value) {
       this.sampleSize = value;
       try {
-        await apiService.saveSettings({ librarySampleSize: value });
+        await databaseStorageUtils.set('librarySampleSize', value.toString());
         openAIService.sampleSize = value;
       } catch (error) {
         console.error('Error saving sample size to server:', error);
@@ -2733,10 +2597,7 @@ export default {
         this.useStructuredOutput = value;
         
         console.log('Saving structured output preference:', value);
-        await apiService.saveSettings({ useStructuredOutput: value });
-        
-        // Also save to localStorage as a backup
-        databaseStorageUtils.set('useStructuredOutput', value);
+        await databaseStorageUtils.set('useStructuredOutput', value);
         
         // Set the useStructuredOutput property on the OpenAIService
         openAIService.useStructuredOutput = value;
@@ -2964,7 +2825,7 @@ export default {
         let watchDate;
         if (typeof watchDateStr === 'number' || (typeof watchDateStr === 'string' && !isNaN(parseInt(watchDateStr, 10)))) {
           // Handle Unix timestamps (seconds since epoch)
-          const timestamp = parseInt(watchDateStr, 10);
+          const timestamp = parseInt(watchDateStr);
           // Check if timestamp is in seconds (Plex) or milliseconds
           watchDate = timestamp > 9999999999 
             ? new Date(timestamp) // Already in milliseconds
@@ -4342,181 +4203,250 @@ export default {
     },
     
     /**
-     * Load all saved settings from server via API service
+     * Load all saved settings using individual setting API
      */
     async loadSavedSettings() {
       try {
-        // Fetch all settings from the server
-        const settings = await apiService.getSettings();
+        console.log('Loading settings using individual setting API');
         
-        if (!settings) {
-          console.log('No settings found on server');
-          return;
-        }
-        
-        console.log('Loaded settings from server:', settings);
-        
-        // Load number of recommendations setting
-        if (settings.numRecommendations !== undefined) {
-          const numRecs = parseInt(settings.numRecommendations, 10);
-          if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
-            this.numRecommendations = numRecs;
-            console.log('Setting numRecommendations from server:', this.numRecommendations);
+        // Load number of recommendations settingdatabaseService
+        try {
+          const numRecsStr = await databaseStorageUtils.get('numRecommendations');
+          console.log(`loadSavedSettings numRecommendations: ${numRecsStr}`);
+          if (numRecsStr !== null && numRecsStr !== undefined) {
+            const numRecs = parseInt(numRecsStr);
+            if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
+              this.numRecommendations = numRecs;
+              console.log('Setting numRecommendations:', this.numRecommendations);
+            }
           }
+        } catch (error) {
+          console.error('Error loading numRecommendations setting:', error);
         }
         
         // Load columns count setting
-        if (settings.columnsCount !== undefined) {
-          const columns = parseInt(settings.columnsCount, 10);
-          if (!isNaN(columns) && columns >= 1 && columns <= 4) {
-            this.columnsCount = columns;
-            console.log('Setting columnsCount from server:', this.columnsCount);
+        try {
+          const columnsStr = await databaseStorageUtils.get('columnsCount');
+          if (columnsStr !== null && columnsStr !== undefined) {
+            const columns = parseInt(columnsStr);
+            if (!isNaN(columns) && columns >= 1 && columns <= 4) {
+              this.columnsCount = columns;
+              console.log('Setting columnsCount:', this.columnsCount);
+            }
           }
+        } catch (error) {
+          console.error('Error loading columnsCount setting:', error);
         }
         
-        
         // Temperature setting
-        if (settings.aiTemperature !== undefined) {
-          const temp = parseFloat(settings.aiTemperature);
-          if (!isNaN(temp) && temp >= 0 && temp <= 1) {
-            this.temperature = temp;
+        try {
+          const tempStr = await apiService.getSetting('aiTemperature');
+          if (tempStr !== null && tempStr !== undefined) {
+            const temp = parseFloat(tempStr);
+            if (!isNaN(temp) && temp >= 0 && temp <= 1) {
+              this.temperature = temp;
+              console.log('Setting temperature:', this.temperature);
+            }
           }
+        } catch (error) {
+          console.error('Error loading aiTemperature setting:', error);
         }
         
         // Library sampling settings
-        if (settings.useSampledLibrary !== undefined) {
-          this.useSampledLibrary = settings.useSampledLibrary === true || settings.useSampledLibrary === 'true';
-          console.log('Setting useSampledLibrary from server:', this.useSampledLibrary);
-          
-          // Also update in OpenAIService
-          openAIService.useSampledLibrary = this.useSampledLibrary;
-          
-          // Save to localStorage as backup
-          databaseStorageUtils.set('useSampledLibrary', this.useSampledLibrary.toString());
-        }
-        
-        if (settings.librarySampleSize !== undefined) {
-          const sampleSize = parseInt(settings.librarySampleSize, 10);
-          if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 1000) {
-            this.sampleSize = sampleSize;
-            console.log('Setting sampleSize from server:', this.sampleSize);
+        try {
+          const useSampledLibraryStr = await apiService.getSetting('useSampledLibrary');
+          if (useSampledLibraryStr !== null && useSampledLibraryStr !== undefined) {
+            this.useSampledLibrary = useSampledLibraryStr === 'true' || useSampledLibraryStr === true;
+            console.log('Setting useSampledLibrary:', this.useSampledLibrary);
             
             // Also update in OpenAIService
-            openAIService.sampleSize = this.sampleSize;
+            openAIService.useSampledLibrary = this.useSampledLibrary;
             
             // Save to localStorage as backup
-            databaseStorageUtils.set('librarySampleSize', this.sampleSize.toString());
+            databaseStorageUtils.set('useSampledLibrary', this.useSampledLibrary.toString());
           }
+        } catch (error) {
+          console.error('Error loading useSampledLibrary setting:', error);
+        }
+        
+        try {
+          const sampleSizeStr = await apiService.getSetting('librarySampleSize');
+          if (sampleSizeStr !== null && sampleSizeStr !== undefined) {
+            const sampleSize = parseInt(sampleSizeStr);
+            if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 1000) {
+              this.sampleSize = sampleSize;
+              console.log('Setting sampleSize:', this.sampleSize);
+              
+              // Also update in OpenAIService
+              openAIService.sampleSize = this.sampleSize;
+              
+              // Save to localStorage as backup
+              databaseStorageUtils.set('librarySampleSize', this.sampleSize.toString());
+            }
+          }
+        } catch (error) {
+          console.error('Error loading librarySampleSize setting:', error);
         }
         
         // Structured output setting
-        if (settings.useStructuredOutput !== undefined) {
-          this.useStructuredOutput = settings.useStructuredOutput === true || settings.useStructuredOutput === 'true';
-          // Also set it in the OpenAIService
-          openAIService.useStructuredOutput = this.useStructuredOutput;
+        try {
+          const useStructuredOutputStr = await apiService.getSetting('useStructuredOutput');
+          if (useStructuredOutputStr !== null && useStructuredOutputStr !== undefined) {
+            this.useStructuredOutput = useStructuredOutputStr === 'true' || useStructuredOutputStr === true;
+            console.log('Setting useStructuredOutput:', this.useStructuredOutput);
+            
+            // Also set it in the OpenAIService
+            openAIService.useStructuredOutput = this.useStructuredOutput;
+          }
+        } catch (error) {
+          console.error('Error loading useStructuredOutput setting:', error);
         }
         
         // Load custom prompt only setting
-        if (Object.prototype.hasOwnProperty.call(settings, 'useCustomPromptOnly')) {
-          this.useCustomPromptOnly = settings.useCustomPromptOnly === true || settings.useCustomPromptOnly === 'true';
-          console.log('Setting useCustomPromptOnly from server:', this.useCustomPromptOnly);
-          // Set in the OpenAIService if needed
-          if (typeof openAIService.setUseCustomPromptOnly === 'function') {
-            openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
-          } else {
-            // If method doesn't exist, add the property directly
-            openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+        try {
+          const useCustomPromptOnlyStr = await apiService.getSetting('useCustomPromptOnly');
+          if (useCustomPromptOnlyStr !== null && useCustomPromptOnlyStr !== undefined) {
+            this.useCustomPromptOnly = useCustomPromptOnlyStr === 'true' || useCustomPromptOnlyStr === true;
+            console.log('Setting useCustomPromptOnly:', this.useCustomPromptOnly);
+            
+            // Set in the OpenAIService if needed
+            if (typeof openAIService.setUseCustomPromptOnly === 'function') {
+              openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
+            } else {
+              // If method doesn't exist, add the property directly
+              openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+            }
           }
+        } catch (error) {
+          console.error('Error loading useCustomPromptOnly setting:', error);
         }
         
         // Load prompt style setting
-        if (settings.promptStyle) {
-          this.promptStyle = settings.promptStyle;
-          console.log('Setting promptStyle from server:', this.promptStyle);
-          // Set in the OpenAIService
-          openAIService.setPromptStyle(this.promptStyle);
+        try {
+          const promptStyleStr = await apiService.getSetting('promptStyle');
+          if (promptStyleStr) {
+            this.promptStyle = promptStyleStr;
+            console.log('Setting promptStyle:', this.promptStyle);
+            
+            // Set in the OpenAIService
+            openAIService.setPromptStyle(this.promptStyle);
+          }
+        } catch (error) {
+          console.error('Error loading promptStyle setting:', error);
         }
         
         // Plex settings
-        if (settings.plexHistoryMode) {
-          this.plexHistoryMode = settings.plexHistoryMode;
-        }
-        
-        if (settings.plexOnlyMode !== undefined) {
-          this.plexOnlyMode = settings.plexOnlyMode;
-        }
-        
-        if (settings.plexUseHistory !== undefined) {
-          this.plexUseHistory = settings.plexUseHistory;
-        }
-        
-        if (settings.plexCustomHistoryDays) {
-          this.plexCustomHistoryDays = parseInt(settings.plexCustomHistoryDays, 10);
+        try {
+          const plexHistoryModeStr = await apiService.getSetting('plexHistoryMode');
+          if (plexHistoryModeStr) {
+            this.plexHistoryMode = plexHistoryModeStr;
+          }
+          
+          const plexOnlyModeStr = await apiService.getSetting('plexOnlyMode');
+          if (plexOnlyModeStr !== null && plexOnlyModeStr !== undefined) {
+            this.plexOnlyMode = plexOnlyModeStr === 'true' || plexOnlyModeStr === true;
+          }
+          
+          const plexUseHistoryStr = await apiService.getSetting('plexUseHistory');
+          if (plexUseHistoryStr !== null && plexUseHistoryStr !== undefined) {
+            this.plexUseHistory = plexUseHistoryStr === 'true' || plexUseHistoryStr === true;
+          }
+          
+          const plexCustomHistoryDaysStr = await apiService.getSetting('plexCustomHistoryDays');
+          if (plexCustomHistoryDaysStr) {
+            this.plexCustomHistoryDays = parseInt(plexCustomHistoryDaysStr);
+          }
+        } catch (error) {
+          console.error('Error loading Plex settings:', error);
         }
         
         // Jellyfin settings
-        if (settings.jellyfinHistoryMode) {
-          this.jellyfinHistoryMode = settings.jellyfinHistoryMode;
-        }
-        
-        if (settings.jellyfinOnlyMode !== undefined) {
-          this.jellyfinOnlyMode = settings.jellyfinOnlyMode;
-        }
-        
-        if (settings.jellyfinUseHistory !== undefined) {
-          this.jellyfinUseHistory = settings.jellyfinUseHistory;
-        }
-        
-        if (settings.jellyfinCustomHistoryDays) {
-          this.jellyfinCustomHistoryDays = parseInt(settings.jellyfinCustomHistoryDays, 10);
+        try {
+          const jellyfinHistoryModeStr = await apiService.getSetting('jellyfinHistoryMode');
+          if (jellyfinHistoryModeStr) {
+            this.jellyfinHistoryMode = jellyfinHistoryModeStr;
+          }
+          
+          const jellyfinOnlyModeStr = await apiService.getSetting('jellyfinOnlyMode');
+          if (jellyfinOnlyModeStr !== null && jellyfinOnlyModeStr !== undefined) {
+            this.jellyfinOnlyMode = jellyfinOnlyModeStr === 'true' || jellyfinOnlyModeStr === true;
+          }
+          
+          const jellyfinUseHistoryStr = await apiService.getSetting('jellyfinUseHistory');
+          if (jellyfinUseHistoryStr !== null && jellyfinUseHistoryStr !== undefined) {
+            this.jellyfinUseHistory = jellyfinUseHistoryStr === 'true' || jellyfinUseHistoryStr === true;
+          }
+          
+          const jellyfinCustomHistoryDaysStr = await apiService.getSetting('jellyfinCustomHistoryDays');
+          if (jellyfinCustomHistoryDaysStr) {
+            this.jellyfinCustomHistoryDays = parseInt(jellyfinCustomHistoryDaysStr);
+          }
+        } catch (error) {
+          console.error('Error loading Jellyfin settings:', error);
         }
         
         // Tautulli settings
-        if (settings.tautulliHistoryMode) {
-          this.tautulliHistoryMode = settings.tautulliHistoryMode;
-        }
-        
-        if (settings.tautulliOnlyMode !== undefined) {
-          this.tautulliOnlyMode = settings.tautulliOnlyMode;
-        }
-        
-        if (settings.tautulliUseHistory !== undefined) {
-          this.tautulliUseHistory = settings.tautulliUseHistory;
-        }
-        
-        if (settings.tautulliCustomHistoryDays) {
-          this.tautulliCustomHistoryDays = parseInt(settings.tautulliCustomHistoryDays, 10);
+        try {
+          const tautulliHistoryModeStr = await apiService.getSetting('tautulliHistoryMode');
+          if (tautulliHistoryModeStr) {
+            this.tautulliHistoryMode = tautulliHistoryModeStr;
+          }
+          
+          const tautulliOnlyModeStr = await apiService.getSetting('tautulliOnlyMode');
+          if (tautulliOnlyModeStr !== null && tautulliOnlyModeStr !== undefined) {
+            this.tautulliOnlyMode = tautulliOnlyModeStr === 'true' || tautulliOnlyModeStr === true;
+          }
+          
+          const tautulliUseHistoryStr = await apiService.getSetting('tautulliUseHistory');
+          if (tautulliUseHistoryStr !== null && tautulliUseHistoryStr !== undefined) {
+            this.tautulliUseHistory = tautulliUseHistoryStr === 'true' || tautulliUseHistoryStr === true;
+          }
+          
+          const tautulliCustomHistoryDaysStr = await apiService.getSetting('tautulliCustomHistoryDays');
+          if (tautulliCustomHistoryDaysStr) {
+            this.tautulliCustomHistoryDays = parseInt(tautulliCustomHistoryDaysStr);
+          }
+        } catch (error) {
+          console.error('Error loading Tautulli settings:', error);
         }
         
         // Trakt settings
-        console.log('Loading Trakt settings from server:', { 
-          traktHistoryMode: settings.traktHistoryMode, 
-          traktOnlyMode: settings.traktOnlyMode,
-          traktUseHistory: settings.traktUseHistory,
-          traktCustomHistoryDays: settings.traktCustomHistoryDays
-        });
-        
-        if (settings.traktHistoryMode) {
-          this.traktHistoryMode = settings.traktHistoryMode;
-        }
-        
-        if (settings.traktOnlyMode !== undefined) {
-          this.traktOnlyMode = settings.traktOnlyMode;
-        }
-        
-        if (settings.traktUseHistory !== undefined) {
-          // Make sure we convert it to a boolean in case it's stored as a string
-          this.traktUseHistory = settings.traktUseHistory === true || settings.traktUseHistory === 'true';
-          console.log('Trakt history use flag set to:', this.traktUseHistory, 'from value:', settings.traktUseHistory);
-        } else {
-          console.log('traktUseHistory setting not found in server settings, using default:', this.traktUseHistory);
-        }
-        
-        if (settings.traktCustomHistoryDays) {
-          this.traktCustomHistoryDays = parseInt(settings.traktCustomHistoryDays, 10);
+        try {
+          const traktHistoryModeStr = await apiService.getSetting('traktHistoryMode');
+          if (traktHistoryModeStr) {
+            this.traktHistoryMode = traktHistoryModeStr;
+          }
+          
+          const traktOnlyModeStr = await apiService.getSetting('traktOnlyMode');
+          if (traktOnlyModeStr !== null && traktOnlyModeStr !== undefined) {
+            this.traktOnlyMode = traktOnlyModeStr === 'true' || traktOnlyModeStr === true;
+          }
+          
+          const traktUseHistoryStr = await apiService.getSetting('traktUseHistory');
+          if (traktUseHistoryStr !== null && traktUseHistoryStr !== undefined) {
+            // Make sure we convert it to a boolean in case it's stored as a string
+            this.traktUseHistory = traktUseHistoryStr === 'true' || traktUseHistoryStr === true;
+            console.log('Trakt history use flag set to:', this.traktUseHistory, 'from value:', traktUseHistoryStr);
+          } else {
+            console.log('traktUseHistory setting not found, using default:', this.traktUseHistory);
+          }
+          
+          const traktCustomHistoryDaysStr = await apiService.getSetting('traktCustomHistoryDays');
+          if (traktCustomHistoryDaysStr) {
+            this.traktCustomHistoryDays = parseInt(traktCustomHistoryDaysStr);
+          }
+          
+          console.log('Loaded Trakt settings:', {
+            traktHistoryMode: this.traktHistoryMode,
+            traktOnlyMode: this.traktOnlyMode,
+            traktUseHistory: this.traktUseHistory,
+            traktCustomHistoryDays: this.traktCustomHistoryDays
+          });
+        } catch (error) {
+          console.error('Error loading Trakt settings:', error);
         }
       } catch (error) {
-        console.error('Error loading settings from server:', error);
+        console.error('Error loading settings:', error);
       }
     }
   },
@@ -4623,21 +4553,14 @@ export default {
       });
     }
     
-    // We've already loaded the server settings in loadSavedSettings
-    // But check storageUtils as a fallback if server settings didn't include these
-    if (this.numRecommendations === 5) { // 5 is the default - if it's still default, check storageUtils
-      // Restore saved recommendation count from storageUtils (if exists)
-      const savedCount = await databaseStorageUtils.get('numRecommendations');
-      if (savedCount !== null) {
-        const numRecs = parseInt(savedCount, 10);
-        // Validate the value is within range
-        if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
-          this.numRecommendations = numRecs;
-          console.log('Setting numRecommendations from localStorage:', this.numRecommendations);
-        }
-      }
+
+    const savedCount = await databaseStorageUtils.get('numRecommendations');
+    if (savedCount !== null) {
+      const numRecs = parseInt(savedCount);
+        console.log("pared numRecommedations :" + numRecs);
+        this.numRecommendations = numRecs;
     }
-    
+  
     // Check for structured output setting in user-specific storage if we didn't get it from server
     const savedStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
     if (savedStructuredOutput !== null) {
@@ -4651,7 +4574,7 @@ export default {
       // Restore saved columns count from storageUtils (if exists)
       const savedColumnsCount = await databaseStorageUtils.get('columnsCount');
       if (savedColumnsCount !== null) {
-        const columns = parseInt(savedColumnsCount, 10);
+        const columns = parseInt(savedColumnsCount);
         // Validate the value is within range
         if (!isNaN(columns) && columns >= 1 && columns <= 4) {
           this.columnsCount = columns;
@@ -4728,7 +4651,7 @@ export default {
     // Restore saved Plex custom history days
     const savedPlexCustomHistoryDays = await databaseStorageUtils.get('plexCustomHistoryDays');
     if (savedPlexCustomHistoryDays !== null) {
-      this.plexCustomHistoryDays = parseInt(savedPlexCustomHistoryDays, 10);
+      this.plexCustomHistoryDays = parseInt(savedPlexCustomHistoryDays);
     }
     
     // Initialize history arrays with empty arrays to prevent issues
@@ -4787,12 +4710,7 @@ export default {
         }
         
         // Save history to storageUtils (or clear if empty)
-        if (this.previousShowRecommendations.length > 0) {
-          databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
-        } else {
-          databaseStorageUtils.remove('previousTVRecommendations');
-          databaseStorageUtils.remove('currentTVRecommendations'); // Also clear current if history is empty
-        }
+        databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
       }
       
       // Process movie recommendations
@@ -4830,13 +4748,8 @@ export default {
           this.previousRecommendations = [...this.previousMovieRecommendations];
         }
         
-        // Save history to storageUtils (or clear if empty)
-        if (this.previousMovieRecommendations.length > 0) {
-          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
-        } else {
-          databaseStorageUtils.remove('previousMovieRecommendations');
-          databaseStorageUtils.remove('currentMovieRecommendations'); // Also clear current if history is empty
-        }
+        databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+
       }
       
       // Debug current history counts

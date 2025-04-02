@@ -413,15 +413,6 @@ export default {
       console.log('Initialized API with authentication');
       
       try {
-        // Load database cache first - this will get all settings at once
-        console.log('Loading database cache...');
-        const cacheResult = await databaseStorageUtils.loadCache();
-        if (!cacheResult) {
-          console.warn('Database cache loading failed or timed out, proceeding with empty cache');
-        } else {
-          console.log('Database cache loaded successfully');
-        }
-        
         // Run these operations in parallel for better performance
         await Promise.all([
           // Check if services have credentials stored server-side
@@ -633,14 +624,7 @@ export default {
     authService.setAuthHeader();
     console.log('Auth header set after login');
     
-    try {
-      // Ensure database cache is loaded first
-      console.log('Loading database cache after authentication...');
-      const cacheResult = await databaseStorageUtils.loadCache();
-      if (!cacheResult) {
-        console.warn('Database cache loading failed or timed out after login, proceeding with empty cache');
-      }
-      
+    try {  
       // Start parallel tasks for efficiency
       const tasks = [];
       
@@ -701,12 +685,6 @@ export default {
   async loadCachedWatchHistory() {
     try {
       console.log('Loading cached watch history from database...');
-      
-      // Ensure database cache is loaded
-      if (!databaseStorageUtils.cacheLoaded) {
-        console.log('Database cache not loaded, loading now...');
-        await databaseStorageUtils.loadCache();
-      }
       
       // Try to load movies watch history from database
       this.recentlyWatchedMovies = await databaseStorageUtils.getJSON('watchHistoryMovies', []);
@@ -873,27 +851,42 @@ export default {
       console.log('Fetching watch history from all connected services...');
       const fetchPromises = [];
 
-      // Fetch fresh settings from the server, including timestamp columns
-      let serverSettings = {};
+      // Fetch individual timestamp settings from the server
+      let lastPlexHistoryRefresh = null;
+      let lastJellyfinHistoryRefresh = null;
+      let lastTautulliHistoryRefresh = null;
+      let lastTraktHistoryRefresh = null;
+      
       try {
-        serverSettings = await apiService.getSettings();
-        console.log('Fetched server settings for refresh check:', serverSettings);
+        // Fetch each timestamp individually
+        if (this.plexConnected) {
+          lastPlexHistoryRefresh = await apiService.getSetting('lastPlexHistoryRefresh');
+        }
+        if (this.jellyfinConnected) {
+          lastJellyfinHistoryRefresh = await apiService.getSetting('lastJellyfinHistoryRefresh');
+        }
+        if (this.tautulliConnected) {
+          lastTautulliHistoryRefresh = await apiService.getSetting('lastTautulliHistoryRefresh');
+        }
+        if (this.traktConnected) {
+          lastTraktHistoryRefresh = await apiService.getSetting('lastTraktHistoryRefresh');
+        }
         
-        // Log the timestamp values specifically for debugging
-        console.log('Timestamp values from server settings:', {
-          lastPlexHistoryRefresh: serverSettings.lastPlexHistoryRefresh,
-          lastJellyfinHistoryRefresh: serverSettings.lastJellyfinHistoryRefresh,
-          lastTautulliHistoryRefresh: serverSettings.lastTautulliHistoryRefresh,
-          lastTraktHistoryRefresh: serverSettings.lastTraktHistoryRefresh
+        // Log the timestamp values for debugging
+        console.log('Timestamp values from individual settings:', {
+          lastPlexHistoryRefresh,
+          lastJellyfinHistoryRefresh,
+          lastTautulliHistoryRefresh,
+          lastTraktHistoryRefresh
         });
       } catch (error) {
-        console.error('Failed to fetch server settings for refresh check:', error);
-        // Proceed with empty settings, which will force a refresh
+        console.error('Failed to fetch timestamp settings for refresh check:', error);
+        // Proceed with null values, which will force a refresh
       }
 
       // Plex
       if (this.plexConnected) {
-        const plexRefreshNeeded = this.isRefreshNeeded(serverSettings.lastPlexHistoryRefresh);
+        const plexRefreshNeeded = this.isRefreshNeeded(lastPlexHistoryRefresh);
         console.log(`Plex refresh needed: ${plexRefreshNeeded}`);
 
         if (plexRefreshNeeded) {
@@ -926,7 +919,7 @@ export default {
           this.jellyfinConnected = true;
         }
 
-        const jellyfinRefreshNeeded = this.isRefreshNeeded(serverSettings.lastJellyfinHistoryRefresh);
+        const jellyfinRefreshNeeded = this.isRefreshNeeded(lastJellyfinHistoryRefresh);
         console.log(`Jellyfin refresh needed: ${jellyfinRefreshNeeded}`);
 
         if (jellyfinRefreshNeeded) {
@@ -953,7 +946,7 @@ export default {
 
       // Tautulli
       if (this.tautulliConnected) {
-        const tautulliRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTautulliHistoryRefresh);
+        const tautulliRefreshNeeded = this.isRefreshNeeded(lastTautulliHistoryRefresh);
         console.log(`Tautulli refresh needed: ${tautulliRefreshNeeded}`);
 
         if (tautulliRefreshNeeded) {
@@ -980,7 +973,7 @@ export default {
 
       // Trakt
       if (this.traktConnected) {
-        const traktRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTraktHistoryRefresh);
+        const traktRefreshNeeded = this.isRefreshNeeded(lastTraktHistoryRefresh);
         console.log(`Trakt refresh needed: ${traktRefreshNeeded}`);
 
         if (traktRefreshNeeded) {
@@ -1046,10 +1039,6 @@ export default {
       // Load all settings at once from the database
       console.log('Loading all settings from database');
       
-      // Initialize database cache if not already loaded
-      if (!databaseStorageUtils.cacheLoaded) {
-        await databaseStorageUtils.loadCache();
-      }
       
       // Get all settings from the cache
       const settings = databaseStorageUtils.cache;
@@ -1217,7 +1206,7 @@ export default {
               // Update the component's state with values from credentials
               this.selectedPlexUserId = credentials.selectedUserId || '';
               if (credentials.recentLimit) {
-                this.plexRecentLimit = parseInt(credentials.recentLimit, 10);
+                this.plexRecentLimit = parseInt(credentials.recentLimit);
                 console.log(`Updated plexRecentLimit to ${this.plexRecentLimit} from credentials`);
               }
               
@@ -1273,7 +1262,7 @@ export default {
               
               // Update tautulliRecentLimit from credentials if available
               if (credentials.recentLimit) {
-                this.tautulliRecentLimit = parseInt(credentials.recentLimit, 10);
+                this.tautulliRecentLimit = parseInt(credentials.recentLimit);
                 console.log(`Updated tautulliRecentLimit to ${this.tautulliRecentLimit} from credentials`);
               } else {
                 // If not in credentials, use the default value
@@ -1301,7 +1290,7 @@ export default {
               
               // Update traktRecentLimit from credentials if available
               if (credentials.recentLimit) {
-                this.traktRecentLimit = parseInt(credentials.recentLimit, 10);
+                this.traktRecentLimit = parseInt(credentials.recentLimit);
                 console.log(`Updated traktRecentLimit to ${this.traktRecentLimit} from credentials`);
               } else {
                 // If not in credentials, use the value from TraktService
@@ -1430,9 +1419,9 @@ export default {
       try {
         // Check if we need to refresh the data
         if (!forceRefresh) {
-          // Fetch settings to get the latest timestamp
-          const serverSettings = await apiService.getSettings();
-          const traktRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTraktHistoryRefresh);
+          // Fetch the timestamp setting directly
+          const lastTraktHistoryRefresh = await apiService.getSetting('lastTraktHistoryRefresh');
+          const traktRefreshNeeded = this.isRefreshNeeded(lastTraktHistoryRefresh);
           
           if (!traktRefreshNeeded) {
             console.log('Skipping Trakt history refresh (less than 24 hours since last refresh)');
@@ -1514,20 +1503,7 @@ export default {
       this.jellyfinUsers = [];
       
       try {
-        // Ensure database cache is loaded
-        if (!databaseStorageUtils.cacheLoaded) {
-          await databaseStorageUtils.loadCache();
-        }
-        
-        // Get the user ID from cache
-        const savedUserId = databaseStorageUtils.cache.selectedJellyfinUserId;
-        if (savedUserId) {
-          this.selectedJellyfinUserId = savedUserId;
-          console.log(`Loaded Jellyfin user ID from database cache: ${savedUserId}`);
-        } else {
-          // Fall back to the service's stored user ID
-          this.selectedJellyfinUserId = jellyfinService.userId;
-        }
+
         
         this.jellyfinUsers = await jellyfinService.getUsers();
       } catch (error) {
@@ -1626,18 +1602,8 @@ export default {
       this.tautulliUsers = [];
       
       try {
-        // Ensure database cache is loaded
-        if (!databaseStorageUtils.cacheLoaded) {
-          await databaseStorageUtils.loadCache();
-        }
-        
+
         // Get the user ID from cache
-        const savedUserId = databaseStorageUtils.cache.selectedTautulliUserId;
-        if (savedUserId) {
-          this.selectedTautulliUserId = savedUserId;
-          console.log(`Loaded Tautulli user ID from database cache: ${savedUserId}`);
-        }
-        
         this.tautulliUsers = await tautulliService.getUsers();
       } catch (error) {
         console.error('Error in openTautulliUserSelect:', error);
@@ -1877,7 +1843,6 @@ export default {
             
             // Try to get from database again with a different approach
             try {
-              await databaseStorageUtils.loadCache();
               const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
               if (savedUserId) {
                 this.selectedTautulliUserId = savedUserId;
@@ -2108,9 +2073,9 @@ export default {
       try {
         // Check if we need to refresh the data
         if (!forceRefresh) {
-          // Fetch settings to get the latest timestamp
-          const serverSettings = await apiService.getSettings();
-          const plexRefreshNeeded = this.isRefreshNeeded(serverSettings.lastPlexHistoryRefresh);
+          // Fetch the timestamp setting directly
+          const lastPlexHistoryRefresh = await apiService.getSetting('lastPlexHistoryRefresh');
+          const plexRefreshNeeded = this.isRefreshNeeded(lastPlexHistoryRefresh);
           
           if (!plexRefreshNeeded) {
             console.log('Skipping Plex history refresh (less than 24 hours since last refresh)');
@@ -2176,9 +2141,9 @@ export default {
       try {
         // Check if we need to refresh the data
         if (!forceRefresh) {
-          // Fetch settings to get the latest timestamp
-          const serverSettings = await apiService.getSettings();
-          const jellyfinRefreshNeeded = this.isRefreshNeeded(serverSettings.lastJellyfinHistoryRefresh);
+          // Fetch the timestamp setting directly
+          const lastJellyfinHistoryRefresh = await apiService.getSetting('lastJellyfinHistoryRefresh');
+          const jellyfinRefreshNeeded = this.isRefreshNeeded(lastJellyfinHistoryRefresh);
           
           if (!jellyfinRefreshNeeded) {
             console.log('Skipping Jellyfin history refresh (less than 24 hours since last refresh)');
@@ -2269,9 +2234,9 @@ export default {
       try {
         // Check if we need to refresh the data
         if (!forceRefresh) {
-          // Fetch settings to get the latest timestamp
-          const serverSettings = await apiService.getSettings();
-          const tautulliRefreshNeeded = this.isRefreshNeeded(serverSettings.lastTautulliHistoryRefresh);
+          // Fetch the timestamp setting directly
+          const lastTautulliHistoryRefresh = await apiService.getSetting('lastTautulliHistoryRefresh');
+          const tautulliRefreshNeeded = this.isRefreshNeeded(lastTautulliHistoryRefresh);
           
           if (!tautulliRefreshNeeded) {
             console.log('Skipping Tautulli history refresh (less than 24 hours since last refresh)');

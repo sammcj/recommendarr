@@ -500,7 +500,7 @@ constructor() {
             return true;
           }
           
-          const viewedAtTimestamp = parseInt(movie.viewedAt, 10);
+          const viewedAtTimestamp = parseInt(movie.viewedAt);
           const isRecent = viewedAtTimestamp >= cutoffTimestamp;
           
           return isRecent;
@@ -669,7 +669,7 @@ constructor() {
             return true;
           }
           
-          const viewedAtTimestamp = parseInt(episode.viewedAt, 10);
+          const viewedAtTimestamp = parseInt(episode.viewedAt);
           const isRecent = viewedAtTimestamp >= cutoffTimestamp;
           
           return isRecent;

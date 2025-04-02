@@ -43,15 +43,37 @@ constructor() {
     }
     
     try {
+      // Load credentials from server
       const credentials = await credentialsService.getCredentials('tautulli');
       if (credentials) {
         this.baseUrl = credentials.baseUrl || '';
         this.apiKey = credentials.apiKey || '';
         this.configured = !!(this.baseUrl && this.apiKey);
         
-        // Load recentLimit if available
+        // Load recentLimit if available in credentials
         if (credentials.recentLimit) {
           await databaseStorageUtils.set('tautulliRecentLimit', credentials.recentLimit);
+        }
+        
+        // Also try to load selectedUserId from database directly
+        try {
+          const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+          if (savedUserId) {
+            this.selectedUserId = savedUserId;
+            console.log(`Loaded selectedTautulliUserId from database: ${savedUserId}`);
+          }
+        } catch (settingError) {
+          console.error('Error loading selectedTautulliUserId from database:', settingError);
+        }
+        
+        // Try to load lastTautulliHistoryRefresh from database directly
+        try {
+          const lastRefresh = await databaseStorageUtils.get('lastTautulliHistoryRefresh');
+          if (lastRefresh) {
+            console.log(`Loaded lastTautulliHistoryRefresh from database: ${lastRefresh}`);
+          }
+        } catch (settingError) {
+          console.error('Error loading lastTautulliHistoryRefresh from database:', settingError);
         }
         
         this.credentialsLoaded = true; // Set flag after successful load

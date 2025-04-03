@@ -31,3 +31,9 @@ user_data.json
 server/data/user_data.json
 /server/data
 env
+memory-bank/activeContext.md
+memory-bank/productContext.md
+memory-bank/projectbrief.md
+memory-bank/systemPatterns.md
+memory-bank/techContext.md
+memory-bank/progress.md

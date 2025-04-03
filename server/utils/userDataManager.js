@@ -3,6 +3,7 @@ const databaseService = require('./databaseService');
 
 // Default user data template
 const createDefaultUserData = () => ({
+  // Basic recommendation arrays
   tvRecommendations: [],
   movieRecommendations: [],
   likedTV: [],
@@ -15,6 +16,86 @@ const createDefaultUserData = () => ({
     movies: [],
     shows: []
   },
+  
+  // Basic UI settings
+  numRecommendations: 6,
+  columnsCount: 3,
+  historyColumnsCount: 3,
+  darkTheme: false,
+  
+  // History display settings
+  historyHideExisting: true,
+  historyHideLiked: false,
+  historyHideDisliked: false,
+  historyHideHidden: true,
+  
+  // Content preferences
+  contentTypePreference: 'tv',
+  
+  // Library settings
+  useSampledLibrary: false,
+  librarySampleSize: 100,
+  useStructuredOutput: false,
+  useCustomPromptOnly: false,
+  
+  // Plex-specific settings
+  selectedPlexUserId: '',
+  plexRecentLimit: 6500,
+  plexHistoryMode: 'recent',
+  plexCustomHistoryDays: 30,
+  plexOnlyMode: false,
+  
+  // Jellyfin-specific settings
+  selectedJellyfinUserId: '',
+  jellyfinRecentLimit: 100,
+  jellyfinHistoryMode: 'all',
+  jellyfinOnlyMode: false,
+  
+  // Tautulli-specific settings
+  selectedTautulliUserId: '',
+  tautulliRecentLimit: 50,
+  tautulliHistoryMode: 'all',
+  tautulliOnlyMode: false,
+  
+  // Trakt-specific settings
+  traktRecentLimit: 50,
+  traktHistoryMode: 'all',
+  traktOnlyMode: false,
+  
+  // Watch history refresh timestamps
+  lastPlexHistoryRefresh: null,
+  lastJellyfinHistoryRefresh: null,
+  lastTautulliHistoryRefresh: null,
+  lastTraktHistoryRefresh: null,
+  
+  // Watch history
+  watchHistoryMovies: [],
+  watchHistoryShows: [],
+  
+  // Service-specific watch history
+  jellyfinWatchHistoryMovies: [],
+  jellyfinWatchHistoryShows: [],
+  tautulliWatchHistoryMovies: [],
+  tautulliWatchHistoryShows: [],
+  traktWatchHistoryMovies: [],
+  traktWatchHistoryShows: [],
+  
+  // General preferences
+  genrePreferences: [],
+  languagePreference: 'en',
+  customVibe: '',
+  
+  // AI model settings
+  openaiModel: 'google/gemini-2.0-flash-exp:free',
+  temperature: 0.8,
+  
+  // Recommendation history
+  previousTVRecommendations: [],
+  currentTVRecommendations: [],
+  
+  // Migration flags
+  fullDatabaseStorageMigrationComplete: false,
+  
   // Individual settings are now stored in separate columns in the database
   // This empty settings object is kept for backward compatibility
   settings: {}
@@ -68,7 +149,11 @@ class UserDataManager {
         return defaultData;
       }
       
-      return userData;
+      // Ensure all properties exist with default values if not present
+      const defaultData = createDefaultUserData();
+      const mergedData = { ...defaultData, ...userData };
+      
+      return mergedData;
     } catch (err) {
       console.error(`Error reading user data for userId: ${userId}:`, err);
       // Return default data in case of error
@@ -110,7 +195,7 @@ class UserDataManager {
         });
       }
       
-      // Ensure required properties exist
+      // Ensure basic array properties exist
       if (!Array.isArray(userData.tvRecommendations)) userData.tvRecommendations = [];
       if (!Array.isArray(userData.movieRecommendations)) userData.movieRecommendations = [];
       if (!Array.isArray(userData.likedTV)) userData.likedTV = [];
@@ -120,10 +205,23 @@ class UserDataManager {
       if (!Array.isArray(userData.dislikedMovies)) userData.dislikedMovies = [];
       if (!Array.isArray(userData.hiddenMovies)) userData.hiddenMovies = [];
       if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
-      if (!userData.settings) userData.settings = {};
       
-      // We no longer need to set default values for settings
-      // as they are now stored in individual columns with default values in the database
+      // Ensure all other properties have default values if not present
+      const defaultData = createDefaultUserData();
+      
+      // Merge with defaults for all properties except the basic arrays we already checked
+      // and userId which shouldn't change and settings which is deprecated
+      Object.keys(defaultData).forEach(key => {
+        if (!['tvRecommendations', 'movieRecommendations', 'likedTV', 'dislikedTV', 
+              'hiddenTV', 'likedMovies', 'dislikedMovies', 'hiddenMovies', 
+              'watchHistory', 'settings'].includes(key) && 
+            userData[key] === undefined) {
+          userData[key] = defaultData[key];
+        }
+      });
+      
+      // Keep the empty settings object for backward compatibility
+      if (!userData.settings) userData.settings = {};
       
       // Save to database
       const success = databaseService.saveUserData(userId, userData);

@@ -813,109 +813,109 @@ export default {
       localSampleSize: this.sampleSize
     };
   },
-  // async mounted() {
-  //   try {
-  //     console.log('RecommendationSettings: Loading settings directly from database');
+  async mounted() {
+    try {
+      console.log('RecommendationSettings: Loading settings directly from database');
       
-  //     // Load numRecommendations
-  //     const savedNumRecommendations = await databaseStorageUtils.get('numRecommendations');
-  //     if (savedNumRecommendations !== null && savedNumRecommendations !== undefined) {
-  //       const numValue = parseInt(savedNumRecommendations);
-  //       if (!isNaN(numValue)) {
-  //         this.$emit('update:numRecommendations', numValue);
-  //         console.log('Loaded numRecommendations:', numValue);
-  //       }
-  //     }
+      // Load numRecommendations
+      const savedNumRecommendations = await databaseStorageUtils.get('numRecommendations');
+      if (savedNumRecommendations !== null && savedNumRecommendations !== undefined) {
+        const numValue = parseInt(savedNumRecommendations);
+        if (!isNaN(numValue)) {
+          this.$emit('update:numRecommendations', numValue);
+          console.log('Loaded numRecommendations:', numValue);
+        }
+      }
       
-  //     // Load columnsCount
-  //     const savedColumnsCount = await databaseStorageUtils.get('columnsCount');
-  //     if (savedColumnsCount !== null && savedColumnsCount !== undefined) {
-  //       const numValue = parseInt(savedColumnsCount);
-  //       if (!isNaN(numValue)) {
-  //         this.$emit('update:columnsCount', numValue);
-  //         console.log('Loaded columnsCount:', numValue);
-  //       }
-  //     }
+      // Load columnsCount
+      const savedColumnsCount = await databaseStorageUtils.get('columnsCount');
+      if (savedColumnsCount !== null && savedColumnsCount !== undefined) {
+        const numValue = parseInt(savedColumnsCount);
+        if (!isNaN(numValue)) {
+          this.$emit('update:columnsCount', numValue);
+          console.log('Loaded columnsCount:', numValue);
+        }
+      }
       
-  //     // Load model preference
-  //     const savedModel = await databaseStorageUtils.get('openaiModel');
-  //     if (savedModel !== null && savedModel !== undefined) {
-  //       this.$emit('update:selectedModel', savedModel);
-  //       console.log('Loaded model preference:', savedModel);
-  //     }
+      // Load model preference
+      const savedModel = await databaseStorageUtils.get('openaiModel');
+      if (savedModel !== null && savedModel !== undefined) {
+        this.$emit('update:selectedModel', savedModel);
+        console.log('Loaded model preference:', savedModel);
+      }
       
-  //     // Load temperature
-  //     const savedTemperature = await databaseStorageUtils.get('temperature');
-  //     if (savedTemperature !== null && savedTemperature !== undefined) {
-  //       const numValue = parseFloat(savedTemperature);
-  //       if (!isNaN(numValue)) {
-  //         this.$emit('update:temperature', numValue);
-  //         console.log('Loaded temperature:', numValue);
-  //       }
-  //     }
+      // Load temperature
+      const savedTemperature = await databaseStorageUtils.get('temperature');
+      if (savedTemperature !== null && savedTemperature !== undefined) {
+        const numValue = parseFloat(savedTemperature);
+        if (!isNaN(numValue)) {
+          this.$emit('update:temperature', numValue);
+          console.log('Loaded temperature:', numValue);
+        }
+      }
       
-  //     // Load structured output preference
-  //     const useStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
-  //     if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
-  //       const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
-  //       this.$emit('update:useStructuredOutput', boolValue);
-  //       console.log('Loaded structured output preference:', boolValue);
-  //     }
+      // Load structured output preference
+      const useStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
+      if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
+        const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
+        this.$emit('update:useStructuredOutput', boolValue);
+        console.log('Loaded structured output preference:', boolValue);
+      }
       
-  //     // Load sampled library mode preference
-  //     const useSampledLibrary = await databaseStorageUtils.get('useSampledLibrary');
-  //     if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
-  //       const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
-  //       this.$emit('update:useSampledLibrary', boolValue);
-  //     }
+      // Load sampled library mode preference
+      const useSampledLibrary = await databaseStorageUtils.get('useSampledLibrary');
+      if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
+        const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
+        this.$emit('update:useSampledLibrary', boolValue);
+      }
       
-  //     // Load sample size
-  //     const librarySampleSize = await databaseStorageUtils.get('librarySampleSize');
-  //     if (librarySampleSize !== null && librarySampleSize !== undefined) {
-  //       const numValue = parseInt(librarySampleSize);
-  //       if (!isNaN(numValue)) {
-  //         this.$emit('update:sampleSize', numValue);
-  //       }
-  //     }
+      // Load sample size
+      const librarySampleSize = await databaseStorageUtils.get('librarySampleSize');
+      if (librarySampleSize !== null && librarySampleSize !== undefined) {
+        const numValue = parseInt(librarySampleSize);
+        if (!isNaN(numValue)) {
+          this.$emit('update:sampleSize', numValue);
+        }
+      }
       
-  //     // Load genre preferences - use our dedicated method
-  //     await this.loadGenrePreferences();
+      // Load genre preferences - use our dedicated method
+      await this.loadGenrePreferences();
       
-  //     // Load universal language preference
-  //     const savedLanguage = await databaseStorageUtils.get('languagePreference');
-  //     if (savedLanguage !== null && savedLanguage !== undefined) {
-  //       this.$emit('update:selectedLanguage', String(savedLanguage));
-  //       console.log('Loaded universal language preference:', savedLanguage);
-  //     }
+      // Load universal language preference
+      const savedLanguage = await databaseStorageUtils.get('languagePreference');
+      if (savedLanguage !== null && savedLanguage !== undefined) {
+        this.$emit('update:selectedLanguage', String(savedLanguage));
+        console.log('Loaded universal language preference:', savedLanguage);
+      }
       
-  //     // Load prompt style
-  //     const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
-  //     const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
-  //     if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
-  //       this.$emit('update:promptStyle', savedPromptStyle);
-  //       console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
-  //     }
+      // Load prompt style
+      const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
+      const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
+      if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
+        this.$emit('update:promptStyle', savedPromptStyle);
+        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
+      }
       
-  //     // Load custom vibe (universal)
-  //     const savedCustomVibe = await databaseStorageUtils.get('customVibe');
-  //     if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
-  //       this.$emit('update:customVibe', savedCustomVibe);
-  //       console.log('Loaded universal custom vibe:', savedCustomVibe);
-  //     }
+      // Load custom vibe (universal)
+      const savedCustomVibe = await databaseStorageUtils.get('customVibe');
+      if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
+        this.$emit('update:customVibe', savedCustomVibe);
+        console.log('Loaded universal custom vibe:', savedCustomVibe);
+      }
       
-  //     // Load custom prompt only preference (universal)
-  //     const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
-  //     if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
-  //       const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
-  //       this.$emit('update:useCustomPromptOnly', boolValue);
-  //       console.log('Loaded universal custom prompt only preference:', boolValue);
-  //     }
-  //   } catch (error) {
-  //     console.error('Error loading settings in RecommendationSettings:', error);
-  //     // Initialize with empty values to prevent undefined issues
-  //     this.$emit('update:selectedGenres', []);
-  //   }
-  // },
+      // Load custom prompt only preference (universal)
+      const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
+      if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
+        const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
+        this.$emit('update:useCustomPromptOnly', boolValue);
+        console.log('Loaded universal custom prompt only preference:', boolValue);
+      }
+    } catch (error) {
+      console.error('Error loading settings in RecommendationSettings:', error);
+      // Initialize with empty values to prevent undefined issues
+      this.$emit('update:selectedGenres', []);
+    }
+  },
   computed: {
     isAdmin() {
       return authService.isAdmin();
@@ -1284,11 +1284,29 @@ export default {
     clearRecommendationHistory() {
       this.$emit('clear-recommendation-history');
     },
-    saveRecommendationCount(value) {
-      this.$emit('save-recommendation-count', Number(value));
+    async saveRecommendationCount(value) {
+      const numValue = Number(value);
+      try {
+        console.log('Saving numRecommendations directly to database:', numValue);
+        await databaseStorageUtils.set('numRecommendations', numValue.toString());
+        // Update the local value to ensure UI is in sync
+        this.$emit('update:numRecommendations', numValue);
+      } catch (error) {
+        console.error('Error saving numRecommendations to database:', error);
+      }
+      this.$emit('save-recommendation-count', numValue);
     },
-    saveColumnsCount(value) {
-      this.$emit('save-columns-count', Number(value));
+    async saveColumnsCount(value) {
+      const numValue = Number(value);
+      try {
+        console.log('Saving columnsCount directly to database:', numValue);
+        await databaseStorageUtils.set('columnsCount', numValue.toString());
+        // Update the local value to ensure UI is in sync
+        this.$emit('update:columnsCount', numValue);
+      } catch (error) {
+        console.error('Error saving columnsCount to database:', error);
+      }
+      this.$emit('save-columns-count', numValue);
     },
     handleResize() {
       this.$emit('handle-resize');

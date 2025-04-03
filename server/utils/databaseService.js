@@ -153,6 +153,7 @@ class DatabaseService {
         
         -- AI model settings
         openaiModel TEXT DEFAULT 'google/gemini-2.0-flash-exp:free',
+        temperature REAL DEFAULT 0.8,
         
         -- Recommendation history
         previousTVRecommendations TEXT DEFAULT '[]',
@@ -870,6 +871,7 @@ class DatabaseService {
         
         // AI model settings
         openaiModel: userData.openaiModel || 'google/gemini-2.0-flash-exp:free',
+        temperature: userData.temperature !== undefined ? parseFloat(userData.temperature) : 0.8,
         
         // Recommendation history
         previousTVRecommendations: JSON.parse(userData.previousTVRecommendations || '[]'),
@@ -1123,6 +1125,9 @@ class DatabaseService {
             break;
           case 'openaiModel':
             values.push(settings.openaiModel || 'google/gemini-2.0-flash-exp:free');
+            break;
+          case 'temperature':
+            values.push(settings.temperature !== undefined ? parseFloat(settings.temperature) : 0.8);
             break;
           case 'previousTVRecommendations':
             values.push(JSON.stringify(settings.previousTVRecommendations || []));

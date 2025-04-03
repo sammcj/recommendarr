@@ -53,45 +53,45 @@
             :traktHistoryExpanded="traktHistoryExpanded"
             :isMovieMode="isMovieMode"
             :modelOptions="modelOptions"
-            v-model:selectedModel="selectedModel"
+            :selectedModel="selectedModel"
             :customModel="customModel"
             :isCustomModel="isCustomModel"
             :fetchingModels="fetchingModels"
             :fetchError="fetchError"
             :temperature="temperature"
-            v-model:useSampledLibrary="useSampledLibrary"
-            v-model:sampleSize="sampleSize"
-            v-model:useStructuredOutput="useStructuredOutput"
+            :useSampledLibrary="useSampledLibrary"
+            :sampleSize="sampleSize"
+            :useStructuredOutput="useStructuredOutput"
             :previousRecommendations="previousRecommendations"
-            v-model:numRecommendations="numRecommendations"
-            v-model:columnsCount="columnsCount"
+            :numRecommendations="numRecommendations"
+            :columnsCount="columnsCount"
             :availableGenres="availableGenres"
-            v-model:selectedGenres="selectedGenres"
-            v-model:promptStyle="promptStyle"
-            v-model:customVibe="customVibe"
-            v-model:useCustomPromptOnly="useCustomPromptOnly"
+            :selectedGenres="selectedGenres"
+            :promptStyle="promptStyle"
+            :customVibe="customVibe"
+            :useCustomPromptOnly="useCustomPromptOnly"
             :availableLanguages="availableLanguages"
-            v-model:selectedLanguage="selectedLanguage"
+            :selectedLanguage="selectedLanguage"
             :plexConfigured="plexConfigured"
-            v-model:plexUseHistory="plexUseHistory"
-            v-model:plexHistoryMode="plexHistoryMode"
-            v-model:plexCustomHistoryDays="plexCustomHistoryDays"
-            v-model:plexOnlyMode="plexOnlyMode"
+            :plexUseHistory="plexUseHistory"
+            :plexHistoryMode="plexHistoryMode"
+            :plexCustomHistoryDays="plexCustomHistoryDays"
+            :plexOnlyMode="plexOnlyMode"
             :jellyfinConfigured="jellyfinConfigured"
-            v-model:jellyfinUseHistory="jellyfinUseHistory"
-            v-model:jellyfinHistoryMode="jellyfinHistoryMode"
-            v-model:jellyfinCustomHistoryDays="jellyfinCustomHistoryDays"
-            v-model:jellyfinOnlyMode="jellyfinOnlyMode"
+            :jellyfinUseHistory="jellyfinUseHistory"
+            :jellyfinHistoryMode="jellyfinHistoryMode"
+            :jellyfinCustomHistoryDays="jellyfinCustomHistoryDays"
+            :jellyfinOnlyMode="jellyfinOnlyMode"
             :tautulliConfigured="tautulliConfigured"
-            v-model:tautulliUseHistory="tautulliUseHistory"
-            v-model:tautulliHistoryMode="tautulliHistoryMode"
-            v-model:tautulliCustomHistoryDays="tautulliCustomHistoryDays"
-            v-model:tautulliOnlyMode="tautulliOnlyMode"
+            :tautulliUseHistory="tautulliUseHistory"
+            :tautulliHistoryMode="tautulliHistoryMode"
+            :tautulliCustomHistoryDays="tautulliCustomHistoryDays"
+            :tautulliOnlyMode="tautulliOnlyMode"
             :traktConfigured="traktConfigured"
-            v-model:traktUseHistory="traktUseHistory"
-            v-model:traktHistoryMode="traktHistoryMode"
-            v-model:traktCustomHistoryDays="traktCustomHistoryDays"
-            v-model:traktOnlyMode="traktOnlyMode"
+            :traktUseHistory="traktUseHistory"
+            :traktHistoryMode="traktHistoryMode"
+            :traktCustomHistoryDays="traktCustomHistoryDays"
+            :traktOnlyMode="traktOnlyMode"
             @toggle-settings="toggleSettings"
             @toggle-configuration="toggleConfiguration"
             @toggle-rec-number="toggleRecNumber"
@@ -2548,14 +2548,14 @@ export default {
         this.temperature = value;
         
         console.log('Saving temperature to database:', value);
-        await databaseStorageUtils.set('aiTemperature', value.toString());
+        await databaseStorageUtils.set('temperature', value.toString());
         
         // Update in OpenAI service
         openAIService.temperature = value;
       } catch (error) {
         console.error('Error saving temperature to server:', error);
         // Fallback to databaseStorageUtils only
-        databaseStorageUtils.set('aiTemperature', value.toString());
+        databaseStorageUtils.set('temperature', value.toString());
         openAIService.temperature = value;
       }
     },
@@ -4204,246 +4204,146 @@ export default {
     
     /**
      * Load all saved settings using individual setting API
+     * 
+     * Note: Most settings are now loaded directly in RecommendationSettings.vue component.
+     * This method only loads settings that are not handled by RecommendationSettings.
      */
     async loadSavedSettings() {
       try {
-        console.log('Loading settings using individual setting API');
+        console.log('Loading only non-RecommendationSettings settings');
         
-        // Load number of recommendations settingdatabaseService
+        // Load previous recommendations from server
         try {
-          const numRecsStr = await databaseStorageUtils.get('numRecommendations');
-          console.log(`loadSavedSettings numRecommendations: ${numRecsStr}`);
-          if (numRecsStr !== null && numRecsStr !== undefined) {
-            const numRecs = parseInt(numRecsStr);
-            if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
-              this.numRecommendations = numRecs;
-              console.log('Setting numRecommendations:', this.numRecommendations);
-            }
-          }
-        } catch (error) {
-          console.error('Error loading numRecommendations setting:', error);
-        }
-        
-        // Load columns count setting
-        try {
-          const columnsStr = await databaseStorageUtils.get('columnsCount');
-          if (columnsStr !== null && columnsStr !== undefined) {
-            const columns = parseInt(columnsStr);
-            if (!isNaN(columns) && columns >= 1 && columns <= 4) {
-              this.columnsCount = columns;
-              console.log('Setting columnsCount:', this.columnsCount);
-            }
-          }
-        } catch (error) {
-          console.error('Error loading columnsCount setting:', error);
-        }
-        
-        // Temperature setting
-        try {
-          const tempStr = await apiService.getSetting('aiTemperature');
-          if (tempStr !== null && tempStr !== undefined) {
-            const temp = parseFloat(tempStr);
-            if (!isNaN(temp) && temp >= 0 && temp <= 1) {
-              this.temperature = temp;
-              console.log('Setting temperature:', this.temperature);
-            }
-          }
-        } catch (error) {
-          console.error('Error loading aiTemperature setting:', error);
-        }
-        
-        // Library sampling settings
-        try {
-          const useSampledLibraryStr = await apiService.getSetting('useSampledLibrary');
-          if (useSampledLibraryStr !== null && useSampledLibraryStr !== undefined) {
-            this.useSampledLibrary = useSampledLibraryStr === 'true' || useSampledLibraryStr === true;
-            console.log('Setting useSampledLibrary:', this.useSampledLibrary);
-            
-            // Also update in OpenAIService
-            openAIService.useSampledLibrary = this.useSampledLibrary;
-            
-            // Save to localStorage as backup
-            databaseStorageUtils.set('useSampledLibrary', this.useSampledLibrary.toString());
-          }
-        } catch (error) {
-          console.error('Error loading useSampledLibrary setting:', error);
-        }
-        
-        try {
-          const sampleSizeStr = await apiService.getSetting('librarySampleSize');
-          if (sampleSizeStr !== null && sampleSizeStr !== undefined) {
-            const sampleSize = parseInt(sampleSizeStr);
-            if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 1000) {
-              this.sampleSize = sampleSize;
-              console.log('Setting sampleSize:', this.sampleSize);
+          console.log("Loading recommendations from server...");
+          
+          // Try to load recommendations from server first
+          const tvRecsResponse = await apiService.getRecommendations('tv', this.username) || [];
+          const movieRecsResponse = await apiService.getRecommendations('movie', this.username) || [];
+          
+          console.log("TV recommendations from server:", tvRecsResponse ? tvRecsResponse.length : 0, "items");
+          console.log("Movie recommendations from server:", movieRecsResponse ? movieRecsResponse.length : 0, "items");
+          
+          // Process TV recommendations
+          if (Array.isArray(tvRecsResponse)) { // Process even if empty
+            if (tvRecsResponse.length > 0 && typeof tvRecsResponse[0] === 'string') {
+              // Simple array of titles - this is the history list
+              console.log("Loaded TV history from server (string array):", tvRecsResponse.length, "items");
+              this.previousShowRecommendations = tvRecsResponse;
+            } else if (tvRecsResponse.length > 0) {
+              // Full recommendation objects with title property
+              console.log("Loaded full TV recommendations from server:", tvRecsResponse.length, "items");
               
-              // Also update in OpenAIService
-              openAIService.sampleSize = this.sampleSize;
+              // Store them as full recommendations if we're in TV mode
+              if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
+                this.recommendations = tvRecsResponse;
+                databaseStorageUtils.setJSON('currentTVRecommendations', tvRecsResponse); // Save current to storage
+              }
               
-              // Save to localStorage as backup
-              databaseStorageUtils.set('librarySampleSize', this.sampleSize.toString());
-            }
-          }
-        } catch (error) {
-          console.error('Error loading librarySampleSize setting:', error);
-        }
-        
-        // Structured output setting
-        try {
-          const useStructuredOutputStr = await apiService.getSetting('useStructuredOutput');
-          if (useStructuredOutputStr !== null && useStructuredOutputStr !== undefined) {
-            this.useStructuredOutput = useStructuredOutputStr === 'true' || useStructuredOutputStr === true;
-            console.log('Setting useStructuredOutput:', this.useStructuredOutput);
-            
-            // Also set it in the OpenAIService
-            openAIService.useStructuredOutput = this.useStructuredOutput;
-          }
-        } catch (error) {
-          console.error('Error loading useStructuredOutput setting:', error);
-        }
-        
-        // Load custom prompt only setting
-        try {
-          const useCustomPromptOnlyStr = await apiService.getSetting('useCustomPromptOnly');
-          if (useCustomPromptOnlyStr !== null && useCustomPromptOnlyStr !== undefined) {
-            this.useCustomPromptOnly = useCustomPromptOnlyStr === 'true' || useCustomPromptOnlyStr === true;
-            console.log('Setting useCustomPromptOnly:', this.useCustomPromptOnly);
-            
-            // Set in the OpenAIService if needed
-            if (typeof openAIService.setUseCustomPromptOnly === 'function') {
-              openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
+              // Extract titles for the history
+              const extractedTitles = tvRecsResponse
+                .map(rec => typeof rec === 'string' ? rec : rec.title)
+                .filter(title => !!title);
+                
+              // Combine with existing history, handling duplicates
+              const existingTitles = this.previousShowRecommendations || [];
+              this.previousShowRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
             } else {
-              // If method doesn't exist, add the property directly
-              openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
+              // Server returned empty array
+              console.log("Server returned empty TV recommendations, clearing local history.");
+              this.previousShowRecommendations = [];
             }
-          }
-        } catch (error) {
-          console.error('Error loading useCustomPromptOnly setting:', error);
-        }
-        
-        // Load prompt style setting
-        try {
-          const promptStyleStr = await apiService.getSetting('promptStyle');
-          if (promptStyleStr) {
-            this.promptStyle = promptStyleStr;
-            console.log('Setting promptStyle:', this.promptStyle);
             
-            // Set in the OpenAIService
-            openAIService.setPromptStyle(this.promptStyle);
+            // Update currently displayed history if in TV mode
+            if (!this.isMovieMode) {
+              this.previousRecommendations = [...this.previousShowRecommendations];
+            }
+            
+            // Save history to storageUtils (or clear if empty)
+            databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
+          }
+          
+          // Process movie recommendations
+          if (Array.isArray(movieRecsResponse)) { // Process even if empty
+            if (movieRecsResponse.length > 0 && typeof movieRecsResponse[0] === 'string') {
+              // Simple array of titles - this is the history list
+              console.log("Loaded movie history from server (string array):", movieRecsResponse.length, "items");
+              this.previousMovieRecommendations = movieRecsResponse;
+            } else if (movieRecsResponse.length > 0) {
+              // Full recommendation objects with title property
+              console.log("Loaded full movie recommendations from server:", movieRecsResponse.length, "items");
+              
+              // Store them as full recommendations if we're in movie mode
+              if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
+                this.recommendations = movieRecsResponse;
+                databaseStorageUtils.setJSON('currentMovieRecommendations', movieRecsResponse); // Save current to storage
+              }
+              
+              // Extract titles for the history
+              const extractedTitles = movieRecsResponse
+                .map(rec => typeof rec === 'string' ? rec : rec.title)
+                .filter(title => !!title);
+                
+              // Combine with existing history, handling duplicates
+              const existingTitles = this.previousMovieRecommendations || [];
+              this.previousMovieRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
+            } else {
+              // Server returned empty array
+              console.log("Server returned empty movie recommendations, clearing local history.");
+              this.previousMovieRecommendations = [];
+            }
+            
+            // Update currently displayed history if in movie mode
+            if (this.isMovieMode) {
+              this.previousRecommendations = [...this.previousMovieRecommendations];
+            }
+            
+            databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+          }
+          
+          // Debug current history counts
+          console.log("After loading from server - TV history count:", this.previousShowRecommendations.length);
+          console.log("After loading from server - Movie history count:", this.previousMovieRecommendations.length);
+          console.log("Currently displayed history count:", this.previousRecommendations.length);
+          
+          // Load liked/disliked preferences from server based on current mode
+          try {
+            const contentType = this.isMovieMode ? 'movie' : 'tv';
+            const likedContent = await apiService.getPreferences(contentType, 'liked');
+            if (Array.isArray(likedContent)) {
+              this.likedRecommendations = likedContent;
+              console.log(`Loaded ${likedContent.length} liked ${contentType} preferences from server`);
+            }
+            
+            const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
+            if (Array.isArray(dislikedContent)) {
+              this.dislikedRecommendations = dislikedContent;
+              console.log(`Loaded ${dislikedContent.length} disliked ${contentType} preferences from server`);
+            }
+          } catch (prefError) {
+            console.error("Error loading preferences from server:", prefError);
           }
         } catch (error) {
-          console.error('Error loading promptStyle setting:', error);
-        }
-        
-        // Plex settings
-        try {
-          const plexHistoryModeStr = await apiService.getSetting('plexHistoryMode');
-          if (plexHistoryModeStr) {
-            this.plexHistoryMode = plexHistoryModeStr;
-          }
+          console.error("Error loading from server, falling back to storageUtils:", error);
           
-          const plexOnlyModeStr = await apiService.getSetting('plexOnlyMode');
-          if (plexOnlyModeStr !== null && plexOnlyModeStr !== undefined) {
-            this.plexOnlyMode = plexOnlyModeStr === 'true' || plexOnlyModeStr === true;
-          }
+          // Fall back to loading from storageUtils
+          // Load previous TV recommendations from storageUtils
+          this.previousShowRecommendations = databaseStorageUtils.getJSON('previousTVRecommendations', []);
           
-          const plexUseHistoryStr = await apiService.getSetting('plexUseHistory');
-          if (plexUseHistoryStr !== null && plexUseHistoryStr !== undefined) {
-            this.plexUseHistory = plexUseHistoryStr === 'true' || plexUseHistoryStr === true;
-          }
+          // Load previous movie recommendations from storageUtils
+          this.previousMovieRecommendations = databaseStorageUtils.getJSON('previousMovieRecommendations', []);
           
-          const plexCustomHistoryDaysStr = await apiService.getSetting('plexCustomHistoryDays');
-          if (plexCustomHistoryDaysStr) {
-            this.plexCustomHistoryDays = parseInt(plexCustomHistoryDaysStr);
-          }
-        } catch (error) {
-          console.error('Error loading Plex settings:', error);
-        }
-        
-        // Jellyfin settings
-        try {
-          const jellyfinHistoryModeStr = await apiService.getSetting('jellyfinHistoryMode');
-          if (jellyfinHistoryModeStr) {
-            this.jellyfinHistoryMode = jellyfinHistoryModeStr;
-          }
-          
-          const jellyfinOnlyModeStr = await apiService.getSetting('jellyfinOnlyMode');
-          if (jellyfinOnlyModeStr !== null && jellyfinOnlyModeStr !== undefined) {
-            this.jellyfinOnlyMode = jellyfinOnlyModeStr === 'true' || jellyfinOnlyModeStr === true;
-          }
-          
-          const jellyfinUseHistoryStr = await apiService.getSetting('jellyfinUseHistory');
-          if (jellyfinUseHistoryStr !== null && jellyfinUseHistoryStr !== undefined) {
-            this.jellyfinUseHistory = jellyfinUseHistoryStr === 'true' || jellyfinUseHistoryStr === true;
-          }
-          
-          const jellyfinCustomHistoryDaysStr = await apiService.getSetting('jellyfinCustomHistoryDays');
-          if (jellyfinCustomHistoryDaysStr) {
-            this.jellyfinCustomHistoryDays = parseInt(jellyfinCustomHistoryDaysStr);
-          }
-        } catch (error) {
-          console.error('Error loading Jellyfin settings:', error);
-        }
-        
-        // Tautulli settings
-        try {
-          const tautulliHistoryModeStr = await apiService.getSetting('tautulliHistoryMode');
-          if (tautulliHistoryModeStr) {
-            this.tautulliHistoryMode = tautulliHistoryModeStr;
-          }
-          
-          const tautulliOnlyModeStr = await apiService.getSetting('tautulliOnlyMode');
-          if (tautulliOnlyModeStr !== null && tautulliOnlyModeStr !== undefined) {
-            this.tautulliOnlyMode = tautulliOnlyModeStr === 'true' || tautulliOnlyModeStr === true;
-          }
-          
-          const tautulliUseHistoryStr = await apiService.getSetting('tautulliUseHistory');
-          if (tautulliUseHistoryStr !== null && tautulliUseHistoryStr !== undefined) {
-            this.tautulliUseHistory = tautulliUseHistoryStr === 'true' || tautulliUseHistoryStr === true;
-          }
-          
-          const tautulliCustomHistoryDaysStr = await apiService.getSetting('tautulliCustomHistoryDays');
-          if (tautulliCustomHistoryDaysStr) {
-            this.tautulliCustomHistoryDays = parseInt(tautulliCustomHistoryDaysStr);
-          }
-        } catch (error) {
-          console.error('Error loading Tautulli settings:', error);
-        }
-        
-        // Trakt settings
-        try {
-          const traktHistoryModeStr = await apiService.getSetting('traktHistoryMode');
-          if (traktHistoryModeStr) {
-            this.traktHistoryMode = traktHistoryModeStr;
-          }
-          
-          const traktOnlyModeStr = await apiService.getSetting('traktOnlyMode');
-          if (traktOnlyModeStr !== null && traktOnlyModeStr !== undefined) {
-            this.traktOnlyMode = traktOnlyModeStr === 'true' || traktOnlyModeStr === true;
-          }
-          
-          const traktUseHistoryStr = await apiService.getSetting('traktUseHistory');
-          if (traktUseHistoryStr !== null && traktUseHistoryStr !== undefined) {
-            // Make sure we convert it to a boolean in case it's stored as a string
-            this.traktUseHistory = traktUseHistoryStr === 'true' || traktUseHistoryStr === true;
-            console.log('Trakt history use flag set to:', this.traktUseHistory, 'from value:', traktUseHistoryStr);
+          // Also try to load current recommendations
+          if (this.isMovieMode) {
+            this.recommendations = databaseStorageUtils.getJSON('currentMovieRecommendations', []);
           } else {
-            console.log('traktUseHistory setting not found, using default:', this.traktUseHistory);
+            this.recommendations = databaseStorageUtils.getJSON('currentTVRecommendations', []);
           }
           
-          const traktCustomHistoryDaysStr = await apiService.getSetting('traktCustomHistoryDays');
-          if (traktCustomHistoryDaysStr) {
-            this.traktCustomHistoryDays = parseInt(traktCustomHistoryDaysStr);
-          }
+          // Load liked TV recommendations from storageUtils
+          this.likedRecommendations = databaseStorageUtils.getJSON('likedTVRecommendations', []);
           
-          console.log('Loaded Trakt settings:', {
-            traktHistoryMode: this.traktHistoryMode,
-            traktOnlyMode: this.traktOnlyMode,
-            traktUseHistory: this.traktUseHistory,
-            traktCustomHistoryDays: this.traktCustomHistoryDays
-          });
-        } catch (error) {
-          console.error('Error loading Trakt settings:', error);
+          // Load disliked TV recommendations from storageUtils
+          this.dislikedRecommendations = databaseStorageUtils.getJSON('dislikedTVRecommendations', []);
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -4506,7 +4406,7 @@ export default {
     // Only check storageUtils or service if the temperature is still at default (0.8)
     if (this.temperature === 0.8) {
       // Try to get from storageUtils first
-      const savedTemp = await databaseStorageUtils.get('aiTemperature');
+      const savedTemp = await databaseStorageUtils.get('temperature');
       if (savedTemp !== null) {
         const temp = parseFloat(savedTemp);
         // Validate the value is within range

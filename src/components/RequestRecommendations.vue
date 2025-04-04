@@ -3127,10 +3127,20 @@ export default {
         }
       }
       
+      // First check if API is configured
       if (!openAIService.isConfigured()) {
         this.error = 'AI service is not configured. Please provide an API key.';
         this.goToSettings();
         return;
+      }
+      
+      // Ensure settings are synced from the store to the OpenAI service
+      console.log('Ensuring OpenAI settings are synced from store before generating recommendations...');
+      try {
+        await openAIService.ensureSettings();
+        console.log('Settings synced from store, continuing with recommendation generation');
+      } catch (error) {
+        console.error('Error ensuring settings:', error);
       }
       
       // Reset recommendations array to ensure counter starts at 0

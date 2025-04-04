@@ -3,24 +3,6 @@
     <div class="recommendation-header">
       <h2>{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h2>
       <p class="user-recommendation-info" v-if="username">Personalized for user: {{ username }}</p>
-      <div class="content-type-selector">
-        <button 
-          class="content-type-button" 
-          :class="{ 'active': !isMovieMode }"
-          @click="setContentType(false)"
-        >
-          <span class="button-icon">📺</span>
-          <span>TV Shows</span>
-        </button>
-        <button 
-            class="content-type-button" 
-          :class="{ 'active': isMovieMode }"
-          @click="setContentType(true)"
-        >
-          <span class="button-icon">🎬</span>
-          <span>Movies</span>
-        </button>
-      </div>
     </div>
     
     <div v-if="!openaiConfigured" class="setup-section">
@@ -4269,150 +4251,26 @@ export default {
     },
     
     /**
-     * Load all saved settings using individual setting API
-     * 
-     * Note: Most settings are now loaded directly in RecommendationSettings.vue component.
-     * This method only loads settings that are not handled by RecommendationSettings.
+     * Load recommendations data 
+     * Note: Most settings are now loaded via RecommendationsStore by the RecommendationSettings component
      */
-    async loadSavedSettings() {
+    async loadRecommendationsData() {
       try {
-        console.log('Loading only non-RecommendationSettings settings');
+        console.log('Loading recommendations data');
         
-        // Load previous recommendations from server
-        try {
-          console.log("Loading recommendations from server...");
-          
-          // Try to load recommendations from server first
-          const tvRecsResponse = await apiService.getRecommendations('tv', this.username) || [];
-          const movieRecsResponse = await apiService.getRecommendations('movie', this.username) || [];
-          
-          console.log("TV recommendations from server:", tvRecsResponse ? tvRecsResponse.length : 0, "items");
-          console.log("Movie recommendations from server:", movieRecsResponse ? movieRecsResponse.length : 0, "items");
-          
-          // Process TV recommendations
-          if (Array.isArray(tvRecsResponse)) { // Process even if empty
-            if (tvRecsResponse.length > 0 && typeof tvRecsResponse[0] === 'string') {
-              // Simple array of titles - this is the history list
-              console.log("Loaded TV history from server (string array):", tvRecsResponse.length, "items");
-              this.previousShowRecommendations = tvRecsResponse;
-            } else if (tvRecsResponse.length > 0) {
-              // Full recommendation objects with title property
-              console.log("Loaded full TV recommendations from server:", tvRecsResponse.length, "items");
-              
-              // Store them as full recommendations if we're in TV mode
-              if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
-                this.recommendations = tvRecsResponse;
-                databaseStorageUtils.setJSON('currentTVRecommendations', tvRecsResponse); // Save current to storage
-              }
-              
-              // Extract titles for the history
-              const extractedTitles = tvRecsResponse
-                .map(rec => typeof rec === 'string' ? rec : rec.title)
-                .filter(title => !!title);
-                
-              // Combine with existing history, handling duplicates
-              const existingTitles = this.previousShowRecommendations || [];
-              this.previousShowRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
-            } else {
-              // Server returned empty array
-              console.log("Server returned empty TV recommendations, clearing local history.");
-              this.previousShowRecommendations = [];
-            }
-            
-            // Update currently displayed history if in TV mode
-            if (!this.isMovieMode) {
-              this.previousRecommendations = [...this.previousShowRecommendations];
-            }
-            
-            // Save history to storageUtils (or clear if empty)
-            databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
-          }
-          
-          // Process movie recommendations
-          if (Array.isArray(movieRecsResponse)) { // Process even if empty
-            if (movieRecsResponse.length > 0 && typeof movieRecsResponse[0] === 'string') {
-              // Simple array of titles - this is the history list
-              console.log("Loaded movie history from server (string array):", movieRecsResponse.length, "items");
-              this.previousMovieRecommendations = movieRecsResponse;
-            } else if (movieRecsResponse.length > 0) {
-              // Full recommendation objects with title property
-              console.log("Loaded full movie recommendations from server:", movieRecsResponse.length, "items");
-              
-              // Store them as full recommendations if we're in movie mode
-              if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
-                this.recommendations = movieRecsResponse;
-                databaseStorageUtils.setJSON('currentMovieRecommendations', movieRecsResponse); // Save current to storage
-              }
-              
-              // Extract titles for the history
-              const extractedTitles = movieRecsResponse
-                .map(rec => typeof rec === 'string' ? rec : rec.title)
-                .filter(title => !!title);
-                
-              // Combine with existing history, handling duplicates
-              const existingTitles = this.previousMovieRecommendations || [];
-              this.previousMovieRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
-            } else {
-              // Server returned empty array
-              console.log("Server returned empty movie recommendations, clearing local history.");
-              this.previousMovieRecommendations = [];
-            }
-            
-            // Update currently displayed history if in movie mode
-            if (this.isMovieMode) {
-              this.previousRecommendations = [...this.previousMovieRecommendations];
-            }
-            
-            databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
-          }
-          
-          // Debug current history counts
-          console.log("After loading from server - TV history count:", this.previousShowRecommendations.length);
-          console.log("After loading from server - Movie history count:", this.previousMovieRecommendations.length);
-          console.log("Currently displayed history count:", this.previousRecommendations.length);
-          
-          // Load liked/disliked preferences from server based on current mode
-          try {
-            const contentType = this.isMovieMode ? 'movie' : 'tv';
-            const likedContent = await apiService.getPreferences(contentType, 'liked');
-            if (Array.isArray(likedContent)) {
-              this.likedRecommendations = likedContent;
-              console.log(`Loaded ${likedContent.length} liked ${contentType} preferences from server`);
-            }
-            
-            const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
-            if (Array.isArray(dislikedContent)) {
-              this.dislikedRecommendations = dislikedContent;
-              console.log(`Loaded ${dislikedContent.length} disliked ${contentType} preferences from server`);
-            }
-          } catch (prefError) {
-            console.error("Error loading preferences from server:", prefError);
-          }
-        } catch (error) {
-          console.error("Error loading from server, falling back to storageUtils:", error);
-          
-          // Fall back to loading from storageUtils
-          // Load previous TV recommendations from storageUtils
-          this.previousShowRecommendations = databaseStorageUtils.getJSON('previousTVRecommendations', []);
-          
-          // Load previous movie recommendations from storageUtils
-          this.previousMovieRecommendations = databaseStorageUtils.getJSON('previousMovieRecommendations', []);
-          
-          // Also try to load current recommendations
-          if (this.isMovieMode) {
-            this.recommendations = databaseStorageUtils.getJSON('currentMovieRecommendations', []);
-          } else {
-            this.recommendations = databaseStorageUtils.getJSON('currentTVRecommendations', []);
-          }
-          
-          // Load liked TV recommendations from storageUtils
-          this.likedRecommendations = databaseStorageUtils.getJSON('likedTVRecommendations', []);
-          
-          // Load disliked TV recommendations from storageUtils
-          this.dislikedRecommendations = databaseStorageUtils.getJSON('dislikedTVRecommendations', []);
+        // Get current recommendations from the store
+        if (this.isMovieMode) {
+          this.recommendations = recommendationsStore.state.currentMovieRecommendations || [];
+        } else {
+          this.recommendations = recommendationsStore.state.currentTVRecommendations || [];
         }
+        
+        // Use the previousRecommendations getter to get the appropriate history for the current mode
+        this.recommendationsRequested = this.recommendations.length > 0;
+        
+        console.log(`Loaded ${this.recommendations.length} items for current ${this.isMovieMode ? 'movie' : 'TV'} recommendations`);
       } catch (error) {
-        console.error('Error loading settings:', error);
+        console.error('Error loading recommendations data:', error);
       }
     }
   },
@@ -4420,27 +4278,20 @@ export default {
     console.log('RequestRecommendations component mounted');
     console.log('Props: radarrConfigured=', this.radarrConfigured);
     
-    // Load all saved settings from the server
-    await this.loadSavedSettings();
+    // Ensure RecommendationsStore is initialized
+    if (!recommendationsStore.initialized) {
+      await recommendationsStore.initialize();
+    }
     
-    // Check if Radarr service is configured directly
-    if (this.isMovieMode) {
-      // First check props
+    // Load recommendations data (not settings which are now handled by store)
+    await this.loadRecommendationsData();
+    
+    // Check if Radarr service is configured directly (only if in movie mode)
+    if (this.isMovieMode && (!this.movies || this.movies.length === 0) && 
+        (!this.radarrConfigured || !radarrService.isConfigured())) {
       console.log('Movie mode active, checking Radarr configuration');
-      
-      // Only load credentials if needed and if movies array is empty
-      // This prevents double loading
-      if ((!this.movies || this.movies.length === 0) && 
-          (!this.radarrConfigured || !radarrService.isConfigured())) {
-        console.log('radarrConfigured prop is false or no movies loaded, checking service directly');
-        
-        // Check if Radarr service is configured directly
-        if (!radarrService.isConfigured()) {
-          console.log('Radarr service not configured in memory, trying to load credentials');
-          // Try to load credentials from server-side storage
-          await radarrService.loadCredentials();
-          console.log('After loading credentials, Radarr service configured:', radarrService.isConfigured());
-        }
+      if (!radarrService.isConfigured()) {
+        await radarrService.loadCredentials();
       }
     }
     
@@ -4448,7 +4299,6 @@ export default {
     if (!openAIService.isConfigured()) {
       try {
         await openAIService.loadCredentials();
-        console.log('After loading OpenAI credentials, service configured:', openAIService.isConfigured());
       } catch (error) {
         console.error('Error loading OpenAI credentials:', error);
       }
@@ -4457,143 +4307,15 @@ export default {
     // Check if OpenAI is configured after loading credentials
     this.openaiConfigured = openAIService.isConfigured();
     
-    // Initialize model selection from user-specific storage
-    const currentModel = await databaseStorageUtils.get('openaiModel') || openAIService.model || 'gpt-3.5-turbo';
-    
-    // Set to custom by default, we'll update once models are fetched
-    this.customModel = currentModel;
-    this.selectedModel = 'custom';
-    this.isCustomModel = true;
-    
     // Add window resize listener to update grid style when screen size changes
     window.addEventListener('resize', this.handleResize);
     
-    // We've already loaded temperature from server in loadSavedSettings
-    // Only check storageUtils or service if the temperature is still at default (0.8)
-    if (this.temperature === 0.8) {
-      // Try to get from storageUtils first
-      const savedTemp = await databaseStorageUtils.get('temperature');
-      if (savedTemp !== null) {
-        const temp = parseFloat(savedTemp);
-        // Validate the value is within range
-        if (!isNaN(temp) && temp >= 0 && temp <= 1) {
-          this.temperature = temp;
-          console.log('Setting temperature from localStorage:', this.temperature);
-        }
-      } else if (openAIService.temperature !== 0.8) {
-        // If still at default, try the service value
-        this.temperature = openAIService.temperature;
-        console.log('Setting temperature from OpenAIService:', this.temperature);
-      }
-    } else {
-      console.log('Using temperature from server settings:', this.temperature);
-    }
-    
-    // Initialize library mode preferences from service
-    this.useSampledLibrary = openAIService.useSampledLibrary;
-    this.sampleSize = openAIService.sampleSize;
-    
-    // If there are already recommendations, collapse the settings by default
-    if (this.recommendations.length > 0) {
-      this.settingsExpanded = false;
-    } else {
-      this.settingsExpanded = true;
-    }
+    // Set default UI state - if recommendations exist, collapse settings panel
+    this.settingsExpanded = !(this.recommendations && this.recommendations.length > 0);
     
     // Fetch models if API is configured
     if (openAIService.isConfigured()) {
-      this.fetchModels().then(() => {
-        // Make sure modelOptions is an array before calling some()
-        if (Array.isArray(this.modelOptions) && this.modelOptions.length > 0) {
-          // Check if the current model is in the fetched models
-          const modelExists = this.modelOptions.some(model => model.id === currentModel);
-          
-          if (modelExists) {
-            // If current model exists in options, select it
-            this.selectedModel = currentModel;
-            this.isCustomModel = false;
-          }
-        } else {
-          console.log('No model options available or not an array');
-        }
-      });
-    }
-    
-
-    const savedCount = await databaseStorageUtils.get('numRecommendations');
-    if (savedCount !== null) {
-      const numRecs = parseInt(savedCount);
-        console.log("pared numRecommedations :" + numRecs);
-        this.numRecommendations = numRecs;
-    }
-  
-    // Check for structured output setting in user-specific storage if we didn't get it from server
-    const savedStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
-    if (savedStructuredOutput !== null) {
-      this.useStructuredOutput = savedStructuredOutput === true || savedStructuredOutput === 'true';
-      openAIService.useStructuredOutput = this.useStructuredOutput;
-      console.log('Setting useStructuredOutput from user storage:', this.useStructuredOutput);
-    }
-    
-    
-    if (this.columnsCount === 2) { // 2 is the default - if it's still default, check storageUtils
-      // Restore saved columns count from storageUtils (if exists)
-      const savedColumnsCount = await databaseStorageUtils.get('columnsCount');
-      if (savedColumnsCount !== null) {
-        const columns = parseInt(savedColumnsCount);
-        // Validate the value is within range
-        if (!isNaN(columns) && columns >= 1 && columns <= 4) {
-          this.columnsCount = columns;
-          console.log('Setting columnsCount from localStorage:', this.columnsCount);
-        }
-      }
-    }
-    
-    // Set initial movie mode from props if provided, otherwise use saved preference
-    if (this.initialMovieMode) {
-      this.isMovieMode = true;
-    } else {
-      // Restore saved content type preference (movie/TV toggle)
-      this.isMovieMode = await databaseStorageUtils.get('isMovieMode', this.isMovieMode);
-    }
-    
-    // Restore saved genre preferences if they exist
-    const savedGenres = await databaseStorageUtils.getJSON('tvGenrePreferences');
-    if (savedGenres) {
-      this.selectedGenres = savedGenres;
-    } else {
-      // If not found via storageUtils, check legacy localStorage as a fallback
-      const legacySavedGenres = localStorage.getItem('tvGenrePreferences');
-      if (legacySavedGenres) {
-        try {
-          this.selectedGenres = JSON.parse(legacySavedGenres);
-          // Migrate to new storage
-          await databaseStorageUtils.setJSON('tvGenrePreferences', this.selectedGenres);
-        } catch (error) {
-          console.error('Error parsing legacy saved genres:', error);
-          this.selectedGenres = [];
-        }
-      } else {
-        this.selectedGenres = [];
-      }
-    }
-    
-    // Load custom vibe from settings
-    const settings = await apiService.getSettings();
-    if (settings && settings.tvCustomVibe) {
-      this.customVibe = settings.tvCustomVibe;
-    } else {
-      // Fallback to storageUtils if not in server settings
-      const savedVibe = await databaseStorageUtils.get('tvCustomVibe');
-      if (savedVibe) {
-        this.customVibe = savedVibe;
-      }
-    }
-    
-    // Restore saved language preference if it exists
-    const savedLanguage = await databaseStorageUtils.get('tvLanguagePreference');
-    if (savedLanguage) {
-      this.selectedLanguage = savedLanguage;
+      this.fetchModels();
     }
     
     // Restore saved Plex history mode if it exists

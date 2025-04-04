@@ -1249,22 +1249,11 @@ app.get('/api/settings/:settingName', async (req, res) => {
   console.log(`Getting individual setting ${settingName} directly from database column for userId: ${userId}`);
   
   try {
-    // Load user data to get the setting value
-    const userData = await userDataManager.getUserData(userId);
+    // Get the setting value directly from the database
+    // This bypasses any caching issues and ensures we get the actual stored value
+    const value = await databaseService.getUserSetting(userId, settingName);
     
-    // Get the setting value from the appropriate source
-    let value = null;
-    
-    // Check if the setting exists in the userData object
-    if (userData && userData[settingName] !== undefined) {
-      value = userData[settingName];
-    } 
-    // Check if the setting exists in the settings object
-    else if (userData && userData.settings && userData.settings[settingName] !== undefined) {
-      value = userData.settings[settingName];
-    }
-    
-    console.log(`Retrieved value for ${settingName}:`, value);
+    console.log(`Retrieved value for ${settingName} directly from database:`, value);
     
     res.json({ value });
   } catch (error) {

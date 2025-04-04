@@ -100,11 +100,35 @@ const actions = {
    * Initialize the store by loading all settings from storage
    */
   async initialize() {
-    if (state.isLoading || state.loadingComplete) return;
+    // If already completed initialization, just return current state
+    if (state.loadingComplete) {
+      console.log('RecommendationsStore: Already initialized, returning current state');
+      return state;
+    }
     
+    // If currently loading, wait for it to complete
+    if (state.isLoading) {
+      console.log('RecommendationsStore: Loading in progress, waiting...');
+      // Create a simple promise that resolves when loading is complete
+      await new Promise(resolve => {
+        const checkLoading = () => {
+          if (!state.isLoading) {
+            resolve();
+          } else {
+            setTimeout(checkLoading, 100); // Check every 100ms
+          }
+        };
+        checkLoading();
+      });
+      console.log('RecommendationsStore: Existing loading completed');
+      return state;
+    }
+    
+    console.log('RecommendationsStore: Starting new initialization');
     state.isLoading = true;
     
     try {
+      console.log('RecommendationsStore: Loading settings from storage');
       // Load model settings
       const savedModel = await databaseStorageUtils.get('openaiModel');
       if (savedModel) {
@@ -266,11 +290,19 @@ const actions = {
       await this.loadPreferences();
       
       console.log('RecommendationsStore: All settings loaded successfully');
+      initialized.value = true;
     } catch (error) {
       console.error('Error initializing RecommendationsStore:', error);
+      initialized.value = false;
     } finally {
       state.isLoading = false;
       state.loadingComplete = true;
+      console.log('RecommendationsStore: Initialization complete', {
+        selectedModel: state.selectedModel,
+        temperature: state.temperature,
+        genres: state.selectedGenres,
+        sampleSize: state.sampleSize
+      });
     }
   },
   
@@ -894,11 +926,23 @@ const actions = {
   }
 };
 
+// Add a reactive property to track initialization status
+const initialized = reactive({
+  value: false
+});
+
 // Create the store object
 const store = {
   state: readonly(state),
   ...getters,
-  ...actions
+  ...actions,
+  // Quick way to check if store has been initialized
+  get initialized() {
+    return state.loadingComplete || initialized.value;
+  },
+  set initialized(value) {
+    initialized.value = value;
+  }
 };
 
 export default store;

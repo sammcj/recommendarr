@@ -1509,6 +1509,119 @@ class DatabaseService {
     }
   }
   
+  // Get a specific user setting directly from the database column
+  getUserSetting(userId, settingName) {
+    try {
+      console.log(`Getting user setting ${settingName} directly from database for userId: ${userId}`);
+      
+      // Get table info to determine if this is a direct column
+      const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
+      const columnNames = tableInfo.map(col => col.name);
+      
+      // If the setting is a direct column, query it directly
+      if (columnNames.includes(settingName)) {
+        const query = `SELECT ${settingName} FROM user_data WHERE userId = ?`;
+        const row = this.db.prepare(query).get(userId);
+        
+        if (!row) {
+          console.log(`No row found for userId: ${userId}, returning default value`);
+          return null;
+        }
+        
+        const value = row[settingName];
+        console.log(`Retrieved value for ${settingName}:`, value);
+        
+        // Process the value based on its type and column name
+        return this.processSettingValue(settingName, value);
+      } else {
+        console.error(`Setting '${settingName}' is not a direct column in user_data`);
+        return null;
+      }
+    } catch (err) {
+      console.error(`Error getting user setting ${settingName} for userId: ${userId}:`, err);
+      return null;
+    }
+  }
+  
+  // Process a setting value based on its type
+  processSettingValue(settingName, value) {
+    // Handle null values
+    if (value === null || value === undefined) {
+      return null;
+    }
+    
+    // Array-type settings that need to be JSON-parsed
+    const arraySettings = [
+      'previousTVRecommendations',
+      'currentTVRecommendations',
+      'tvGenrePreferences',
+      'movieGenrePreferences',
+      'genrePreferences',
+      'watchHistoryMovies',
+      'watchHistoryShows'
+    ];
+    
+    // Boolean settings that are stored as integers
+    const booleanSettings = [
+      'useSampledLibrary',
+      'darkTheme',
+      'historyHideExisting',
+      'historyHideLiked',
+      'historyHideDisliked',
+      'historyHideHidden',
+      'isMovieMode',
+      'plexOnlyMode',
+      'jellyfinOnlyMode',
+      'tautulliOnlyMode',
+      'traktOnlyMode',
+      'useCustomPromptOnly',
+      'useStructuredOutput',
+      'fullDatabaseStorageMigrationComplete'
+    ];
+    
+    // Number settings
+    const numberSettings = [
+      'numRecommendations',
+      'columnsCount',
+      'historyColumnsCount',
+      'sampleSize',
+      'librarySampleSize',
+      'plexRecentLimit',
+      'temperature',
+      'jellyfinRecentLimit',
+      'tautulliRecentLimit',
+      'traktRecentLimit',
+      'plexCustomHistoryDays',
+      'jellyfinCustomHistoryDays',
+      'tautulliCustomHistoryDays',
+      'traktCustomHistoryDays'
+    ];
+    
+    // Handle array settings
+    if (arraySettings.includes(settingName)) {
+      try {
+        return JSON.parse(value);
+      } catch (err) {
+        console.error(`Error parsing JSON for ${settingName}:`, err);
+        return [];
+      }
+    }
+    
+    // Handle boolean settings
+    if (booleanSettings.includes(settingName)) {
+      return value === 1 || value === '1' || value === true || value === 'true';
+    }
+    
+    // Handle number settings
+    if (numberSettings.includes(settingName)) {
+      const num = Number(value);
+      return isNaN(num) ? value : num; // Return original value if conversion fails
+    }
+    
+    // Return as-is for other settings
+    return value;
+  }
+  
   // Update a specific user setting directly in the database column
   updateUserSetting(userId, settingName, value) {
     try {

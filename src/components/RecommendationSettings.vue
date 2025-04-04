@@ -817,7 +817,6 @@ import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import authService from '../services/AuthService';
 import recommendationsStore from '../stores/RecommendationsStore';
-import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 export default {
   name: 'RecommendationSettings',
@@ -831,26 +830,32 @@ export default {
     };
   },
   async mounted() {
-    // Initialize the store if it hasn't been initialized yet
-    if (!recommendationsStore.state.loadingComplete && !recommendationsStore.state.isLoading) {
+    console.log('RecommendationSettings mounted - initializing store');
+    
+    try {
+      // Always wait for store initialization regardless of current state
+      // This ensures we have the latest data from database
       await recommendationsStore.initialize();
+      console.log('Store initialization complete or already initialized');
+      
+      // Explicitly sync all settings from store to component and parent
+      this.syncUIStateToParent();
+      
+      // Force update component to ensure it renders with latest store data
+      this.$forceUpdate();
+      
+      // Debug log to verify values are correctly loaded
+      console.log('Settings initialized with store values', {
+        selectedModel: recommendationsStore.state.selectedModel,
+        temperature: recommendationsStore.state.temperature,
+        selectedGenres: recommendationsStore.state.selectedGenres,
+        sampleSize: recommendationsStore.state.sampleSize,
+        useSampledLibrary: recommendationsStore.state.useSampledLibrary,
+        numRecommendations: recommendationsStore.state.numRecommendations
+      });
+    } catch (error) {
+      console.error('Error during RecommendationSettings initialization:', error);
     }
-    
-    // Set up UI expansion states from the store
-    this.$emit('update:settingsExpanded', recommendationsStore.state.settingsExpanded);
-    this.$emit('update:configurationExpanded', recommendationsStore.state.configurationExpanded);
-    this.$emit('update:recNumberExpanded', recommendationsStore.state.recNumberExpanded);
-    this.$emit('update:postersPerRowExpanded', recommendationsStore.state.postersPerRowExpanded);
-    this.$emit('update:genrePreferencesExpanded', recommendationsStore.state.genrePreferencesExpanded);
-    this.$emit('update:customVibeExpanded', recommendationsStore.state.customVibeExpanded);
-    this.$emit('update:contentLanguageExpanded', recommendationsStore.state.contentLanguageExpanded);
-    this.$emit('update:plexHistoryExpanded', recommendationsStore.state.plexHistoryExpanded);
-    this.$emit('update:jellyfinHistoryExpanded', recommendationsStore.state.jellyfinHistoryExpanded);
-    this.$emit('update:tautulliHistoryExpanded', recommendationsStore.state.tautulliHistoryExpanded);
-    this.$emit('update:traktHistoryExpanded', recommendationsStore.state.traktHistoryExpanded);
-    
-    // Load genre preferences after store initialization
-    await this.loadGenrePreferences();
   },
   computed: {
     isAdmin() {
@@ -1040,26 +1045,57 @@ export default {
     }
   },
   methods: {
-    // Load genre preferences (universal across TV and movies)
-    async loadGenrePreferences() {
-      try {
-        // Load from universal key directly from the database
-        console.log('Loading universal genre preferences from database...');
-        const savedGenres = await databaseStorageUtils.getJSON('genrePreferences');
-        
-        if (savedGenres && Array.isArray(savedGenres)) {
-          this.$emit('update:selectedGenres', savedGenres);
-          console.log('Loaded universal genre preferences:', savedGenres);
-        } else {
-          console.log('No universal genre preferences found in database');
-          // Initialize with empty array to prevent undefined issues
-          this.$emit('update:selectedGenres', []);
-        }
-      } catch (error) {
-        console.error('Error loading universal genre preferences:', error);
-        // Initialize with empty array on error
-        this.$emit('update:selectedGenres', []);
-      }
+    // Sync UI state from store to parent component via events
+    syncUIStateToParent() {
+      console.log('Syncing UI expansion states and settings to parent');
+      
+      // Sync UI expansion states
+      this.$emit('update:settingsExpanded', recommendationsStore.state.settingsExpanded);
+      this.$emit('update:configurationExpanded', recommendationsStore.state.configurationExpanded);
+      this.$emit('update:recNumberExpanded', recommendationsStore.state.recNumberExpanded);
+      this.$emit('update:postersPerRowExpanded', recommendationsStore.state.postersPerRowExpanded);
+      this.$emit('update:genrePreferencesExpanded', recommendationsStore.state.genrePreferencesExpanded);
+      this.$emit('update:customVibeExpanded', recommendationsStore.state.customVibeExpanded);
+      this.$emit('update:contentLanguageExpanded', recommendationsStore.state.contentLanguageExpanded);
+      this.$emit('update:plexHistoryExpanded', recommendationsStore.state.plexHistoryExpanded);
+      this.$emit('update:jellyfinHistoryExpanded', recommendationsStore.state.jellyfinHistoryExpanded);
+      this.$emit('update:tautulliHistoryExpanded', recommendationsStore.state.tautulliHistoryExpanded);
+      this.$emit('update:traktHistoryExpanded', recommendationsStore.state.traktHistoryExpanded);
+      
+      // Sync settings data to ensure parent component is updated
+      this.$emit('update:selectedModel', recommendationsStore.state.selectedModel);
+      this.$emit('update:temperature', recommendationsStore.state.temperature);
+      this.$emit('update:useSampledLibrary', recommendationsStore.state.useSampledLibrary);
+      this.$emit('update:sampleSize', recommendationsStore.state.sampleSize);
+      this.$emit('update:useStructuredOutput', recommendationsStore.state.useStructuredOutput);
+      this.$emit('update:numRecommendations', recommendationsStore.state.numRecommendations);
+      this.$emit('update:columnsCount', recommendationsStore.state.columnsCount);
+      this.$emit('update:selectedGenres', recommendationsStore.state.selectedGenres);
+      this.$emit('update:promptStyle', recommendationsStore.state.promptStyle);
+      this.$emit('update:customVibe', recommendationsStore.state.customVibe);
+      this.$emit('update:useCustomPromptOnly', recommendationsStore.state.useCustomPromptOnly);
+      this.$emit('update:selectedLanguage', recommendationsStore.state.selectedLanguage);
+      
+      // Sync history settings
+      this.$emit('update:plexUseHistory', recommendationsStore.state.plexUseHistory);
+      this.$emit('update:plexHistoryMode', recommendationsStore.state.plexHistoryMode);
+      this.$emit('update:plexCustomHistoryDays', recommendationsStore.state.plexCustomHistoryDays);
+      this.$emit('update:plexOnlyMode', recommendationsStore.state.plexOnlyMode);
+      
+      this.$emit('update:jellyfinUseHistory', recommendationsStore.state.jellyfinUseHistory);
+      this.$emit('update:jellyfinHistoryMode', recommendationsStore.state.jellyfinHistoryMode);
+      this.$emit('update:jellyfinCustomHistoryDays', recommendationsStore.state.jellyfinCustomHistoryDays);
+      this.$emit('update:jellyfinOnlyMode', recommendationsStore.state.jellyfinOnlyMode);
+      
+      this.$emit('update:tautulliUseHistory', recommendationsStore.state.tautulliUseHistory);
+      this.$emit('update:tautulliHistoryMode', recommendationsStore.state.tautulliHistoryMode);
+      this.$emit('update:tautulliCustomHistoryDays', recommendationsStore.state.tautulliCustomHistoryDays);
+      this.$emit('update:tautulliOnlyMode', recommendationsStore.state.tautulliOnlyMode);
+      
+      this.$emit('update:traktUseHistory', recommendationsStore.state.traktUseHistory);
+      this.$emit('update:traktHistoryMode', recommendationsStore.state.traktHistoryMode);
+      this.$emit('update:traktCustomHistoryDays', recommendationsStore.state.traktCustomHistoryDays);
+      this.$emit('update:traktOnlyMode', recommendationsStore.state.traktOnlyMode);
     },
     
     toggleSettings() {

@@ -53,6 +53,9 @@ class DatabaseService {
   createTables() {
     console.log('Creating database tables if they don\'t exist...');
     
+    // Add missing columns to existing tables if needed
+    this.addMissingColumns();
+    
     // Users table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS users (
@@ -158,6 +161,8 @@ class DatabaseService {
         -- Recommendation history
         previousTVRecommendations TEXT DEFAULT '[]',
         currentTVRecommendations TEXT DEFAULT '[]',
+        previousMovieRecommendations TEXT DEFAULT '[]',
+        currentMovieRecommendations TEXT DEFAULT '[]',
 
         -- Migration flags
         fullDatabaseStorageMigrationComplete INTEGER DEFAULT 0,
@@ -1761,9 +1766,21 @@ class DatabaseService {
       
       let result;
       
+      // Final processing to ensure SQLite compatibility
+      // SQLite can only bind numbers, strings, bigints, buffers, and null
+      if (typeof processedValue === 'object' && processedValue !== null && !(processedValue instanceof Buffer)) {
+        try {
+          processedValue = JSON.stringify(processedValue);
+          console.log(`Final JSON-stringify for SQLite compatibility: ${settingName}`);
+        } catch (e) {
+          console.error(`Failed to stringify object for SQLite binding:`, e);
+          return false;
+        }
+      }
+      
       // If the setting is a direct column in the database, update it directly
       if (columnNames.includes(settingName)) {
-        console.log(`Updating column ${settingName} directly in database`);
+        console.log(`Updating column ${settingName} directly in database with type: ${typeof processedValue}`);
         const sql = `UPDATE user_data SET ${settingName} = ? WHERE userId = ?`;
         result = this.db.prepare(sql).run(processedValue, userId);
       } else {
@@ -1777,6 +1794,42 @@ class DatabaseService {
     } catch (err) {
       console.error(`Error updating user setting ${settingName} for userId: ${userId}:`, err);
       return false;
+    }
+  }
+  // Add missing columns to existing tables
+  addMissingColumns() {
+    try {
+      console.log('Checking for missing columns in the database...');
+      
+      // Get table info to see which columns already exist
+      const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
+      const existingColumns = tableInfo.map(col => col.name);
+      
+      // Define columns we need to ensure exist
+      const requiredColumns = [
+        {
+          name: 'previousMovieRecommendations',
+          type: 'TEXT',
+          default: "'[]'"
+        },
+        {
+          name: 'currentMovieRecommendations',
+          type: 'TEXT',
+          default: "'[]'"
+        }
+      ];
+      
+      // Add any missing columns
+      for (const column of requiredColumns) {
+        if (!existingColumns.includes(column.name)) {
+          console.log(`Adding missing column ${column.name} to user_data table`);
+          const sql = `ALTER TABLE user_data ADD COLUMN ${column.name} ${column.type} DEFAULT ${column.default}`;
+          this.db.exec(sql);
+          console.log(`Added column ${column.name} successfully`);
+        }
+      }
+    } catch (err) {
+      console.error('Error adding missing columns:', err);
     }
   }
 }

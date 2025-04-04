@@ -1300,43 +1300,67 @@ app.post('/api/settings/:settingName', async (req, res) => {
     // Load user data to ensure it exists
     const userData = await userDataManager.getUserData(userId);
     
-    // For timestamp values, they might come in as a JSON string, so we need to parse them
+    // Process the raw value to get the actual value to save
     let processedValue = rawValue;
-    if (typeof rawValue === 'string' && rawValue.startsWith('"') && rawValue.endsWith('"')) {
+    
+    console.log(`Original rawValue type: ${typeof rawValue}, value:`, rawValue);
+    
+    // If the value comes in as { value: ... } format from our API wrapper
+    if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
+      console.log(`Detected value wrapper object, extracting .value property:`, rawValue.value);
+      processedValue = rawValue.value;
+    }
+    
+    // If it's a JSON string that needs parsing
+    else if (typeof rawValue === 'string' && rawValue.startsWith('"') && rawValue.endsWith('"')) {
       try {
         processedValue = JSON.parse(rawValue);
+        console.log('Successfully parsed JSON string to value');
       } catch (e) {
         console.log('Value is not valid JSON, using as-is');
       }
-    } else if (typeof rawValue === 'object' && Object.keys(rawValue).length === 1 && rawValue[Object.keys(rawValue)[0]] === '') {
-        // Handle form-urlencoded data where the key is the date string and value is empty
-        const key = Object.keys(rawValue)[0];
-        // Check if the key looks like an ISO date string before assigning
-        if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(key)) {
-          processedValue = key; // Use the key (the date string) as the value
-          console.log(`Extracted value from form-urlencoded data: ${processedValue}`);
-        } else {
-          console.log('Form-urlencoded key does not look like a date, using original object:', rawValue);
-          processedValue = rawValue; // Fallback to original object if key isn't a date
-        }
+    } 
+    
+    // Special case for form-urlencoded date strings
+    else if (typeof rawValue === 'object' && Object.keys(rawValue).length === 1 && rawValue[Object.keys(rawValue)[0]] === '') {
+      // Handle form-urlencoded data where the key is the date string and value is empty
+      const key = Object.keys(rawValue)[0];
+      // Check if the key looks like an ISO date string before assigning
+      if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(key)) {
+        processedValue = key; // Use the key (the date string) as the value
+        console.log(`Extracted value from form-urlencoded data: ${processedValue}`);
+      } else {
+        console.log('Form-urlencoded key does not look like a date, using original object:', rawValue);
+        processedValue = rawValue; // Fallback to original object if key isn't a date
+      }
     }
 
 
     console.log(`Processed value for ${settingName}:`, processedValue);
 
-    // Update the specific column in the database
-    const success = await databaseService.updateUserSetting(userId, settingName, processedValue);
-    
-    if (success) {
-      // Also update the in-memory settings object for consistency
-      if (!userData.settings) userData.settings = {};
-      userData.settings[settingName] = processedValue;
+    try {
+      // Update the specific column in the database
+      const success = await databaseService.updateUserSetting(userId, settingName, processedValue);
       
-      console.log(`Successfully saved ${settingName} = ${processedValue} directly to database column`);
-      res.json({ success: true });
-    } else {
-      console.error(`Failed to save ${settingName} directly to database column`);
-      res.status(500).json({ error: 'Failed to save setting' });
+      if (success) {
+        // Also update the in-memory settings object for consistency
+        if (!userData.settings) userData.settings = {};
+        userData.settings[settingName] = processedValue;
+        
+        console.log(`Successfully saved ${settingName} directly to database column`);
+        res.json({ success: true });
+      } else {
+        console.error(`Failed to save ${settingName} directly to database column`);
+        res.status(500).json({ error: 'Failed to save setting' });
+      }
+    } catch (dbError) {
+      console.error(`Database error saving ${settingName}:`, dbError);
+      res.status(500).json({ 
+        error: 'An error occurred while saving to the database', 
+        details: dbError.message,
+        setting: settingName,
+        valueType: typeof processedValue
+      });
     }
   } catch (error) {
     console.error(`Error saving setting ${settingName}:`, error);

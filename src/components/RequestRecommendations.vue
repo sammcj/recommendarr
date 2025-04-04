@@ -628,6 +628,7 @@ import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
 import authService from '../services/AuthService';
 import databaseStorageUtils from '../utils/DatabaseStorageUtils';
+import recommendationsStore from '../stores/RecommendationsStore';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 import RecommendationResults from './RecommendationResults.vue';
 import RecommendationSettings from './RecommendationSettings.vue';
@@ -710,13 +711,111 @@ export default {
     }
   },
   computed: {
-    // Removed shouldUseCompactMode - moved to RecommendationResults.vue
-    
-    // Removed gridStyle - moved to RecommendationResults.vue
-    
-    // Computed property to get the current active history based on mode
-    currentHistory() {
-      return this.isMovieMode ? this.previousMovieRecommendations : this.previousShowRecommendations;
+    // Direct store references for all settings
+    isMovieMode() {
+      return recommendationsStore.state.isMovieMode;
+    },
+    selectedModel() {
+      return recommendationsStore.state.selectedModel;
+    },
+    customModel() {
+      return recommendationsStore.state.customModel;
+    },
+    temperature() {
+      return recommendationsStore.state.temperature;
+    },
+    useSampledLibrary() {
+      return recommendationsStore.state.useSampledLibrary;
+    },
+    sampleSize() {
+      return recommendationsStore.state.sampleSize;
+    },
+    useStructuredOutput() {
+      return recommendationsStore.state.useStructuredOutput;
+    },
+    numRecommendations() {
+      return recommendationsStore.state.numRecommendations;
+    },
+    columnsCount() {
+      return recommendationsStore.state.columnsCount;
+    },
+    selectedGenres() {
+      return recommendationsStore.state.selectedGenres;
+    },
+    promptStyle() {
+      return recommendationsStore.state.promptStyle;
+    },
+    customVibe() {
+      return recommendationsStore.state.customVibe;
+    },
+    useCustomPromptOnly() {
+      return recommendationsStore.state.useCustomPromptOnly;
+    },
+    selectedLanguage() {
+      return recommendationsStore.state.selectedLanguage;
+    },
+    plexUseHistory() {
+      return recommendationsStore.state.plexUseHistory;
+    },
+    plexHistoryMode() {
+      return recommendationsStore.state.plexHistoryMode;
+    },
+    plexCustomHistoryDays() {
+      return recommendationsStore.state.plexCustomHistoryDays;
+    },
+    plexOnlyMode() {
+      return recommendationsStore.state.plexOnlyMode;
+    },
+    jellyfinUseHistory() {
+      return recommendationsStore.state.jellyfinUseHistory;
+    },
+    jellyfinHistoryMode() {
+      return recommendationsStore.state.jellyfinHistoryMode;
+    },
+    jellyfinCustomHistoryDays() {
+      return recommendationsStore.state.jellyfinCustomHistoryDays;
+    },
+    jellyfinOnlyMode() {
+      return recommendationsStore.state.jellyfinOnlyMode;
+    },
+    tautulliUseHistory() {
+      return recommendationsStore.state.tautulliUseHistory;
+    },
+    tautulliHistoryMode() {
+      return recommendationsStore.state.tautulliHistoryMode;
+    },
+    tautulliCustomHistoryDays() {
+      return recommendationsStore.state.tautulliCustomHistoryDays;
+    },
+    tautulliOnlyMode() {
+      return recommendationsStore.state.tautulliOnlyMode;
+    },
+    traktUseHistory() {
+      return recommendationsStore.state.traktUseHistory;
+    },
+    traktHistoryMode() {
+      return recommendationsStore.state.traktHistoryMode;
+    },
+    traktCustomHistoryDays() {
+      return recommendationsStore.state.traktCustomHistoryDays;
+    },
+    traktOnlyMode() {
+      return recommendationsStore.state.traktOnlyMode;
+    },
+    previousRecommendations() {
+      return recommendationsStore.previousRecommendations;
+    },
+    previousShowRecommendations() {
+      return recommendationsStore.state.previousShowRecommendations;
+    },
+    previousMovieRecommendations() {
+      return recommendationsStore.state.previousMovieRecommendations;
+    },
+    likedRecommendations() {
+      return recommendationsStore.state.likedRecommendations;
+    },
+    dislikedRecommendations() {
+      return recommendationsStore.state.dislikedRecommendations;
     },
     
     // Computed property to get movie watch history from all sources
@@ -799,39 +898,11 @@ export default {
       loading: false,
       error: null,
       recommendationsRequested: false,
-      numRecommendations: 5, // Default number of recommendations to request
-      columnsCount: 2, // Default number of posters per row
-      isMovieMode: this.initialMovieMode || false, // Toggle between TV shows (false) and movies (true)
-      selectedGenres: [], // Multiple genre selections
-      customVibe: '', // Custom vibe/mood input from user
-      promptStyle: 'vibe', // Style of prompt to use for recommendations: 'vibe', 'analytical', 'creative', 'technical'
-      plexHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      plexOnlyMode: false, // Whether to use only Plex history for recommendations
-      plexUseHistory: true, // Whether to include Plex watch history at all
-      plexCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
-      // modelOptions already defined later in the data object
-      
-      jellyfinHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
-      jellyfinUseHistory: true, // Whether to include Jellyfin watch history at all
-      jellyfinCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
-      
-      tautulliHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      tautulliOnlyMode: false, // Whether to use only Tautulli history for recommendations
-      tautulliUseHistory: true, // Whether to include Tautulli watch history at all
-      tautulliCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
-      
-      traktHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      traktOnlyMode: false, // Whether to use only Trakt history for recommendations
-      traktUseHistory: true, // Whether to include Trakt watch history at all
-      traktCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
+    
       localMovies: [], // Local copy of movies prop to avoid direct mutation
       localSeries: [], // Local copy of series prop to avoid direct mutation
-      useSampledLibrary: false, // Whether to use sampled library or full library
-      sampleSize: 20, // Default sample size when using sampled library
-      useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
+  
       structuredOutputEnabled: false, // Backing property for the toggle
-      useCustomPromptOnly: false, // Whether to use only custom prompt for recommendations
       rootFolders: [], // Available Sonarr root folders
       qualityProfiles: [], // Available Sonarr quality profiles
       selectedRootFolder: null, // Selected root folder for series
@@ -920,14 +991,10 @@ export default {
         { code: 'nl', name: 'Dutch' },
         { code: 'pl', name: 'Polish' }
       ],
-      selectedLanguage: '',
+      
       requestingSeries: null, // Track which series is being requested
       requestStatus: {}, // Track request status for each series
-      previousShowRecommendations: [], // Track previous TV show recommendations
-      previousMovieRecommendations: [], // Track previous movie recommendations
-      previousRecommendations: [], // Current mode's previous recommendations
-      likedRecommendations: [], // TV shows that user has liked
-      dislikedRecommendations: [], // TV shows that user has disliked
+      
       maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
       showSeasonModal: false, // Control visibility of season selection modal
       currentSeries: null, // Current series being added
@@ -941,14 +1008,13 @@ export default {
       selectedMovieRootFolder: null, // Selected root folder for movie
       selectedMovieQualityProfile: null, // Selected quality profile for movie
       loadingMovieFolders: false, // Loading status for movie folders
-      selectedModel: '', // Current selected model
-      customModel: '', // For custom model input
+      
       isCustomModel: false, // Whether the custom model input is visible
       modelOptions: [], // Available models from API
       fetchingModels: false, // Loading state for fetching models
       fetchError: null, // Error when fetching models
       settingsExpanded: false, // Controls visibility of settings panel
-      temperature: 0.5, // AI temperature parameter
+      
       recNumberExpanded: true, // Number of recommendations section
       postersPerRowExpanded: true, // Posters per row section
       genrePreferencesExpanded: true, // Genre preferences section

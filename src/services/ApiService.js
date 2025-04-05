@@ -269,22 +269,6 @@ class ApiService {
   }
 
   /**
-   * Get user settings
-   * 
-   * @returns {Promise<Object>} - User settings
-   * @deprecated Use getSetting for individual settings instead
-   */
-  async getSettings() {
-    try {
-      const response = await this.get('/settings');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to get settings:', error);
-      return {};
-    }
-  }
-
-  /**
    * Get a specific user setting
    * 
    * @param {string} settingName - The name of the setting to get
@@ -376,6 +360,18 @@ class ApiService {
    * @param {Object} user - User information
    */
   setCurrentUser(user) {
+    // Check if user is changing
+    const userChanged = 
+      (!this.currentUser && user) || 
+      (this.currentUser && !user) ||
+      (this.currentUser && user && this.currentUser.userId !== user.userId);
+    
+    if (userChanged) {
+      console.log('ApiService: User changed, resetting caches and state...');
+      
+      // Clear any internal caches or state here if implemented in the future
+    }
+    
     this.currentUser = user;
   }
 

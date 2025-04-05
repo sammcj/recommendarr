@@ -106,39 +106,96 @@ export default {
       const urlParams = new URLSearchParams(window.location.search);
       const codeParam = urlParams.get('code');
       const errorParam = urlParams.get('error');
+      const logoutParam = urlParams.get('logout');
       
-      // Simple check if user is already authenticated
-      if (AuthService.isAuthenticated()) {
-        // Only clean URL and emit authenticated if not coming from OAuth callback
-        if (!codeParam) {
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-        this.$emit('authenticated');
-        return;
+      // If logout parameter is present, clear local authentication data
+      if (logoutParam === 'true') {
+        console.log('Logout parameter detected, ensuring user is fully logged out');
+        AuthService.clearLocalAuth();
+        // Clean up URL to remove logout parameter
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
       
-      // First verify session immediately
+      // Simple check if user is already authenticated in localStorage
+      if (AuthService.isAuthenticated()) {
+        console.log('User appears authenticated in localStorage, verifying with server...');
+        // Verify the session with the server before proceeding
+        const isSessionValid = await AuthService.verifySession();
+        
+        if (isSessionValid) {
+          console.log('Server verified session is valid');
+          // Only clean URL and emit authenticated if not coming from OAuth callback
+          if (!codeParam) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+          this.$emit('authenticated');
+          return;
+        } else {
+          console.log('Server rejected session, clearing local auth data');
+          // If server says session is invalid but we have local data, clear it
+          AuthService.clearLocalAuth();
+        }
+      } else {
+        console.log('No local authentication data found');
+      }
+      
+      // First verify session with server immediately
       let isAuthenticated = await AuthService.verifySession();
       if (isAuthenticated) {
+        console.log('Session verified with server on first attempt');
+        
+        // Import and reset RecommendationsStore first to ensure clean state
+        try {
+          const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+          const RecommendationsStore = RecommendationsStoreModule.default;
+          
+          if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+            console.log('RecommendationsStore: Forcing reset before authentication event');
+            RecommendationsStore.resetStore();
+          }
+        } catch (resetError) {
+          console.error('Error resetting RecommendationsStore:', resetError);
+        }
+        
         this.$emit('authenticated');
         return;
       }
 
       // If we're returning from OAuth callback (has code param but no error)
       if (codeParam && !errorParam) {
+        console.log('OAuth callback detected, waiting for authentication to complete');
         // Show loading state
         this.loading = true;
         
         // Verify session with increasing delays to account for cookie setting
         isAuthenticated = false;
-        for (let i = 0; i < 3; i++) {
-          await new Promise(resolve => setTimeout(resolve, 300 * (i + 1)));
+        for (let i = 0; i < 5; i++) {  // Increased from 3 to 5 attempts
+          const delay = 300 * (i + 1);  // Progressive delay: 300ms, 600ms, 900ms, 1200ms, 1500ms
+          console.log(`Waiting ${delay}ms before verification attempt ${i + 1}`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
           isAuthenticated = await AuthService.verifySession();
+          console.log(`Verification attempt ${i + 1}: ${isAuthenticated ? 'Success' : 'Failed'}`);
+          
           if (isAuthenticated) break;
         }
         
         if (isAuthenticated) {
           console.log('OAuth login successful');
+          
+          // Import and reset RecommendationsStore first to ensure clean state
+          try {
+            const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+            const RecommendationsStore = RecommendationsStoreModule.default;
+            
+            if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+              console.log('RecommendationsStore: Forcing reset before authentication event after OAuth login');
+              RecommendationsStore.resetStore();
+            }
+          } catch (resetError) {
+            console.error('Error resetting RecommendationsStore after OAuth login:', resetError);
+          }
+          
           // Clean up URL and emit authenticated event
           window.history.replaceState({}, document.title, window.location.pathname);
           this.$emit('authenticated');
@@ -180,6 +237,19 @@ export default {
       try {
         // Attempt login
         await AuthService.login(this.username, this.password);
+        
+        // Import and reset RecommendationsStore first to ensure clean state
+        try {
+          const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+          const RecommendationsStore = RecommendationsStoreModule.default;
+          
+          if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+            console.log('RecommendationsStore: Forcing reset before authentication event');
+            RecommendationsStore.resetStore();
+          }
+        } catch (resetError) {
+          console.error('Error resetting RecommendationsStore:', resetError);
+        }
         
         // On success, emit the authenticated event
         this.$emit('authenticated');

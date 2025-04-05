@@ -55,15 +55,6 @@ async function initStorage() {
     // Migrate data from JSON files to database
     await databaseService.migrateData();
     
-    // Migrate settings from JSON to individual columns
-    try {
-      const migrateSettingsToColumns = require('./utils/migrateSettingsToColumns');
-      const result = await migrateSettingsToColumns();
-      console.log('Settings migration result:', result);
-    } catch (err) {
-      console.error('Error migrating settings to columns:', err);
-    }
-    
     // Initialize other services
     await authService.init();
     await userDataManager.init();
@@ -546,7 +537,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
   
   try {
-    // Create new user
+    // Create new user - this also creates a default user_data entry
     const result = await authService.createUser(username, password);
     
     if (result.success) {
@@ -562,32 +553,80 @@ app.post('/api/auth/register', async (req, res) => {
 
 // Logout endpoint
 app.post('/api/auth/logout', (req, res) => {
-  // Get auth token from cookie or headers
-  const cookieToken = req.cookies.auth_token;
-  const headerToken = req.headers.authorization?.split('Bearer ')[1];
-  const authToken = cookieToken || headerToken;
+  console.log('Processing logout request');
   
-  if (authToken) {
-    sessionManager.deleteSession(authToken);
+  try {
+    // Get auth token from cookie or headers
+    const cookieToken = req.cookies.auth_token;
+    const headerToken = req.headers.authorization?.split('Bearer ')[1];
+    const authToken = cookieToken || headerToken;
+    
+    // Get user info before deleting session (for logging)
+    let userId = 'unknown';
+    if (req.user) {
+      userId = req.user.userId;
+      console.log(`User ${req.user.username} (${userId}) logging out`);
+    }
+    
+    // Delete the session from the database if a token exists
+    if (authToken) {
+      console.log(`Deleting session with token starting with: ${authToken.substring(0, 8)}...`);
+      const deleted = sessionManager.deleteSession(authToken);
+      console.log(`Session deleted: ${deleted ? 'success' : 'failed/not found'}`);
+      
+      // Delete all sessions for this user to ensure complete logout
+      if (req.user && req.user.userId) {
+        const sessionsDeleted = sessionManager.deleteUserSessions(req.user.userId);
+        console.log(`Deleted ${sessionsDeleted} sessions for user: ${req.user.userId}`);
+      }
+    } else {
+      console.log('No auth token found in request');
+    }
+    
+    // Determine if we should use secure cookies based on the request's protocol or a config flag
+    const isSecureConnection = req.secure || 
+                             req.headers['x-forwarded-proto'] === 'https' || 
+                             process.env.FORCE_SECURE_COOKIES === 'true';
+    
+    // Clear the auth cookie - ensure correct path and domain settings
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: isSecureConnection, // Only set secure flag on HTTPS connections
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0, // Immediately expire the cookie
+      expires: new Date(0) // Set expiration date in the past
+    });
+    
+    // Also clear express session cookie if it exists
+    res.clearCookie('connect.sid', {
+      path: '/',
+      httpOnly: true,
+      secure: isSecureConnection,
+      maxAge: 0,
+      expires: new Date(0)
+    });
+    
+    console.log('Auth cookies cleared during logout');
+    
+    // Return success response with redirect hint
+    res.json({ 
+      success: true, 
+      message: 'Logged out successfully',
+      redirectTo: '/login?logout=true'  // Add redirect instruction for client
+    });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    
+    // Still try to clear cookies even if an error occurred
+    res.clearCookie('auth_token', { path: '/', expires: new Date(0) });
+    res.clearCookie('connect.sid', { path: '/', expires: new Date(0) });
+    
+    res.status(500).json({ 
+      error: 'An error occurred during logout',
+      redirectTo: '/login?logout=true'  // Still redirect on error
+    });
   }
-  
-  // Determine if we should use secure cookies based on the request's protocol or a config flag
-  const isSecureConnection = req.secure || 
-                           req.headers['x-forwarded-proto'] === 'https' || 
-                           process.env.FORCE_SECURE_COOKIES === 'true';
-  
-  // Clear the auth cookie - ensure correct path and domain settings
-  res.clearCookie('auth_token', {
-    httpOnly: true,
-    secure: isSecureConnection, // Only set secure flag on HTTPS connections
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0, // Immediately expire the cookie
-    expires: new Date(0) // Set expiration date in the past
-  });
-  
-  console.log('Auth cookie cleared during logout');
-  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // Verify session endpoint (used after OAuth redirect)
@@ -706,7 +745,7 @@ app.post('/api/auth/users', async (req, res) => {
   }
   
   try {
-    // Create new user
+    // Create new user (createUser now also creates user_data entry)
     const result = await authService.createUser(username, password, isAdmin);
     
     if (result.success) {
@@ -1051,6 +1090,8 @@ app.post('/api/recommendations/:type', async (req, res) => {
   
   // Normalize recommendations to always be an array of strings (titles)
   // This ensures consistent storage format regardless of what client sends
+  console.log(`Received ${recommendations.length} ${type} recommendations to save`);
+  
   const normalizedRecommendations = recommendations.map(rec => {
     if (rec === null || rec === undefined) return '';
     if (typeof rec === 'string') return rec;
@@ -1058,10 +1099,14 @@ app.post('/api/recommendations/:type', async (req, res) => {
     return String(rec);
   });
   
+  console.log(`Normalized recommendations:`, normalizedRecommendations);
+  
   // Filter out empty strings and store only the normalized array
   const filteredRecommendations = normalizedRecommendations
     .filter(title => title !== null && title !== undefined && title.trim && typeof title.trim === 'function' && title.trim() !== '')
     .map(item => String(item)); // Ensure everything is a string
+    
+  console.log(`Filtered recommendations (${filteredRecommendations.length}):`, filteredRecommendations);
   
   try {
     // Load current user data
@@ -1069,12 +1114,16 @@ app.post('/api/recommendations/:type', async (req, res) => {
     
     if (type === 'tv') {
       userData.tvRecommendations = filteredRecommendations;
+      console.log(`Setting userData.tvRecommendations to ${filteredRecommendations.length} items`);
+      
       // Clear any legacy full recommendation objects that might exist
       if (userData.tvRecommendationsDetails) {
         delete userData.tvRecommendationsDetails;
       }
     } else if (type === 'movie') {
       userData.movieRecommendations = filteredRecommendations;
+      console.log(`Setting userData.movieRecommendations to ${filteredRecommendations.length} items`);
+      
       // Clear any legacy full recommendation objects that might exist
       if (userData.movieRecommendationsDetails) {
         delete userData.movieRecommendationsDetails;
@@ -1084,11 +1133,20 @@ app.post('/api/recommendations/:type', async (req, res) => {
     }
     
     // Save the updated user data
+    console.log(`Saving user data for ${userId} with recommendations`);
     const saveResult = await userDataManager.saveUserData(userId, userData);
     
+    console.log(`Save result:`, saveResult);
     if (saveResult) {
+      console.log('Successfully saved recommendations');
+      // Get the data back to verify it's saved correctly
+      const verifiedData = await userDataManager.getUserData(userId);
+      console.log(`Verification - saved ${type} recommendations:`, 
+        type === 'tv' ? verifiedData.tvRecommendations.length : verifiedData.movieRecommendations.length);
+        
       res.json({ success: true });
     } else {
+      console.error('Failed to save user data');
       res.status(500).json({ error: 'Failed to save user data' });
     }
   } catch (error) {
@@ -1197,55 +1255,53 @@ app.get('/api/settings', async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    // Load user data (which includes individual columns and the settings blob)
+    // Load user data (which includes individual columns)
     const userData = await userDataManager.getUserData(userId);
 
-    // Create a merged settings object
-    const mergedSettings = {
-      ...(userData.settings || {}), // Start with the JSON blob settings
-      // The timestamp values are already in the settings object, but let's make sure they're included
-      // by explicitly adding them here (they'll override any existing values with the same keys)
-      lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
-      lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
-      lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
-      lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh,
-      // Add any other individual setting columns here if needed in the future
-    };
-
+    // Extract settings from userData.settings
+    const settings = userData.settings || {};
+    
     // Log the timestamp values for debugging
     console.log('Timestamp values in settings:', {
-      lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
-      lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
-      lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
-      lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh
+      lastPlexHistoryRefresh: settings.lastPlexHistoryRefresh,
+      lastJellyfinHistoryRefresh: settings.lastJellyfinHistoryRefresh,
+      lastTautulliHistoryRefresh: settings.lastTautulliHistoryRefresh,
+      lastTraktHistoryRefresh: settings.lastTraktHistoryRefresh
     });
 
     // Remove null/undefined values to keep the response clean
-    Object.keys(mergedSettings).forEach(key => {
-      if (mergedSettings[key] === null || mergedSettings[key] === undefined) {
-        delete mergedSettings[key];
+    Object.keys(settings).forEach(key => {
+      if (settings[key] === null || settings[key] === undefined) {
+        delete settings[key];
       }
     });
 
-    res.json(mergedSettings);
+    res.json(settings);
   } catch (error) {
     console.error('Error getting settings:', error);
     res.status(500).json({ error: 'Failed to retrieve settings' });
   }
 });
 
-// Save settings
+// Save settings - Update individual settings instead of the settings blob
 app.post('/api/settings', async (req, res) => {
   const userId = req.user.userId;
+  const settingsToUpdate = req.body;
   
-  // Load user data
-  const userData = await userDataManager.getUserData(userId);
-  
-  userData.settings = {...userData.settings, ...req.body};
-  
-  // Save the updated user data
-  await userDataManager.saveUserData(userId, userData);
-  res.json({ success: true });
+  try {
+    // Update each setting individually using the updateUserSetting method
+    const updatePromises = Object.entries(settingsToUpdate).map(([key, value]) => {
+      return databaseService.updateUserSetting(userId, key, value);
+    });
+    
+    // Wait for all updates to complete
+    await Promise.all(updatePromises);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
 });
 
 // Get individual setting directly from database column
@@ -1260,22 +1316,23 @@ app.get('/api/settings/:settingName', async (req, res) => {
   console.log(`Getting individual setting ${settingName} directly from database column for userId: ${userId}`);
   
   try {
-    // Load user data to get the setting value
-    const userData = await userDataManager.getUserData(userId);
+    // Get the setting value directly from the database
+    // This bypasses any caching issues and ensures we get the actual stored value
+    console.log(`Looking up setting ${settingName} for user ${userId}`);
+    let value;
     
-    // Get the setting value from the appropriate source
-    let value = null;
-    
-    // Check if the setting exists in the userData object
-    if (userData && userData[settingName] !== undefined) {
-      value = userData[settingName];
-    } 
-    // Check if the setting exists in the settings object
-    else if (userData && userData.settings && userData.settings[settingName] !== undefined) {
-      value = userData.settings[settingName];
+    // Special case handling for recommendations
+    if (settingName === 'tvRecommendations' || settingName === 'movieRecommendations') {
+      // Get from user data directly
+      const userData = await userDataManager.getUserData(userId);
+      value = userData[settingName] || [];
+      console.log(`Direct userData lookup for ${settingName}: found ${Array.isArray(value) ? value.length : 0} items`);
+    } else {
+      // Use regular user setting lookup
+      value = await databaseService.getUserSetting(userId, settingName);
     }
     
-    console.log(`Retrieved value for ${settingName}:`, value);
+    console.log(`Retrieved value for ${settingName} directly from database:`, value);
     
     res.json({ value });
   } catch (error) {
@@ -1322,43 +1379,67 @@ app.post('/api/settings/:settingName', async (req, res) => {
     // Load user data to ensure it exists
     const userData = await userDataManager.getUserData(userId);
     
-    // For timestamp values, they might come in as a JSON string, so we need to parse them
+    // Process the raw value to get the actual value to save
     let processedValue = rawValue;
-    if (typeof rawValue === 'string' && rawValue.startsWith('"') && rawValue.endsWith('"')) {
+    
+    console.log(`Original rawValue type: ${typeof rawValue}, value:`, rawValue);
+    
+    // If the value comes in as { value: ... } format from our API wrapper
+    if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
+      console.log(`Detected value wrapper object, extracting .value property:`, rawValue.value);
+      processedValue = rawValue.value;
+    }
+    
+    // If it's a JSON string that needs parsing
+    else if (typeof rawValue === 'string' && rawValue.startsWith('"') && rawValue.endsWith('"')) {
       try {
         processedValue = JSON.parse(rawValue);
+        console.log('Successfully parsed JSON string to value');
       } catch (e) {
         console.log('Value is not valid JSON, using as-is');
       }
-    } else if (typeof rawValue === 'object' && Object.keys(rawValue).length === 1 && rawValue[Object.keys(rawValue)[0]] === '') {
-        // Handle form-urlencoded data where the key is the date string and value is empty
-        const key = Object.keys(rawValue)[0];
-        // Check if the key looks like an ISO date string before assigning
-        if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(key)) {
-          processedValue = key; // Use the key (the date string) as the value
-          console.log(`Extracted value from form-urlencoded data: ${processedValue}`);
-        } else {
-          console.log('Form-urlencoded key does not look like a date, using original object:', rawValue);
-          processedValue = rawValue; // Fallback to original object if key isn't a date
-        }
+    } 
+    
+    // Special case for form-urlencoded date strings
+    else if (typeof rawValue === 'object' && Object.keys(rawValue).length === 1 && rawValue[Object.keys(rawValue)[0]] === '') {
+      // Handle form-urlencoded data where the key is the date string and value is empty
+      const key = Object.keys(rawValue)[0];
+      // Check if the key looks like an ISO date string before assigning
+      if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(key)) {
+        processedValue = key; // Use the key (the date string) as the value
+        console.log(`Extracted value from form-urlencoded data: ${processedValue}`);
+      } else {
+        console.log('Form-urlencoded key does not look like a date, using original object:', rawValue);
+        processedValue = rawValue; // Fallback to original object if key isn't a date
+      }
     }
 
 
     console.log(`Processed value for ${settingName}:`, processedValue);
 
-    // Update the specific column in the database
-    const success = await databaseService.updateUserSetting(userId, settingName, processedValue);
-    
-    if (success) {
-      // Also update the in-memory settings object for consistency
-      if (!userData.settings) userData.settings = {};
-      userData.settings[settingName] = processedValue;
+    try {
+      // Update the specific column in the database
+      const success = await databaseService.updateUserSetting(userId, settingName, processedValue);
       
-      console.log(`Successfully saved ${settingName} = ${processedValue} directly to database column`);
-      res.json({ success: true });
-    } else {
-      console.error(`Failed to save ${settingName} directly to database column`);
-      res.status(500).json({ error: 'Failed to save setting' });
+      if (success) {
+        // Also update the in-memory settings object for consistency
+        if (!userData.settings) userData.settings = {};
+        userData.settings[settingName] = processedValue;
+        
+        console.log(`Successfully saved ${settingName} directly to database column`);
+        res.json({ success: true });
+      } else {
+        console.error(`Failed to save ${settingName} directly to database column`);
+        res.status(500).json({ error: 'Failed to save setting' });
+      }
+    } catch (dbError) {
+      console.error(`Database error saving ${settingName}:`, dbError);
+      res.status(500).json({ 
+        error: 'An error occurred while saving to the database', 
+        details: dbError.message,
+        setting: settingName,
+        valueType: typeof processedValue
+      });
     }
   } catch (error) {
     console.error(`Error saving setting ${settingName}:`, error);

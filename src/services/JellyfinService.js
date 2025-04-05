@@ -12,17 +12,8 @@ class JellyfinService {
     this.userId = '';
     // Flag to track if credentials have been loaded
     this.credentialsLoaded = false;
-    
-    // Initialize cache loading
-    databaseStorageUtils.loadCache();
-    
-    // Try to get userId from cache if already loaded
-    if (databaseStorageUtils.cacheLoaded) {
-      this.userId = databaseStorageUtils.getSync('selectedJellyfinUserId') || '';
-    }
-    
-    // Removed automatic loading of credentials to prevent double loading
-    
+
+
     // Load userId asynchronously if not already loaded
     this.loadUserId();
   }

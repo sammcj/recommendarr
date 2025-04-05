@@ -1,15 +1,9 @@
 // User data manager module
-const fs = require('fs').promises;
-const path = require('path');
-const encryptionService = require('./encryption');
 const databaseService = require('./databaseService');
-
-// Data storage location - used only for migration
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const USER_DATA_DIR = path.join(DATA_DIR, 'user_data');
 
 // Default user data template
 const createDefaultUserData = () => ({
+  // Basic recommendation arrays
   tvRecommendations: [],
   movieRecommendations: [],
   likedTV: [],
@@ -22,25 +16,89 @@ const createDefaultUserData = () => ({
     movies: [],
     shows: []
   },
-  settings: {
-    numRecommendations: 6,
-    columnsCount: 3,
-    historyColumnsCount: 3,
-    historyHideExisting: true,
-    historyHideLiked: false,
-    historyHideDisliked: false,
-    historyHideHidden: true,
-    contentTypePreference: 'tv',
-    isMovieMode: false,
-    tvGenrePreferences: [],
-    tvCustomVibe: '',
-    tvLanguagePreference: 'en',
-    movieGenrePreferences: [],
-    movieCustomVibe: '',
-    movieLanguagePreference: 'en',
-    useSampledLibrary: false,
-    librarySampleSize: 100
-  }
+  
+  // Basic UI settings
+  numRecommendations: 6,
+  columnsCount: 3,
+  historyColumnsCount: 3,
+  darkTheme: false,
+  
+  // History display settings
+  historyHideExisting: true,
+  historyHideLiked: false,
+  historyHideDisliked: false,
+  historyHideHidden: true,
+  
+  // Content preferences
+  contentTypePreference: 'tv',
+  
+  // Library settings
+  useSampledLibrary: false,
+  librarySampleSize: 100,
+  useStructuredOutput: false,
+  useCustomPromptOnly: false,
+  
+  // Plex-specific settings
+  selectedPlexUserId: '',
+  plexRecentLimit: 6500,
+  plexHistoryMode: 'recent',
+  plexCustomHistoryDays: 30,
+  plexOnlyMode: false,
+  
+  // Jellyfin-specific settings
+  selectedJellyfinUserId: '',
+  jellyfinRecentLimit: 100,
+  jellyfinHistoryMode: 'all',
+  jellyfinOnlyMode: false,
+  
+  // Tautulli-specific settings
+  selectedTautulliUserId: '',
+  tautulliRecentLimit: 50,
+  tautulliHistoryMode: 'all',
+  tautulliOnlyMode: false,
+  
+  // Trakt-specific settings
+  traktRecentLimit: 50,
+  traktHistoryMode: 'all',
+  traktOnlyMode: false,
+  
+  // Watch history refresh timestamps
+  lastPlexHistoryRefresh: null,
+  lastJellyfinHistoryRefresh: null,
+  lastTautulliHistoryRefresh: null,
+  lastTraktHistoryRefresh: null,
+  
+  // Watch history
+  watchHistoryMovies: [],
+  watchHistoryShows: [],
+  
+  // Service-specific watch history
+  jellyfinWatchHistoryMovies: [],
+  jellyfinWatchHistoryShows: [],
+  tautulliWatchHistoryMovies: [],
+  tautulliWatchHistoryShows: [],
+  traktWatchHistoryMovies: [],
+  traktWatchHistoryShows: [],
+  
+  // General preferences
+  genrePreferences: [],
+  languagePreference: 'en',
+  customVibe: '',
+  
+  // AI model settings
+  openaiModel: 'google/gemini-2.0-flash-exp:free',
+  temperature: 0.8,
+  
+  // Recommendation history
+  previousTVRecommendations: [],
+  currentTVRecommendations: [],
+  
+  // Migration flags
+  fullDatabaseStorageMigrationComplete: false,
+  
+  // Individual settings are now stored in separate columns in the database
+  // This empty settings object is kept for backward compatibility
+  settings: {}
 });
 
 class UserDataManager {
@@ -91,7 +149,11 @@ class UserDataManager {
         return defaultData;
       }
       
-      return userData;
+      // Ensure all properties exist with default values if not present
+      const defaultData = createDefaultUserData();
+      const mergedData = { ...defaultData, ...userData };
+      
+      return mergedData;
     } catch (err) {
       console.error(`Error reading user data for userId: ${userId}:`, err);
       // Return default data in case of error
@@ -117,22 +179,23 @@ class UserDataManager {
       }
       
       // Check if settings contains any history refresh timestamps
+      // These are now stored in individual columns, but we'll log them for debugging
       const hasHistoryRefreshTimestamps = 
-        userData.settings?.lastPlexHistoryRefresh || 
-        userData.settings?.lastJellyfinHistoryRefresh || 
-        userData.settings?.lastTautulliHistoryRefresh || 
-        userData.settings?.lastTraktHistoryRefresh;
+        userData.lastPlexHistoryRefresh || 
+        userData.lastJellyfinHistoryRefresh || 
+        userData.lastTautulliHistoryRefresh || 
+        userData.lastTraktHistoryRefresh;
       
       if (hasHistoryRefreshTimestamps) {
-        console.log('userDataManager.saveUserData: Received settings with history refresh timestamps:', {
-          lastPlexHistoryRefresh: userData.settings?.lastPlexHistoryRefresh,
-          lastJellyfinHistoryRefresh: userData.settings?.lastJellyfinHistoryRefresh,
-          lastTautulliHistoryRefresh: userData.settings?.lastTautulliHistoryRefresh,
-          lastTraktHistoryRefresh: userData.settings?.lastTraktHistoryRefresh
+        console.log('userDataManager.saveUserData: Received data with history refresh timestamps:', {
+          lastPlexHistoryRefresh: userData.lastPlexHistoryRefresh,
+          lastJellyfinHistoryRefresh: userData.lastJellyfinHistoryRefresh,
+          lastTautulliHistoryRefresh: userData.lastTautulliHistoryRefresh,
+          lastTraktHistoryRefresh: userData.lastTraktHistoryRefresh
         });
       }
       
-      // Ensure required properties exist
+      // Ensure basic array properties exist
       if (!Array.isArray(userData.tvRecommendations)) userData.tvRecommendations = [];
       if (!Array.isArray(userData.movieRecommendations)) userData.movieRecommendations = [];
       if (!Array.isArray(userData.likedTV)) userData.likedTV = [];
@@ -142,11 +205,29 @@ class UserDataManager {
       if (!Array.isArray(userData.dislikedMovies)) userData.dislikedMovies = [];
       if (!Array.isArray(userData.hiddenMovies)) userData.hiddenMovies = [];
       if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
-      if (!userData.settings) userData.settings = {};
       
-      // Ensure settings has default values
+      // Log arrays for debugging
+      console.log(`userDataManager.saveUserData: arrays being saved:`, {
+        tvCount: userData.tvRecommendations ? userData.tvRecommendations.length : 0,
+        movieCount: userData.movieRecommendations ? userData.movieRecommendations.length : 0
+      });
+      
+      // Ensure all other properties have default values if not present
       const defaultData = createDefaultUserData();
-      userData.settings = { ...defaultData.settings, ...userData.settings };
+      
+      // Merge with defaults for all properties except the basic arrays we already checked
+      // and userId which shouldn't change and settings which is deprecated
+      Object.keys(defaultData).forEach(key => {
+        if (!['tvRecommendations', 'movieRecommendations', 'likedTV', 'dislikedTV', 
+              'hiddenTV', 'likedMovies', 'dislikedMovies', 'hiddenMovies', 
+              'watchHistory', 'settings'].includes(key) && 
+            userData[key] === undefined) {
+          userData[key] = defaultData[key];
+        }
+      });
+      
+      // Keep the empty settings object for backward compatibility
+      if (!userData.settings) userData.settings = {};
       
       // Save to database
       const success = databaseService.saveUserData(userId, userData);
@@ -271,12 +352,16 @@ class UserDataManager {
         }
       }
       
-      // Transfer settings (but keep user-specific settings if they exist)
+      // For legacy data migration, we'll need to update individual settings
+      // instead of merging the settings object
       if (legacyData.settings) {
-        userData.settings = {
-          ...legacyData.settings,
-          ...userData.settings
-        };
+        // Extract individual settings from legacyData.settings
+        // and set them directly on userData
+        // This will be handled by databaseService.saveUserData
+        // which will update the individual columns
+        
+        // We'll keep the empty settings object for backward compatibility
+        userData.settings = {};
       }
       
       // Save the updated user data

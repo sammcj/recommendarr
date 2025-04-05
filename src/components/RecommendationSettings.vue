@@ -130,6 +130,24 @@
               Clear History
             </button>
           </div>
+          
+          <div class="content-type-toggle">
+            <label class="toggle-label">Content Type:</label>
+            <div class="toggle-buttons">
+              <button 
+                @click="updateContentType(false)" 
+                :class="['toggle-button', {'active': !isMovieMode}]"
+              >
+                TV Shows
+              </button>
+              <button 
+                @click="updateContentType(true)" 
+                :class="['toggle-button', {'active': isMovieMode}]"
+              >
+                Movies
+              </button>
+            </div>
+          </div>
         </div>
         
         <div class="count-selector">
@@ -798,7 +816,7 @@
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import authService from '../services/AuthService';
-import databaseStorageUtils from '../utils/DatabaseStorageUtils';
+import recommendationsStore from '../stores/RecommendationsStore';
 
 export default {
   name: 'RecommendationSettings',
@@ -808,183 +826,133 @@ export default {
       refreshingRadarr: false,
       sonarrRefreshSuccess: false,
       radarrRefreshSuccess: false,
-      // Local copies of props to ensure reactivity
-      localUseSampledLibrary: this.useSampledLibrary,
-      localSampleSize: this.sampleSize
+      recommendationsRequested: false
     };
   },
   async mounted() {
+    console.log('RecommendationSettings mounted - initializing store');
+    
     try {
-      // Ensure database cache is fully loaded before proceeding
-      console.log('RecommendationSettings: Ensuring database cache is loaded');
-      if (!databaseStorageUtils.cacheLoaded) {
-        await databaseStorageUtils.loadCache();
-        console.log('Database cache loaded successfully');
-      }
+      // Always wait for store initialization regardless of current state
+      // This ensures we have the latest data from database
+      await recommendationsStore.initialize();
+      console.log('Store initialization complete or already initialized');
       
-      // Load model preference
-      const savedModel = await databaseStorageUtils.get('openaiModel');
-      if (savedModel !== null && savedModel !== undefined) {
-        this.$emit('update:selectedModel', savedModel);
-        console.log('Loaded model preference:', savedModel);
-      }
+      // Explicitly sync all settings from store to component and parent
+      this.syncUIStateToParent();
       
-      // Load temperature
-      const savedTemperature = await databaseStorageUtils.get('temperature');
-      if (savedTemperature !== null && savedTemperature !== undefined) {
-        const numValue = parseFloat(savedTemperature);
-        if (!isNaN(numValue)) {
-          this.$emit('update:temperature', numValue);
-          console.log('Loaded temperature:', numValue);
-        }
-      }
+      // Force update component to ensure it renders with latest store data
+      this.$forceUpdate();
       
-      // Load structured output preference
-      const useStructuredOutput = await databaseStorageUtils.get('useStructuredOutput');
-      if (useStructuredOutput !== null && useStructuredOutput !== undefined) {
-        const boolValue = useStructuredOutput === true || useStructuredOutput === 'true';
-        this.$emit('update:useStructuredOutput', boolValue);
-        console.log('Loaded structured output preference:', boolValue);
-      }
-      
-      // Load sampled library mode preference
-      const useSampledLibrary = await databaseStorageUtils.get('useSampledLibrary');
-      if (useSampledLibrary !== null && useSampledLibrary !== undefined) {
-        const boolValue = useSampledLibrary === true || useSampledLibrary === 'true';
-        this.$emit('update:useSampledLibrary', boolValue);
-      }
-      
-      // Load sample size
-      const librarySampleSize = await databaseStorageUtils.get('librarySampleSize');
-      if (librarySampleSize !== null && librarySampleSize !== undefined) {
-        const numValue = parseInt(librarySampleSize, 10);
-        if (!isNaN(numValue)) {
-          this.$emit('update:sampleSize', numValue);
-        }
-      }
-      
-      // Load genre preferences - use our dedicated method
-      await this.loadGenrePreferences();
-      
-      // Load universal language preference
-      const savedLanguage = await databaseStorageUtils.get('languagePreference');
-      if (savedLanguage !== null && savedLanguage !== undefined) {
-        this.$emit('update:selectedLanguage', String(savedLanguage));
-        console.log('Loaded universal language preference:', savedLanguage);
-      }
-      
-      // Load prompt style
-      const promptStyleKey = this.isMovieMode ? 'moviePromptStyle' : 'tvPromptStyle';
-      const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
-      if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
-        this.$emit('update:promptStyle', savedPromptStyle);
-        console.log(`Loaded ${this.isMovieMode ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
-      }
-      
-      // Load custom vibe (universal)
-      const savedCustomVibe = await databaseStorageUtils.get('customVibe');
-      if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
-        this.$emit('update:customVibe', savedCustomVibe);
-        console.log('Loaded universal custom vibe:', savedCustomVibe);
-      }
-      
-      // Load custom prompt only preference (universal)
-      const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
-      if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
-        const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
-        this.$emit('update:useCustomPromptOnly', boolValue);
-        console.log('Loaded universal custom prompt only preference:', boolValue);
-      }
+      // Debug log to verify values are correctly loaded
+      console.log('Settings initialized with store values', {
+        selectedModel: recommendationsStore.state.selectedModel,
+        temperature: recommendationsStore.state.temperature,
+        selectedGenres: recommendationsStore.state.selectedGenres,
+        sampleSize: recommendationsStore.state.sampleSize,
+        useSampledLibrary: recommendationsStore.state.useSampledLibrary,
+        numRecommendations: recommendationsStore.state.numRecommendations
+      });
     } catch (error) {
-      console.error('Error loading settings in RecommendationSettings:', error);
-      // Initialize with empty values to prevent undefined issues
-      this.$emit('update:selectedGenres', []);
+      console.error('Error during RecommendationSettings initialization:', error);
     }
   },
   computed: {
     isAdmin() {
       return authService.isAdmin();
-    }
-  },
-  watch: {
-    useSampledLibrary: {
-      immediate: true,
-      handler(newVal) {
-        console.log('useSampledLibrary prop changed:', newVal);
-        this.$emit('update:useSampledLibrary', newVal);
-      }
     },
-    sampleSize: {
-      immediate: true,
-      handler(newVal) {
-        console.log('sampleSize prop changed:', newVal);
-        this.$emit('update:sampleSize', newVal);
-      }
+    // Map store state to computed properties
+    selectedModel() {
+      return recommendationsStore.state.selectedModel;
     },
-    isMovieMode: {
-      handler: async function(newVal) {
-        try {
-          console.log(`Mode changed to ${newVal ? 'movie' : 'TV'} mode, loading appropriate preferences`);
-          
-          // Force a fresh load of the database cache to ensure we have the latest data
-          await databaseStorageUtils.loadCache();
-          console.log('Database cache refreshed for mode change');
-          
-          // Load genre preferences for the current mode
-          await this.loadGenrePreferences();
-          
-          // Load universal language preference
-          const savedLanguage = await databaseStorageUtils.get('languagePreference');
-          if (savedLanguage !== null && savedLanguage !== undefined) {
-            this.$emit('update:selectedLanguage', String(savedLanguage));
-            console.log('Mode changed: Loaded universal language preference:', savedLanguage);
-          } else {
-            // Clear language if none saved
-            this.$emit('update:selectedLanguage', '');
-          }
-          
-          // Load prompt style for the current mode
-          const promptStyleKey = newVal ? 'moviePromptStyle' : 'tvPromptStyle';
-          const savedPromptStyle = await databaseStorageUtils.get(promptStyleKey);
-          if (savedPromptStyle !== null && savedPromptStyle !== undefined) {
-            this.$emit('update:promptStyle', savedPromptStyle);
-            console.log(`Mode changed: Loaded ${newVal ? 'movie' : 'tv'} prompt style:`, savedPromptStyle);
-          } else {
-            // Set default prompt style if none saved
-            this.$emit('update:promptStyle', 'vibe');
-          }
-          
-          // Load custom vibe (universal)
-          const savedCustomVibe = await databaseStorageUtils.get('customVibe');
-          if (savedCustomVibe !== null && savedCustomVibe !== undefined) {
-            this.$emit('update:customVibe', savedCustomVibe);
-            console.log('Mode changed: Loaded universal custom vibe:', savedCustomVibe);
-          } else {
-            // Clear custom vibe if none saved
-            this.$emit('update:customVibe', '');
-          }
-          
-          // Load custom prompt only preference (universal)
-          const useCustomPromptOnly = await databaseStorageUtils.get('useCustomPromptOnly');
-          if (useCustomPromptOnly !== null && useCustomPromptOnly !== undefined) {
-            const boolValue = useCustomPromptOnly === true || useCustomPromptOnly === 'true';
-            this.$emit('update:useCustomPromptOnly', boolValue);
-            console.log('Mode changed: Loaded universal custom prompt only preference:', boolValue);
-          } else {
-            // Set default value if none saved
-            this.$emit('update:useCustomPromptOnly', false);
-          }
-        } catch (error) {
-          console.error(`Error loading preferences after mode change to ${newVal ? 'movie' : 'TV'} mode:`, error);
-          // Initialize with empty values to prevent undefined issues
-          this.$emit('update:selectedGenres', []);
-          this.$emit('update:selectedLanguage', '');
-          this.$emit('update:promptStyle', 'vibe');
-          this.$emit('update:customVibe', '');
-          this.$emit('update:useCustomPromptOnly', false);
-        }
-      },
-      immediate: true // Run immediately when component is mounted
+    temperature() {
+      return recommendationsStore.state.temperature;
+    },
+    useStructuredOutput() {
+      return recommendationsStore.state.useStructuredOutput;
+    },
+    useSampledLibrary() {
+      return recommendationsStore.state.useSampledLibrary;
+    },
+    sampleSize() {
+      return recommendationsStore.state.sampleSize;
+    },
+    numRecommendations() {
+      return recommendationsStore.state.numRecommendations;
+    },
+    columnsCount() {
+      return recommendationsStore.state.columnsCount;
+    },
+    selectedGenres() {
+      return recommendationsStore.state.selectedGenres;
+    },
+    promptStyle() {
+      return recommendationsStore.state.promptStyle;
+    },
+    customVibe() {
+      return recommendationsStore.state.customVibe;
+    },
+    useCustomPromptOnly() {
+      return recommendationsStore.state.useCustomPromptOnly;
+    },
+    selectedLanguage() {
+      return recommendationsStore.state.selectedLanguage;
+    },
+    plexUseHistory() {
+      return recommendationsStore.state.plexUseHistory;
+    },
+    plexHistoryMode() {
+      return recommendationsStore.state.plexHistoryMode;
+    },
+    plexCustomHistoryDays() {
+      return recommendationsStore.state.plexCustomHistoryDays;
+    },
+    plexOnlyMode() {
+      return recommendationsStore.state.plexOnlyMode;
+    },
+    jellyfinUseHistory() {
+      return recommendationsStore.state.jellyfinUseHistory;
+    },
+    jellyfinHistoryMode() {
+      return recommendationsStore.state.jellyfinHistoryMode;
+    },
+    jellyfinCustomHistoryDays() {
+      return recommendationsStore.state.jellyfinCustomHistoryDays;
+    },
+    jellyfinOnlyMode() {
+      return recommendationsStore.state.jellyfinOnlyMode;
+    },
+    tautulliUseHistory() {
+      return recommendationsStore.state.tautulliUseHistory;
+    },
+    tautulliHistoryMode() {
+      return recommendationsStore.state.tautulliHistoryMode;
+    },
+    tautulliCustomHistoryDays() {
+      return recommendationsStore.state.tautulliCustomHistoryDays;
+    },
+    tautulliOnlyMode() {
+      return recommendationsStore.state.tautulliOnlyMode;
+    },
+    traktUseHistory() {
+      return recommendationsStore.state.traktUseHistory;
+    },
+    traktHistoryMode() {
+      return recommendationsStore.state.traktHistoryMode;
+    },
+    traktCustomHistoryDays() {
+      return recommendationsStore.state.traktCustomHistoryDays;
+    },
+    traktOnlyMode() {
+      return recommendationsStore.state.traktOnlyMode;
+    },
+    previousRecommendations() {
+      // Directly access the appropriate array based on content type
+      if (this.isMovieMode) {
+        return recommendationsStore.state.previousMovieRecommendations || [];
+      } else {
+        return recommendationsStore.state.previousShowRecommendations || [];
+      }
     }
   },
   props: {
@@ -1048,18 +1016,6 @@ export default {
       type: Array,
       default: () => []
     },
-    selectedModel: {
-      type: String,
-      default: ''
-    },
-    customModel: {
-      type: String,
-      default: ''
-    },
-    isCustomModel: {
-      type: Boolean,
-      default: false
-    },
     fetchingModels: {
       type: Boolean,
       default: false
@@ -1068,79 +1024,15 @@ export default {
       type: String,
       default: ''
     },
-    temperature: {
-      type: Number,
-      default: 0.7
-    },
-    useSampledLibrary: {
-      type: Boolean,
-      default: false
-    },
-    sampleSize: {
-      type: Number,
-      default: 100
-    },
-    useStructuredOutput: {
-      type: Boolean,
-      default: false
-    },
-    previousRecommendations: {
-      type: Array,
-      default: () => []
-    },
-    numRecommendations: {
-      type: Number,
-      default: 10
-    },
-    columnsCount: {
-      type: Number,
-      default: 5
-    },
     availableGenres: {
       type: Array,
       default: () => []
-    },
-    selectedGenres: {
-      type: Array,
-      default: () => []
-    },
-    promptStyle: {
-      type: String,
-      default: 'vibe'
-    },
-    customVibe: {
-      type: String,
-      default: ''
-    },
-    useCustomPromptOnly: {
-      type: Boolean,
-      default: false
     },
     availableLanguages: {
       type: Array,
       default: () => []
     },
-    selectedLanguage: {
-      type: String,
-      default: ''
-    },
     plexConfigured: {
-      type: Boolean,
-      default: false
-    },
-    plexUseHistory: {
-      type: Boolean,
-      default: false
-    },
-    plexHistoryMode: {
-      type: String,
-      default: 'all'
-    },
-    plexCustomHistoryDays: {
-      type: Number,
-      default: 30
-    },
-    plexOnlyMode: {
       type: Boolean,
       default: false
     },
@@ -1148,133 +1040,129 @@ export default {
       type: Boolean,
       default: false
     },
-    jellyfinUseHistory: {
-      type: Boolean,
-      default: false
-    },
-    jellyfinHistoryMode: {
-      type: String,
-      default: 'all'
-    },
-    jellyfinCustomHistoryDays: {
-      type: Number,
-      default: 30
-    },
-    jellyfinOnlyMode: {
-      type: Boolean,
-      default: false
-    },
     tautulliConfigured: {
-      type: Boolean,
-      default: false
-    },
-    tautulliUseHistory: {
-      type: Boolean,
-      default: false
-    },
-    tautulliHistoryMode: {
-      type: String,
-      default: 'all'
-    },
-    tautulliCustomHistoryDays: {
-      type: Number,
-      default: 30
-    },
-    tautulliOnlyMode: {
       type: Boolean,
       default: false
     },
     traktConfigured: {
       type: Boolean,
       default: false
-    },
-    traktUseHistory: {
-      type: Boolean,
-      default: false
-    },
-    traktHistoryMode: {
-      type: String,
-      default: 'all'
-    },
-    traktCustomHistoryDays: {
-      type: Number,
-      default: 30
-    },
-    traktOnlyMode: {
-      type: Boolean,
-      default: false
     }
   },
   methods: {
-    // Load genre preferences (universal across TV and movies)
-    async loadGenrePreferences() {
-      try {
-        // Force a fresh load from the database
-        await databaseStorageUtils.loadCache();
-        
-        // Load from universal key
-        console.log('Loading universal genre preferences from database...');
-        const savedGenres = await databaseStorageUtils.getJSON('genrePreferences');
-        
-        if (savedGenres && Array.isArray(savedGenres)) {
-          this.$emit('update:selectedGenres', savedGenres);
-          console.log('Loaded universal genre preferences:', savedGenres);
-        } else {
-          console.log('No universal genre preferences found in database');
-          // Initialize with empty array to prevent undefined issues
-          this.$emit('update:selectedGenres', []);
-        }
-      } catch (error) {
-        console.error('Error loading universal genre preferences:', error);
-        // Initialize with empty array on error
-        this.$emit('update:selectedGenres', []);
-      }
+    // Sync UI state from store to parent component via events
+    syncUIStateToParent() {
+      console.log('Syncing UI expansion states and settings to parent');
+      
+      // Sync UI expansion states
+      this.$emit('update:settingsExpanded', recommendationsStore.state.settingsExpanded);
+      this.$emit('update:configurationExpanded', recommendationsStore.state.configurationExpanded);
+      this.$emit('update:recNumberExpanded', recommendationsStore.state.recNumberExpanded);
+      this.$emit('update:postersPerRowExpanded', recommendationsStore.state.postersPerRowExpanded);
+      this.$emit('update:genrePreferencesExpanded', recommendationsStore.state.genrePreferencesExpanded);
+      this.$emit('update:customVibeExpanded', recommendationsStore.state.customVibeExpanded);
+      this.$emit('update:contentLanguageExpanded', recommendationsStore.state.contentLanguageExpanded);
+      this.$emit('update:plexHistoryExpanded', recommendationsStore.state.plexHistoryExpanded);
+      this.$emit('update:jellyfinHistoryExpanded', recommendationsStore.state.jellyfinHistoryExpanded);
+      this.$emit('update:tautulliHistoryExpanded', recommendationsStore.state.tautulliHistoryExpanded);
+      this.$emit('update:traktHistoryExpanded', recommendationsStore.state.traktHistoryExpanded);
+      
+      // Sync settings data to ensure parent component is updated
+      this.$emit('update:selectedModel', recommendationsStore.state.selectedModel);
+      this.$emit('update:temperature', recommendationsStore.state.temperature);
+      this.$emit('update:useSampledLibrary', recommendationsStore.state.useSampledLibrary);
+      this.$emit('update:sampleSize', recommendationsStore.state.sampleSize);
+      this.$emit('update:useStructuredOutput', recommendationsStore.state.useStructuredOutput);
+      this.$emit('update:numRecommendations', recommendationsStore.state.numRecommendations);
+      this.$emit('update:columnsCount', recommendationsStore.state.columnsCount);
+      this.$emit('update:selectedGenres', recommendationsStore.state.selectedGenres);
+      this.$emit('update:promptStyle', recommendationsStore.state.promptStyle);
+      this.$emit('update:customVibe', recommendationsStore.state.customVibe);
+      this.$emit('update:useCustomPromptOnly', recommendationsStore.state.useCustomPromptOnly);
+      this.$emit('update:selectedLanguage', recommendationsStore.state.selectedLanguage);
+      
+      // Sync history settings
+      this.$emit('update:plexUseHistory', recommendationsStore.state.plexUseHistory);
+      this.$emit('update:plexHistoryMode', recommendationsStore.state.plexHistoryMode);
+      this.$emit('update:plexCustomHistoryDays', recommendationsStore.state.plexCustomHistoryDays);
+      this.$emit('update:plexOnlyMode', recommendationsStore.state.plexOnlyMode);
+      
+      this.$emit('update:jellyfinUseHistory', recommendationsStore.state.jellyfinUseHistory);
+      this.$emit('update:jellyfinHistoryMode', recommendationsStore.state.jellyfinHistoryMode);
+      this.$emit('update:jellyfinCustomHistoryDays', recommendationsStore.state.jellyfinCustomHistoryDays);
+      this.$emit('update:jellyfinOnlyMode', recommendationsStore.state.jellyfinOnlyMode);
+      
+      this.$emit('update:tautulliUseHistory', recommendationsStore.state.tautulliUseHistory);
+      this.$emit('update:tautulliHistoryMode', recommendationsStore.state.tautulliHistoryMode);
+      this.$emit('update:tautulliCustomHistoryDays', recommendationsStore.state.tautulliCustomHistoryDays);
+      this.$emit('update:tautulliOnlyMode', recommendationsStore.state.tautulliOnlyMode);
+      
+      this.$emit('update:traktUseHistory', recommendationsStore.state.traktUseHistory);
+      this.$emit('update:traktHistoryMode', recommendationsStore.state.traktHistoryMode);
+      this.$emit('update:traktCustomHistoryDays', recommendationsStore.state.traktCustomHistoryDays);
+      this.$emit('update:traktOnlyMode', recommendationsStore.state.traktOnlyMode);
     },
     
     toggleSettings() {
+      recommendationsStore.toggleSection('settingsExpanded');
       this.$emit('toggle-settings');
     },
     toggleConfiguration() {
+      recommendationsStore.toggleSection('configurationExpanded');
       this.$emit('toggle-configuration');
     },
     toggleRecNumber() {
+      recommendationsStore.toggleSection('recNumberExpanded');
       this.$emit('toggle-rec-number');
     },
     togglePostersPerRow() {
+      recommendationsStore.toggleSection('postersPerRowExpanded');
       this.$emit('toggle-posters-per-row');
     },
     toggleGenrePreferences() {
+      recommendationsStore.toggleSection('genrePreferencesExpanded');
       this.$emit('toggle-genre-preferences');
     },
     toggleCustomVibe() {
+      recommendationsStore.toggleSection('customVibeExpanded');
       this.$emit('toggle-custom-vibe');
     },
     toggleContentLanguage() {
+      recommendationsStore.toggleSection('contentLanguageExpanded');
       this.$emit('toggle-content-language');
     },
     togglePlexHistory() {
+      recommendationsStore.toggleSection('plexHistoryExpanded');
       this.$emit('toggle-plex-history');
     },
     toggleJellyfinHistory() {
+      recommendationsStore.toggleSection('jellyfinHistoryExpanded');
       this.$emit('toggle-jellyfin-history');
     },
     toggleTautulliHistory() {
+      recommendationsStore.toggleSection('tautulliHistoryExpanded');
       this.$emit('toggle-tautulli-history');
     },
     toggleTraktHistory() {
+      recommendationsStore.toggleSection('traktHistoryExpanded');
       this.$emit('toggle-trakt-history');
     },
     fetchModels() {
+      // Emit event for parent component to handle fetching models
       this.$emit('fetch-models');
     },
+    goToSettings() {
+      // Navigate to settings page
+      this.$emit('go-to-settings');
+    },
     updateModel(value) {
-      // Save to database
-      databaseStorageUtils.set('openaiModel', value)
+      // Use the store to update the model
+      recommendationsStore.updateSelectedModel(value)
         .then(() => {
-          console.log('Saved model preference to database:', value);
+          console.log('Saved model preference to store:', value);
         })
         .catch(error => {
-          console.error('Failed to save model preference to database:', error);
+          console.error('Failed to save model preference:', error);
         });
       
       this.$emit('update-model', value);
@@ -1282,119 +1170,182 @@ export default {
     updateTemperature(value) {
       const numValue = Number(value);
       
-      // Save to database
-      databaseStorageUtils.set('temperature', numValue)
+      // Use the store to update the temperature
+      recommendationsStore.updateTemperature(numValue)
         .then(() => {
-          console.log('Saved temperature to database:', numValue);
+          console.log('Saved temperature to store:', numValue);
         })
         .catch(error => {
-          console.error('Failed to save temperature to database:', error);
+          console.error('Failed to save temperature:', error);
         });
       
       this.$emit('update-temperature', numValue);
     },
     saveLibraryModePreference(value) {
-      // Save to database
-      databaseStorageUtils.set('useSampledLibrary', value)
+      // Use the store to update the sampled library mode
+      recommendationsStore.updateSampledLibrary(value)
         .then(() => {
-          console.log('Saved sampled library mode to database:', value);
+          console.log('Saved sampled library mode to store:', value);
         })
         .catch(error => {
-          console.error('Failed to save sampled library mode to database:', error);
+          console.error('Failed to save sampled library mode:', error);
         });
       
       // Also emit the event for parent component
       this.$emit('save-library-mode-preference', value);
     },
     saveSampleSize(value) {
-      // Save to database
       const numValue = Number(value);
       
-      // Save to database
-      databaseStorageUtils.set('librarySampleSize', numValue)
+      // Use the store to update the sample size
+      recommendationsStore.updateSampleSize(numValue)
         .then(() => {
-          console.log('Saved library sample size to database:', numValue);
+          console.log('Saved library sample size to store:', numValue);
         })
         .catch(error => {
-          console.error('Failed to save library sample size to database:', error);
+          console.error('Failed to save library sample size:', error);
         });
       
       // Also emit the event for parent component
       this.$emit('save-sample-size', numValue);
     },
     saveStructuredOutputPreference(value) {
-      // Save to database
-      databaseStorageUtils.set('useStructuredOutput', value)
+      // Use the store to update the structured output preference
+      recommendationsStore.updateStructuredOutput(value)
         .then(() => {
-          console.log('Saved structured output preference to database:', value);
+          console.log('Saved structured output preference to store:', value);
         })
         .catch(error => {
-          console.error('Failed to save structured output preference to database:', error);
+          console.error('Failed to save structured output preference:', error);
         });
       
       this.$emit('save-structured-output-preference', value);
     },
     clearRecommendationHistory() {
+      // Use the store to clear recommendation history
+      recommendationsStore.clearRecommendationHistory()
+        .then(() => {
+          console.log('Cleared recommendation history in store');
+        })
+        .catch(error => {
+          console.error('Failed to clear recommendation history:', error);
+        });
+      
+      // Also emit the event for parent component for backward compatibility
       this.$emit('clear-recommendation-history');
     },
-    saveRecommendationCount(value) {
-      this.$emit('save-recommendation-count', Number(value));
+    async saveRecommendationCount(value) {
+      const numValue = Number(value);
+      try {
+        console.log('Saving numRecommendations to store:', numValue);
+        await recommendationsStore.updateNumRecommendations(numValue);
+        // Update the local value to ensure UI is in sync
+        this.$emit('update:numRecommendations', numValue);
+      } catch (error) {
+        console.error('Error saving numRecommendations:', error);
+      }
+      this.$emit('save-recommendation-count', numValue);
     },
-    saveColumnsCount(value) {
-      this.$emit('save-columns-count', Number(value));
+    async saveColumnsCount(value) {
+      const numValue = Number(value);
+      try {
+        console.log('Saving columnsCount to store:', numValue);
+        await recommendationsStore.updateColumnsCount(numValue);
+        // Update the local value to ensure UI is in sync
+        this.$emit('update:columnsCount', numValue);
+      } catch (error) {
+        console.error('Error saving columnsCount:', error);
+      }
+      this.$emit('save-columns-count', numValue);
     },
     handleResize() {
       this.$emit('handle-resize');
     },
     toggleGenre(genre) {
-      this.$emit('toggle-genre', genre);
-      
-      // After toggling, save the updated genre preferences
-      this.saveGenrePreferences();
-    },
-    clearGenres() {
-      this.$emit('clear-genres');
-      
-      // After clearing, save the empty genre preferences
-      this.saveGenrePreferences();
-    },
-    saveGenrePreferences() {
-      // Save to database with universal key
-      databaseStorageUtils.setJSON('genrePreferences', this.selectedGenres || [])
+      // Use the store to toggle the genre
+      recommendationsStore.toggleGenre(genre)
         .then(() => {
-          console.log('Saved universal genre preferences to database:', this.selectedGenres);
+          console.log('Toggled genre in store:', genre);
+          // Emit event for parent component
+          this.$emit('toggle-genre', genre);
         })
         .catch(error => {
-          console.error('Failed to save universal genre preferences to database:', error);
+          console.error('Failed to toggle genre:', error);
+        });
+    },
+    clearGenres() {
+      // Use the store to clear all genres
+      recommendationsStore.clearGenres()
+        .then(() => {
+          console.log('Cleared all genres in store');
+          // Emit event for parent component
+          this.$emit('clear-genres');
+        })
+        .catch(error => {
+          console.error('Failed to clear genres:', error);
+        });
+    },
+    saveGenrePreferences() {
+      // Use the store to save genre preferences
+      recommendationsStore.clearGenres()
+        .then(() => {
+          // Add each genre individually to ensure the store state is updated correctly
+          if (this.selectedGenres && this.selectedGenres.length > 0) {
+            this.selectedGenres.forEach(genre => {
+              recommendationsStore.toggleGenre(genre);
+            });
+          }
+          console.log('Saved universal genre preferences to store:', this.selectedGenres);
+        })
+        .catch(error => {
+          console.error('Failed to save universal genre preferences:', error);
         });
     },
     savePromptStyle(value) {
+      // Use the store to update the prompt style
+      recommendationsStore.updatePromptStyle(value)
+        .then(() => {
+          console.log('Saved prompt style to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save prompt style:', error);
+        });
+      
       this.$emit('save-prompt-style', value);
     },
     saveCustomVibe(value) {
-      // Save to database with universal key
-      databaseStorageUtils.set('customVibe', value)
+      // Use the store to update the custom vibe
+      recommendationsStore.updateCustomVibe(value)
         .then(() => {
-          console.log('Saved universal custom vibe to database:', value);
+          console.log('Saved universal custom vibe to store:', value);
         })
         .catch(error => {
-          console.error('Failed to save universal custom vibe to database:', error);
+          console.error('Failed to save universal custom vibe:', error);
         });
       
       // Also emit the event for parent component
       this.$emit('save-custom-vibe', value);
     },
     clearCustomVibe() {
+      // Use the store to clear the custom vibe
+      recommendationsStore.clearCustomVibe()
+        .then(() => {
+          console.log('Cleared custom vibe in store');
+        })
+        .catch(error => {
+          console.error('Failed to clear custom vibe:', error);
+        });
+      
       this.$emit('clear-custom-vibe');
     },
     saveCustomPromptOnlyPreference(value) {
-      // Save to database with universal key
-      databaseStorageUtils.set('useCustomPromptOnly', value)
+      // Use the store to update the custom prompt only preference
+      recommendationsStore.updateCustomPromptOnly(value)
         .then(() => {
-          console.log('Saved universal custom prompt only preference to database:', value);
+          console.log('Saved universal custom prompt only preference to store:', value);
         })
         .catch(error => {
-          console.error('Failed to save universal custom prompt only preference to database:', error);
+          console.error('Failed to save universal custom prompt only preference:', error);
         });
       
       // Also emit the event for parent component
@@ -1404,64 +1355,216 @@ export default {
       // Ensure value is a string
       const stringValue = String(value);
       
-      // Save to database with universal key
-      databaseStorageUtils.set('languagePreference', stringValue)
+      // Use the store to update the language preference
+      recommendationsStore.updateSelectedLanguage(stringValue)
         .then(() => {
-          console.log('Saved universal language preference to database:', stringValue);
+          console.log('Saved universal language preference to store:', stringValue);
         })
         .catch(error => {
-          console.error('Failed to save universal language preference to database:', error);
+          console.error('Failed to save universal language preference:', error);
         });
       
       // Also emit the event for parent component
       this.$emit('save-language-preference', stringValue);
     },
     savePlexUseHistory(value) {
+      // Use the store to update the Plex use history setting
+      recommendationsStore.updatePlexUseHistory(value)
+        .then(() => {
+          console.log('Saved Plex use history setting to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Plex use history setting:', error);
+        });
+      
       this.$emit('save-plex-use-history', value);
     },
     savePlexHistoryMode(value) {
+      // Use the store to update the Plex history mode
+      recommendationsStore.updatePlexHistoryMode(value)
+        .then(() => {
+          console.log('Saved Plex history mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Plex history mode:', error);
+        });
+      
       this.$emit('save-plex-history-mode', value);
     },
     savePlexCustomHistoryDays(value) {
-      this.$emit('save-plex-custom-history-days', Number(value));
+      const numValue = Number(value);
+      
+      // Use the store to update the Plex custom history days
+      recommendationsStore.updatePlexCustomHistoryDays(numValue)
+        .then(() => {
+          console.log('Saved Plex custom history days to store:', numValue);
+        })
+        .catch(error => {
+          console.error('Failed to save Plex custom history days:', error);
+        });
+      
+      this.$emit('save-plex-custom-history-days', numValue);
     },
     savePlexOnlyMode(value) {
+      // Use the store to update the Plex only mode
+      recommendationsStore.updatePlexOnlyMode(value)
+        .then(() => {
+          console.log('Saved Plex only mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Plex only mode:', error);
+        });
+      
       this.$emit('save-plex-only-mode', value);
     },
     saveJellyfinUseHistory(value) {
+      // Use the store to update the Jellyfin use history setting
+      recommendationsStore.updateJellyfinUseHistory(value)
+        .then(() => {
+          console.log('Saved Jellyfin use history setting to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Jellyfin use history setting:', error);
+        });
+      
       this.$emit('save-jellyfin-use-history', value);
     },
     saveJellyfinHistoryMode(value) {
+      // Use the store to update the Jellyfin history mode
+      recommendationsStore.updateJellyfinHistoryMode(value)
+        .then(() => {
+          console.log('Saved Jellyfin history mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Jellyfin history mode:', error);
+        });
+      
       this.$emit('save-jellyfin-history-mode', value);
     },
     saveJellyfinCustomHistoryDays(value) {
-      this.$emit('save-jellyfin-custom-history-days', Number(value));
+      const numValue = Number(value);
+      
+      // Use the store to update the Jellyfin custom history days
+      recommendationsStore.updateJellyfinCustomHistoryDays(numValue)
+        .then(() => {
+          console.log('Saved Jellyfin custom history days to store:', numValue);
+        })
+        .catch(error => {
+          console.error('Failed to save Jellyfin custom history days:', error);
+        });
+      
+      this.$emit('save-jellyfin-custom-history-days', numValue);
     },
     saveJellyfinOnlyMode(value) {
+      // Use the store to update the Jellyfin only mode
+      recommendationsStore.updateJellyfinOnlyMode(value)
+        .then(() => {
+          console.log('Saved Jellyfin only mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Jellyfin only mode:', error);
+        });
+      
       this.$emit('save-jellyfin-only-mode', value);
     },
     saveTautulliUseHistory(value) {
+      // Use the store to update the Tautulli use history setting
+      recommendationsStore.updateTautulliUseHistory(value)
+        .then(() => {
+          console.log('Saved Tautulli use history setting to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Tautulli use history setting:', error);
+        });
+      
       this.$emit('save-tautulli-use-history', value);
     },
     saveTautulliHistoryMode(value) {
+      // Use the store to update the Tautulli history mode
+      recommendationsStore.updateTautulliHistoryMode(value)
+        .then(() => {
+          console.log('Saved Tautulli history mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Tautulli history mode:', error);
+        });
+      
       this.$emit('save-tautulli-history-mode', value);
     },
     saveTautulliCustomHistoryDays(value) {
-      this.$emit('save-tautulli-custom-history-days', Number(value));
+      const numValue = Number(value);
+      
+      // Use the store to update the Tautulli custom history days
+      recommendationsStore.updateTautulliCustomHistoryDays(numValue)
+        .then(() => {
+          console.log('Saved Tautulli custom history days to store:', numValue);
+        })
+        .catch(error => {
+          console.error('Failed to save Tautulli custom history days:', error);
+        });
+      
+      this.$emit('save-tautulli-custom-history-days', numValue);
     },
     saveTautulliOnlyMode(value) {
+      // Use the store to update the Tautulli only mode
+      recommendationsStore.updateTautulliOnlyMode(value)
+        .then(() => {
+          console.log('Saved Tautulli only mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Tautulli only mode:', error);
+        });
+      
       this.$emit('save-tautulli-only-mode', value);
     },
     saveTraktUseHistory(value) {
+      // Use the store to update the Trakt use history setting
+      recommendationsStore.updateTraktUseHistory(value)
+        .then(() => {
+          console.log('Saved Trakt use history setting to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Trakt use history setting:', error);
+        });
+      
       this.$emit('save-trakt-use-history', value);
     },
     saveTraktHistoryMode(value) {
+      // Use the store to update the Trakt history mode
+      recommendationsStore.updateTraktHistoryMode(value)
+        .then(() => {
+          console.log('Saved Trakt history mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Trakt history mode:', error);
+        });
+      
       this.$emit('save-trakt-history-mode', value);
     },
     saveTraktCustomHistoryDays(value) {
-      this.$emit('save-trakt-custom-history-days', Number(value));
+      const numValue = Number(value);
+      
+      // Use the store to update the Trakt custom history days
+      recommendationsStore.updateTraktCustomHistoryDays(numValue)
+        .then(() => {
+          console.log('Saved Trakt custom history days to store:', numValue);
+        })
+        .catch(error => {
+          console.error('Failed to save Trakt custom history days:', error);
+        });
+      
+      this.$emit('save-trakt-custom-history-days', numValue);
     },
     saveTraktOnlyMode(value) {
+      // Use the store to update the Trakt only mode
+      recommendationsStore.updateTraktOnlyMode(value)
+        .then(() => {
+          console.log('Saved Trakt only mode to store:', value);
+        })
+        .catch(error => {
+          console.error('Failed to save Trakt only mode:', error);
+        });
+      
       this.$emit('save-trakt-only-mode', value);
     },
     getLanguageName(code) {
@@ -1509,6 +1612,26 @@ export default {
       } catch (error) {
         console.error('Error refreshing Radarr library:', error);
         this.refreshingRadarr = false;
+      }
+    },
+    
+    /**
+     * Update the content type (movie/TV mode)
+     * @param {boolean} isMovie - Whether to use movie mode
+     */
+    async updateContentType(isMovie) {
+      try {
+        // Reset recommendations requested flag when switching content type
+        this.recommendationsRequested = false;
+        
+        // Use the store to update the content type
+        await recommendationsStore.setContentType(isMovie);
+        console.log(`Content type switched to ${isMovie ? 'movies' : 'TV shows'}`);
+        
+        // Emit event for parent component
+        this.$emit('update-content-type', isMovie);
+      } catch (error) {
+        console.error('Error updating content type:', error);
       }
     }
   }
@@ -2581,6 +2704,45 @@ body.dark-theme .info-section-title.collapsible-header:hover {
   .action-button:disabled {
     background-color: #707070;
   }
+}
+
+.content-type-toggle {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: var(--primary-color-lighter);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--primary-color-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.toggle-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.toggle-button {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color-border);
+  background-color: var(--card-bg-color);
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-button:hover {
+  background-color: var(--primary-color-light);
+  transform: translateY(-1px);
+}
+
+.toggle-button.active {
+  background-color: var(--button-primary-bg);
+  color: white;
+  border-color: var(--button-primary-bg);
 }
 
 .library-refresh-section {

@@ -14,6 +14,8 @@ constructor() {
     this.promptStyle = 'vibe'; // Default prompt style
     // Flag to track if credentials have been loaded
     this.credentialsLoaded = false;
+    // Flag to track if settings have been loaded
+    this.storeInitialized = false;
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -22,16 +24,71 @@ constructor() {
     this.tvConversation = [];
     this.movieConversation = [];
     
-    // Removed automatic loading of credentials to prevent double loading
+    // Initialize the store integration
+    this.initializeStoreIntegration();
+  }
+  
+  /**
+   * Initializes integration with RecommendationStore
+   * @returns {Promise<void>}
+   */
+  async initializeStoreIntegration() {
+    try {
+      // Import the store dynamically to avoid circular dependencies
+      const module = await import('../stores/RecommendationsStore.js');
+      this.recommendationsStore = module.default;
+      
+      // Initialize the store if it hasn't been initialized yet
+      if (!this.recommendationsStore.initialized) {
+        await this.recommendationsStore.initialize();
+      }
+      
+      // Sync settings from store to service
+      this.syncFromStore();
+      
+      this.storeInitialized = true;
+      console.log('OpenAIService: Successfully integrated with RecommendationsStore');
+    } catch (error) {
+      console.error('Error initializing store integration:', error);
+    }
+  }
+  
+  /**
+   * Syncs settings from the RecommendationsStore to this service
+   */
+  syncFromStore() {
+    if (!this.recommendationsStore) return;
     
-    // Try to get model from localStorage if it exists
-    this.loadModelFromLocalStorage();
+    // Sync all relevant settings
+    // For string/number values, use || fallback
+    this.model = this.recommendationsStore.state.selectedModel || this.model;
+    this.temperature = this.recommendationsStore.state.temperature || this.temperature;
+    this.sampleSize = this.recommendationsStore.state.sampleSize || this.sampleSize;
+    this.promptStyle = this.recommendationsStore.state.promptStyle || this.promptStyle;
     
-    // Try to get prompt style from localStorage if it exists
-    this.loadPromptStyleFromLocalStorage();
+    // For boolean values, check if they're defined before assigning
+    // This ensures false values are properly synchronized
+    if (this.recommendationsStore.state.useSampledLibrary !== undefined) {
+      this.useSampledLibrary = this.recommendationsStore.state.useSampledLibrary;
+    }
     
-    // Try to get custom prompt only preference from localStorage if it exists
-    this.loadCustomPromptOnlyFromLocalStorage();
+    if (this.recommendationsStore.state.useStructuredOutput !== undefined) {
+      this.useStructuredOutput = this.recommendationsStore.state.useStructuredOutput;
+    }
+    
+    if (this.recommendationsStore.state.useCustomPromptOnly !== undefined) {
+      this.useCustomPromptOnly = this.recommendationsStore.state.useCustomPromptOnly;
+    }
+    
+    console.log('OpenAIService: Synced settings from store', {
+      model: this.model,
+      temperature: this.temperature,
+      useSampledLibrary: this.useSampledLibrary,
+      sampleSize: this.sampleSize,
+      useStructuredOutput: this.useStructuredOutput,
+      useCustomPromptOnly: this.useCustomPromptOnly,
+      promptStyle: this.promptStyle
+    });
   }
   
   /**
@@ -96,125 +153,163 @@ constructor() {
   }
   
   /**
-   * Load the model from database if it exists
-   * Falls back to the model stored in credentials if database model doesn't exist
+   * Ensure settings are loaded from the store before performing operations
+   * @returns {Promise<boolean>} - Whether the settings were loaded successfully
    */
-  loadModelFromLocalStorage() {
-    // Import databaseStorageUtils dynamically to avoid circular dependency
-    import('../utils/DatabaseStorageUtils.js').then(module => {
-      const databaseStorageUtils = module.default;
-      // Initialize cache if needed
-      if (!databaseStorageUtils.cacheLoaded) {
-        databaseStorageUtils.loadCache().then(() => {
-          // Use individual setting API to get the model
-          databaseStorageUtils.get('openaiModel').then(savedModel => {
-            if (savedModel) {
-              this.model = savedModel;
-            }
-          });
-        });
-      } else {
-        // Use individual setting API to get the model
-        databaseStorageUtils.get('openaiModel').then(savedModel => {
-          if (savedModel) {
-            this.model = savedModel;
-          }
-        });
-      }
-    }).catch(error => {
-      console.error('Error loading databaseStorageUtils:', error);
-    });
+  async ensureSettings() {
+    if (this.storeInitialized) {
+      // Settings are already loaded, just sync any updates
+      this.syncFromStore();
+      return true;
+    }
+    
+    try {
+      // Initialize the store integration
+      await this.initializeStoreIntegration();
+      return this.storeInitialized;
+    } catch (error) {
+      console.error('Error ensuring settings are loaded:', error);
+      return false;
+    }
   }
   
   /**
-   * Load the prompt style from database if it exists
-   * Falls back to the default 'vibe' style if database style doesn't exist
-   */
-  loadPromptStyleFromLocalStorage() {
-    // Import databaseStorageUtils dynamically to avoid circular dependency
-    import('../utils/DatabaseStorageUtils.js').then(module => {
-      const databaseStorageUtils = module.default;
-      // Initialize cache if needed
-      if (!databaseStorageUtils.cacheLoaded) {
-        databaseStorageUtils.loadCache().then(() => {
-          // Use individual setting API to get the prompt style
-          databaseStorageUtils.get('openaiPromptStyle').then(savedPromptStyle => {
-            if (savedPromptStyle) {
-              this.promptStyle = savedPromptStyle;
-            }
-          });
-        });
-      } else {
-        // Use individual setting API to get the prompt style
-        databaseStorageUtils.get('openaiPromptStyle').then(savedPromptStyle => {
-          if (savedPromptStyle) {
-            this.promptStyle = savedPromptStyle;
-          }
-        });
-      }
-    }).catch(error => {
-      console.error('Error loading databaseStorageUtils:', error);
-    });
-  }
-  
-  /**
-   * Load the useCustomPromptOnly setting from database if it exists
-   * Falls back to false if setting doesn't exist in database
-   */
-  loadCustomPromptOnlyFromLocalStorage() {
-    // Import databaseStorageUtils dynamically to avoid circular dependency
-    import('../utils/DatabaseStorageUtils.js').then(module => {
-      const databaseStorageUtils = module.default;
-      // Initialize cache if needed
-      if (!databaseStorageUtils.cacheLoaded) {
-        databaseStorageUtils.loadCache().then(() => {
-          const storedValue = databaseStorageUtils.getSync('useCustomPromptOnly');
-          if (storedValue !== null) {
-            this.useCustomPromptOnly = storedValue === true || storedValue === 'true';
-            console.log(`OpenAIService: Loaded useCustomPromptOnly from database: ${this.useCustomPromptOnly}`);
-          }
-        });
-      } else {
-        const storedValue = databaseStorageUtils.getSync('useCustomPromptOnly');
-        if (storedValue !== null) {
-          this.useCustomPromptOnly = storedValue === true || storedValue === 'true';
-          console.log(`OpenAIService: Loaded useCustomPromptOnly from database: ${this.useCustomPromptOnly}`);
-        }
-      }
-    }).catch(error => {
-      console.error('Error loading databaseStorageUtils:', error);
-    });
-  }
-  
-  /**
-   * Set the prompt style and save it to database
+   * Set the prompt style and save it to the store
    * @param {string} style - The prompt style ('vibe', 'analytical', 'creative', 'technical')
    */
-  setPromptStyle(style) {
+  async setPromptStyle(style) {
     this.promptStyle = style;
-    // Import databaseStorageUtils dynamically to avoid circular dependency
-    import('../utils/DatabaseStorageUtils.js').then(module => {
-      const databaseStorageUtils = module.default;
-      databaseStorageUtils.set('openaiPromptStyle', style);
-    }).catch(error => {
-      console.error('Error loading databaseStorageUtils:', error);
-    });
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updatePromptStyle(style);
+        console.log(`OpenAIService: Saved prompt style to store: ${style}`);
+      }
+    } catch (error) {
+      console.error('Error saving prompt style to store:', error);
+    }
   }
   
   /**
-   * Set the useCustomPromptOnly flag and save it to database
+   * Set the useCustomPromptOnly flag and save it to the store
    * @param {boolean} value - Whether to use only the custom prompt for recommendations
    */
-  setUseCustomPromptOnly(value) {
+  async setUseCustomPromptOnly(value) {
     this.useCustomPromptOnly = value === true;
-    // Import databaseStorageUtils dynamically to avoid circular dependency
-    import('../utils/DatabaseStorageUtils.js').then(module => {
-      const databaseStorageUtils = module.default;
-      databaseStorageUtils.set('useCustomPromptOnly', this.useCustomPromptOnly);
-      console.log(`OpenAIService: useCustomPromptOnly set to ${this.useCustomPromptOnly}`);
-    }).catch(error => {
-      console.error('Error loading databaseStorageUtils:', error);
-    });
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateCustomPromptOnly(value);
+        console.log(`OpenAIService: Saved useCustomPromptOnly to store: ${value}`);
+      }
+    } catch (error) {
+      console.error('Error saving useCustomPromptOnly to store:', error);
+    }
+  }
+  
+  /**
+   * Set the useStructuredOutput flag and save it to the store
+   * @param {boolean} value - Whether to use structured output for API requests
+   */
+  async setUseStructuredOutput(value) {
+    this.useStructuredOutput = value === true;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateStructuredOutput(value);
+        console.log(`OpenAIService: Saved useStructuredOutput to store: ${value}`);
+      }
+    } catch (error) {
+      console.error('Error saving useStructuredOutput to store:', error);
+    }
+  }
+  
+  /**
+   * Set the model and save it to the store
+   * @param {string} model - The model to use
+   */
+  async setModel(model) {
+    if (!model) return;
+    
+    this.model = model;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSelectedModel(model);
+        console.log(`OpenAIService: Saved model to store: ${model}`);
+      }
+    } catch (error) {
+      console.error('Error saving model to store:', error);
+    }
+  }
+  
+  /**
+   * Set the temperature and save it to the store
+   * @param {number} value - The temperature for API requests
+   */
+  async setTemperature(value) {
+    if (value === null || value === undefined) return;
+    
+    this.temperature = parseFloat(value);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateTemperature(this.temperature);
+        console.log(`OpenAIService: Saved temperature to store: ${this.temperature}`);
+      }
+    } catch (error) {
+      console.error('Error saving temperature to store:', error);
+    }
+  }
+  
+  /**
+   * Set the useSampledLibrary flag and save it to the store
+   * @param {boolean} value - Whether to use sampled library
+   */
+  async setUseSampledLibrary(value) {
+    this.useSampledLibrary = value === true;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSampledLibrary(value);
+        console.log(`OpenAIService: Saved useSampledLibrary to store: ${value}`);
+      }
+    } catch (error) {
+      console.error('Error saving useSampledLibrary to store:', error);
+    }
+  }
+  
+  /**
+   * Set the sample size and save it to the store
+   * @param {number} value - The sample size for library sampling
+   */
+  async setSampleSize(value) {
+    if (value === null || value === undefined) return;
+    
+    this.sampleSize = parseInt(value);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSampleSize(this.sampleSize);
+        console.log(`OpenAIService: Saved sampleSize to store: ${this.sampleSize}`);
+      }
+    } catch (error) {
+      console.error('Error saving sampleSize to store:', error);
+    }
   }
   
   /**
@@ -222,7 +317,10 @@ constructor() {
    * @param {boolean} isMovie - Whether we're getting TV show or movie recommendations
    * @returns {string} - The system prompt content
    */
-  getSystemContentByStyle(isMovie, promptStyle = null) {
+  async getSystemContentByStyle(isMovie, promptStyle = null) {
+    // Ensure settings are loaded from store
+    await this.ensureSettings();
+    
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activeStyle = promptStyle || this.promptStyle;
   
@@ -865,46 +963,45 @@ From these insights, recommend series that evoke comparable emotional states and
     // Trim the API key to remove any accidental whitespace
     this.apiKey = apiKey ? apiKey.trim() : '';
     
-    if (model) {
-      this.model = model;
-      // When model is updated, store it in databaseStorageUtils for user-specific access
-      // Import databaseStorageUtils dynamically to avoid circular dependency
-      import('../utils/DatabaseStorageUtils.js').then(module => {
-        const databaseStorageUtils = module.default;
-        databaseStorageUtils.set('openaiModel', model);
-      }).catch(error => {
-        console.error('Error loading databaseStorageUtils:', error);
-      });
-    }
+    // Ensure the store is initialized
+    await this.ensureSettings();
     
+    // Update base URL directly as it's not stored in the recommendations store
     if (baseUrl) {
       // Normalize the base URL by removing trailing slashes
       this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
       this.apiUrl = this.getCompletionsUrl();
     }
     
+    // Max tokens is also not stored in the recommendations store
     if (maxTokens !== null) {
       this.maxTokens = maxTokens;
     }
     
+    // Use setter methods for all values that should be synchronized with the store
+    // This ensures proper two-way synchronization
+    if (model) {
+      await this.setModel(model);
+    }
+    
     if (temperature !== null) {
-      this.temperature = temperature;
+      await this.setTemperature(temperature);
     }
     
     if (useSampledLibrary !== null) {
-      this.useSampledLibrary = useSampledLibrary;
+      await this.setUseSampledLibrary(useSampledLibrary);
     }
     
     if (sampleSize !== null) {
-      this.sampleSize = sampleSize;
+      await this.setSampleSize(sampleSize);
     }
     
     if (useStructuredOutput !== null) {
-      this.useStructuredOutput = useStructuredOutput;
+      await this.setUseStructuredOutput(useStructuredOutput);
     }
     
     if (useCustomPromptOnly !== null) {
-      this.useCustomPromptOnly = useCustomPromptOnly;
+      await this.setUseCustomPromptOnly(useCustomPromptOnly);
     }
     
     // Store credentials server-side (including model selection as backup)
@@ -913,6 +1010,16 @@ From these insights, recommend series that evoke comparable emotional states and
       apiUrl: this.baseUrl,
       model: this.model,
       maxTokens: this.maxTokens,
+      temperature: this.temperature,
+      useSampledLibrary: this.useSampledLibrary,
+      sampleSize: this.sampleSize,
+      useStructuredOutput: this.useStructuredOutput,
+      useCustomPromptOnly: this.useCustomPromptOnly
+    });
+    
+    console.log('OpenAIService: Configuration completed with all settings synced to store');
+    console.log('OpenAIService: Current settings:', {
+      model: this.model,
       temperature: this.temperature,
       useSampledLibrary: this.useSampledLibrary,
       sampleSize: this.sampleSize,
@@ -966,6 +1073,10 @@ From these insights, recommend series that evoke comparable emotional states and
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
     
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activePromptStyle = promptStyle || this.promptStyle;
@@ -1225,6 +1336,10 @@ CRITICAL REQUIREMENTS:
       }
     }
     
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getMovieRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
+    
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activePromptStyle = promptStyle || this.promptStyle;
 
@@ -1482,6 +1597,10 @@ CRITICAL REQUIREMENTS:
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getAdditionalTVRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
 
     try {
       // Ensure count is within reasonable bounds
@@ -1557,6 +1676,10 @@ CRITICAL REQUIREMENTS:
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getAdditionalMovieRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
 
     try {
       // Ensure count is within reasonable bounds
@@ -1619,8 +1742,12 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of formatted recommendations
    */
   async getFormattedRecommendationsWithConversation(conversation) {
+    // Ensure settings are loaded and synced before making the API request
+    await this.ensureSettings();
+    
     console.log("API URL:", this.apiUrl);
     console.log("Model:", this.model);
+    console.log("Using structured output:", this.useStructuredOutput);
     
     try {
       // Check if conversation is getting too large and reset if needed
@@ -2372,15 +2499,38 @@ CRITICAL REQUIREMENTS:
     }
 
     // Prepare library items for comparison
-    const libraryTitles = libraryItems.map(item => {
+    const libraryTitles = Array.isArray(libraryItems) ? libraryItems.map(item => {
       if (typeof item === 'string') return item;
       // Handle different possible structures for library items
       return item.title || item.name || (item.attributes && item.attributes.title) || '';
-    }).filter(title => title); // Remove any empty titles
+    }).filter(title => title) : []; // Remove any empty titles
     
-    const likedTitles = likedItems.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
-    const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
-    const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
+    const likedTitles = Array.isArray(likedItems) ? likedItems.map(item => 
+      typeof item === 'string' ? item : item.title || ''
+    ).filter(title => title) : [];
+    
+    const dislikedTitles = Array.isArray(dislikedItems) ? dislikedItems.map(item => 
+      typeof item === 'string' ? item : item.title || ''
+    ).filter(title => title) : [];
+    
+    // Handle different possible formats for previousRecommendations
+    let previousRecTitles = [];
+    if (previousRecommendations) {
+      // Check if it's an array
+      if (Array.isArray(previousRecommendations)) {
+        previousRecTitles = previousRecommendations
+          .map(item => {
+            if (typeof item === 'string') return item;
+            return item && typeof item === 'object' ? (item.title || '') : '';
+          })
+          .filter(title => title);
+      } else if (typeof previousRecommendations === 'string') {
+        // Handle case where a single string is passed
+        previousRecTitles = [previousRecommendations];
+      } else {
+        console.warn('previousRecommendations has unexpected format:', previousRecommendations);
+      }
+    }
     
     // Log the number of items we're checking against
     console.log(`Verifying ${recommendations.length} recommendations against ${libraryTitles.length} library items, ${likedTitles.length} liked items, ${dislikedTitles.length} disliked items, and ${previousRecTitles.length} previous recommendations`);

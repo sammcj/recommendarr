@@ -341,7 +341,7 @@ export default {
         setTimeout(() => {
           bgElement.style.transform = 'scale(2.5)';
           bgElement.style.opacity = '0';
-        }, 10);
+        });
         
         // Reset for next animation
         setTimeout(() => {

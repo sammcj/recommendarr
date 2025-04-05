@@ -363,7 +363,7 @@ export default {
     },
     // New method to get rating meter style
     getRatingStyle(ratingText) {
-      const score = parseInt(this.extractScore(ratingText), 10);
+      const score = parseInt(this.extractScore(ratingText));
       return {
         width: `${score}%`
       };
@@ -408,7 +408,7 @@ export default {
       
       // Get a numeric score from the text using our extract method
       const scoreValue = this.extractScore(scoreText);
-      const score = parseInt(scoreValue, 10);
+      const score = parseInt(scoreValue);
       
       if (score >= 75) return 'score-high';
       if (score >= 60) return 'score-medium';

@@ -6,14 +6,11 @@ import AuthService from '../services/AuthService';
  * 
  * This utility provides a similar API to StorageUtils but uses the database
  * instead of localStorage for persistent storage.
+ * 
+ * This version does not use any caching to prevent settings overwrite issues
+ * and to ensure data is properly isolated between users.
  */
 class DatabaseStorageUtils {
-    constructor() {
-        this.cache = {}; // In-memory cache for performance
-        this.cacheLoaded = false;
-        this.loadPromise = null; // Promise for loading cache
-    }
-
     /**
      * Get the current user ID or fall back to 'guest'
      * @returns {string} User ID or 'guest'
@@ -24,67 +21,6 @@ class DatabaseStorageUtils {
     }
 
     /**
-     * Load all settings into cache
-     * @returns {Promise<boolean>} Success status
-     */
-    async loadCache() {
-        // If already loading, return the existing promise
-        if (this.loadPromise) {
-            console.log('Database cache already loading, waiting for completion');
-            return this.loadPromise;
-        }
-
-        console.log('Loading database cache from server');
-        
-        // Create a new loading promise with timeout
-        this.loadPromise = new Promise((resolve) => {
-            // Set a timeout to prevent hanging indefinitely
-            const timeoutId = setTimeout(() => {
-                console.warn('Database cache loading timed out after 5 seconds');
-                this.loadPromise = null;
-                // Initialize with empty cache to prevent blocking the app
-                if (!this.cacheLoaded) {
-                    this.cache = {};
-                    this.cacheLoaded = true;
-                }
-                resolve(false);
-            }, 5000);
-            
-            // Attempt to load settings from API
-            // Note: We're still using getSettings for initial load to get all settings at once
-            // This is more efficient than making individual calls for each setting
-            apiService.getSettings()
-                .then(settings => {
-                    // Clear timeout since we got a response
-                    clearTimeout(timeoutId);
-                    
-                    // Update cache with settings
-                    this.cache = settings || {};
-                    this.cacheLoaded = true;
-                    this.loadPromise = null; // Clear the promise
-                    
-                    console.log('Database cache loaded successfully with', Object.keys(this.cache).length, 'keys');
-                    resolve(true);
-                })
-                .catch(error => {
-                    // Clear timeout since we got a response
-                    clearTimeout(timeoutId);
-                    
-                    console.error('Error loading settings cache:', error);
-                    
-                    // Initialize with empty cache to prevent blocking the app
-                    this.cache = {};
-                    this.cacheLoaded = true;
-                    this.loadPromise = null; // Clear the promise
-                    
-                    resolve(false);
-                });
-        });
-
-        return this.loadPromise;
-    }
-
-    /**
      * Get a value from settings
      * @param {string} key - The key to get
      * @param {*} defaultValue - Default value if not found
@@ -92,34 +28,15 @@ class DatabaseStorageUtils {
      */
     async get(key, defaultValue = null) {
         try {
-            // Check cache first for performance
-            if (this.cacheLoaded && this.cache[key] !== undefined) {
-                return this.cache[key];
-            }
+            // Always get directly from API
+            console.log(`Fetching ${key} directly from API...`);
+            const value = await apiService.getSetting(key);
             
-            // If not in cache or cache not loaded, get directly from API
-            try {
-                const value = await apiService.getSetting(key);
-                
-                // Update cache if it's loaded
-                if (this.cacheLoaded) {
-                    this.cache[key] = value;
-                }
-                
-                return value !== null && value !== undefined ? value : defaultValue;
-            } catch (error) {
-                // If API call fails, try to load from cache as fallback
-                if (!this.cacheLoaded) {
-                    console.log(`API call failed, loading cache for ${key}`);
-                    const loadResult = await this.loadCache();
-                    if (!loadResult) {
-                        console.warn(`Failed to load cache for ${key}, using default value`);
-                        return defaultValue;
-                    }
-                    
-                    return this.cache[key] !== undefined ? this.cache[key] : defaultValue;
-                }
-                
+            if (value !== null && value !== undefined) {
+                console.log(`Got ${key} from API:`, value);
+                return value;
+            } else {
+                console.log(`${key} not found in API, using default:`, defaultValue);
                 return defaultValue;
             }
         } catch (error) {
@@ -135,13 +52,6 @@ class DatabaseStorageUtils {
      * @returns {Promise<boolean>} Success status
      */
     async set(key, value) {
-        if (!this.cacheLoaded) {
-            await this.loadCache();
-        }
-
-        // Update cache
-        this.cache[key] = value;
-
         // Save to server using individual setting API
         try {
             await apiService.saveSetting(key, value);
@@ -160,20 +70,26 @@ class DatabaseStorageUtils {
      */
     async getJSON(key, defaultValue = null) {
         try {
+            console.log(`DatabaseStorageUtils.getJSON: fetching ${key}`);
             const value = await this.get(key);
+            console.log(`DatabaseStorageUtils.getJSON: received ${key}:`, value);
 
             if (value === null || value === undefined) {
+                console.log(`DatabaseStorageUtils.getJSON: ${key} value is null/undefined, using default:`, defaultValue);
                 return defaultValue;
             }
 
             // If it's already an object, return it
             if (typeof value === 'object' && value !== null) {
+                console.log(`DatabaseStorageUtils.getJSON: ${key} is already an object with ${Array.isArray(value) ? value.length : Object.keys(value).length} items`);
                 return value;
             }
 
             // Otherwise, try to parse it
             try {
-                return JSON.parse(value);
+                const parsed = JSON.parse(value);
+                console.log(`DatabaseStorageUtils.getJSON: ${key} parsed successfully with ${Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length} items`);
+                return parsed;
             } catch (error) {
                 console.error(`Error parsing JSON for ${key}:`, error);
                 return defaultValue;
@@ -211,13 +127,6 @@ class DatabaseStorageUtils {
      * @returns {Promise<boolean>} Success status
      */
     async remove(key) {
-        if (!this.cacheLoaded) {
-            await this.loadCache();
-        }
-
-        // Remove from cache
-        delete this.cache[key];
-
         // Save to server using individual setting API
         // We set the value to null to effectively remove it
         try {
@@ -235,60 +144,55 @@ class DatabaseStorageUtils {
      * @returns {Promise<boolean>} Whether the key exists
      */
     async has(key) {
-        if (!this.cacheLoaded) {
-            await this.loadCache();
-        }
-
-        return this.cache[key] !== undefined;
+        const value = await this.get(key);
+        return value !== null && value !== undefined;
+    }
+    
+    /**
+     * Reset all internal state
+     * This should be called when a user logs out or when a new user logs in
+     * to ensure no data leakage between users
+     */
+    reset() {
+        console.log('DatabaseStorageUtils: Resetting internal state');
+        // This class doesn't maintain any cache or state that needs to be cleared,
+        // but we include this method for future-proofing and consistency
     }
 
     /**
      * Synchronous version of get for compatibility with existing code
-     * This will return cached values if available, otherwise default value
+     * This will always fetch from the API, so it's not truly synchronous
      * @param {string} key - The key to get
      * @param {*} defaultValue - Default value if not found
      * @returns {*} The value or defaultValue
      */
     getSync(key, defaultValue = null) {
-        if (!this.cacheLoaded) {
-            console.warn(`getSync called for ${key} before cache is loaded, returning default value`);
-            return defaultValue;
-        }
-
-        return this.cache[key] !== undefined ? this.cache[key] : defaultValue;
+        console.warn(`getSync called for ${key}, but this is now asynchronous. Returning default value and fetching in background.`);
+        
+        // Start a background fetch that will be available for future async calls
+        this.get(key).catch(error => {
+            console.error(`Background fetch for ${key} failed:`, error);
+        });
+        
+        return defaultValue;
     }
 
     /**
      * Synchronous version of getJSON for compatibility with existing code
-     * This will return cached values if available, otherwise default value
+     * This will always return the default value and fetch in the background
      * @param {string} key - The key to get
      * @param {*} defaultValue - Default value if not found
      * @returns {*} The parsed value or defaultValue
      */
     getJSONSync(key, defaultValue = null) {
-        try {
-            const value = this.getSync(key);
-
-            if (value === null || value === undefined) {
-                return defaultValue;
-            }
-
-            // If it's already an object, return it
-            if (typeof value === 'object' && value !== null) {
-                return value;
-            }
-
-            // Otherwise, try to parse it
-            try {
-                return JSON.parse(value);
-            } catch (error) {
-                console.error(`Error parsing JSON for ${key}:`, error);
-                return defaultValue;
-            }
-        } catch (error) {
-            console.error(`Error in getJSONSync for ${key}:`, error);
-            return defaultValue;
-        }
+        console.warn(`getJSONSync called for ${key}, but this is now asynchronous. Returning default value and fetching in background.`);
+        
+        // Start a background fetch that will be available for future async calls
+        this.getJSON(key).catch(error => {
+            console.error(`Background fetch for ${key} failed:`, error);
+        });
+        
+        return defaultValue;
     }
 }
 

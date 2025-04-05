@@ -53,6 +53,9 @@ class DatabaseService {
   createTables() {
     console.log('Creating database tables if they don\'t exist...');
     
+    // Add missing columns to existing tables if needed
+    this.addMissingColumns();
+    
     // Users table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS users (
@@ -82,7 +85,6 @@ class DatabaseService {
         dislikedMovies TEXT DEFAULT '[]',
         hiddenMovies TEXT DEFAULT '[]',
         watchHistory TEXT DEFAULT '{"movies":[],"shows":[]}',
-        settings TEXT DEFAULT '{}',
         
         -- Basic UI settings
         numRecommendations INTEGER DEFAULT 6,
@@ -98,17 +100,12 @@ class DatabaseService {
         
         -- Content preferences
         contentTypePreference TEXT DEFAULT 'tv',
-        isMovieMode INTEGER DEFAULT 0,
-        tvGenrePreferences TEXT DEFAULT '[]',
-        tvCustomVibe TEXT DEFAULT '',
-        tvLanguagePreference TEXT DEFAULT 'en',
-        movieGenrePreferences TEXT DEFAULT '[]',
-        movieCustomVibe TEXT DEFAULT '',
-        movieLanguagePreference TEXT DEFAULT 'en',
         
         -- Library settings
         useSampledLibrary INTEGER DEFAULT 0,
         librarySampleSize INTEGER DEFAULT 100,
+        useStructuredOutput INTEGER DEFAULT 0,
+        useCustomPromptOnly INTEGER DEFAULT 0,
         
         -- Plex-specific settings
         selectedPlexUserId TEXT DEFAULT '',
@@ -155,17 +152,21 @@ class DatabaseService {
         -- General preferences
         genrePreferences TEXT DEFAULT '[]',
         languagePreference TEXT DEFAULT 'en',
+        customVibe TEXT DEFAULT '',
         
         -- AI model settings
         openaiModel TEXT DEFAULT 'google/gemini-2.0-flash-exp:free',
+        temperature REAL DEFAULT 0.8,
         
         -- Recommendation history
         previousTVRecommendations TEXT DEFAULT '[]',
         currentTVRecommendations TEXT DEFAULT '[]',
-        
+        previousMovieRecommendations TEXT DEFAULT '[]',
+        currentMovieRecommendations TEXT DEFAULT '[]',
+
         -- Migration flags
         fullDatabaseStorageMigrationComplete INTEGER DEFAULT 0,
-        
+
         FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
       )
     `);
@@ -500,11 +501,12 @@ class DatabaseService {
       const userDataFiles = files.filter(file => file.endsWith('.json'));
       
       // Prepare insert statement
+      // Prepare insert statement (excluding the deprecated 'settings' column)
       const insertUserData = this.db.prepare(`
         INSERT OR REPLACE INTO user_data (
           userId, tvRecommendations, movieRecommendations, likedTV, dislikedTV, hiddenTV,
-          likedMovies, dislikedMovies, hiddenMovies, watchHistory, settings
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          likedMovies, dislikedMovies, hiddenMovies, watchHistory
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       // Process each user data file
@@ -537,8 +539,7 @@ class DatabaseService {
           JSON.stringify(userData.likedMovies || []),
           JSON.stringify(userData.dislikedMovies || []),
           JSON.stringify(userData.hiddenMovies || []),
-          JSON.stringify(userData.watchHistory || { movies: [], shows: [] }),
-          JSON.stringify(userData.settings || {})
+          JSON.stringify(userData.watchHistory || { movies: [], shows: [] })
         );
       }
       
@@ -577,11 +578,12 @@ class DatabaseService {
       }
       
       // Prepare insert statement
+      // Prepare insert statement (excluding the deprecated 'settings' column)
       const insertUserData = this.db.prepare(`
         INSERT OR REPLACE INTO user_data (
           userId, tvRecommendations, movieRecommendations, likedTV, dislikedTV, hiddenTV,
-          likedMovies, dislikedMovies, hiddenMovies, watchHistory, settings
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          likedMovies, dislikedMovies, hiddenMovies, watchHistory
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       // Migrate legacy data to the first user (usually admin)
@@ -598,8 +600,7 @@ class DatabaseService {
         JSON.stringify(legacyUserData.likedMovies || []),
         JSON.stringify(legacyUserData.dislikedMovies || []),
         JSON.stringify(legacyUserData.hiddenMovies || []),
-        JSON.stringify(legacyUserData.watchHistory || { movies: [], shows: [] }),
-        JSON.stringify(legacyUserData.settings || {})
+        JSON.stringify(legacyUserData.watchHistory || { movies: [], shows: [] })
       );
       
       console.log(`Migrated legacy user data to user: ${adminUserId}`);
@@ -776,35 +777,8 @@ class DatabaseService {
           watchHistory: {
             movies: [],
             shows: []
-          },
-          settings: {
-            numRecommendations: 6,
-            columnsCount: 3,
-            historyColumnsCount: 3,
-            historyHideExisting: true,
-            historyHideLiked: false,
-            historyHideDisliked: false,
-            historyHideHidden: true,
-            contentTypePreference: 'tv',
-            isMovieMode: false,
-            tvGenrePreferences: [],
-            tvCustomVibe: '',
-            tvLanguagePreference: 'en',
-            movieGenrePreferences: [],
-            movieCustomVibe: '',
-            movieLanguagePreference: 'en',
-            useSampledLibrary: false,
-            librarySampleSize: 100,
-            darkTheme: false,
-            selectedPlexUserId: '',
-            plexRecentLimit: 6500,
-            plexHistoryMode: 'recent',
-            plexCustomHistoryDays: 30,
-            openaiModel: '',
-            previousTVRecommendations: [],
-            currentTVRecommendations: [],
-            fullDatabaseStorageMigrationComplete: false
           }
+          // Removed settings: {} as the column is deprecated
         };
       }
       
@@ -819,8 +793,9 @@ class DatabaseService {
         dislikedMovies: JSON.parse(userData.dislikedMovies || '[]'),
         hiddenMovies: JSON.parse(userData.hiddenMovies || '[]'),
         watchHistory: JSON.parse(userData.watchHistory || '{"movies":[],"shows":[]}')
+        // Removed settings: {} initialization
       };
-      
+
       // Construct settings object from individual columns
       parsedData.settings = {
         // Basic UI settings
@@ -882,7 +857,10 @@ class DatabaseService {
         // Watch history
         watchHistoryMovies: userData.watchHistoryMovies ? JSON.parse(userData.watchHistoryMovies) : [],
         watchHistoryShows: userData.watchHistoryShows ? JSON.parse(userData.watchHistoryShows) : [],
-        
+
+        useStructuredOutput: Boolean(userData.useStructuredOutput),
+        useCustomPromptOnly: Boolean(userData.useCustomPromptOnly),
+
         // Service-specific watch history
         jellyfinWatchHistoryMovies: userData.jellyfinWatchHistoryMovies ? JSON.parse(userData.jellyfinWatchHistoryMovies) : [],
         jellyfinWatchHistoryShows: userData.jellyfinWatchHistoryShows ? JSON.parse(userData.jellyfinWatchHistoryShows) : [],
@@ -894,9 +872,11 @@ class DatabaseService {
         // General preferences
         genrePreferences: userData.genrePreferences ? JSON.parse(userData.genrePreferences) : [],
         languagePreference: userData.languagePreference || 'en',
+        customVibe: userData.customVibe || "",
         
         // AI model settings
         openaiModel: userData.openaiModel || 'google/gemini-2.0-flash-exp:free',
+        temperature: userData.temperature !== undefined ? parseFloat(userData.temperature) : 0.8,
         
         // Recommendation history
         previousTVRecommendations: JSON.parse(userData.previousTVRecommendations || '[]'),
@@ -905,11 +885,8 @@ class DatabaseService {
         // Migration flags
         fullDatabaseStorageMigrationComplete: Boolean(userData.fullDatabaseStorageMigrationComplete)
       };
-      
-      // Parse any remaining settings from the settings column for backward compatibility
-      const legacySettings = JSON.parse(userData.settings || '{}');
-      parsedData.settings = { ...parsedData.settings, ...legacySettings };
-      
+      // Removed merging with legacy settings column as it's deprecated
+
       return parsedData;
     } catch (err) {
       console.error(`Error getting user data: ${userId}`, err);
@@ -997,9 +974,7 @@ class DatabaseService {
           case 'watchHistory':
             values.push(JSON.stringify(userData.watchHistory));
             break;
-          case 'settings':
-            values.push(JSON.stringify(userData.settings));
-            break;
+          // Removed 'settings' case as the column is deprecated
           case 'numRecommendations':
             values.push(settings.numRecommendations || 6);
             break;
@@ -1053,6 +1028,12 @@ class DatabaseService {
             break;
           case 'librarySampleSize':
             values.push(settings.librarySampleSize || 100);
+            break;
+          case 'useStructuredOutput':
+            values.push(settings.useStructuredOutput ? 1 : 0);
+            break;
+          case 'useCustomPromptOnly':
+            values.push(settings.useCustomPromptOnly ? 1 : 0);
             break;
           case 'selectedPlexUserId':
             values.push(settings.selectedPlexUserId || '');
@@ -1144,8 +1125,14 @@ class DatabaseService {
           case 'languagePreference':
             values.push(settings.languagePreference || 'en');
             break;
+          case 'customVibe':
+            values.push(settings.customVibe || '');
+            break;
           case 'openaiModel':
             values.push(settings.openaiModel || 'google/gemini-2.0-flash-exp:free');
+            break;
+          case 'temperature':
+            values.push(settings.temperature !== undefined ? parseFloat(settings.temperature) : 0.8);
             break;
           case 'previousTVRecommendations':
             values.push(JSON.stringify(settings.previousTVRecommendations || []));
@@ -1527,6 +1514,119 @@ class DatabaseService {
     }
   }
   
+  // Get a specific user setting directly from the database column
+  getUserSetting(userId, settingName) {
+    try {
+      console.log(`Getting user setting ${settingName} directly from database for userId: ${userId}`);
+      
+      // Get table info to determine if this is a direct column
+      const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
+      const columnNames = tableInfo.map(col => col.name);
+      
+      // If the setting is a direct column, query it directly
+      if (columnNames.includes(settingName)) {
+        const query = `SELECT ${settingName} FROM user_data WHERE userId = ?`;
+        const row = this.db.prepare(query).get(userId);
+        
+        if (!row) {
+          console.log(`No row found for userId: ${userId}, returning default value`);
+          return null;
+        }
+        
+        const value = row[settingName];
+        console.log(`Retrieved value for ${settingName}:`, value);
+        
+        // Process the value based on its type and column name
+        return this.processSettingValue(settingName, value);
+      } else {
+        console.error(`Setting '${settingName}' is not a direct column in user_data`);
+        return null;
+      }
+    } catch (err) {
+      console.error(`Error getting user setting ${settingName} for userId: ${userId}:`, err);
+      return null;
+    }
+  }
+  
+  // Process a setting value based on its type
+  processSettingValue(settingName, value) {
+    // Handle null values
+    if (value === null || value === undefined) {
+      return null;
+    }
+    
+    // Array-type settings that need to be JSON-parsed
+    const arraySettings = [
+      'previousTVRecommendations',
+      'currentTVRecommendations',
+      'tvGenrePreferences',
+      'movieGenrePreferences',
+      'genrePreferences',
+      'watchHistoryMovies',
+      'watchHistoryShows'
+    ];
+    
+    // Boolean settings that are stored as integers
+    const booleanSettings = [
+      'useSampledLibrary',
+      'darkTheme',
+      'historyHideExisting',
+      'historyHideLiked',
+      'historyHideDisliked',
+      'historyHideHidden',
+      'isMovieMode',
+      'plexOnlyMode',
+      'jellyfinOnlyMode',
+      'tautulliOnlyMode',
+      'traktOnlyMode',
+      'useCustomPromptOnly',
+      'useStructuredOutput',
+      'fullDatabaseStorageMigrationComplete'
+    ];
+    
+    // Number settings
+    const numberSettings = [
+      'numRecommendations',
+      'columnsCount',
+      'historyColumnsCount',
+      'sampleSize',
+      'librarySampleSize',
+      'plexRecentLimit',
+      'temperature',
+      'jellyfinRecentLimit',
+      'tautulliRecentLimit',
+      'traktRecentLimit',
+      'plexCustomHistoryDays',
+      'jellyfinCustomHistoryDays',
+      'tautulliCustomHistoryDays',
+      'traktCustomHistoryDays'
+    ];
+    
+    // Handle array settings
+    if (arraySettings.includes(settingName)) {
+      try {
+        return JSON.parse(value);
+      } catch (err) {
+        console.error(`Error parsing JSON for ${settingName}:`, err);
+        return [];
+      }
+    }
+    
+    // Handle boolean settings
+    if (booleanSettings.includes(settingName)) {
+      return value === 1 || value === '1' || value === true || value === 'true';
+    }
+    
+    // Handle number settings
+    if (numberSettings.includes(settingName)) {
+      const num = Number(value);
+      return isNaN(num) ? value : num; // Return original value if conversion fails
+    }
+    
+    // Return as-is for other settings
+    return value;
+  }
+  
   // Update a specific user setting directly in the database column
   updateUserSetting(userId, settingName, value) {
     try {
@@ -1607,7 +1707,7 @@ class DatabaseService {
           console.log(`Extracted boolean from object for ${settingName}: ${processedValue}`);
         } else if (processedValue === 1 || processedValue === 0 || processedValue === '1' || processedValue === '0') {
           // Already in the right format, just ensure it's a number
-          processedValue = parseInt(processedValue, 10);
+          processedValue = parseInt(processedValue);
           console.log(`Normalized integer boolean for ${settingName}: ${processedValue}`);
         } else {
           // Default to false for any other values
@@ -1618,14 +1718,22 @@ class DatabaseService {
       
       // Handle array settings
       if (arraySettings.includes(settingName)) {
+        // Handle null values for array settings
+        if (processedValue === null) {
+          processedValue = JSON.stringify([]);
+          console.log(`Converted null to empty array for ${settingName}: ${processedValue}`);
+        }
         // Ensure arrays are properly JSON-stringified
-        if (Array.isArray(processedValue)) {
+        else if (Array.isArray(processedValue)) {
           processedValue = JSON.stringify(processedValue);
           console.log(`JSON-stringified array value for ${settingName}: ${processedValue.substring(0, 50)}...`);
         } else if (typeof processedValue === 'object' && processedValue !== null) {
           // If it's an object with a value property (from API), extract the value
           if (processedValue.value !== undefined) {
-            if (Array.isArray(processedValue.value)) {
+            if (processedValue.value === null) {
+              processedValue = JSON.stringify([]);
+              console.log(`Converted null object.value to empty array for ${settingName}: ${processedValue}`);
+            } else if (Array.isArray(processedValue.value)) {
               processedValue = JSON.stringify(processedValue.value);
               console.log(`JSON-stringified array from object.value for ${settingName}: ${processedValue.substring(0, 50)}...`);
             } else {
@@ -1658,39 +1766,70 @@ class DatabaseService {
       
       let result;
       
+      // Final processing to ensure SQLite compatibility
+      // SQLite can only bind numbers, strings, bigints, buffers, and null
+      if (typeof processedValue === 'object' && processedValue !== null && !(processedValue instanceof Buffer)) {
+        try {
+          processedValue = JSON.stringify(processedValue);
+          console.log(`Final JSON-stringify for SQLite compatibility: ${settingName}`);
+        } catch (e) {
+          console.error(`Failed to stringify object for SQLite binding:`, e);
+          return false;
+        }
+      }
+      
       // If the setting is a direct column in the database, update it directly
       if (columnNames.includes(settingName)) {
-        console.log(`Updating column ${settingName} directly in database`);
+        console.log(`Updating column ${settingName} directly in database with type: ${typeof processedValue}`);
         const sql = `UPDATE user_data SET ${settingName} = ? WHERE userId = ?`;
         result = this.db.prepare(sql).run(processedValue, userId);
       } else {
-        console.log(`${settingName} is not a direct column, updating in settings JSON`);
-        // If not a direct column, update it in the settings JSON
-        const userData = this.getUserData(userId);
-        if (!userData || !userData.settings) {
-          console.error(`No user data or settings found for userId: ${userId}`);
-          return false;
-        }
-        
-        // Update the setting in the settings object
-        userData.settings[settingName] = processedValue;
-        const settingsJson = JSON.stringify(userData.settings);
-        result = this.db.prepare('UPDATE user_data SET settings = ? WHERE userId = ?').run(settingsJson, userId);
+        // If the setting is not a direct column, it's an error because the 'settings' JSON column is deprecated.
+        console.error(`Attempted to update setting '${settingName}' which is not a direct column in user_data. The 'settings' JSON column is deprecated.`);
+        return false;
       }
-      
-      // Always update the settings JSON for backward compatibility
-      const userData = this.getUserData(userId);
-      if (userData && userData.settings) {
-        userData.settings[settingName] = processedValue;
-        const settingsJson = JSON.stringify(userData.settings);
-        this.db.prepare('UPDATE user_data SET settings = ? WHERE userId = ?').run(settingsJson, userId);
-      }
-      
+
       console.log(`Updated ${settingName} for userId: ${userId}, changes: ${result ? result.changes : 0}`);
       return result && result.changes > 0;
     } catch (err) {
       console.error(`Error updating user setting ${settingName} for userId: ${userId}:`, err);
       return false;
+    }
+  }
+  // Add missing columns to existing tables
+  addMissingColumns() {
+    try {
+      console.log('Checking for missing columns in the database...');
+      
+      // Get table info to see which columns already exist
+      const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
+      const existingColumns = tableInfo.map(col => col.name);
+      
+      // Define columns we need to ensure exist
+      const requiredColumns = [
+        {
+          name: 'previousMovieRecommendations',
+          type: 'TEXT',
+          default: "'[]'"
+        },
+        {
+          name: 'currentMovieRecommendations',
+          type: 'TEXT',
+          default: "'[]'"
+        }
+      ];
+      
+      // Add any missing columns
+      for (const column of requiredColumns) {
+        if (!existingColumns.includes(column.name)) {
+          console.log(`Adding missing column ${column.name} to user_data table`);
+          const sql = `ALTER TABLE user_data ADD COLUMN ${column.name} ${column.type} DEFAULT ${column.default}`;
+          this.db.exec(sql);
+          console.log(`Added column ${column.name} successfully`);
+        }
+      }
+    } catch (err) {
+      console.error('Error adding missing columns:', err);
     }
   }
 }

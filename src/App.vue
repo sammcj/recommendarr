@@ -832,7 +832,31 @@ export default {
       }
       
       try {
-        const lastRefresh = new Date(timestamp);
+        let dateToUse = timestamp;
+        
+        // Check if the timestamp is in the format {"date":""}
+        if (timestamp.startsWith('{') && timestamp.endsWith('}')) {
+          try {
+            // Try to parse it as JSON first
+            const parsedObj = JSON.parse(timestamp);
+            // Get the first key which should be the timestamp
+            const keys = Object.keys(parsedObj);
+            if (keys.length > 0) {
+              dateToUse = keys[0];
+              console.log(`Extracted timestamp from object: ${dateToUse}`);
+            }
+          } catch (jsonError) {
+            // If it's not valid JSON but still has the format "{"date":""}"
+            // Try to extract the date using regex
+            const dateMatch = timestamp.match(/"(.*?)"/);
+            if (dateMatch && dateMatch[1]) {
+              dateToUse = dateMatch[1];
+              console.log(`Extracted timestamp using regex: ${dateToUse}`);
+            }
+          }
+        }
+        
+        const lastRefresh = new Date(dateToUse);
         const now = new Date();
         const hoursSinceRefresh = (now - lastRefresh) / (1000 * 60 * 60);
         

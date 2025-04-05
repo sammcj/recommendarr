@@ -407,4 +407,9 @@ class UserDataManager {
   }
 }
 
-module.exports = new UserDataManager();
+// Create a singleton instance
+const userDataManager = new UserDataManager();
+
+// Export both the instance and the createDefaultUserData function
+module.exports = userDataManager;
+module.exports.createDefaultUserData = createDefaultUserData;

@@ -49,7 +49,8 @@ class AuthService {
           // Also create default user data for the admin user
           const userDataManager = require('./userDataManager');
           console.log('Creating default user data entry for admin...');
-          await userDataManager.getUserData('admin'); // This will create default data if none exists
+          const defaultData = userDataManager.createDefaultUserData();
+          await userDataManager.saveUserData('admin', defaultData);
         } catch (createErr) {
           console.error('Error creating default admin user:', createErr);
         }
@@ -130,7 +131,8 @@ class AuthService {
       // Create default user data entry for this user
       const userDataManager = require('./userDataManager');
       console.log('Creating default user data entry...');
-      await userDataManager.getUserData(userId); // This will create default data if none exists
+      const defaultData = userDataManager.createDefaultUserData();
+      await userDataManager.saveUserData(userId, defaultData);
       
       console.log(`User ${username} created successfully`);
       return { 
@@ -250,7 +252,8 @@ class AuthService {
     if (isNewUser) {
       const userDataManager = require('./userDataManager');
       console.log('Creating default user data entry for new OAuth user...');
-      await userDataManager.getUserData(user.userId); // This will create default data if none exists
+      const defaultData = userDataManager.createDefaultUserData();
+      await userDataManager.saveUserData(user.userId, defaultData);
     }
     
     return user;
@@ -374,7 +377,7 @@ class AuthService {
     if (updates.email) fullUser.email = updates.email;
     
     // Only admins can change admin status
-    if (updates.hasOwnProperty('isAdmin') && updates.isAdmin !== undefined) {
+    if (Object.prototype.hasOwnProperty.call(updates, 'isAdmin') && updates.isAdmin !== undefined) {
       // This will be checked in the route handler
       fullUser.isAdmin = !!updates.isAdmin;
     }

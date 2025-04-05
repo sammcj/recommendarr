@@ -60,13 +60,25 @@ constructor() {
     if (!this.recommendationsStore) return;
     
     // Sync all relevant settings
+    // For string/number values, use || fallback
     this.model = this.recommendationsStore.state.selectedModel || this.model;
     this.temperature = this.recommendationsStore.state.temperature || this.temperature;
-    this.useSampledLibrary = this.recommendationsStore.state.useSampledLibrary || this.useSampledLibrary;
     this.sampleSize = this.recommendationsStore.state.sampleSize || this.sampleSize;
-    this.useStructuredOutput = this.recommendationsStore.state.useStructuredOutput || this.useStructuredOutput;
-    this.useCustomPromptOnly = this.recommendationsStore.state.useCustomPromptOnly || this.useCustomPromptOnly;
     this.promptStyle = this.recommendationsStore.state.promptStyle || this.promptStyle;
+    
+    // For boolean values, check if they're defined before assigning
+    // This ensures false values are properly synchronized
+    if (this.recommendationsStore.state.useSampledLibrary !== undefined) {
+      this.useSampledLibrary = this.recommendationsStore.state.useSampledLibrary;
+    }
+    
+    if (this.recommendationsStore.state.useStructuredOutput !== undefined) {
+      this.useStructuredOutput = this.recommendationsStore.state.useStructuredOutput;
+    }
+    
+    if (this.recommendationsStore.state.useCustomPromptOnly !== undefined) {
+      this.useCustomPromptOnly = this.recommendationsStore.state.useCustomPromptOnly;
+    }
     
     console.log('OpenAIService: Synced settings from store', {
       model: this.model,
@@ -196,6 +208,107 @@ constructor() {
       }
     } catch (error) {
       console.error('Error saving useCustomPromptOnly to store:', error);
+    }
+  }
+  
+  /**
+   * Set the useStructuredOutput flag and save it to the store
+   * @param {boolean} value - Whether to use structured output for API requests
+   */
+  async setUseStructuredOutput(value) {
+    this.useStructuredOutput = value === true;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateStructuredOutput(value);
+        console.log(`OpenAIService: Saved useStructuredOutput to store: ${value}`);
+      }
+    } catch (error) {
+      console.error('Error saving useStructuredOutput to store:', error);
+    }
+  }
+  
+  /**
+   * Set the model and save it to the store
+   * @param {string} model - The model to use
+   */
+  async setModel(model) {
+    if (!model) return;
+    
+    this.model = model;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSelectedModel(model);
+        console.log(`OpenAIService: Saved model to store: ${model}`);
+      }
+    } catch (error) {
+      console.error('Error saving model to store:', error);
+    }
+  }
+  
+  /**
+   * Set the temperature and save it to the store
+   * @param {number} value - The temperature for API requests
+   */
+  async setTemperature(value) {
+    if (value === null || value === undefined) return;
+    
+    this.temperature = parseFloat(value);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateTemperature(this.temperature);
+        console.log(`OpenAIService: Saved temperature to store: ${this.temperature}`);
+      }
+    } catch (error) {
+      console.error('Error saving temperature to store:', error);
+    }
+  }
+  
+  /**
+   * Set the useSampledLibrary flag and save it to the store
+   * @param {boolean} value - Whether to use sampled library
+   */
+  async setUseSampledLibrary(value) {
+    this.useSampledLibrary = value === true;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSampledLibrary(value);
+        console.log(`OpenAIService: Saved useSampledLibrary to store: ${value}`);
+      }
+    } catch (error) {
+      console.error('Error saving useSampledLibrary to store:', error);
+    }
+  }
+  
+  /**
+   * Set the sample size and save it to the store
+   * @param {number} value - The sample size for library sampling
+   */
+  async setSampleSize(value) {
+    if (value === null || value === undefined) return;
+    
+    this.sampleSize = parseInt(value);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSampleSize(this.sampleSize);
+        console.log(`OpenAIService: Saved sampleSize to store: ${this.sampleSize}`);
+      }
+    } catch (error) {
+      console.error('Error saving sampleSize to store:', error);
     }
   }
   
@@ -853,62 +966,42 @@ From these insights, recommend series that evoke comparable emotional states and
     // Ensure the store is initialized
     await this.ensureSettings();
     
-    if (model) {
-      this.model = model;
-      // Update model in the store
-      if (this.recommendationsStore) {
-        await this.recommendationsStore.updateSelectedModel(model);
-      }
-    }
-    
+    // Update base URL directly as it's not stored in the recommendations store
     if (baseUrl) {
       // Normalize the base URL by removing trailing slashes
       this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
       this.apiUrl = this.getCompletionsUrl();
     }
     
+    // Max tokens is also not stored in the recommendations store
     if (maxTokens !== null) {
       this.maxTokens = maxTokens;
     }
     
+    // Use setter methods for all values that should be synchronized with the store
+    // This ensures proper two-way synchronization
+    if (model) {
+      await this.setModel(model);
+    }
+    
     if (temperature !== null) {
-      this.temperature = temperature;
-      // Update temperature in the store
-      if (this.recommendationsStore) {
-        await this.recommendationsStore.updateTemperature(temperature);
-      }
+      await this.setTemperature(temperature);
     }
     
     if (useSampledLibrary !== null) {
-      this.useSampledLibrary = useSampledLibrary;
-      // Update sampled library setting in the store
-      if (this.recommendationsStore) {
-        await this.recommendationsStore.updateSampledLibrary(useSampledLibrary);
-      }
+      await this.setUseSampledLibrary(useSampledLibrary);
     }
     
     if (sampleSize !== null) {
-      this.sampleSize = sampleSize;
-      // Update sample size in the store
-      if (this.recommendationsStore) {
-        await this.recommendationsStore.updateSampleSize(sampleSize);
-      }
+      await this.setSampleSize(sampleSize);
     }
     
     if (useStructuredOutput !== null) {
-      this.useStructuredOutput = useStructuredOutput;
-      // Update structured output setting in the store
-      if (this.recommendationsStore) {
-        await this.recommendationsStore.updateStructuredOutput(useStructuredOutput);
-      }
+      await this.setUseStructuredOutput(useStructuredOutput);
     }
     
     if (useCustomPromptOnly !== null) {
-      this.useCustomPromptOnly = useCustomPromptOnly;
-      // Update custom prompt only setting in the store
-      if (this.recommendationsStore) {
-        await this.recommendationsStore.updateCustomPromptOnly(useCustomPromptOnly);
-      }
+      await this.setUseCustomPromptOnly(useCustomPromptOnly);
     }
     
     // Store credentials server-side (including model selection as backup)
@@ -917,6 +1010,16 @@ From these insights, recommend series that evoke comparable emotional states and
       apiUrl: this.baseUrl,
       model: this.model,
       maxTokens: this.maxTokens,
+      temperature: this.temperature,
+      useSampledLibrary: this.useSampledLibrary,
+      sampleSize: this.sampleSize,
+      useStructuredOutput: this.useStructuredOutput,
+      useCustomPromptOnly: this.useCustomPromptOnly
+    });
+    
+    console.log('OpenAIService: Configuration completed with all settings synced to store');
+    console.log('OpenAIService: Current settings:', {
+      model: this.model,
       temperature: this.temperature,
       useSampledLibrary: this.useSampledLibrary,
       sampleSize: this.sampleSize,
@@ -970,6 +1073,10 @@ From these insights, recommend series that evoke comparable emotional states and
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
     
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activePromptStyle = promptStyle || this.promptStyle;
@@ -1229,6 +1336,10 @@ CRITICAL REQUIREMENTS:
       }
     }
     
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getMovieRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
+    
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activePromptStyle = promptStyle || this.promptStyle;
 
@@ -1486,6 +1597,10 @@ CRITICAL REQUIREMENTS:
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getAdditionalTVRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
 
     try {
       // Ensure count is within reasonable bounds
@@ -1561,6 +1676,10 @@ CRITICAL REQUIREMENTS:
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    console.log('OpenAIService.getAdditionalMovieRecommendations: Settings synced, useStructuredOutput=', this.useStructuredOutput, 'useCustomPromptOnly=', this.useCustomPromptOnly);
 
     try {
       // Ensure count is within reasonable bounds
@@ -1623,8 +1742,12 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of formatted recommendations
    */
   async getFormattedRecommendationsWithConversation(conversation) {
+    // Ensure settings are loaded and synced before making the API request
+    await this.ensureSettings();
+    
     console.log("API URL:", this.apiUrl);
     console.log("Model:", this.model);
+    console.log("Using structured output:", this.useStructuredOutput);
     
     try {
       // Check if conversation is getting too large and reset if needed

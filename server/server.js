@@ -537,7 +537,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
   
   try {
-    // Create new user
+    // Create new user - this also creates a default user_data entry
     const result = await authService.createUser(username, password);
     
     if (result.success) {
@@ -697,7 +697,7 @@ app.post('/api/auth/users', async (req, res) => {
   }
   
   try {
-    // Create new user
+    // Create new user (createUser now also creates user_data entry)
     const result = await authService.createUser(username, password, isAdmin);
     
     if (result.success) {

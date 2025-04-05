@@ -45,6 +45,11 @@ class AuthService {
           
           databaseService.saveUser(adminUser);
           console.log('Created default admin user with password "1234"');
+          
+          // Also create default user data for the admin user
+          const userDataManager = require('./userDataManager');
+          console.log('Creating default user data entry for admin...');
+          await userDataManager.getUserData('admin'); // This will create default data if none exists
         } catch (createErr) {
           console.error('Error creating default admin user:', createErr);
         }
@@ -122,6 +127,11 @@ class AuthService {
       console.log('Saving user to database...');
       databaseService.saveUser(user);
       
+      // Create default user data entry for this user
+      const userDataManager = require('./userDataManager');
+      console.log('Creating default user data entry...');
+      await userDataManager.getUserData(userId); // This will create default data if none exists
+      
       console.log(`User ${username} created successfully`);
       return { 
         success: true, 
@@ -180,8 +190,10 @@ class AuthService {
       }
     }
     
+    let isNewUser = false;
     // If user doesn't exist, create a new one
     if (!user) {
+      isNewUser = true;
       console.log(`Creating new user from ${provider} OAuth profile`);
       
       // Generate a username from the profile
@@ -232,6 +244,13 @@ class AuthService {
       
       console.log(`Created new OAuth user: ${username}`);
       user = newUser;
+    }
+    
+    // If this is a new user, create default user data entry
+    if (isNewUser) {
+      const userDataManager = require('./userDataManager');
+      console.log('Creating default user data entry for new OAuth user...');
+      await userDataManager.getUserData(user.userId); // This will create default data if none exists
     }
     
     return user;

@@ -1270,7 +1270,19 @@ app.get('/api/settings/:settingName', async (req, res) => {
   try {
     // Get the setting value directly from the database
     // This bypasses any caching issues and ensures we get the actual stored value
-    const value = await databaseService.getUserSetting(userId, settingName);
+    console.log(`Looking up setting ${settingName} for user ${userId}`);
+    let value;
+    
+    // Special case handling for recommendations
+    if (settingName === 'tvRecommendations' || settingName === 'movieRecommendations') {
+      // Get from user data directly
+      const userData = await userDataManager.getUserData(userId);
+      value = userData[settingName] || [];
+      console.log(`Direct userData lookup for ${settingName}: found ${Array.isArray(value) ? value.length : 0} items`);
+    } else {
+      // Use regular user setting lookup
+      value = await databaseService.getUserSetting(userId, settingName);
+    }
     
     console.log(`Retrieved value for ${settingName} directly from database:`, value);
     

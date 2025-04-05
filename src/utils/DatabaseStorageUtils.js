@@ -69,20 +69,26 @@ class DatabaseStorageUtils {
      */
     async getJSON(key, defaultValue = null) {
         try {
+            console.log(`DatabaseStorageUtils.getJSON: fetching ${key}`);
             const value = await this.get(key);
+            console.log(`DatabaseStorageUtils.getJSON: received ${key}:`, value);
 
             if (value === null || value === undefined) {
+                console.log(`DatabaseStorageUtils.getJSON: ${key} value is null/undefined, using default:`, defaultValue);
                 return defaultValue;
             }
 
             // If it's already an object, return it
             if (typeof value === 'object' && value !== null) {
+                console.log(`DatabaseStorageUtils.getJSON: ${key} is already an object with ${Array.isArray(value) ? value.length : Object.keys(value).length} items`);
                 return value;
             }
 
             // Otherwise, try to parse it
             try {
-                return JSON.parse(value);
+                const parsed = JSON.parse(value);
+                console.log(`DatabaseStorageUtils.getJSON: ${key} parsed successfully with ${Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length} items`);
+                return parsed;
             } catch (error) {
                 console.error(`Error parsing JSON for ${key}:`, error);
                 return defaultValue;

@@ -85,7 +85,14 @@ const state = reactive({
 const getters = {
   // Get the current previous recommendations based on mode
   previousRecommendations: computed(() => {
-    return state.isMovieMode ? state.previousMovieRecommendations : state.previousShowRecommendations;
+    const recs = state.isMovieMode ? state.previousMovieRecommendations : state.previousShowRecommendations;
+    console.log(`RecommendationsStore.previousRecommendations computed property:`, {
+      isMovieMode: state.isMovieMode,
+      movieRecs: state.previousMovieRecommendations ? state.previousMovieRecommendations.length : 0,
+      tvRecs: state.previousShowRecommendations ? state.previousShowRecommendations.length : 0,
+      returnedRecs: recs ? recs.length : 0
+    });
+    return recs || [];
   }),
   
   // Check if any watch history provider is configured to use only mode
@@ -322,53 +329,88 @@ const actions = {
     try {
       console.log('RecommendationsStore: Loading recommendation history from server');
       
-      // Load TV show recommendations
-      const tvRecsResponse = await apiService.getRecommendations('tv');
-      if (Array.isArray(tvRecsResponse)) {
-        if (tvRecsResponse.length > 0 && typeof tvRecsResponse[0] === 'string') {
-          // Simple array of titles
-          state.previousShowRecommendations = tvRecsResponse;
-        } else if (tvRecsResponse.length > 0) {
-          // Extract titles from full recommendation objects
-          const extractedTitles = tvRecsResponse
-            .map(rec => typeof rec === 'string' ? rec : rec.title)
-            .filter(title => !!title);
-          state.previousShowRecommendations = extractedTitles;
-        } else {
-          state.previousShowRecommendations = [];
+      // Load directly from storage via API settings
+      try {
+        // Get tvRecommendations directly
+        console.log('RecommendationsStore: Getting TV recommendations from storage');
+        const tvRecs = await databaseStorageUtils.getJSON('tvRecommendations', []);
+        console.log('RecommendationsStore: TV recommendations from storage:', tvRecs ? tvRecs.length : 0);
+        if (Array.isArray(tvRecs) && tvRecs.length > 0) {
+          state.previousShowRecommendations = tvRecs;
         }
+        
+        // Get movieRecommendations directly
+        console.log('RecommendationsStore: Getting movie recommendations from storage');
+        const movieRecs = await databaseStorageUtils.getJSON('movieRecommendations', []);
+        console.log('RecommendationsStore: Movie recommendations from storage:', movieRecs ? movieRecs.length : 0);
+        if (Array.isArray(movieRecs) && movieRecs.length > 0) {
+          state.previousMovieRecommendations = movieRecs;
+        }
+      } catch (storageError) {
+        console.error('Error loading from storage directly:', storageError);
       }
-      console.log('RecommendationsStore: Loaded', state.previousShowRecommendations.length, 'TV recommendations');
       
-      // Load movie recommendations
-      const movieRecsResponse = await apiService.getRecommendations('movie');
-      if (Array.isArray(movieRecsResponse)) {
-        if (movieRecsResponse.length > 0 && typeof movieRecsResponse[0] === 'string') {
-          // Simple array of titles
-          state.previousMovieRecommendations = movieRecsResponse;
-        } else if (movieRecsResponse.length > 0) {
-          // Extract titles from full recommendation objects
-          const extractedTitles = movieRecsResponse
-            .map(rec => typeof rec === 'string' ? rec : rec.title)
-            .filter(title => !!title);
-          state.previousMovieRecommendations = extractedTitles;
-        } else {
-          state.previousMovieRecommendations = [];
+      // Fallback to API if storage didn't work or returned empty
+      if (!state.previousShowRecommendations.length || !state.previousMovieRecommendations.length) {
+        console.log('RecommendationsStore: Falling back to API for empty recommendations');
+        
+        // Load TV show recommendations
+        const tvRecsResponse = await apiService.getRecommendations('tv');
+        if (Array.isArray(tvRecsResponse)) {
+          if (tvRecsResponse.length > 0 && typeof tvRecsResponse[0] === 'string') {
+            // Simple array of titles
+            state.previousShowRecommendations = tvRecsResponse;
+          } else if (tvRecsResponse.length > 0) {
+            // Extract titles from full recommendation objects
+            const extractedTitles = tvRecsResponse
+              .map(rec => typeof rec === 'string' ? rec : rec.title)
+              .filter(title => !!title);
+            state.previousShowRecommendations = extractedTitles;
+          } else {
+            state.previousShowRecommendations = [];
+          }
+        }
+        
+        // Load movie recommendations
+        const movieRecsResponse = await apiService.getRecommendations('movie');
+        if (Array.isArray(movieRecsResponse)) {
+          if (movieRecsResponse.length > 0 && typeof movieRecsResponse[0] === 'string') {
+            // Simple array of titles
+            state.previousMovieRecommendations = movieRecsResponse;
+          } else if (movieRecsResponse.length > 0) {
+            // Extract titles from full recommendation objects
+            const extractedTitles = movieRecsResponse
+              .map(rec => typeof rec === 'string' ? rec : rec.title)
+              .filter(title => !!title);
+            state.previousMovieRecommendations = extractedTitles;
+          } else {
+            state.previousMovieRecommendations = [];
+          }
         }
       }
-      console.log('RecommendationsStore: Loaded', state.previousMovieRecommendations.length, 'movie recommendations');
+      
+      console.log('RecommendationsStore: Final state -', 
+                  'TV:', state.previousShowRecommendations.length, 
+                  'Movie:', state.previousMovieRecommendations.length);
     } catch (error) {
       console.error('Error loading recommendation history:', error);
       
-      // Fallback to localStorage
-      const savedTVRecs = await databaseStorageUtils.getJSON('tvRecommendations');
-      if (savedTVRecs && Array.isArray(savedTVRecs)) {
-        state.previousShowRecommendations = savedTVRecs;
-      }
-      
-      const savedMovieRecs = await databaseStorageUtils.getJSON('movieRecommendations');
-      if (savedMovieRecs && Array.isArray(savedMovieRecs)) {
-        state.previousMovieRecommendations = savedMovieRecs;
+      // Fallback to localStorage one last time if nothing else worked
+      try {
+        console.log('RecommendationsStore: Final fallback to storage');
+        const savedTVRecs = await databaseStorageUtils.getJSON('tvRecommendations', []);
+        if (savedTVRecs && Array.isArray(savedTVRecs)) {
+          console.log('RecommendationsStore: Final TV fallback found', savedTVRecs.length, 'items');
+          state.previousShowRecommendations = savedTVRecs;
+        }
+        
+        const savedMovieRecs = await databaseStorageUtils.getJSON('movieRecommendations', []);
+        if (savedMovieRecs && Array.isArray(savedMovieRecs)) {
+          console.log('RecommendationsStore: Final movie fallback found', savedMovieRecs.length, 'items');
+          state.previousMovieRecommendations = savedMovieRecs;
+        }
+      } catch (finalError) {
+        console.error('Final fallback failed:', finalError);
       }
     }
   },

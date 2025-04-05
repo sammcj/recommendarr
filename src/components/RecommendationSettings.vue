@@ -947,10 +947,12 @@ export default {
       return recommendationsStore.state.traktOnlyMode;
     },
     previousRecommendations() {
-      // This will get the store's computed property which returns the correct array based on isMovieMode
-      const recs = recommendationsStore.previousRecommendations;
-      console.log('RecommendationSettings previousRecommendations computed property - count:', recs.length);
-      return recs;
+      // Directly access the appropriate array based on content type
+      if (this.isMovieMode) {
+        return recommendationsStore.state.previousMovieRecommendations || [];
+      } else {
+        return recommendationsStore.state.previousShowRecommendations || [];
+      }
     }
   },
   props: {

@@ -978,6 +978,81 @@ const actions = {
     if (section in state) {
       state[section] = !state[section];
     }
+  },
+  
+  /**
+   * Reset the store to its initial state
+   * This should be called when a user logs out or when a new user logs in
+   */
+  resetStore() {
+    console.log('RecommendationsStore: Resetting store to initial state');
+    
+    // Reset all state to default values
+    state.selectedModel = '';
+    state.customModel = '';
+    state.temperature = 0.7;
+    state.useStructuredOutput = false;
+    
+    state.isMovieMode = false;
+    
+    state.useSampledLibrary = false;
+    state.sampleSize = 100;
+    
+    state.numRecommendations = 10;
+    state.columnsCount = 5;
+    
+    state.selectedGenres = [];
+    state.promptStyle = 'vibe';
+    state.customVibe = '';
+    state.useCustomPromptOnly = false;
+    state.selectedLanguage = '';
+    
+    state.plexUseHistory = true;
+    state.plexHistoryMode = 'all';
+    state.plexCustomHistoryDays = 30;
+    state.plexOnlyMode = false;
+    
+    state.jellyfinUseHistory = true;
+    state.jellyfinHistoryMode = 'all';
+    state.jellyfinCustomHistoryDays = 30;
+    state.jellyfinOnlyMode = false;
+    
+    state.tautulliUseHistory = true;
+    state.tautulliHistoryMode = 'all';
+    state.tautulliCustomHistoryDays = 30;
+    state.tautulliOnlyMode = false;
+    
+    state.traktUseHistory = true;
+    state.traktHistoryMode = 'all';
+    state.traktCustomHistoryDays = 30;
+    state.traktOnlyMode = false;
+    
+    state.previousShowRecommendations = [];
+    state.previousMovieRecommendations = [];
+    state.likedRecommendations = [];
+    state.dislikedRecommendations = [];
+    
+    // Reset UI state
+    state.settingsExpanded = false;
+    state.configurationExpanded = true;
+    state.recNumberExpanded = true;
+    state.postersPerRowExpanded = true;
+    state.genrePreferencesExpanded = true;
+    state.customVibeExpanded = true;
+    state.contentLanguageExpanded = true;
+    state.plexHistoryExpanded = true;
+    state.jellyfinHistoryExpanded = true;
+    state.tautulliHistoryExpanded = true;
+    state.traktHistoryExpanded = true;
+    
+    // Reset loading state to force reinitialization
+    state.isLoading = false;
+    state.loadingComplete = false;
+    
+    // Reset initialization flag
+    initialized.value = false;
+    
+    console.log('RecommendationsStore: Store reset complete');
   }
 };
 

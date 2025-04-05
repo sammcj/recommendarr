@@ -143,6 +143,20 @@ export default {
       let isAuthenticated = await AuthService.verifySession();
       if (isAuthenticated) {
         console.log('Session verified with server on first attempt');
+        
+        // Import and reset RecommendationsStore first to ensure clean state
+        try {
+          const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+          const RecommendationsStore = RecommendationsStoreModule.default;
+          
+          if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+            console.log('RecommendationsStore: Forcing reset before authentication event');
+            RecommendationsStore.resetStore();
+          }
+        } catch (resetError) {
+          console.error('Error resetting RecommendationsStore:', resetError);
+        }
+        
         this.$emit('authenticated');
         return;
       }
@@ -168,6 +182,20 @@ export default {
         
         if (isAuthenticated) {
           console.log('OAuth login successful');
+          
+          // Import and reset RecommendationsStore first to ensure clean state
+          try {
+            const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+            const RecommendationsStore = RecommendationsStoreModule.default;
+            
+            if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+              console.log('RecommendationsStore: Forcing reset before authentication event after OAuth login');
+              RecommendationsStore.resetStore();
+            }
+          } catch (resetError) {
+            console.error('Error resetting RecommendationsStore after OAuth login:', resetError);
+          }
+          
           // Clean up URL and emit authenticated event
           window.history.replaceState({}, document.title, window.location.pathname);
           this.$emit('authenticated');
@@ -209,6 +237,19 @@ export default {
       try {
         // Attempt login
         await AuthService.login(this.username, this.password);
+        
+        // Import and reset RecommendationsStore first to ensure clean state
+        try {
+          const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+          const RecommendationsStore = RecommendationsStoreModule.default;
+          
+          if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+            console.log('RecommendationsStore: Forcing reset before authentication event');
+            RecommendationsStore.resetStore();
+          }
+        } catch (resetError) {
+          console.error('Error resetting RecommendationsStore:', resetError);
+        }
         
         // On success, emit the authenticated event
         this.$emit('authenticated');

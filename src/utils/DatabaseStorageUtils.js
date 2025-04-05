@@ -7,7 +7,8 @@ import AuthService from '../services/AuthService';
  * This utility provides a similar API to StorageUtils but uses the database
  * instead of localStorage for persistent storage.
  * 
- * This version does not use any caching to prevent settings overwrite issues.
+ * This version does not use any caching to prevent settings overwrite issues
+ * and to ensure data is properly isolated between users.
  */
 class DatabaseStorageUtils {
     /**
@@ -145,6 +146,17 @@ class DatabaseStorageUtils {
     async has(key) {
         const value = await this.get(key);
         return value !== null && value !== undefined;
+    }
+    
+    /**
+     * Reset all internal state
+     * This should be called when a user logs out or when a new user logs in
+     * to ensure no data leakage between users
+     */
+    reset() {
+        console.log('DatabaseStorageUtils: Resetting internal state');
+        // This class doesn't maintain any cache or state that needs to be cleared,
+        // but we include this method for future-proofing and consistency
     }
 
     /**

@@ -360,6 +360,18 @@ class ApiService {
    * @param {Object} user - User information
    */
   setCurrentUser(user) {
+    // Check if user is changing
+    const userChanged = 
+      (!this.currentUser && user) || 
+      (this.currentUser && !user) ||
+      (this.currentUser && user && this.currentUser.userId !== user.userId);
+    
+    if (userChanged) {
+      console.log('ApiService: User changed, resetting caches and state...');
+      
+      // Clear any internal caches or state here if implemented in the future
+    }
+    
     this.currentUser = user;
   }
 

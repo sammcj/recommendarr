@@ -300,9 +300,10 @@ class AuthService {
     try {
       localStorage.removeItem('auth_token'); // For backward compatibility
       localStorage.removeItem('auth_user');
+      localStorage.removeItem('auth_timestamp');
       
       // Clear any other application data that might be stored
-      const keysToKeep = ['theme']; // User preferences to keep
+      const keysToKeep = ['darkTheme']; // User preferences to keep
       const keysToRemove = [];
       
       // Find all localStorage keys to remove
@@ -331,6 +332,32 @@ class AuthService {
     
     // Clear the current user in ApiService
     ApiService.setCurrentUser(null);
+    
+    // Reset any in-memory stores to prevent data leakage
+    try {
+      console.log('Resetting global stores and utilities...');
+      
+      // Import and reset stores to avoid circular dependencies
+      import('../stores/RecommendationsStore').then(module => {
+        const RecommendationsStore = module.default;
+        if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+          console.log('Resetting RecommendationsStore...');
+          RecommendationsStore.resetStore();
+        }
+      }).catch(err => console.error('Failed to reset RecommendationsStore:', err));
+      
+      // Reset database utilities
+      import('../utils/DatabaseStorageUtils').then(module => {
+        const DatabaseStorageUtils = module.default;
+        if (DatabaseStorageUtils && typeof DatabaseStorageUtils.reset === 'function') {
+          console.log('Resetting DatabaseStorageUtils...');
+          DatabaseStorageUtils.reset();
+        }
+      }).catch(err => console.error('Failed to reset DatabaseStorageUtils:', err));
+      
+    } catch (error) {
+      console.error('Error resetting application state:', error);
+    }
     
     console.log('Local authentication data cleared successfully');
   }

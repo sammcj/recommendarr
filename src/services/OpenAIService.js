@@ -2499,15 +2499,38 @@ CRITICAL REQUIREMENTS:
     }
 
     // Prepare library items for comparison
-    const libraryTitles = libraryItems.map(item => {
+    const libraryTitles = Array.isArray(libraryItems) ? libraryItems.map(item => {
       if (typeof item === 'string') return item;
       // Handle different possible structures for library items
       return item.title || item.name || (item.attributes && item.attributes.title) || '';
-    }).filter(title => title); // Remove any empty titles
+    }).filter(title => title) : []; // Remove any empty titles
     
-    const likedTitles = likedItems.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
-    const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
-    const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title || '').filter(title => title);
+    const likedTitles = Array.isArray(likedItems) ? likedItems.map(item => 
+      typeof item === 'string' ? item : item.title || ''
+    ).filter(title => title) : [];
+    
+    const dislikedTitles = Array.isArray(dislikedItems) ? dislikedItems.map(item => 
+      typeof item === 'string' ? item : item.title || ''
+    ).filter(title => title) : [];
+    
+    // Handle different possible formats for previousRecommendations
+    let previousRecTitles = [];
+    if (previousRecommendations) {
+      // Check if it's an array
+      if (Array.isArray(previousRecommendations)) {
+        previousRecTitles = previousRecommendations
+          .map(item => {
+            if (typeof item === 'string') return item;
+            return item && typeof item === 'object' ? (item.title || '') : '';
+          })
+          .filter(title => title);
+      } else if (typeof previousRecommendations === 'string') {
+        // Handle case where a single string is passed
+        previousRecTitles = [previousRecommendations];
+      } else {
+        console.warn('previousRecommendations has unexpected format:', previousRecommendations);
+      }
+    }
     
     // Log the number of items we're checking against
     console.log(`Verifying ${recommendations.length} recommendations against ${libraryTitles.length} library items, ${likedTitles.length} liked items, ${dislikedTitles.length} disliked items, and ${previousRecTitles.length} previous recommendations`);

@@ -23,7 +23,30 @@ class AuthService {
   isAuthenticated() {
     // With HttpOnly cookies, we can't check the cookie directly
     // We rely on the presence of user data as an indicator
-    return !!this.user;
+    if (!this.user) {
+      return false;
+    }
+    
+    // Add timestamp check to detect stale local storage data
+    // Get current timestamp
+    const now = new Date().getTime();
+    
+    // Get timestamp from localStorage if available
+    let authTimestamp = null;
+    try {
+      authTimestamp = localStorage.getItem('auth_timestamp');
+    } catch (e) {
+      console.error('Error accessing localStorage for auth timestamp:', e);
+    }
+    
+    // If no timestamp or timestamp is more than 1 hour old, consider session potentially stale
+    // This doesn't invalidate the session but triggers a verification with the server
+    if (!authTimestamp || (now - parseInt(authTimestamp, 10)) > 3600000) {
+      console.log('Authentication data is stale or missing timestamp');
+      return false;  // Returning false will trigger a server verification in the Login component
+    }
+    
+    return true;
   }
   
   // Get current user
@@ -77,20 +100,47 @@ class AuthService {
   // Verify current session (useful after OAuth redirect)
   async verifySession() {
     try {
+      console.log('Verifying session with server');
       const response = await ApiService.get('/auth/verify');
+      
       if (response.data && response.data.user) {
+        console.log('Session verified successfully for user:', response.data.user.username);
+        
+        // Update local user data
         this.user = response.data.user;
         this.token = "cookie-auth";
-        localStorage.setItem('auth_user', JSON.stringify(this.user));
+        
+        // Update localStorage with user data and fresh timestamp
+        try {
+          localStorage.setItem('auth_user', JSON.stringify(this.user));
+          localStorage.setItem('auth_timestamp', Date.now().toString()); 
+          console.log('Updated user data and timestamp in localStorage');
+        } catch (error) {
+          console.error('Error updating localStorage after session verification:', error);
+        }
         
         // Set the current user in ApiService
         ApiService.setCurrentUser(this.user);
         
+        // Set auth header
+        this.setAuthHeader();
+        
         return true;
+      } else {
+        console.log('Server returned no user data, session is invalid');
+        // Clear local auth data since server doesn't recognize the session
+        this.clearLocalAuth();
+        return false;
       }
-      return false;
     } catch (error) {
       console.error('Session verification failed:', error);
+      
+      // Check if it's a 401 unauthorized error
+      if (error.response && error.response.status === 401) {
+        console.log('Server returned 401 Unauthorized, clearing local auth data');
+        this.clearLocalAuth();
+      }
+      
       return false;
     }
   }
@@ -158,10 +208,11 @@ class AuthService {
       // We store "cookie-auth" for token, as we don't have direct access to the HttpOnly cookie
       this.token = "cookie-auth"; // Marker to indicate we're using cookie auth
       
-      // Save user data to localStorage
+      // Save user data and timestamp to localStorage
       try {
         localStorage.setItem('auth_user', JSON.stringify(user));
-        console.log('User data saved to localStorage');
+        localStorage.setItem('auth_timestamp', Date.now().toString());
+        console.log('User data and timestamp saved to localStorage');
       } catch (error) {
         console.error('Error saving to localStorage:', error);
         // Continue even if localStorage fails
@@ -194,13 +245,22 @@ class AuthService {
   // Logout the current user - handles both server-side and local logout
   async logout() {
     try {
-      // First clear local authentication
+      console.log('Starting logout process');
+      
+      // First call server-side logout to invalidate the session and clear the cookie
+      await this.logoutOnServer();
+      
+      // Then clear local authentication data
       this.clearLocalAuth();
       
-      // Then call logout endpoint
-      await this.logoutOnServer();
+      // Force reload to clear any in-memory state
+      console.log('Forcing page reload to clear all application state');
+      window.location.href = '/login';
     } catch (error) {
       console.error('Error during logout:', error);
+      // Even if server logout fails, clear local data and redirect
+      this.clearLocalAuth();
+      window.location.href = '/login';
     }
   }
   
@@ -209,7 +269,7 @@ class AuthService {
     try {
       console.log('Calling server logout endpoint');
       // Call logout endpoint - must include credentials to send the cookie
-      await fetch(`${ApiService.baseUrl}/auth/logout`, {
+      const response = await fetch(`${ApiService.baseUrl}/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -217,7 +277,12 @@ class AuthService {
         body: JSON.stringify({}),
         credentials: 'include' // Important: This ensures cookies are sent with the request
       });
-      console.log('Server logout completed');
+      
+      if (!response.ok) {
+        throw new Error(`Server logout failed with status: ${response.status}`);
+      }
+      
+      console.log('Server logout completed successfully');
     } catch (error) {
       console.error('Error during server logout:', error);
       throw error;
@@ -235,12 +300,30 @@ class AuthService {
     try {
       localStorage.removeItem('auth_token'); // For backward compatibility
       localStorage.removeItem('auth_user');
+      
+      // Clear any other application data that might be stored
+      const keysToKeep = ['theme']; // User preferences to keep
+      const keysToRemove = [];
+      
+      // Find all localStorage keys to remove
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!keysToKeep.includes(key)) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      // Remove them
+      keysToRemove.forEach(key => {
+        console.log(`Removing localStorage item: ${key}`);
+        localStorage.removeItem(key);
+      });
     } catch (error) {
       console.error('Error removing from localStorage:', error);
       // Continue even if localStorage fails
     }
     
-    // Force clear the auth cookie by setting it to expire in the past
+    // Force clear the auth cookie by setting it to expire in the past (client-side)
     document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     
     // Remove auth header (for backward compatibility)
@@ -248,6 +331,8 @@ class AuthService {
     
     // Clear the current user in ApiService
     ApiService.setCurrentUser(null);
+    
+    console.log('Local authentication data cleared successfully');
   }
   
   // Change password

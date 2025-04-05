@@ -60,45 +60,63 @@ class SessionManager {
   
   // Validate a session token
   validateSession(token) {
+    if (!token) {
+      console.log('No token provided for validation');
+      return null;
+    }
+    
     console.log('Validating session token:', token.substring(0, 10) + '...');
     
-    // Ensure database is initialized
-    if (!databaseService.initialized) {
-      console.log('Session manager not initialized, initializing now...');
-      this.init();
+    try {
+      // Ensure database is initialized
+      if (!databaseService.initialized) {
+        console.log('Session manager not initialized, initializing now...');
+        this.init();
+      }
+      
+      // Get session from database
+      const session = databaseService.getSession(token);
+      
+      // Check if session exists
+      if (!session) {
+        console.log('Session not found in database');
+        return null;
+      }
+      
+      console.log('Session found for user:', session.username);
+      
+      // Check if session is expired
+      const expiryDate = new Date(session.expiresAt);
+      const now = new Date();
+      
+      console.log('Session expires at:', expiryDate);
+      console.log('Current time:', now);
+      
+      if (expiryDate < now) {
+        console.log('Session has expired');
+        // Remove expired session
+        databaseService.deleteSession(token);
+        return null;
+      }
+      
+      // Also verify user exists in database (to catch deleted users)
+      const userExists = databaseService.getUserById(session.userId);
+      if (!userExists) {
+        console.log(`User ${session.userId} no longer exists, invalidating session`);
+        databaseService.deleteSession(token);
+        return null;
+      }
+      
+      // Refresh session expiry
+      const newExpiryDate = new Date(Date.now() + this.sessionExpiry);
+      databaseService.updateSessionExpiry(token, newExpiryDate.toISOString());
+      console.log('Session expiry extended to:', newExpiryDate);
+      
+      return session;
+    } catch (error) {
+      console.error('Error validating session:', error);
+      return null; // Return null on any error to be safe
     }
-    
-    // Get session from database
-    const session = databaseService.getSession(token);
-    
-    // Check if session exists
-    if (!session) {
-      console.log('Session not found');
-      return null;
-    }
-    
-    console.log('Session found for user:', session.username);
-    
-    // Check if session is expired
-    const expiryDate = new Date(session.expiresAt);
-    const now = new Date();
-    
-    console.log('Session expires at:', expiryDate);
-    console.log('Current time:', now);
-    
-    if (expiryDate < now) {
-      console.log('Session has expired');
-      // Remove expired session
-      databaseService.deleteSession(token);
-      return null;
-    }
-    
-    // Refresh session expiry
-    const newExpiryDate = new Date(Date.now() + this.sessionExpiry);
-    databaseService.updateSessionExpiry(token, newExpiryDate.toISOString());
-    console.log('Session expiry extended to:', newExpiryDate);
-    
-    return session;
   }
   
   // Delete a session

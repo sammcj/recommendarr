@@ -553,32 +553,80 @@ app.post('/api/auth/register', async (req, res) => {
 
 // Logout endpoint
 app.post('/api/auth/logout', (req, res) => {
-  // Get auth token from cookie or headers
-  const cookieToken = req.cookies.auth_token;
-  const headerToken = req.headers.authorization?.split('Bearer ')[1];
-  const authToken = cookieToken || headerToken;
+  console.log('Processing logout request');
   
-  if (authToken) {
-    sessionManager.deleteSession(authToken);
+  try {
+    // Get auth token from cookie or headers
+    const cookieToken = req.cookies.auth_token;
+    const headerToken = req.headers.authorization?.split('Bearer ')[1];
+    const authToken = cookieToken || headerToken;
+    
+    // Get user info before deleting session (for logging)
+    let userId = 'unknown';
+    if (req.user) {
+      userId = req.user.userId;
+      console.log(`User ${req.user.username} (${userId}) logging out`);
+    }
+    
+    // Delete the session from the database if a token exists
+    if (authToken) {
+      console.log(`Deleting session with token starting with: ${authToken.substring(0, 8)}...`);
+      const deleted = sessionManager.deleteSession(authToken);
+      console.log(`Session deleted: ${deleted ? 'success' : 'failed/not found'}`);
+      
+      // Delete all sessions for this user to ensure complete logout
+      if (req.user && req.user.userId) {
+        const sessionsDeleted = sessionManager.deleteUserSessions(req.user.userId);
+        console.log(`Deleted ${sessionsDeleted} sessions for user: ${req.user.userId}`);
+      }
+    } else {
+      console.log('No auth token found in request');
+    }
+    
+    // Determine if we should use secure cookies based on the request's protocol or a config flag
+    const isSecureConnection = req.secure || 
+                             req.headers['x-forwarded-proto'] === 'https' || 
+                             process.env.FORCE_SECURE_COOKIES === 'true';
+    
+    // Clear the auth cookie - ensure correct path and domain settings
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: isSecureConnection, // Only set secure flag on HTTPS connections
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0, // Immediately expire the cookie
+      expires: new Date(0) // Set expiration date in the past
+    });
+    
+    // Also clear express session cookie if it exists
+    res.clearCookie('connect.sid', {
+      path: '/',
+      httpOnly: true,
+      secure: isSecureConnection,
+      maxAge: 0,
+      expires: new Date(0)
+    });
+    
+    console.log('Auth cookies cleared during logout');
+    
+    // Return success response with redirect hint
+    res.json({ 
+      success: true, 
+      message: 'Logged out successfully',
+      redirectTo: '/login?logout=true'  // Add redirect instruction for client
+    });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    
+    // Still try to clear cookies even if an error occurred
+    res.clearCookie('auth_token', { path: '/', expires: new Date(0) });
+    res.clearCookie('connect.sid', { path: '/', expires: new Date(0) });
+    
+    res.status(500).json({ 
+      error: 'An error occurred during logout',
+      redirectTo: '/login?logout=true'  // Still redirect on error
+    });
   }
-  
-  // Determine if we should use secure cookies based on the request's protocol or a config flag
-  const isSecureConnection = req.secure || 
-                           req.headers['x-forwarded-proto'] === 'https' || 
-                           process.env.FORCE_SECURE_COOKIES === 'true';
-  
-  // Clear the auth cookie - ensure correct path and domain settings
-  res.clearCookie('auth_token', {
-    httpOnly: true,
-    secure: isSecureConnection, // Only set secure flag on HTTPS connections
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0, // Immediately expire the cookie
-    expires: new Date(0) // Set expiration date in the past
-  });
-  
-  console.log('Auth cookie cleared during logout');
-  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // Verify session endpoint (used after OAuth redirect)

@@ -947,7 +947,10 @@ export default {
       return recommendationsStore.state.traktOnlyMode;
     },
     previousRecommendations() {
-      return recommendationsStore.previousRecommendations;
+      // This will get the store's computed property which returns the correct array based on isMovieMode
+      const recs = recommendationsStore.previousRecommendations;
+      console.log('RecommendationSettings previousRecommendations computed property - count:', recs.length);
+      return recs;
     }
   },
   props: {

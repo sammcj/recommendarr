@@ -206,6 +206,12 @@ class UserDataManager {
       if (!Array.isArray(userData.hiddenMovies)) userData.hiddenMovies = [];
       if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
       
+      // Log arrays for debugging
+      console.log(`userDataManager.saveUserData: arrays being saved:`, {
+        tvCount: userData.tvRecommendations ? userData.tvRecommendations.length : 0,
+        movieCount: userData.movieRecommendations ? userData.movieRecommendations.length : 0
+      });
+      
       // Ensure all other properties have default values if not present
       const defaultData = createDefaultUserData();
       

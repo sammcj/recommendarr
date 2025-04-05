@@ -2334,17 +2334,21 @@ export default {
         if (this.isMovieMode) {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
+            console.log('Saving active movie recommendations to server:', this.recommendations);
             await apiService.saveRecommendations('movie', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
+            console.log('Saving movie history to server:', this.previousMovieRecommendations);
             await apiService.saveRecommendations('movie', this.previousMovieRecommendations, this.username);
           }
         } else {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
+            console.log('Saving active TV recommendations to server:', this.recommendations);
             await apiService.saveRecommendations('tv', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
+            console.log('Saving TV history to server:', this.previousShowRecommendations);
             await apiService.saveRecommendations('tv', this.previousShowRecommendations, this.username);
           }
         }
@@ -2353,15 +2357,17 @@ export default {
         // Fallback to storageUtils
         if (this.isMovieMode) {
           // Save both history and current recommendations
-          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+          databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
           if (this.recommendations && this.recommendations.length > 0) {
-            databaseStorageUtils.setJSON('currentMovieRecommendations', this.recommendations);
+            // Store recommendations to movieRecommendations to match server
+            databaseStorageUtils.setJSON('movieRecommendations', this.recommendations);
           }
         } else {
           // Save both history and current recommendations
-          databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
+          databaseStorageUtils.setJSON('tvRecommendations', this.previousShowRecommendations);
           if (this.recommendations && this.recommendations.length > 0) {
-            databaseStorageUtils.setJSON('currentTVRecommendations', this.recommendations);
+            // Store recommendations to tvRecommendations to match server
+            databaseStorageUtils.setJSON('tvRecommendations', this.recommendations);
           }
         }
       }
@@ -2369,18 +2375,23 @@ export default {
     
     // Add current recommendations to the history
     async addToRecommendationHistory(newRecommendations) {
+      console.log("addToRecommendationHistory called with new recommendations:", newRecommendations);
+      
       // Extract just the titles for the title-only history array
       const titlesToAdd = newRecommendations.map(rec => rec.title);
+      console.log("Extracted titles to add:", titlesToAdd);
       
       // Reference to the correct history array based on mode
       const historyArray = this.isMovieMode ? 
         this.previousMovieRecommendations : this.previousShowRecommendations;
+      console.log("Current history array before update:", historyArray);
       
       // Combine with existing recommendations, remove duplicates
       const combinedRecommendations = [...historyArray, ...titlesToAdd];
       
       // Keep only unique recommendations (as strings)
       const uniqueRecommendations = [...new Set(combinedRecommendations)];
+      console.log("Unique recommendations after combining:", uniqueRecommendations);
       
       // If over the limit, remove oldest recommendations
       if (uniqueRecommendations.length > this.maxStoredRecommendations) {
@@ -2413,28 +2424,29 @@ export default {
       try {
         if (this.isMovieMode) {
           // Save only the titles array to the server
+          console.log("Saving movie recommendations to server:", this.previousMovieRecommendations);
           await apiService.saveRecommendations('movie', this.previousMovieRecommendations, this.username);
           
           // Store in storageUtils for backup only after successfully saving to server
-          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
-          databaseStorageUtils.setJSON('currentMovieRecommendations', newRecommendations);
+          console.log("Saving movie recommendations to localStorage:", this.previousMovieRecommendations);
+          databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
         } else {
           // Save only the titles array to the server
           // Ensure all items are valid strings before saving
           const sanitizedRecommendations = this.previousShowRecommendations
             .filter(item => item !== null && item !== undefined)
             .map(item => String(item));
+            
+          console.log("Saving TV recommendations to server:", sanitizedRecommendations);
           await apiService.saveRecommendations('tv', sanitizedRecommendations, this.username);
           
           // Store in storageUtils for backup only after successfully saving to server
-          databaseStorageUtils.setJSON('previousTVRecommendations', sanitizedRecommendations);
+          console.log("Saving TV recommendations to localStorage:", sanitizedRecommendations);
+          databaseStorageUtils.setJSON('tvRecommendations', sanitizedRecommendations);
           
           // Also update our local array with the sanitized version to maintain consistency
           this.previousShowRecommendations = sanitizedRecommendations;
           this.previousRecommendations = sanitizedRecommendations;
-          
-          // Store current recommendations separately
-          databaseStorageUtils.setJSON('currentTVRecommendations', newRecommendations);
         }
         
         console.log(`Saved ${this.isMovieMode ? 'movie' : 'TV'} recommendation history to server (${this.previousRecommendations.length} items)`);
@@ -2443,21 +2455,21 @@ export default {
         
         // Fallback to storageUtils
         if (this.isMovieMode) {
-          databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
-          databaseStorageUtils.setJSON('currentMovieRecommendations', newRecommendations);
+          databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
         } else {
           // Ensure all items are valid strings before saving to storageUtils
           const sanitizedRecommendations = this.previousShowRecommendations
             .filter(item => item !== null && item !== undefined)
             .map(item => String(item));
             
-          databaseStorageUtils.setJSON('previousTVRecommendations', sanitizedRecommendations);
+          databaseStorageUtils.setJSON('tvRecommendations', sanitizedRecommendations);
           
           // Also update our local array with the sanitized version to maintain consistency
           this.previousShowRecommendations = sanitizedRecommendations;
           this.previousRecommendations = sanitizedRecommendations;
           
-          databaseStorageUtils.setJSON('currentTVRecommendations', newRecommendations);
+          // Save recommendations to the main field to ensure they're stored in DB
+          databaseStorageUtils.setJSON('tvRecommendations', newRecommendations);
         }
       }
     },
@@ -4385,7 +4397,7 @@ export default {
           // Store them as full recommendations if we're in TV mode
           if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
             this.recommendations = tvRecsResponse;
-            databaseStorageUtils.setJSON('currentTVRecommendations', tvRecsResponse); // Save current to storage
+            databaseStorageUtils.setJSON('tvRecommendations', tvRecsResponse); // Save to main tv recommendations field
           }
           
           // Extract titles for the history
@@ -4408,7 +4420,7 @@ export default {
         }
         
         // Save history to storageUtils (or clear if empty)
-        databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
+        databaseStorageUtils.setJSON('tvRecommendations', this.previousShowRecommendations);
       }
       
       // Process movie recommendations
@@ -4446,7 +4458,7 @@ export default {
           this.previousRecommendations = [...this.previousMovieRecommendations];
         }
         
-        databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+        databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
 
       }
       
@@ -4511,14 +4523,14 @@ export default {
     // Only save to storageUtils for backup, but don't make server API calls
     try {
       if (this.isMovieMode) {
-        databaseStorageUtils.setJSON('previousMovieRecommendations', this.previousMovieRecommendations);
+        databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
         if (this.recommendations && this.recommendations.length > 0) {
-          databaseStorageUtils.setJSON('currentMovieRecommendations', this.recommendations);
+          databaseStorageUtils.setJSON('movieRecommendations', this.recommendations);
         }
       } else {
-        databaseStorageUtils.setJSON('previousTVRecommendations', this.previousShowRecommendations);
+        databaseStorageUtils.setJSON('tvRecommendations', this.previousShowRecommendations);
         if (this.recommendations && this.recommendations.length > 0) {
-          databaseStorageUtils.setJSON('currentTVRecommendations', this.recommendations);
+          databaseStorageUtils.setJSON('tvRecommendations', this.recommendations);
         }
       }
       console.log('Saved recommendations to storageUtils only (no server call) before unmount');

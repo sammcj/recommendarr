@@ -1042,6 +1042,8 @@ app.post('/api/recommendations/:type', async (req, res) => {
   
   // Normalize recommendations to always be an array of strings (titles)
   // This ensures consistent storage format regardless of what client sends
+  console.log(`Received ${recommendations.length} ${type} recommendations to save`);
+  
   const normalizedRecommendations = recommendations.map(rec => {
     if (rec === null || rec === undefined) return '';
     if (typeof rec === 'string') return rec;
@@ -1049,10 +1051,14 @@ app.post('/api/recommendations/:type', async (req, res) => {
     return String(rec);
   });
   
+  console.log(`Normalized recommendations:`, normalizedRecommendations);
+  
   // Filter out empty strings and store only the normalized array
   const filteredRecommendations = normalizedRecommendations
     .filter(title => title !== null && title !== undefined && title.trim && typeof title.trim === 'function' && title.trim() !== '')
     .map(item => String(item)); // Ensure everything is a string
+    
+  console.log(`Filtered recommendations (${filteredRecommendations.length}):`, filteredRecommendations);
   
   try {
     // Load current user data
@@ -1060,12 +1066,16 @@ app.post('/api/recommendations/:type', async (req, res) => {
     
     if (type === 'tv') {
       userData.tvRecommendations = filteredRecommendations;
+      console.log(`Setting userData.tvRecommendations to ${filteredRecommendations.length} items`);
+      
       // Clear any legacy full recommendation objects that might exist
       if (userData.tvRecommendationsDetails) {
         delete userData.tvRecommendationsDetails;
       }
     } else if (type === 'movie') {
       userData.movieRecommendations = filteredRecommendations;
+      console.log(`Setting userData.movieRecommendations to ${filteredRecommendations.length} items`);
+      
       // Clear any legacy full recommendation objects that might exist
       if (userData.movieRecommendationsDetails) {
         delete userData.movieRecommendationsDetails;
@@ -1075,11 +1085,20 @@ app.post('/api/recommendations/:type', async (req, res) => {
     }
     
     // Save the updated user data
+    console.log(`Saving user data for ${userId} with recommendations`);
     const saveResult = await userDataManager.saveUserData(userId, userData);
     
+    console.log(`Save result:`, saveResult);
     if (saveResult) {
+      console.log('Successfully saved recommendations');
+      // Get the data back to verify it's saved correctly
+      const verifiedData = await userDataManager.getUserData(userId);
+      console.log(`Verification - saved ${type} recommendations:`, 
+        type === 'tv' ? verifiedData.tvRecommendations.length : verifiedData.movieRecommendations.length);
+        
       res.json({ success: true });
     } else {
+      console.error('Failed to save user data');
       res.status(500).json({ error: 'Failed to save user data' });
     }
   } catch (error) {

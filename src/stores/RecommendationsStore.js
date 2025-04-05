@@ -103,6 +103,15 @@ const actions = {
     // If already completed initialization, just return current state
     if (state.loadingComplete) {
       console.log('RecommendationsStore: Already initialized, returning current state');
+      
+      // Force a refresh of recommendation history data even if initialized
+      try {
+        await this.loadRecommendationHistory();
+        console.log('RecommendationsStore: Refreshed recommendation history');
+      } catch (error) {
+        console.error('RecommendationsStore: Error refreshing recommendation history:', error);
+      }
+      
       return state;
     }
     
@@ -311,6 +320,8 @@ const actions = {
    */
   async loadRecommendationHistory() {
     try {
+      console.log('RecommendationsStore: Loading recommendation history from server');
+      
       // Load TV show recommendations
       const tvRecsResponse = await apiService.getRecommendations('tv');
       if (Array.isArray(tvRecsResponse)) {
@@ -327,6 +338,7 @@ const actions = {
           state.previousShowRecommendations = [];
         }
       }
+      console.log('RecommendationsStore: Loaded', state.previousShowRecommendations.length, 'TV recommendations');
       
       // Load movie recommendations
       const movieRecsResponse = await apiService.getRecommendations('movie');
@@ -344,16 +356,17 @@ const actions = {
           state.previousMovieRecommendations = [];
         }
       }
+      console.log('RecommendationsStore: Loaded', state.previousMovieRecommendations.length, 'movie recommendations');
     } catch (error) {
       console.error('Error loading recommendation history:', error);
       
       // Fallback to localStorage
-      const savedTVRecs = await databaseStorageUtils.getJSON('previousTVRecommendations');
+      const savedTVRecs = await databaseStorageUtils.getJSON('tvRecommendations');
       if (savedTVRecs && Array.isArray(savedTVRecs)) {
         state.previousShowRecommendations = savedTVRecs;
       }
       
-      const savedMovieRecs = await databaseStorageUtils.getJSON('previousMovieRecommendations');
+      const savedMovieRecs = await databaseStorageUtils.getJSON('movieRecommendations');
       if (savedMovieRecs && Array.isArray(savedMovieRecs)) {
         state.previousMovieRecommendations = savedMovieRecs;
       }

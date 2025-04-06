@@ -1098,7 +1098,7 @@ From these insights, recommend series that evoke comparable emotional states and
         // Add library titles to exclusions to prevent recommending what user already has
         if (series && series.length > 0) {
           const sonarrTitles = series.map(show => show.title);
-          previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
+          previousRecommendations = [...new Set([...previousRecommendations.value, ...sonarrTitles])];
         }
       } else if (series && series.length > 0) {
         // Use the Sonarr library as the main library
@@ -1361,7 +1361,7 @@ CRITICAL REQUIREMENTS:
           // Add library titles to exclusions to prevent recommending what user already has
           if (movies && movies.length > 0) {
             const radarrTitles = movies.map(movie => movie.title);
-            previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
+            previousRecommendations = [...new Set([...previousRecommendations.value, ...radarrTitles])];
           }
         } else {
           // Use the Radarr library as the main library
@@ -2499,50 +2499,74 @@ CRITICAL REQUIREMENTS:
     }
 
     // Prepare library items for comparison
-    const libraryTitles = Array.isArray(libraryItems) ? libraryItems.map(item => {
-      if (typeof item === 'string') return item;
-      // Handle different possible structures for library items
-      return item.title || item.name || (item.attributes && item.attributes.title) || '';
-    }).filter(title => title) : []; // Remove any empty titles
-    
-    const likedTitles = Array.isArray(likedItems) ? likedItems.map(item => 
-      typeof item === 'string' ? item : item.title || ''
-    ).filter(title => title) : [];
-    
-    const dislikedTitles = Array.isArray(dislikedItems) ? dislikedItems.map(item => 
-      typeof item === 'string' ? item : item.title || ''
-    ).filter(title => title) : [];
-    
-    // Handle different possible formats for previousRecommendations
-    let previousRecTitles = [];
-    if (previousRecommendations) {
-      // Check if it's an array
-      if (Array.isArray(previousRecommendations)) {
-        previousRecTitles = previousRecommendations
-          .map(item => {
-            if (typeof item === 'string') return item;
-            return item && typeof item === 'object' ? (item.title || '') : '';
-          })
-          .filter(title => title);
-      } else if (typeof previousRecommendations === 'string') {
-        // Handle case where a single string is passed
-        previousRecTitles = [previousRecommendations];
-      } else {
-        console.warn('previousRecommendations has unexpected format:', previousRecommendations);
+    const getTitles = (items) => {
+      if (!Array.isArray(items)) return [];
+      try {
+        return items.map(item => {
+          if (typeof item === 'string') return item;
+          // Handle different possible structures for library items
+          // Ensure title is treated as string
+          const title = item?.title || item?.name || (item?.attributes && item.attributes.title);
+          return String(title || ''); 
+        }).filter(title => title); // Filter out empty strings
+      } catch (e) {
+        console.error("Error mapping titles:", e, "Input items:", items);
+        return []; // Return empty array on error
       }
-    }
+    };
+
+    const libraryTitles = getTitles(libraryItems);
+    const likedTitles = getTitles(likedItems);
+    const dislikedTitles = getTitles(dislikedItems);
+    
+    // Handle different possible formats for previousRecommendations, including Vue ComputedRef
+    const getPreviousTitles = (input) => {
+      if (!input) return [];
+      
+      let itemsToProcess = input;
+      
+      // Check if it's a Vue Ref/ComputedRef and access its value
+      if (input && typeof input === 'object' && input.value !== undefined) {
+        console.log("Detected Ref/ComputedRef for previousRecommendations, accessing .value");
+        itemsToProcess = input.value;
+      }
+
+      // Now process the extracted value (or the original input if not a Ref)
+      if (Array.isArray(itemsToProcess)) {
+        try {
+          return itemsToProcess.map(item => {
+            if (typeof item === 'string') return item;
+            // Ensure title is treated as string
+            const title = item && typeof item === 'object' ? item.title : null;
+            return String(title || '');
+          }).filter(title => title); // Filter out empty strings
+        } catch (e) {
+          console.error("Error mapping previous titles:", e, "Input items:", itemsToProcess);
+          return [];
+        }
+      } else if (typeof itemsToProcess === 'string') {
+        // Handle case where a single string might be passed (less likely now)
+        return [itemsToProcess];
+      } else {
+        // Log the original input structure if it's still unexpected
+        console.warn('previousRecommendations has unexpected format after checking .value:', input);
+        return [];
+      }
+    };
+    const previousRecTitles = getPreviousTitles(previousRecommendations);
     
     // Log the number of items we're checking against
     console.log(`Verifying ${recommendations.length} recommendations against ${libraryTitles.length} library items, ${likedTitles.length} liked items, ${dislikedTitles.length} disliked items, and ${previousRecTitles.length} previous recommendations`);
 
     // Filter out any recommendations that match existing items
     const filteredRecommendations = recommendations.filter(rec => {
-      if (!rec || !rec.title) return false; // Skip invalid recommendations
-      
-      const title = rec.title;
-      
+      // Ensure rec.title is treated as a string before comparison
+      const title = String(rec?.title || '');
+      if (!title) return false; // Skip if title is empty after string conversion
+
       // First check library items (priority and most important)
       for (const existingTitle of libraryTitles) {
+        // existingTitle is guaranteed to be a string by getTitles
         if (this.areTitlesSimilar(title, existingTitle)) {
           console.log(`Recommendation "${title}" filtered out - LIBRARY MATCH to "${existingTitle}"`);
           return false;

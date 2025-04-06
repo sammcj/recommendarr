@@ -200,8 +200,8 @@
         :liked-recommendations="likedRecommendations"
         :disliked-recommendations="dislikedRecommendations"
         :columns-count="columnsCount"
-        @update:liked-recommendations="likeRecommendation($event)"
-        @update:disliked-recommendations="dislikeRecommendation($event)"
+        @update:liked-recommendations="handleUpdateLiked($event)"
+        @update:disliked-recommendations="handleUpdateDisliked($event)"
         @open-tmdb-modal="openTMDBDetailModal"
         @request-series="requestSeries"
       />
@@ -610,7 +610,7 @@ import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
 import authService from '../services/AuthService';
 import databaseStorageUtils from '../utils/DatabaseStorageUtils';
-import recommendationsStore from '../stores/RecommendationsStore';
+import recommendationsStore from '../stores/RecommendationsStore'; // Keep store import
 import TMDBDetailModal from './TMDBDetailModal.vue';
 import RecommendationResults from './RecommendationResults.vue';
 import RecommendationSettings from './RecommendationSettings.vue';
@@ -1021,6 +1021,14 @@ export default {
     };
   },
   methods: {
+    // Wrapper methods to call store actions from the template
+    handleUpdateLiked(updatedList) {
+      recommendationsStore.updateLikedRecommendations(updatedList);
+    },
+    handleUpdateDisliked(updatedList) {
+      recommendationsStore.updateDislikedRecommendations(updatedList);
+    },
+
     /**
      * Remove duplicate recommendations based on title
      * @param {Array} recommendations - The recommendations array to deduplicate
@@ -2375,72 +2383,10 @@ export default {
       }
     },
     
-    // Like a TV show recommendation
-    async likeRecommendation(title) {
-      // If it's already liked, remove it from liked list (toggle behavior)
-      if (this.isLiked(title)) {
-        this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
-      } else {
-        // Add to liked list
-        this.likedRecommendations.push(title);
-        
-        // Remove from disliked list if it was there
-        if (this.isDisliked(title)) {
-          this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
-        }
-      }
-      
-      // Save to server (this will also fall back to localStorage if needed)
-      await this.saveLikedDislikedLists();
-    },
-    
-    // Dislike a TV show recommendation
-    async dislikeRecommendation(title) {
-      // If it's already disliked, remove it from disliked list (toggle behavior)
-      if (this.isDisliked(title)) {
-        this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
-      } else {
-        // Add to disliked list
-        this.dislikedRecommendations.push(title);
-        
-        // Remove from liked list if it was there
-        if (this.isLiked(title)) {
-          this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
-        }
-      }
-      
-      // Save to server (this will also fall back to localStorage if needed)
-      await this.saveLikedDislikedLists();
-    },
-    
-    // Check if a TV show is liked
-    isLiked(title) {
-      return this.likedRecommendations.includes(title);
-    },
-    
-    // Check if a TV show is disliked
-    isDisliked(title) {
-      return this.dislikedRecommendations.includes(title);
-    },
-    
-    // Save liked and disliked lists to server
-    async saveLikedDislikedLists() {
-      try {
-        if (this.isMovieMode) {
-          await apiService.savePreferences('movie', 'liked', this.likedRecommendations);
-          await apiService.savePreferences('movie', 'disliked', this.dislikedRecommendations);
-        } else {
-          await apiService.savePreferences('tv', 'liked', this.likedRecommendations);
-          await apiService.savePreferences('tv', 'disliked', this.dislikedRecommendations);
-        }
-      } catch (error) {
-        console.error('Error saving preferences to server:', error);
-        // Fallback to storageUtils
-        databaseStorageUtils.setJSON('likedTVRecommendations', this.likedRecommendations);
-        databaseStorageUtils.setJSON('dislikedTVRecommendations', this.dislikedRecommendations);
-      }
-    },
-    
+    // The likeRecommendation, dislikeRecommendation, isLiked, isDisliked, and saveLikedDislikedLists methods
+    // have been removed as this functionality is now handled by the RecommendationsStore
+    // and the RecommendationResults component directly updates the store via events.
+
     /**
      * Filter watch history based on the selected history mode
      * @param {Array} historyArray - The original history array to filter

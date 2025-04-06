@@ -416,35 +416,49 @@ export default {
     },
     // Like a TV show recommendation
     async likeRecommendation(title) {
-      // If it's already liked, remove it from liked list (toggle behavior)
-      if (this.isLiked(title)) {
-        this.$emit('update:likedRecommendations', title);
-        return;
+      let updatedLiked = [...this.likedRecommendations];
+      let updatedDisliked = [...this.dislikedRecommendations];
+
+      const likedIndex = updatedLiked.indexOf(title);
+      const dislikedIndex = updatedDisliked.indexOf(title);
+
+      if (likedIndex !== -1) {
+        // Already liked, so unlike it
+        updatedLiked.splice(likedIndex, 1);
+      } else {
+        // Not liked, so like it
+        updatedLiked.push(title);
+        // If it was disliked, remove from disliked
+        if (dislikedIndex !== -1) {
+          updatedDisliked.splice(dislikedIndex, 1);
+          this.$emit('update:dislikedRecommendations', updatedDisliked);
+        }
       }
       
-      // Remove from disliked list if it was there
-      if (this.isDisliked(title)) {
-        this.$emit('update:dislikedRecommendations', title);
-      }
-      
-      // Add to liked list
-      this.$emit('update:likedRecommendations', title);
+      this.$emit('update:likedRecommendations', updatedLiked);
     },
     // Dislike a TV show recommendation
     async dislikeRecommendation(title) {
-      // If it's already disliked, remove it from disliked list (toggle behavior)
-      if (this.isDisliked(title)) {
-        this.$emit('update:dislikedRecommendations', title);
-        return;
+      let updatedLiked = [...this.likedRecommendations];
+      let updatedDisliked = [...this.dislikedRecommendations];
+
+      const likedIndex = updatedLiked.indexOf(title);
+      const dislikedIndex = updatedDisliked.indexOf(title);
+
+      if (dislikedIndex !== -1) {
+        // Already disliked, so un-dislike it
+        updatedDisliked.splice(dislikedIndex, 1);
+      } else {
+        // Not disliked, so dislike it
+        updatedDisliked.push(title);
+        // If it was liked, remove from liked
+        if (likedIndex !== -1) {
+          updatedLiked.splice(likedIndex, 1);
+          this.$emit('update:likedRecommendations', updatedLiked);
+        }
       }
       
-      // Remove from liked list if it was there
-      if (this.isLiked(title)) {
-        this.$emit('update:likedRecommendations', title);
-      }
-      
-      // Add to disliked list
-      this.$emit('update:dislikedRecommendations', title);
+      this.$emit('update:dislikedRecommendations', updatedDisliked);
     },
     // Check if a TV show is liked
     isLiked(title) {

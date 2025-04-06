@@ -928,9 +928,18 @@ const actions = {
     }
     
     // Save to server
+    await this.saveLikedDislikedLists(); // Keep this call within the store action
+  },
+
+  /**
+   * Update the entire liked recommendations list (used by event handler)
+   * @param {Array<string>} updatedList - The new list of liked titles
+   */
+  async updateLikedRecommendations(updatedList) {
+    state.likedRecommendations = updatedList;
     await this.saveLikedDislikedLists();
   },
-  
+
   /**
    * Dislike a recommendation
    * @param {string} title - The title to dislike
@@ -950,9 +959,18 @@ const actions = {
     }
     
     // Save to server
+    await this.saveLikedDislikedLists(); // Keep this call within the store action
+  },
+
+  /**
+   * Update the entire disliked recommendations list (used by event handler)
+   * @param {Array<string>} updatedList - The new list of disliked titles
+   */
+  async updateDislikedRecommendations(updatedList) {
+    state.dislikedRecommendations = updatedList;
     await this.saveLikedDislikedLists();
   },
-  
+
   /**
    * Save liked and disliked lists to server
    */

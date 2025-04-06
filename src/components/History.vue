@@ -555,13 +555,6 @@ import databaseStorageUtils from '../utils/DatabaseStorageUtils.js'; // Replaced
 import recommendationsStore from '../stores/RecommendationsStore.js'; // Import the store
 import axios from 'axios';
 
-// Debug services availability
-
-
-
-
-
-
 export default {
   name: 'RecommendationHistory',
   components: {
@@ -581,7 +574,6 @@ export default {
     return {
       username: authService.getUser()?.username || '',
       activeView: 'combined',
-      // tvRecommendations and movieRecommendations removed - will be computed properties
       filteredTVRecommendations: [],
       filteredMovieRecommendations: [],
       displayedTVShows: [],
@@ -603,7 +595,7 @@ export default {
       hideExistingContent: true,
       hideLikedContent: true,
       hideDislikedContent: true,
-      hiddenTVShows: new Set(),
+      hiddenTV: new Set(), // Renamed
       hiddenMovies: new Set(),
       hideHiddenContent: true, // Default to hiding hidden items
       
@@ -618,8 +610,7 @@ export default {
         sonarr: []
       },
       loadingTags: {
-        radarr: false,
-        sonarr: false
+        sonarr: []
       },
       
       // Intersection observer
@@ -857,9 +848,7 @@ export default {
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyHideExisting = this.hideExistingContent;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyHideExisting', this.hideExistingContent);
       } catch (error) {
         console.error('Failed to save historyHideExisting setting to server:', error);
       }
@@ -874,9 +863,7 @@ export default {
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyHideLiked = this.hideLikedContent;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyHideLiked', this.hideLikedContent);
       } catch (error) {
         console.error('Failed to save historyHideLiked setting to server:', error);
       }
@@ -891,9 +878,7 @@ export default {
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyHideDisliked = this.hideDislikedContent;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyHideDisliked', this.hideDislikedContent);
       } catch (error) {
         console.error('Failed to save historyHideDisliked setting to server:', error);
       }
@@ -1052,22 +1037,18 @@ export default {
     async loadColumnsCount() {
       try {
         // First try to load from server settings
-        const settings = await apiService.getSettings();
-        if (settings && settings.historyColumnsCount) {
-          
-          this.columnsCount = settings.historyColumnsCount;
-          // Update database storage (add await)
-          await databaseStorageUtils.set('historyColumnsCount', settings.historyColumnsCount);
+        const serverCount = await apiService.getSetting('historyColumnsCount');
+        if (serverCount !== null && serverCount !== undefined) {
+          this.columnsCount = parseInt(serverCount);
+          // Update database storage
+          await databaseStorageUtils.set('historyColumnsCount', this.columnsCount);
         } else {
-          // Fall back to database storage (add await)
+          // Fall back to database storage
           const savedCount = await databaseStorageUtils.get('historyColumnsCount');
-          if (savedCount) {
+          if (savedCount !== null) {
             this.columnsCount = parseInt(savedCount);
-            // Save to server for future use
-            if (settings) {
-              settings.historyColumnsCount = parseInt(savedCount);
-              await apiService.saveSettings(settings);
-            }
+            // Optionally save to server if found locally but not on server
+            // await apiService.saveSetting('historyColumnsCount', this.columnsCount); // Keep commented or remove
           }
         }
       } catch (error) {
@@ -1086,9 +1067,7 @@ export default {
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyColumnsCount = this.columnsCount;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyColumnsCount', this.columnsCount);
       } catch (error) {
         console.error('Failed to save historyColumnsCount setting to server:', error);
       }
@@ -1096,103 +1075,72 @@ export default {
     
     async loadFilterPreferences() {
       try {
-        // Try to load filter preferences from server first
-        const settings = await apiService.getSettings();
-        
+        // Load boolean settings individually from server
+        const serverHideExisting = await apiService.getSetting('historyHideExisting');
+        const serverHideLiked = await apiService.getSetting('historyHideLiked');
+        const serverHideDisliked = await apiService.getSetting('historyHideDisliked');
+        const serverHideHidden = await apiService.getSetting('historyHideHidden');
+
         // Load hide existing content preference
-        if (settings && settings.historyHideExisting !== undefined) {
-          
-          this.hideExistingContent = settings.historyHideExisting;
-          // Update database storage (add await)
-          await databaseStorageUtils.set('historyHideExisting', settings.historyHideExisting);
+        if (serverHideExisting !== null && serverHideExisting !== undefined) {
+          this.hideExistingContent = serverHideExisting;
+          await databaseStorageUtils.set('historyHideExisting', serverHideExisting);
         } else {
-          // Fall back to database storage (add await)
           const hideExisting = await databaseStorageUtils.get('historyHideExisting');
           if (hideExisting !== null) {
             this.hideExistingContent = hideExisting;
-            // Removed save back logic during load
-            // if (settings) {
-            //   settings.historyHideExisting = hideExisting;
-            //   await apiService.saveSettings(settings);
-            // }
           }
         }
-        
+
         // Load hide liked content preference
-        if (settings && settings.historyHideLiked !== undefined) {
-          
-          this.hideLikedContent = settings.historyHideLiked;
-          // Update database storage (add await)
-          await databaseStorageUtils.set('historyHideLiked', settings.historyHideLiked);
+        if (serverHideLiked !== null && serverHideLiked !== undefined) {
+          this.hideLikedContent = serverHideLiked;
+          await databaseStorageUtils.set('historyHideLiked', serverHideLiked);
         } else {
-          // Fall back to database storage (add await)
           const hideLiked = await databaseStorageUtils.get('historyHideLiked');
           if (hideLiked !== null) {
             this.hideLikedContent = hideLiked;
-            // Removed save back logic during load
-            // if (settings) {
-            //   settings.historyHideLiked = hideLiked;
-            //   await apiService.saveSettings(settings);
-            // }
           }
         }
-        
+
         // Load hide disliked content preference
-        if (settings && settings.historyHideDisliked !== undefined) {
-          
-          this.hideDislikedContent = settings.historyHideDisliked;
-          // Update database storage (add await)
-          await databaseStorageUtils.set('historyHideDisliked', settings.historyHideDisliked);
+        if (serverHideDisliked !== null && serverHideDisliked !== undefined) {
+          this.hideDislikedContent = serverHideDisliked;
+          await databaseStorageUtils.set('historyHideDisliked', serverHideDisliked);
         } else {
-          // Fall back to database storage (add await)
           const hideDisliked = await databaseStorageUtils.get('historyHideDisliked');
           if (hideDisliked !== null) {
             this.hideDislikedContent = hideDisliked;
-            // Removed save back logic during load
-            // if (settings) {
-            //   settings.historyHideDisliked = hideDisliked;
-            //   await apiService.saveSettings(settings);
-            // }
           }
         }
-        
+
         // Load hide hidden content preference
-        if (settings && settings.historyHideHidden !== undefined) {
-          
-          this.hideHiddenContent = settings.historyHideHidden;
-          // Update database storage (add await)
-          await databaseStorageUtils.set('historyHideHidden', settings.historyHideHidden);
+        if (serverHideHidden !== null && serverHideHidden !== undefined) {
+          this.hideHiddenContent = serverHideHidden;
+          await databaseStorageUtils.set('historyHideHidden', serverHideHidden);
         } else {
-          // Fall back to database storage or default to true (add await)
           const hideHidden = await databaseStorageUtils.get('historyHideHidden');
           if (hideHidden !== null) {
             this.hideHiddenContent = hideHidden;
           } else {
-            // Set default to true if no setting exists anywhere
-            this.hideHiddenContent = true;
-            await databaseStorageUtils.set('historyHideHidden', true); // Add await
+            this.hideHiddenContent = true; // Default to true
+            await databaseStorageUtils.set('historyHideHidden', true);
           }
-          // Removed save back logic during load
-          // if (settings) {
-          //   settings.historyHideHidden = this.hideHiddenContent;
-          //   await apiService.saveSettings(settings);
-          // }
         }
         
         // Load hidden TV shows
         const hiddenTVFromServer = await apiService.getPreferences('tv', 'hidden');
         if (hiddenTVFromServer && hiddenTVFromServer.length > 0) {
-          
-          this.hiddenTVShows = new Set(hiddenTVFromServer.map(show => show.toLowerCase()));
-          // Update database storage (add await)
-          await databaseStorageUtils.setJSON('hiddenTVShows', hiddenTVFromServer);
+          this.hiddenTV = new Set(hiddenTVFromServer.map(show => show.toLowerCase()));
+          // Update database storage
+          await databaseStorageUtils.setJSON('hiddenTV', hiddenTVFromServer);
         } else {
-          // Fall back to database storage (add await)
-          const hiddenTV = await databaseStorageUtils.getJSON('hiddenTVShows');
+          // Fall back to database storage
+          const hiddenTV = await databaseStorageUtils.getJSON('hiddenTV');
           if (hiddenTV) {
-            this.hiddenTVShows = new Set(hiddenTV.map(show => show.toLowerCase()));
-            // Removed save back logic during load
-            // apiService.savePreferences('tv', 'hidden', hiddenTV);
+            this.hiddenTV = new Set(hiddenTV.map(show => show.toLowerCase()));
+            // Optionally save to server if found locally but not on server
+            // await apiService.savePreferences('tv', 'hidden', hiddenTV);
           }
         }
         
@@ -1245,9 +1193,9 @@ export default {
         }
         
         // Load hidden TV shows
-        const hiddenTV = await databaseStorageUtils.getJSON('hiddenTVShows');
+        const hiddenTV = await databaseStorageUtils.getJSON('hiddenTV');
         if (hiddenTV) {
-          this.hiddenTVShows = new Set(hiddenTV.map(show => show.toLowerCase()));
+          this.hiddenTV = new Set(hiddenTV.map(show => show.toLowerCase()));
         }
         
         // Load hidden movies
@@ -1382,7 +1330,7 @@ export default {
       const normalizedTitle = typeof title === 'string' ? title.toLowerCase() : String(title).toLowerCase();
       
       if (type === 'tv') {
-        return this.hiddenTVShows.has(normalizedTitle);
+        return this.hiddenTV.has(normalizedTitle);
       } else if (type === 'movie') {
         return this.hiddenMovies.has(normalizedTitle);
       }
@@ -1423,9 +1371,11 @@ export default {
       
       if (type === 'tv') {
         // Add to hidden TV shows
-        this.hiddenTVShows.add(normalizedTitle);
+        this.hiddenTV.add(normalizedTitle);
         // Create a copy for Vue reactivity
-        this.hiddenTVShows = new Set(this.hiddenTVShows);
+        this.hiddenTV = new Set(this.hiddenTV);
+        // Save hidden TV shows
+        this.saveHiddenItems('tv'); 
       } else if (type === 'movie') {
         // Add to hidden movies
         this.hiddenMovies.add(normalizedTitle);
@@ -1456,9 +1406,11 @@ export default {
       
       if (type === 'tv') {
         // Remove from hidden TV shows
-        this.hiddenTVShows.delete(normalizedTitle);
+        this.hiddenTV.delete(normalizedTitle);
         // Create a copy for Vue reactivity
-        this.hiddenTVShows = new Set(this.hiddenTVShows);
+        this.hiddenTV = new Set(this.hiddenTV);
+         // Save hidden TV shows
+        this.saveHiddenItems('tv');
       } else if (type === 'movie') {
         // Remove from hidden movies
         this.hiddenMovies.delete(normalizedTitle);
@@ -1588,7 +1540,7 @@ export default {
       }
     },
     
-    applyFilters(shouldSave = true) { // Add shouldSave parameter, default to true
+    applyFilters() { // Add shouldSave parameter, default to true
       // Filter TV recommendations
       let filteredTV = [...this.tvRecommendations];
       
@@ -1620,11 +1572,11 @@ export default {
       }
       
       // Apply hidden filter
-      if (this.hideHiddenContent && this.hiddenTVShows.size > 0) {
+      if (this.hideHiddenContent && this.hiddenTV.size > 0) {
         filteredTV = filteredTV.filter(show => {
           if (show === null || show === undefined) return true; // Skip null/undefined
           const showStr = typeof show === 'string' ? show : String(show);
-          return !this.hiddenTVShows.has(showStr.toLowerCase());
+          return !this.hiddenTV.has(showStr.toLowerCase());
         });
       }
       
@@ -1671,10 +1623,10 @@ export default {
       
       this.filteredMovieRecommendations = filteredMovies;
       
-      // Save filter preferences only if shouldSave is true
-      if (shouldSave) {
-        this.saveFilterPreferences();
-      }
+      // // Save filter preferences only if shouldSave is true
+      // if (shouldSave) {
+      //   this.saveFilterPreferences();
+      // }
     },
     
     async saveFilterPreferences() { // Already async
@@ -1688,6 +1640,40 @@ export default {
       await databaseStorageUtils.set('historyHideLiked', this.hideLikedContent);
       await databaseStorageUtils.set('historyHideDisliked', this.hideDislikedContent);
       await databaseStorageUtils.set('historyHideHidden', this.hideHiddenContent);
+
+      // Save boolean settings to server
+      try {
+        await Promise.all([
+          apiService.saveSetting('historyHideExisting', this.hideExistingContent),
+          apiService.saveSetting('historyHideLiked', this.hideLikedContent),
+          apiService.saveSetting('historyHideDisliked', this.hideDislikedContent),
+          apiService.saveSetting('historyHideHidden', this.hideHiddenContent),
+          // Also save hidden items arrays here
+          this.saveHiddenItems('tv'),
+          this.saveHiddenItems('movie')
+        ]);
+      } catch (error) {
+        console.error('Failed to save one or more filter preferences to server:', error);
+        // Optionally show a notification to the user
+      }
+    },
+
+    // New method to save hidden items
+    async saveHiddenItems(type) {
+      if (!this.storeInitialized) return;
+
+      const itemsToSave = type === 'tv' ? Array.from(this.hiddenTV) : Array.from(this.hiddenMovies);
+      const storageKey = type === 'tv' ? 'hiddenTV' : 'hiddenMovies';
+      const preferenceType = type === 'tv' ? 'tv' : 'movie';
+
+      try {
+        // Save to database storage
+        await databaseStorageUtils.setJSON(storageKey, itemsToSave);
+        // Save to server
+        await apiService.savePreferences(preferenceType, 'hidden', itemsToSave);
+      } catch (error) {
+        console.error(`Failed to save hidden ${type} items:`, error);
+      }
     },
     
     // Reset pagination and reinitialize displayed items

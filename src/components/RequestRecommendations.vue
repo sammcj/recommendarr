@@ -4069,25 +4069,6 @@ export default {
   
   // Save state when component is destroyed
   beforeUnmount() {
-    // Don't save recommendations on unmount - this was causing issues when navigating to History
-    // Only save to storageUtils for backup, but don't make server API calls
-    try {
-      if (this.isMovieMode) {
-        databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
-        if (this.recommendations && this.recommendations.length > 0) {
-          databaseStorageUtils.setJSON('movieRecommendations', this.recommendations);
-        }
-      } else {
-        databaseStorageUtils.setJSON('tvRecommendations', this.previousShowRecommendations);
-        if (this.recommendations && this.recommendations.length > 0) {
-          databaseStorageUtils.setJSON('tvRecommendations', this.recommendations);
-        }
-      }
-      
-    } catch (error) {
-      console.error('Error saving recommendations to storageUtils on unmount:', error);
-    }
-    
     // Remove event listener
     window.removeEventListener('resize', this.handleResize);
     // Clear any running intervals

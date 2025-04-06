@@ -60,7 +60,7 @@ constructor() {
           const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
           if (savedUserId) {
             this.selectedUserId = savedUserId;
-            console.log(`Loaded selectedTautulliUserId from database: ${savedUserId}`);
+            
           }
         } catch (settingError) {
           console.error('Error loading selectedTautulliUserId from database:', settingError);
@@ -68,10 +68,7 @@ constructor() {
         
         // Try to load lastTautulliHistoryRefresh from database directly
         try {
-          const lastRefresh = await databaseStorageUtils.get('lastTautulliHistoryRefresh');
-          if (lastRefresh) {
-            console.log(`Loaded lastTautulliHistoryRefresh from database: ${lastRefresh}`);
-          }
+            await databaseStorageUtils.get('lastTautulliHistoryRefresh');
         } catch (settingError) {
           console.error('Error loading lastTautulliHistoryRefresh from database:', settingError);
         }
@@ -167,7 +164,7 @@ constructor() {
     try {
       if (this.useProxy) {
         // Log attempt to connect through proxy for debugging
-        console.log(`Making request to Tautulli via proxy: cmd=${cmd}`);
+        
         
         const response = await apiService.proxyRequest({
           url,
@@ -179,7 +176,7 @@ constructor() {
         return response.data;
       } else {
         // Direct API request
-        console.log(`Making direct request to Tautulli: cmd=${cmd}`);
+        
         
         const response = await axios.get(url, {
           params: requestParams,
@@ -230,10 +227,8 @@ constructor() {
       
       // If userId is provided and not empty string, filter by that user
       if (userId !== null && userId !== undefined && userId !== '') {
-        console.log(`Filtering Tautulli history by user_id: ${userId}`);
+        
         params.user_id = userId;
-      } else {
-        console.log('No user_id filter applied to Tautulli history (showing all users)');
       }
       
       // Filter by media type if provided (movie or episode)
@@ -357,7 +352,7 @@ constructor() {
       // Use individual setting API to update the timestamp
       await databaseStorageUtils.set('lastTautulliHistoryRefresh', now);
       
-      console.log(`Updated lastTautulliHistoryRefresh to ${now}`);
+      
       return true;
     } catch (error) {
       console.error('Error updating lastTautulliHistoryRefresh:', error);

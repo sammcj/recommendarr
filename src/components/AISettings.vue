@@ -1967,7 +1967,7 @@ export default {
         
         // Fetch and cache watch history after successful connection
         try {
-          console.log('Fetching Plex watch history for caching...');
+          
           const movieHistory = await plexService.getRecentlyWatchedMovies(this.plexSettings.recentLimit);
           const showHistory = await plexService.getRecentlyWatchedShows(this.plexSettings.recentLimit);
           
@@ -1975,7 +1975,7 @@ export default {
           const apiService = await import('../services/ApiService').then(m => m.default);
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
-          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Plex`);
+          
         } catch (historyError) {
           console.error('Error fetching and caching Plex watch history:', historyError);
           // Continue with settings save even if history fetch fails
@@ -2021,14 +2021,14 @@ export default {
         
         // Fetch and cache watch history with new limit
         try {
-          console.log('Fetching Plex watch history with updated limit for caching...');
+          
           const movieHistory = await plexService.getRecentlyWatchedMovies(this.plexSettings.recentLimit);
           const showHistory = await plexService.getRecentlyWatchedShows(this.plexSettings.recentLimit);
           
           // Save watch history to server cache
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
-          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Plex with new limit`);
+          
         } catch (historyError) {
           console.error('Error fetching and caching Plex watch history with new limit:', historyError);
           // Continue with settings save even if history fetch fails
@@ -2168,7 +2168,7 @@ export default {
         
         // Fetch and cache watch history after successful connection
         try {
-          console.log('Fetching Jellyfin watch history for caching...');
+          
           const movieHistory = await jellyfinService.getRecentlyWatchedMovies(this.jellyfinSettings.recentLimit);
           const showHistory = await jellyfinService.getRecentlyWatchedShows(this.jellyfinSettings.recentLimit);
           
@@ -2176,7 +2176,7 @@ export default {
           const apiService = await import('../services/ApiService').then(m => m.default);
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
-          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Jellyfin`);
+          
         } catch (historyError) {
           console.error('Error fetching and caching Jellyfin watch history:', historyError);
           // Continue with settings save even if history fetch fails
@@ -2222,14 +2222,14 @@ export default {
         
         // Fetch and cache watch history with new limit
         try {
-          console.log('Fetching Jellyfin watch history with updated limit for caching...');
+          
           const movieHistory = await jellyfinService.getRecentlyWatchedMovies(this.jellyfinSettings.recentLimit);
           const showHistory = await jellyfinService.getRecentlyWatchedShows(this.jellyfinSettings.recentLimit);
           
           // Save watch history to server cache
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
-          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Jellyfin with new limit`);
+          
         } catch (historyError) {
           console.error('Error fetching and caching Jellyfin watch history with new limit:', historyError);
           // Continue with settings save even if history fetch fails
@@ -2307,7 +2307,7 @@ export default {
         
         // Fetch and cache watch history after successful connection
         try {
-          console.log('Fetching Tautulli watch history for caching...');
+          
           const movieHistory = await tautulliService.getRecentlyWatchedMovies(this.tautulliSettings.recentLimit);
           const showHistory = await tautulliService.getRecentlyWatchedShows(this.tautulliSettings.recentLimit);
           
@@ -2315,7 +2315,7 @@ export default {
           const apiService = await import('../services/ApiService').then(m => m.default);
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
-          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Tautulli`);
+          
         } catch (historyError) {
           console.error('Error fetching and caching Tautulli watch history:', historyError);
           // Continue with settings save even if history fetch fails
@@ -2361,14 +2361,14 @@ export default {
         
         // Fetch and cache watch history with new limit
         try {
-          console.log('Fetching Tautulli watch history with updated limit for caching...');
+          
           const movieHistory = await tautulliService.getRecentlyWatchedMovies(this.tautulliSettings.recentLimit);
           const showHistory = await tautulliService.getRecentlyWatchedShows(this.tautulliSettings.recentLimit);
           
           // Save watch history to server cache
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
-          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Tautulli with new limit`);
+          
         } catch (historyError) {
           console.error('Error fetching and caching Tautulli watch history with new limit:', historyError);
           // Continue with settings save even if history fetch fails
@@ -2433,14 +2433,14 @@ export default {
         
         // Fetch and cache watch history after successful update
         try {
-          console.log('Fetching Trakt watch history for caching...');
+          
           const movieHistory = await traktService.getRecentlyWatchedMovies(this.traktSettings.recentLimit);
           const showHistory = await traktService.getRecentlyWatchedShows(this.traktSettings.recentLimit);
           
           // Save watch history to server cache
           await apiService.saveWatchHistory('movies', movieHistory);
           await apiService.saveWatchHistory('shows', showHistory);
-          console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Trakt`);
+          
         } catch (historyError) {
           console.error('Error fetching and caching Trakt watch history:', historyError);
           // Continue with settings save even if history fetch fails

@@ -109,16 +109,16 @@ class UserDataManager {
   // Initialize the user data manager
   async init() {
     try {
-      console.log('Initializing user data manager...');
+      
       
       // Ensure database is initialized
       if (!databaseService.initialized) {
-        console.log('Database service not initialized, initializing now...');
+        
         await databaseService.init();
       }
       
       this.initialized = true;
-      console.log('User data manager initialized successfully');
+      
     } catch (err) {
       console.error('Error initializing user data manager:', err);
       throw err;
@@ -130,18 +130,18 @@ class UserDataManager {
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('User data manager not initialized, initializing now...');
+        
         await this.init();
       }
       
-      console.log(`Loading user data for userId: ${userId}`);
+      
       
       // Get user data from database
       const userData = databaseService.getUserData(userId);
       
       // If no user data found, return default data
       if (!userData) {
-        console.log(`No user data found for userId: ${userId}, creating default data`);
+        
         const defaultData = createDefaultUserData();
         
         // Save and return the default data
@@ -167,11 +167,11 @@ class UserDataManager {
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('User data manager not initialized, initializing now...');
+        
         await this.init();
       }
       
-      console.log(`Saving user data for userId: ${userId}`);
+      
       
       // Make sure userData is valid before saving
       if (!userData || typeof userData !== 'object') {
@@ -233,10 +233,10 @@ class UserDataManager {
       const success = databaseService.saveUserData(userId, userData);
       
       if (hasHistoryRefreshTimestamps) {
-        console.log(`userDataManager.saveUserData: Result of databaseService.saveUserData:`, success);
+        
       }
       
-      console.log(`User data saved successfully for userId: ${userId}`);
+      
       return success;
     } catch (err) {
       console.error(`Error saving user data for userId: ${userId}:`, err);
@@ -249,16 +249,16 @@ class UserDataManager {
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('User data manager not initialized, initializing now...');
+        
         await this.init();
       }
       
-      console.log(`Deleting user data for userId: ${userId}`);
+      
       
       // Delete from database
       const success = databaseService.deleteUserData(userId);
       
-      console.log(`User data deleted successfully for userId: ${userId}`);
+      
       return success;
     } catch (err) {
       console.error(`Error deleting user data for userId: ${userId}:`, err);
@@ -271,11 +271,11 @@ class UserDataManager {
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('User data manager not initialized, initializing now...');
+        
         await this.init();
       }
       
-      console.log(`Migrating legacy data to user: ${userId}`);
+      
       
       // Load the user's current data (or create default)
       const userData = await this.getUserData(userId);
@@ -366,7 +366,7 @@ class UserDataManager {
       
       // Save the updated user data
       await this.saveUserData(userId, userData);
-      console.log(`Legacy data migration complete for userId: ${userId}`);
+      
       return true;
     } catch (err) {
       console.error(`Error migrating legacy data for userId: ${userId}:`, err);
@@ -379,7 +379,7 @@ class UserDataManager {
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('User data manager not initialized, initializing now...');
+        
         await this.init();
       }
       
@@ -395,7 +395,7 @@ class UserDataManager {
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('User data manager not initialized, initializing now...');
+        
         await this.init();
       }
       

@@ -16,11 +16,11 @@ class AuthService {
   // Initialize the auth service
   async init() {
     try {
-      console.log('Initializing auth service...');
+      
       
       // Ensure database is initialized
       if (!databaseService.initialized) {
-        console.log('Database service not initialized, initializing now...');
+        
         await databaseService.init();
       }
       
@@ -28,7 +28,7 @@ class AuthService {
       const users = databaseService.getAllUsers();
       
       if (users.length === 0) {
-        console.log('No users found in database, creating default admin user...');
+        
         try {
           const salt = crypto.randomBytes(16).toString('hex');
           const hash = crypto.pbkdf2Sync('1234', salt, 1000, 64, 'sha512').toString('hex');
@@ -44,11 +44,11 @@ class AuthService {
           };
           
           databaseService.saveUser(adminUser);
-          console.log('Created default admin user with password "1234"');
+          
           
           // Also create default user data for the admin user
           const userDataManager = require('./userDataManager');
-          console.log('Creating default user data entry for admin...');
+          
           const defaultData = userDataManager.createDefaultUserData();
           await userDataManager.saveUserData('admin', defaultData);
         } catch (createErr) {
@@ -56,7 +56,7 @@ class AuthService {
         }
       }
       
-      console.log('Auth service initialization complete');
+      
       this.initialized = true;
     } catch (err) {
       console.error('Error initializing auth service:', err);
@@ -90,30 +90,30 @@ class AuthService {
   
   // Create a new user
   async createUser(username, password, isAdmin = false) {
-    console.log(`Creating user: ${username}, isAdmin: ${isAdmin}`);
+    
     
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('Auth service not initialized, initializing now...');
+        
         await this.init();
       }
       
       // Check if username already exists
       if (this.getUserByUsername(username)) {
-        console.log(`Username ${username} already exists`);
+        
         return { success: false, message: 'Username already exists' };
       }
       
       // Hash the password
-      console.log('Hashing password...');
+      
       const { salt, hash } = this.hashPassword(password);
       
       // Generate a userId
       const userId = crypto.randomBytes(16).toString('hex');
       
       // Create user object
-      console.log('Creating user object...');
+      
       const user = {
         userId,
         username,
@@ -125,16 +125,16 @@ class AuthService {
       };
       
       // Save user to database
-      console.log('Saving user to database...');
+      
       databaseService.saveUser(user);
       
       // Create default user data entry for this user
       const userDataManager = require('./userDataManager');
-      console.log('Creating default user data entry...');
+      
       const defaultData = userDataManager.createDefaultUserData();
       await userDataManager.saveUserData(userId, defaultData);
       
-      console.log(`User ${username} created successfully`);
+      
       return { 
         success: true, 
         message: 'User created successfully',
@@ -159,11 +159,11 @@ class AuthService {
   
   // Find or create user from OAuth profile
   async findOrCreateOAuthUser(profile, provider) {
-    console.log(`Finding or creating user from ${provider} OAuth profile:`, profile.id);
+    
     
     // Ensure the service is initialized
     if (!this.initialized) {
-      console.log('Auth service not initialized, initializing now...');
+      
       await this.init();
     }
     
@@ -178,7 +178,7 @@ class AuthService {
       
       for (const existingUser of users) {
         if (existingUser.email === email) {
-          console.log(`Found existing user by email: ${existingUser.username}`);
+          
           
           // Update the user with OAuth info
           existingUser.oauthId = oauthKey;
@@ -196,7 +196,7 @@ class AuthService {
     // If user doesn't exist, create a new one
     if (!user) {
       isNewUser = true;
-      console.log(`Creating new user from ${provider} OAuth profile`);
+      
       
       // Generate a username from the profile
       let username = '';
@@ -244,14 +244,14 @@ class AuthService {
       // Save to database
       databaseService.saveUser(newUser);
       
-      console.log(`Created new OAuth user: ${username}`);
+      
       user = newUser;
     }
     
     // If this is a new user, create default user data entry
     if (isNewUser) {
       const userDataManager = require('./userDataManager');
-      console.log('Creating default user data entry for new OAuth user...');
+      
       const defaultData = userDataManager.createDefaultUserData();
       await userDataManager.saveUserData(user.userId, defaultData);
     }
@@ -261,36 +261,36 @@ class AuthService {
   
   // Authenticate a user
   async authenticate(username, password) {
-    console.log(`Authenticating user: ${username}`);
+    
     
     // Ensure the service is initialized
     if (!this.initialized) {
-      console.log('Auth service not initialized, initializing now...');
+      
       await this.init();
     }
     
     // Check if user exists
     const user = this.getUserByUsername(username);
     if (!user) {
-      console.log(`User '${username}' not found`);
+      
       return { success: false, message: 'Invalid username or password' };
     }
     
     // Check if this is an OAuth user without a password
     if (user.authProvider !== 'local' && !user.hash) {
-      console.log(`User '${username}' is an OAuth user and cannot login with password`);
+      
       return { success: false, message: 'This account uses social login. Please sign in with your social provider.' };
     }
     
-    console.log(`User '${username}' found, verifying password...`);
+    
     
     // Verify password
     const passwordValid = this.verifyPassword(password, user.salt, user.hash);
-    console.log(`Password verification result: ${passwordValid ? 'success' : 'failed'}`);
+    
     
     if (passwordValid) {
       // Return user info (excluding sensitive data)
-      console.log(`Authentication successful for user: ${username}`);
+      
       return {
         success: true,
         user: {
@@ -303,7 +303,7 @@ class AuthService {
         }
       };
     } else {
-      console.log(`Invalid password for user: ${username}`);
+      
       return { success: false, message: 'Invalid username or password' };
     }
   }

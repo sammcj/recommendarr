@@ -291,7 +291,7 @@ export default {
           
           // Fetch and cache watch history after successful connection
           try {
-            console.log('Fetching Trakt watch history for caching...');
+            
             const movieHistory = await traktService.getRecentlyWatchedMovies(recentLimit);
             const showHistory = await traktService.getRecentlyWatchedShows(recentLimit);
             
@@ -299,7 +299,7 @@ export default {
             const { default: apiService } = await import('../services/ApiService');
             await apiService.saveWatchHistory('movies', movieHistory);
             await apiService.saveWatchHistory('shows', showHistory);
-            console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Trakt`);
+            
           } catch (historyError) {
             console.error('Error fetching and caching Trakt watch history:', historyError);
             // Continue with connection success even if history fetch fails
@@ -332,7 +332,7 @@ export default {
         try {
           // Reset the client info but keep the form values
           await traktService.revokeAccess();
-          console.log('Successfully revoked Trakt access');
+          
         } catch (error) {
           console.error('Error revoking Trakt access:', error);
         }
@@ -355,7 +355,7 @@ export default {
       // Use the new updateRecentLimit method to preserve other credentials
       try {
         await traktService.updateRecentLimit(this.recentLimit);
-        console.log(`Updated Trakt recent limit to ${this.recentLimit}`);
+        
       } catch (error) {
         console.error('Error updating Trakt recent limit:', error);
       }
@@ -372,14 +372,14 @@ export default {
       
       // Fetch and cache watch history with the new limit
       try {
-        console.log('Fetching Trakt watch history with updated limit for caching...');
+        
         const movieHistory = await traktService.getRecentlyWatchedMovies(this.recentLimit);
         const showHistory = await traktService.getRecentlyWatchedShows(this.recentLimit);
         
         // Save watch history to server cache
         await apiService.saveWatchHistory('movies', movieHistory);
         await apiService.saveWatchHistory('shows', showHistory);
-        console.log(`Cached ${movieHistory.length} movies and ${showHistory.length} shows from Trakt with new limit`);
+        
       } catch (historyError) {
         console.error('Error fetching and caching Trakt watch history with new limit:', historyError);
         // Continue with limit update even if history fetch fails

@@ -830,13 +830,13 @@ export default {
     };
   },
   async mounted() {
-    console.log('RecommendationSettings mounted - initializing store');
+    
     
     try {
       // Always wait for store initialization regardless of current state
       // This ensures we have the latest data from database
       await recommendationsStore.initialize();
-      console.log('Store initialization complete or already initialized');
+      
       
       // Explicitly sync all settings from store to component and parent
       this.syncUIStateToParent();
@@ -1052,7 +1052,7 @@ export default {
   methods: {
     // Sync UI state from store to parent component via events
     syncUIStateToParent() {
-      console.log('Syncing UI expansion states and settings to parent');
+      
       
       // Sync UI expansion states
       this.$emit('update:settingsExpanded', recommendationsStore.state.settingsExpanded);
@@ -1159,7 +1159,7 @@ export default {
       // Use the store to update the model
       recommendationsStore.updateSelectedModel(value)
         .then(() => {
-          console.log('Saved model preference to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save model preference:', error);
@@ -1173,7 +1173,7 @@ export default {
       // Use the store to update the temperature
       recommendationsStore.updateTemperature(numValue)
         .then(() => {
-          console.log('Saved temperature to store:', numValue);
+          
         })
         .catch(error => {
           console.error('Failed to save temperature:', error);
@@ -1185,7 +1185,7 @@ export default {
       // Use the store to update the sampled library mode
       recommendationsStore.updateSampledLibrary(value)
         .then(() => {
-          console.log('Saved sampled library mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save sampled library mode:', error);
@@ -1200,7 +1200,7 @@ export default {
       // Use the store to update the sample size
       recommendationsStore.updateSampleSize(numValue)
         .then(() => {
-          console.log('Saved library sample size to store:', numValue);
+          
         })
         .catch(error => {
           console.error('Failed to save library sample size:', error);
@@ -1213,7 +1213,7 @@ export default {
       // Use the store to update the structured output preference
       recommendationsStore.updateStructuredOutput(value)
         .then(() => {
-          console.log('Saved structured output preference to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save structured output preference:', error);
@@ -1225,7 +1225,7 @@ export default {
       // Use the store to clear recommendation history
       recommendationsStore.clearRecommendationHistory()
         .then(() => {
-          console.log('Cleared recommendation history in store');
+          
         })
         .catch(error => {
           console.error('Failed to clear recommendation history:', error);
@@ -1237,7 +1237,7 @@ export default {
     async saveRecommendationCount(value) {
       const numValue = Number(value);
       try {
-        console.log('Saving numRecommendations to store:', numValue);
+        
         await recommendationsStore.updateNumRecommendations(numValue);
         // Update the local value to ensure UI is in sync
         this.$emit('update:numRecommendations', numValue);
@@ -1249,7 +1249,7 @@ export default {
     async saveColumnsCount(value) {
       const numValue = Number(value);
       try {
-        console.log('Saving columnsCount to store:', numValue);
+        
         await recommendationsStore.updateColumnsCount(numValue);
         // Update the local value to ensure UI is in sync
         this.$emit('update:columnsCount', numValue);
@@ -1265,7 +1265,7 @@ export default {
       // Use the store to toggle the genre
       recommendationsStore.toggleGenre(genre)
         .then(() => {
-          console.log('Toggled genre in store:', genre);
+          
           // Emit event for parent component
           this.$emit('toggle-genre', genre);
         })
@@ -1277,7 +1277,7 @@ export default {
       // Use the store to clear all genres
       recommendationsStore.clearGenres()
         .then(() => {
-          console.log('Cleared all genres in store');
+          
           // Emit event for parent component
           this.$emit('clear-genres');
         })
@@ -1295,7 +1295,7 @@ export default {
               recommendationsStore.toggleGenre(genre);
             });
           }
-          console.log('Saved universal genre preferences to store:', this.selectedGenres);
+          
         })
         .catch(error => {
           console.error('Failed to save universal genre preferences:', error);
@@ -1305,7 +1305,7 @@ export default {
       // Use the store to update the prompt style
       recommendationsStore.updatePromptStyle(value)
         .then(() => {
-          console.log('Saved prompt style to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save prompt style:', error);
@@ -1317,7 +1317,7 @@ export default {
       // Use the store to update the custom vibe
       recommendationsStore.updateCustomVibe(value)
         .then(() => {
-          console.log('Saved universal custom vibe to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save universal custom vibe:', error);
@@ -1330,7 +1330,7 @@ export default {
       // Use the store to clear the custom vibe
       recommendationsStore.clearCustomVibe()
         .then(() => {
-          console.log('Cleared custom vibe in store');
+          
         })
         .catch(error => {
           console.error('Failed to clear custom vibe:', error);
@@ -1342,7 +1342,7 @@ export default {
       // Use the store to update the custom prompt only preference
       recommendationsStore.updateCustomPromptOnly(value)
         .then(() => {
-          console.log('Saved universal custom prompt only preference to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save universal custom prompt only preference:', error);
@@ -1358,7 +1358,7 @@ export default {
       // Use the store to update the language preference
       recommendationsStore.updateSelectedLanguage(stringValue)
         .then(() => {
-          console.log('Saved universal language preference to store:', stringValue);
+          
         })
         .catch(error => {
           console.error('Failed to save universal language preference:', error);
@@ -1371,7 +1371,7 @@ export default {
       // Use the store to update the Plex use history setting
       recommendationsStore.updatePlexUseHistory(value)
         .then(() => {
-          console.log('Saved Plex use history setting to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Plex use history setting:', error);
@@ -1383,7 +1383,7 @@ export default {
       // Use the store to update the Plex history mode
       recommendationsStore.updatePlexHistoryMode(value)
         .then(() => {
-          console.log('Saved Plex history mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Plex history mode:', error);
@@ -1397,7 +1397,7 @@ export default {
       // Use the store to update the Plex custom history days
       recommendationsStore.updatePlexCustomHistoryDays(numValue)
         .then(() => {
-          console.log('Saved Plex custom history days to store:', numValue);
+          
         })
         .catch(error => {
           console.error('Failed to save Plex custom history days:', error);
@@ -1409,7 +1409,7 @@ export default {
       // Use the store to update the Plex only mode
       recommendationsStore.updatePlexOnlyMode(value)
         .then(() => {
-          console.log('Saved Plex only mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Plex only mode:', error);
@@ -1421,7 +1421,7 @@ export default {
       // Use the store to update the Jellyfin use history setting
       recommendationsStore.updateJellyfinUseHistory(value)
         .then(() => {
-          console.log('Saved Jellyfin use history setting to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Jellyfin use history setting:', error);
@@ -1433,7 +1433,7 @@ export default {
       // Use the store to update the Jellyfin history mode
       recommendationsStore.updateJellyfinHistoryMode(value)
         .then(() => {
-          console.log('Saved Jellyfin history mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Jellyfin history mode:', error);
@@ -1447,7 +1447,7 @@ export default {
       // Use the store to update the Jellyfin custom history days
       recommendationsStore.updateJellyfinCustomHistoryDays(numValue)
         .then(() => {
-          console.log('Saved Jellyfin custom history days to store:', numValue);
+          
         })
         .catch(error => {
           console.error('Failed to save Jellyfin custom history days:', error);
@@ -1459,7 +1459,7 @@ export default {
       // Use the store to update the Jellyfin only mode
       recommendationsStore.updateJellyfinOnlyMode(value)
         .then(() => {
-          console.log('Saved Jellyfin only mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Jellyfin only mode:', error);
@@ -1471,7 +1471,7 @@ export default {
       // Use the store to update the Tautulli use history setting
       recommendationsStore.updateTautulliUseHistory(value)
         .then(() => {
-          console.log('Saved Tautulli use history setting to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Tautulli use history setting:', error);
@@ -1483,7 +1483,7 @@ export default {
       // Use the store to update the Tautulli history mode
       recommendationsStore.updateTautulliHistoryMode(value)
         .then(() => {
-          console.log('Saved Tautulli history mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Tautulli history mode:', error);
@@ -1497,7 +1497,7 @@ export default {
       // Use the store to update the Tautulli custom history days
       recommendationsStore.updateTautulliCustomHistoryDays(numValue)
         .then(() => {
-          console.log('Saved Tautulli custom history days to store:', numValue);
+          
         })
         .catch(error => {
           console.error('Failed to save Tautulli custom history days:', error);
@@ -1509,7 +1509,7 @@ export default {
       // Use the store to update the Tautulli only mode
       recommendationsStore.updateTautulliOnlyMode(value)
         .then(() => {
-          console.log('Saved Tautulli only mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Tautulli only mode:', error);
@@ -1521,7 +1521,7 @@ export default {
       // Use the store to update the Trakt use history setting
       recommendationsStore.updateTraktUseHistory(value)
         .then(() => {
-          console.log('Saved Trakt use history setting to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Trakt use history setting:', error);
@@ -1533,7 +1533,7 @@ export default {
       // Use the store to update the Trakt history mode
       recommendationsStore.updateTraktHistoryMode(value)
         .then(() => {
-          console.log('Saved Trakt history mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Trakt history mode:', error);
@@ -1547,7 +1547,7 @@ export default {
       // Use the store to update the Trakt custom history days
       recommendationsStore.updateTraktCustomHistoryDays(numValue)
         .then(() => {
-          console.log('Saved Trakt custom history days to store:', numValue);
+          
         })
         .catch(error => {
           console.error('Failed to save Trakt custom history days:', error);
@@ -1559,7 +1559,7 @@ export default {
       // Use the store to update the Trakt only mode
       recommendationsStore.updateTraktOnlyMode(value)
         .then(() => {
-          console.log('Saved Trakt only mode to store:', value);
+          
         })
         .catch(error => {
           console.error('Failed to save Trakt only mode:', error);
@@ -1579,7 +1579,7 @@ export default {
         await sonarrService.refreshLibrary();
         
         // Show a success message and visual feedback
-        console.log('Sonarr library refreshed successfully');
+        
         this.refreshingSonarr = false;
         this.sonarrRefreshSuccess = true;
         
@@ -1601,7 +1601,7 @@ export default {
         await radarrService.refreshLibrary();
         
         // Show a success message and visual feedback
-        console.log('Radarr library refreshed successfully');
+        
         this.refreshingRadarr = false;
         this.radarrRefreshSuccess = true;
         
@@ -1626,7 +1626,7 @@ export default {
         
         // Use the store to update the content type
         await recommendationsStore.setContentType(isMovie);
-        console.log(`Content type switched to ${isMovie ? 'movies' : 'TV shows'}`);
+        
         
         // Emit event for parent component
         this.$emit('update-content-type', isMovie);

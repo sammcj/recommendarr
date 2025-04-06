@@ -109,12 +109,12 @@ const actions = {
   async initialize() {
     // If already completed initialization, just return current state
     if (state.loadingComplete) {
-      console.log('RecommendationsStore: Already initialized, returning current state');
+      
       
       // Force a refresh of recommendation history data even if initialized
       try {
         await this.loadRecommendationHistory();
-        console.log('RecommendationsStore: Refreshed recommendation history');
+        
       } catch (error) {
         console.error('RecommendationsStore: Error refreshing recommendation history:', error);
       }
@@ -124,7 +124,7 @@ const actions = {
     
     // If currently loading, wait for it to complete
     if (state.isLoading) {
-      console.log('RecommendationsStore: Loading in progress, waiting...');
+      
       // Create a simple promise that resolves when loading is complete
       await new Promise(resolve => {
         const checkLoading = () => {
@@ -136,15 +136,15 @@ const actions = {
         };
         checkLoading();
       });
-      console.log('RecommendationsStore: Existing loading completed');
+      
       return state;
     }
     
-    console.log('RecommendationsStore: Starting new initialization');
+    
     state.isLoading = true;
     
     try {
-      console.log('RecommendationsStore: Loading settings from storage');
+      
       // Load model settings
       const savedModel = await databaseStorageUtils.get('openaiModel');
       if (savedModel) {
@@ -305,7 +305,7 @@ const actions = {
       // Load liked/disliked preferences
       await this.loadPreferences();
       
-      console.log('RecommendationsStore: All settings loaded successfully');
+      
       initialized.value = true;
     } catch (error) {
       console.error('Error initializing RecommendationsStore:', error);
@@ -327,22 +327,22 @@ const actions = {
    */
   async loadRecommendationHistory() {
     try {
-      console.log('RecommendationsStore: Loading recommendation history from server');
+      
       
       // Load directly from storage via API settings
       try {
         // Get tvRecommendations directly
-        console.log('RecommendationsStore: Getting TV recommendations from storage');
+        
         const tvRecs = await databaseStorageUtils.getJSON('tvRecommendations', []);
-        console.log('RecommendationsStore: TV recommendations from storage:', tvRecs ? tvRecs.length : 0);
+        
         if (Array.isArray(tvRecs) && tvRecs.length > 0) {
           state.previousShowRecommendations = tvRecs;
         }
         
         // Get movieRecommendations directly
-        console.log('RecommendationsStore: Getting movie recommendations from storage');
+        
         const movieRecs = await databaseStorageUtils.getJSON('movieRecommendations', []);
-        console.log('RecommendationsStore: Movie recommendations from storage:', movieRecs ? movieRecs.length : 0);
+        
         if (Array.isArray(movieRecs) && movieRecs.length > 0) {
           state.previousMovieRecommendations = movieRecs;
         }
@@ -352,7 +352,7 @@ const actions = {
       
       // Fallback to API if storage didn't work or returned empty
       if (!state.previousShowRecommendations.length || !state.previousMovieRecommendations.length) {
-        console.log('RecommendationsStore: Falling back to API for empty recommendations');
+        
         
         // Load TV show recommendations
         const tvRecsResponse = await apiService.getRecommendations('tv');
@@ -397,16 +397,16 @@ const actions = {
       
       // Fallback to localStorage one last time if nothing else worked
       try {
-        console.log('RecommendationsStore: Final fallback to storage');
+        
         const savedTVRecs = await databaseStorageUtils.getJSON('tvRecommendations', []);
         if (savedTVRecs && Array.isArray(savedTVRecs)) {
-          console.log('RecommendationsStore: Final TV fallback found', savedTVRecs.length, 'items');
+          
           state.previousShowRecommendations = savedTVRecs;
         }
         
         const savedMovieRecs = await databaseStorageUtils.getJSON('movieRecommendations', []);
         if (savedMovieRecs && Array.isArray(savedMovieRecs)) {
-          console.log('RecommendationsStore: Final movie fallback found', savedMovieRecs.length, 'items');
+          
           state.previousMovieRecommendations = savedMovieRecs;
         }
       } catch (finalError) {
@@ -845,12 +845,33 @@ const actions = {
     // Extract just the titles for the title-only history array
     const titlesToAdd = recommendations.map(rec => rec.title);
     
-    // Reference to the correct history array based on mode
-    const historyArray = state.isMovieMode ? 
-      state.previousMovieRecommendations : state.previousShowRecommendations;
+    // 1. Load the full existing history first
+    let existingHistory = [];
+    const storageKey = state.isMovieMode ? 'movieRecommendations' : 'tvRecommendations';
+    const apiType = state.isMovieMode ? 'movie' : 'tv';
     
-    // Combine with existing recommendations, remove duplicates
-    const combinedRecommendations = [...historyArray, ...titlesToAdd];
+    try {
+      // Try loading from storage first
+      existingHistory = await databaseStorageUtils.getJSON(storageKey, []);
+      if (!Array.isArray(existingHistory) || existingHistory.length === 0) {
+        // Fallback to API if storage is empty or invalid
+        const apiHistory = await apiService.getRecommendations(apiType);
+        if (Array.isArray(apiHistory)) {
+           // Ensure API history contains only strings (titles)
+           existingHistory = apiHistory
+             .map(rec => typeof rec === 'string' ? rec : rec?.title)
+             .filter(title => !!title);
+        } else {
+           existingHistory = []; // Ensure it's an array
+        }
+      }
+    } catch (loadError) {
+      console.error(`Error loading existing ${apiType} history:`, loadError);
+      existingHistory = []; // Default to empty array on error
+    }
+
+    // 2. Combine loaded history with new titles
+    const combinedRecommendations = [...existingHistory, ...titlesToAdd];
     
     // Keep only unique recommendations (as strings)
     const uniqueRecommendations = [...new Set(combinedRecommendations)];
@@ -875,21 +896,20 @@ const actions = {
       }
     }
     
-    // Save to server
+    // 6. Save the final combined list back
     try {
-      if (state.isMovieMode) {
-        await apiService.saveRecommendations('movie', state.previousMovieRecommendations);
-      } else {
-        await apiService.saveRecommendations('tv', state.previousShowRecommendations);
-      }
-    } catch (error) {
-      console.error('Error saving recommendation history:', error);
-      
-      // Fallback to localStorage
-      if (state.isMovieMode) {
-        await databaseStorageUtils.setJSON('previousMovieRecommendations', state.previousMovieRecommendations);
-      } else {
-        await databaseStorageUtils.setJSON('previousTVRecommendations', state.previousShowRecommendations);
+      const finalHistory = state.isMovieMode ? state.previousMovieRecommendations : state.previousShowRecommendations;
+      await apiService.saveRecommendations(apiType, finalHistory);
+      // Also save to local storage as a backup/for offline
+      await databaseStorageUtils.setJSON(storageKey, finalHistory); 
+    } catch (saveError) {
+      console.error(`Error saving updated ${apiType} history:`, saveError);
+      // Attempt to save to local storage even if API fails
+      try {
+         const finalHistory = state.isMovieMode ? state.previousMovieRecommendations : state.previousShowRecommendations;
+         await databaseStorageUtils.setJSON(storageKey, finalHistory);
+      } catch (storageSaveError) {
+         console.error(`Error saving ${apiType} history to storage after API failure:`, storageSaveError);
       }
     }
   },
@@ -1003,7 +1023,7 @@ const actions = {
    * This should be called when a user logs out or when a new user logs in
    */
   resetStore() {
-    console.log('RecommendationsStore: Resetting store to initial state');
+    
     
     // Reset all state to default values
     state.selectedModel = '';
@@ -1070,7 +1090,7 @@ const actions = {
     // Reset initialization flag
     initialized.value = false;
     
-    console.log('RecommendationsStore: Store reset complete');
+    
   }
 };
 

@@ -29,14 +29,14 @@ class DatabaseStorageUtils {
     async get(key, defaultValue = null) {
         try {
             // Always get directly from API
-            console.log(`Fetching ${key} directly from API...`);
+            
             const value = await apiService.getSetting(key);
             
             if (value !== null && value !== undefined) {
-                console.log(`Got ${key} from API:`, value);
+                
                 return value;
             } else {
-                console.log(`${key} not found in API, using default:`, defaultValue);
+                
                 return defaultValue;
             }
         } catch (error) {
@@ -70,25 +70,25 @@ class DatabaseStorageUtils {
      */
     async getJSON(key, defaultValue = null) {
         try {
-            console.log(`DatabaseStorageUtils.getJSON: fetching ${key}`);
+            
             const value = await this.get(key);
-            console.log(`DatabaseStorageUtils.getJSON: received ${key}:`, value);
+            
 
             if (value === null || value === undefined) {
-                console.log(`DatabaseStorageUtils.getJSON: ${key} value is null/undefined, using default:`, defaultValue);
+                
                 return defaultValue;
             }
 
             // If it's already an object, return it
             if (typeof value === 'object' && value !== null) {
-                console.log(`DatabaseStorageUtils.getJSON: ${key} is already an object with ${Array.isArray(value) ? value.length : Object.keys(value).length} items`);
+                
                 return value;
             }
 
             // Otherwise, try to parse it
             try {
                 const parsed = JSON.parse(value);
-                console.log(`DatabaseStorageUtils.getJSON: ${key} parsed successfully with ${Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length} items`);
+                
                 return parsed;
             } catch (error) {
                 console.error(`Error parsing JSON for ${key}:`, error);
@@ -154,7 +154,7 @@ class DatabaseStorageUtils {
      * to ensure no data leakage between users
      */
     reset() {
-        console.log('DatabaseStorageUtils: Resetting internal state');
+        
         // This class doesn't maintain any cache or state that needs to be cleared,
         // but we include this method for future-proofing and consistency
     }

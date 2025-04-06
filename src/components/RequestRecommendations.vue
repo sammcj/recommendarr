@@ -835,18 +835,18 @@ export default {
     // Watch for changes to radarrConfigured prop (for example when saving credentials)
     radarrConfigured: {
       handler(newValue, oldValue) {
-        console.log('RequestRecommendations: radarrConfigured prop changed:', newValue);
+        
         // Only fetch if the value actually changed from false to true
         // and we don't already have movies data
         if (newValue && !oldValue && this.isMovieMode) {
           // If radarrConfigured became true while in movie mode, try to load movies
-          console.log('Radarr is now configured and we are in movie mode, checking movies data');
+          
           if ((!this.movies || this.movies.length === 0) && 
               (!this.localMovies || this.localMovies.length === 0)) {
-            console.log('Movies array is empty, trying to fetch from radarr service');
+            
             radarrService.getMovies().then(moviesData => {
               if (moviesData && moviesData.length > 0) {
-                console.log(`Successfully loaded ${moviesData.length} movies`);
+                
                 // Update localMovies instead of directly mutating the prop
                 this.localMovies = moviesData;
               }
@@ -866,7 +866,7 @@ export default {
     // Watch for changes to movies prop to update localMovies
     movies: {
       handler(newValue) {
-        console.log('Movies prop changed, updating localMovies');
+        
         this.localMovies = [...newValue];
       },
       immediate: true
@@ -1039,7 +1039,7 @@ export default {
         return recommendations;
       }
       
-      console.log(`Checking for duplicates in ${recommendations.length} recommendations`);
+      
       
       // Use a Map to track unique titles (case-insensitive)
       const uniqueTitles = new Map();
@@ -1051,7 +1051,7 @@ export default {
         const normalizedTitle = rec.title.toLowerCase();
         
         if (uniqueTitles.has(normalizedTitle)) {
-          console.log(`Found duplicate recommendation: "${rec.title}"`);
+          
           return false;
         }
         
@@ -1059,7 +1059,7 @@ export default {
         return true;
       });
       
-      console.log(`Removed ${recommendations.length - deduplicated.length} duplicate recommendations`);
+      
       return deduplicated;
     },
     
@@ -1067,11 +1067,6 @@ export default {
     handleWindowResize() {
       // This triggers a reactivity update for the shouldUseCompactMode computed property
       this.$forceUpdate();
-      
-      // Try accessing data from App component directly
-      if (this.$root) {
-        console.log('Root component data:', this.$root);
-      }
     },
     
     closeWatchHistoryModal() {
@@ -1081,7 +1076,7 @@ export default {
       // Clean up our temporary data
       this._watchHistoryData = null;
       
-      console.log('Watch history modal closed and temporary data cleared');
+      
     },
     
     viewRawHistoryData() {
@@ -1136,11 +1131,6 @@ export default {
     // Helper methods for finding properties in different data formats
     findTitle(item) {
       if (!item) return 'Unknown';
-      
-      // Debug the item structure when it's the first item
-      if (this.filteredWatchHistory && this.filteredWatchHistory[0] === item) {
-        console.log('DEBUG: First item structure in findTitle:', JSON.stringify(item));
-      }
       
       // Try different possible property names for the title
       return item.title || item.name || item.showName || item.movieName || 
@@ -1277,7 +1267,7 @@ export default {
       try {
         const tags = await radarrService.getTags();
         this.availableTags.radarr = tags || [];
-        console.log('Loaded Radarr tags:', this.availableTags.radarr);
+        
       } catch (error) {
         console.error('Error loading Radarr tags:', error);
       } finally {
@@ -1295,7 +1285,7 @@ export default {
       try {
         const tags = await sonarrService.getTags();
         this.availableTags.sonarr = tags || [];
-        console.log('Loaded Sonarr tags:', this.availableTags.sonarr);
+        
       } catch (error) {
         console.error('Error loading Sonarr tags:', error);
       } finally {
@@ -1342,9 +1332,9 @@ export default {
     // Mounted and Destroyed lifecycle hooks
     async mounted() {
       // Initialize the recommendations store
-      console.log('Initializing RecommendationsStore...');
+      
       await recommendationsStore.initialize();
-      console.log('RecommendationsStore initialized');
+      
       
       // Initialize OpenAI service with settings from store
       await this.loadSettings();
@@ -1364,12 +1354,12 @@ export default {
     
     // This will be called when the component is shown (keep-alive)
     async activated() {
-      console.log("RequestRecommendations component activated, refreshing store data");
+      
       
       try {
         // Reload recommendation history from the store
         await recommendationsStore.loadRecommendationHistory();
-        console.log("Recommendation history refreshed from store");
+        
       } catch (error) {
         console.error("Error refreshing store data on activation:", error);
       }
@@ -1377,7 +1367,7 @@ export default {
     
     // Add deactivated hook to prevent saving state when component is hidden
     deactivated() {
-      console.log("RequestRecommendations component deactivated");
+      
       // Do not save state when navigating away
     },
     
@@ -1399,14 +1389,14 @@ export default {
         
         // Reload the previous recommendations and liked/disliked lists from the server after switching content type
         try {
-          console.log("Content type changed, reloading data from server...");
+          
           
           // Load recommendations based on new mode
           const contentType = isMovie ? 'movie' : 'tv';
           const recsResponse = await apiService.getRecommendations(contentType, this.username) || [];
           
           if (Array.isArray(recsResponse) && recsResponse.length > 0) {
-            console.log(`Loaded ${recsResponse.length} ${contentType} recommendations from server after content type change`);
+            
             
             if (isMovie) {
               this.previousMovieRecommendations = recsResponse;
@@ -1421,7 +1411,7 @@ export default {
           const likedContent = await apiService.getPreferences(contentType, 'liked');
           if (Array.isArray(likedContent)) {
             this.likedRecommendations = likedContent;
-            console.log(`Loaded ${likedContent.length} liked ${contentType} preferences after content type change`);
+            
           } else {
             // Reset if no data found
             this.likedRecommendations = [];
@@ -1430,7 +1420,7 @@ export default {
           const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
           if (Array.isArray(dislikedContent)) {
             this.dislikedRecommendations = dislikedContent;
-            console.log(`Loaded ${dislikedContent.length} disliked ${contentType} preferences after content type change`);
+            
           } else {
             // Reset if no data found
             this.dislikedRecommendations = [];
@@ -1453,7 +1443,7 @@ export default {
       
       // Clear openai conversation/context to ensure fresh recommendations
       openAIService.resetConversation();
-      console.log('Content type switched, conversation history cleared');
+      
     },
     
     toggleSettings() {
@@ -1726,7 +1716,7 @@ export default {
     // Handle recommendation count change without duplicate saving
     async saveRecommendationCount(value) {
       // The store update is already handled by RecommendationSettings
-      console.log('Recommendation count updated:', value);
+      console.log(`Saving Recommendations ${value}`);
     },
     
     
@@ -1744,7 +1734,7 @@ export default {
     // Save genre preferences to server when they change
     async saveGenrePreference() {
       // This method is now handled by the store's toggleGenre method
-      console.log('Genre preferences automatically saved by store');
+      
     },
     
   // Handle genre toggle without duplicate saving
@@ -1781,7 +1771,7 @@ export default {
       
       // Reset OpenAI conversation context when vibe changes
       openAIService.resetConversation();
-      console.log('Custom vibe updated, conversation history cleared');
+      
     },
     
     // Handle clear custom vibe without duplicate saving
@@ -1799,7 +1789,7 @@ export default {
       
       // Reset OpenAI conversation context when prompt style changes
       openAIService.resetConversation();
-      console.log('Prompt style updated to:', value, 'conversation history cleared');
+      
       
       // Reset recommendations when changing prompt style
       this.recommendationsRequested = false;
@@ -1819,7 +1809,7 @@ export default {
       
       // Reset OpenAI conversation context when preference changes
       openAIService.resetConversation();
-      console.log('Custom prompt only preference updated to:', value, 'conversation history cleared');
+      
       
       // Reset recommendations when changing prompt settings
       this.recommendationsRequested = false;
@@ -1833,9 +1823,9 @@ export default {
     },
     
     // Handle language preference change without duplicate saving
-    async saveLanguagePreference(value) {
+    async saveLanguagePreference() {
       // No need to call store method as RecommendationSettings already did that
-      console.log('Language preference updated:', value);
+      
     },
     
     // Get language name from code
@@ -1862,9 +1852,9 @@ export default {
     },
     
     // Handle Plex use history change without duplicate saving
-    async savePlexUseHistory(value) {
+    async savePlexUseHistory() {
       // No need to call store method as RecommendationSettings already did that
-      console.log('Plex use history updated:', value);
+      
     },
     
     // Handle Plex custom history days change without duplicate saving
@@ -2147,21 +2137,21 @@ export default {
         if (this.isMovieMode) {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
-            console.log('Saving active movie recommendations to server:', this.recommendations);
+            
             await apiService.saveRecommendations('movie', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
-            console.log('Saving movie history to server:', this.previousMovieRecommendations);
+            
             await apiService.saveRecommendations('movie', this.previousMovieRecommendations, this.username);
           }
         } else {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
-            console.log('Saving active TV recommendations to server:', this.recommendations);
+            
             await apiService.saveRecommendations('tv', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
-            console.log('Saving TV history to server:', this.previousShowRecommendations);
+            
             await apiService.saveRecommendations('tv', this.previousShowRecommendations, this.username);
           }
         }
@@ -2188,7 +2178,7 @@ export default {
     
     // Add current recommendations to the history
     async addToRecommendationHistory(newRecommendations) {
-      console.log("addToRecommendationHistory called with new recommendations:", newRecommendations);
+      
       
       // Use the store action to add to recommendation history
       await recommendationsStore.addToRecommendationHistory(newRecommendations);
@@ -2205,7 +2195,7 @@ export default {
         // Reset current recommendations since history is now gone
         this.recommendations = [];
         this.recommendationsRequested = false;
-        console.log('Successfully cleared recommendation history');
+        
       }
     },
     
@@ -2321,13 +2311,13 @@ export default {
       
       // Reset the conversation history in OpenAI service to ensure proper formatting
       openAIService.resetConversation();
-      console.log('Conversation history reset due to structured output setting change');
+      
       
       // Reset current recommendations if any to encourage getting fresh ones with the new format
       if (this.recommendations.length > 0) {
         this.recommendations = [];
         this.recommendationsRequested = false;
-        console.log('Cleared current recommendations due to structured output setting change');
+        
       }
     },
     
@@ -2395,11 +2385,11 @@ export default {
      */
     filterWatchHistory(historyArray, service) {
       if (!historyArray || !historyArray.length) {
-        console.log(`Empty ${service} history array`);
+        
         return [];
       }
       
-      console.log(`Filtering ${historyArray.length} items for ${service} history`);
+      
       
       // Get the appropriate mode and custom days settings based on service
       let historyMode, customDays;
@@ -2420,7 +2410,7 @@ export default {
         case 'trakt':
           historyMode = this.traktHistoryMode;
           customDays = this.traktCustomHistoryDays;
-          console.log(`Trakt history mode: ${historyMode}, custom days: ${customDays}`);
+          
           break;
         default:
           // Default to 'all' if service is unknown
@@ -2429,7 +2419,7 @@ export default {
       
       // Return unfiltered array if using 'all' mode
       if (historyMode === 'all') {
-        console.log(`${service} using 'all' mode, returning all ${historyArray.length} items`);
+        
         return historyArray;
       }
       
@@ -2441,15 +2431,15 @@ export default {
         // Recent mode is hardcoded to 30 days
         cutoffDate = new Date(now);
         cutoffDate.setDate(now.getDate() - 30);
-        console.log(`${service} using 'recent' mode, cut-off date: ${cutoffDate.toISOString()}`);
+        
       } else if (historyMode === 'custom') {
         // Custom mode uses user-specified days
         cutoffDate = new Date(now);
         cutoffDate.setDate(now.getDate() - customDays);
-        console.log(`${service} using 'custom' mode (${customDays} days), cut-off date: ${cutoffDate.toISOString()}`);
+        
       } else {
         // Unknown mode, return original array
-        console.log(`${service} using unknown mode '${historyMode}', returning all items`);
+        
         return historyArray;
       }
       
@@ -2463,7 +2453,7 @@ export default {
         // Plex uses viewedAt, others may use lastWatched or watched
         const watchDateStr = item.lastWatched || item.watched || item.viewedAt;
         if (!watchDateStr) {
-          console.log(`${service} item missing watch date:`, item);
+          
           return false;
         }
         
@@ -2483,22 +2473,8 @@ export default {
         
         const shouldInclude = watchDate >= cutoffDate;
         
-        // Debug output if filtering out item
-        if (!shouldInclude) {
-          console.log(`Filtering out ${service} item "${item.title}" with date ${watchDate.toISOString()} before cutoff ${cutoffDate.toISOString()}`);
-        }
-        
-        if (service === 'trakt' && !shouldInclude) {
-          console.log(`Filtering out Trakt item with date ${watchDate.toISOString()} before cutoff ${cutoffDate.toISOString()}`);
-        }
-        
         return shouldInclude;
       });
-      
-      console.log(`${service} history: filtered from ${historyArray.length} to ${filteredArray.length} items`);
-      if (filteredArray.length > 0) {
-        console.log(`${service} first filtered item:`, filteredArray[0]);
-      }
       
       return filteredArray;
     },
@@ -2597,9 +2573,9 @@ export default {
     
   async getRecommendations() {
       // Debug the radarrConfigured prop state when requesting recommendations
-      console.log('RequestRecommendations: Starting getRecommendations');
-      console.log('radarrConfigured prop:', this.radarrConfigured);
-      console.log('radarrService.isConfigured():', radarrService.isConfigured());
+      
+      
+      
       console.log('radarrService state:', {
         baseUrl: radarrService.baseUrl,
         apiKey: radarrService.apiKey ? '✓ Set' : '✗ Not set'
@@ -2624,7 +2600,7 @@ export default {
       if (isServiceConfigured) {
         if (this.isMovieMode) {
           // Always try to load the latest Radarr credentials if we're in movie mode
-          console.log('Movie mode active, loading latest Radarr credentials');
+          
           await radarrService.loadCredentials();
           
           if (!radarrService.isConfigured()) {
@@ -2668,14 +2644,14 @@ export default {
           // First check if we already have movies in our local cache
           // to avoid unnecessary API calls
           if (this.localMovies && this.localMovies.length > 0) {
-            console.log(`Using ${this.localMovies.length} movies from local cache`);
+              console.log("Movies loaded already");
           } else {
             // Try to fetch movies directly from Radarr if Radarr is configured but movies prop is empty
-            console.log('Movies array is empty but Radarr is configured, attempting to fetch movies');
+            
             try {
               const moviesData = await radarrService.getMovies();
               if (moviesData && moviesData.length > 0) {
-                console.log(`Successfully fetched ${moviesData.length} movies from Radarr directly`);
+                
                 // Use the movies we just fetched for recommendations
                 this.localMovies = moviesData;
               } else if (!hasWatchHistoryProvider) {
@@ -2698,27 +2674,23 @@ export default {
       
       // Try to load cached library data from database if not already loaded
       if (this.isMovieMode && (!this.localMovies || this.localMovies.length === 0) && this.movies.length === 0) {
-        console.log('Attempting to load cached Radarr library from database');
+        
         try {
           const cachedMovies = await databaseStorageUtils.getJSON('radarrLibrary', []);
           if (cachedMovies && cachedMovies.length > 0) {
-            console.log(`Loaded ${cachedMovies.length} movies from database cache`);
+            
             this.localMovies = cachedMovies;
-          } else {
-            console.log('No cached Radarr library found in database');
           }
         } catch (error) {
           console.error('Error loading cached Radarr library:', error);
         }
       } else if (!this.isMovieMode && this.series.length === 0) {
-        console.log('Attempting to load cached Sonarr library from database');
+        
         try {
           const cachedSeries = await databaseStorageUtils.getJSON('sonarrLibrary', []);
           if (cachedSeries && cachedSeries.length > 0) {
-            console.log(`Loaded ${cachedSeries.length} series from database cache`);
+            
             this.localSeries = cachedSeries;
-          } else {
-            console.log('No cached Sonarr library found in database');
           }
         } catch (error) {
           console.error('Error loading cached Sonarr library:', error);
@@ -2733,10 +2705,10 @@ export default {
       }
       
       // Ensure settings are synced from the store to the OpenAI service
-      console.log('Ensuring OpenAI settings are synced from store before generating recommendations...');
+      
       try {
         await openAIService.ensureSettings();
-        console.log('Settings synced from store, continuing with recommendation generation');
+        
       } catch (error) {
         console.error('Error ensuring settings:', error);
       }
@@ -2845,25 +2817,25 @@ export default {
         
         // If no local cache, fall back to props
         if (plexHistoryFiltered.length === 0 && this.plexUseHistory) {
-          console.log('No cached Plex history found, using prop data');
+          
           const plexHistory = this.isMovieMode ? this.recentlyWatchedMovies || [] : this.recentlyWatchedShows || [];
           plexHistoryFiltered = this.filterWatchHistory(plexHistory, 'plex');
         }
         
         if (jellyfinHistoryFiltered.length === 0 && this.jellyfinUseHistory) {
-          console.log('No cached Jellyfin history found, using prop data');
+          
           const jellyfinHistory = this.isMovieMode ? this.jellyfinRecentlyWatchedMovies || [] : this.jellyfinRecentlyWatchedShows || [];
           jellyfinHistoryFiltered = this.filterWatchHistory(jellyfinHistory, 'jellyfin');
         }
         
         if (tautulliHistoryFiltered.length === 0 && this.tautulliUseHistory) {
-          console.log('No cached Tautulli history found, using prop data');
+          
           const tautulliHistory = this.isMovieMode ? this.tautulliRecentlyWatchedMovies || [] : this.tautulliRecentlyWatchedShows || [];
           tautulliHistoryFiltered = this.filterWatchHistory(tautulliHistory, 'tautulli');
         }
         
         if (traktHistoryFiltered.length === 0 && this.traktUseHistory) {
-          console.log('No cached Trakt history found, using prop data');
+          
           const traktHistory = this.isMovieMode ? this.traktRecentlyWatchedMovies || [] : this.traktRecentlyWatchedShows || [];
           traktHistoryFiltered = this.filterWatchHistory(traktHistory, 'trakt');
         }
@@ -2887,21 +2859,21 @@ export default {
           ];
         }
         
-        console.log(`Using watch history: ${watchHistory.length} items (Plex: ${plexHistoryFiltered.length}, Jellyfin: ${jellyfinHistoryFiltered.length}, Tautulli: ${tautulliHistoryFiltered.length}, Trakt: ${traktHistoryFiltered.length})`);
+        
         
         // If no watch history is available or all are disabled, use empty array
         if (watchHistory.length === 0) {
-          console.log('No watch history is being used for recommendations');
+          
           
           // If still no history found, refresh from server as last resort
           if (this.plexUseHistory || this.jellyfinUseHistory || this.tautulliUseHistory || this.traktUseHistory) {
             try {
-              console.log('No watch history found locally, trying to fetch from server...');
+              
               const historyType = this.isMovieMode ? 'movies' : 'shows';
               const serverHistory = await apiService.getWatchHistory(historyType);
               
               if (serverHistory && serverHistory.length > 0) {
-                console.log(`Loaded ${serverHistory.length} items from server watch history`);
+                
                 
                 // Filter by source based on user preferences
                 if (this.plexOnlyMode && this.plexUseHistory) {
@@ -2935,7 +2907,7 @@ export default {
                   watchHistory = filteredHistory;
                 }
                 
-                console.log(`Using ${watchHistory.length} items from server history after filtering`);
+                
               }
             } catch (error) {
               console.error('Error fetching watch history from server:', error);
@@ -2945,12 +2917,12 @@ export default {
         
         // Get initial recommendations using the appropriate service method based on mode
         if (this.isMovieMode) {
-          console.log("Starting movie recommendations...");
-          console.log("Movies array:", this.localMovies ? this.localMovies.length : 0, "items");
-          console.log("NumRecommendations:", this.numRecommendations);
-          console.log("GenreString:", genreString);
-          console.log("PreviousMovieRecommendations:", this.previousMovieRecommendations.length, "items");
-          console.log("Watch history:", watchHistory.length, "items");
+          
+          
+          
+          
+          
+          
           
           try {
             // Use movie recommendations method
@@ -3007,7 +2979,7 @@ export default {
                 }
               })
             );
-            console.log("Movie recommendations completed successfully:", this.recommendations);
+            
           } catch (error) {
             console.error("Error getting movie recommendations:", error);
             throw error; // Rethrow to be caught by the outer try/catch
@@ -3076,7 +3048,7 @@ export default {
             return scoreB - scoreA;
           });
           
-          console.log("Recommendations sorted by recommendarr rating (highest first)");
+          
         }
 
         if (this.recommendations.length > 0) {
@@ -3128,7 +3100,7 @@ export default {
     async getAdditionalRecommendations(additionalCount, genreString, recursionDepth = 0) {
       if (additionalCount <= 0 || recursionDepth >= 10) return;
       
-      console.log(`Getting ${additionalCount} additional ${this.isMovieMode ? 'movie' : 'TV show'} recommendations after filtering (recursion depth: ${recursionDepth})`);
+      
       
       // Update base message for the message rotator to use
       const baseMessage = `Getting additional recommendations to match your request...`;
@@ -3142,7 +3114,7 @@ export default {
         const updatedPrevious = [...new Set([...previousRecsList, ...currentTitles])];
         
         // Log the liked/disliked lists for debugging
-        console.log(`Using ${this.likedRecommendations.length} liked and ${this.dislikedRecommendations.length} disliked items for additional recommendations`);
+        
         
         // Request more recommendations than we need to account for filtering
         const requestCount = Math.min(additionalCount * 2, 25); // Request 100% more, up to 25 max
@@ -3198,7 +3170,7 @@ export default {
             return scoreB - scoreA;
           });
           
-          console.log("Additional recommendations sorted by recommendarr rating (highest first)");
+          
         }
         
         // If we still don't have enough, try again with incremented recursion depth
@@ -3207,21 +3179,19 @@ export default {
           // Calculate how many more we need
           const stillNeeded = this.numRecommendations - this.recommendations.length;
           
-          console.log(`After filtering, have ${this.recommendations.length}/${this.numRecommendations} recommendations. Need ${stillNeeded} more. Recursion depth: ${recursionDepth}`);
+          
           
           // Recursive call with updated exclusion list and incremented recursion depth
           if (stillNeeded > 0) {
             await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
           }
-        } else {
-          console.log(`Successfully gathered all ${this.numRecommendations} recommendations at recursion depth ${recursionDepth}`);
         }
       } catch (error) {
         console.error('Error getting additional recommendations:', error);
         
         // Count this as one attempt but continue if we're not at the limit
         if (recursionDepth + 1 < 10) {
-          console.log(`Retrying after error (recursion depth: ${recursionDepth + 1})`);
+          
           // Calculate how many we still need
           const stillNeeded = this.numRecommendations - this.recommendations.length;
           if (stillNeeded > 0) {
@@ -3245,11 +3215,11 @@ export default {
       const isSonarrConfigured = this.sonarrConfigured || sonarrService.isConfigured();
       
       if ((this.isMovieMode && !isRadarrConfigured) || (!this.isMovieMode && !isSonarrConfigured)) {
-        console.log(`Skipping ratings lookup - ${this.isMovieMode ? 'Radarr' : 'Sonarr'} not configured`);
+        
         return;
       }
       
-      console.log(`Fetching ratings data for ${this.recommendations.length} recommendations from ${this.isMovieMode ? 'Radarr' : 'Sonarr'}`);
+      
       
       // Process recommendations in batches to avoid overwhelming the API
       const batchSize = 5;
@@ -3264,7 +3234,7 @@ export default {
               const movieData = await radarrService.lookupMovie(rec.title);
               if (movieData && movieData.ratings) {
                 rec.ratings = movieData.ratings;
-                console.log(`Added ratings for movie "${rec.title}":`, rec.ratings);
+                
               }
         } else {
           // Lookup series in Sonarr
@@ -3278,7 +3248,7 @@ export default {
                 votes: seriesData.ratings.votes
               }
             };
-            console.log(`Added transformed ratings for series "${rec.title}":`, rec.ratings);
+            
           }
             }
           } catch (error) {
@@ -3293,7 +3263,7 @@ export default {
         }
       }
       
-      console.log('Finished fetching ratings data for all recommendations');
+      
     },
     
     /**
@@ -3391,8 +3361,6 @@ export default {
           return true;
         });
         
-        const contentType = this.isMovieMode ? 'movies' : 'shows';
-        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} ${contentType} that already exist in the library, liked/disliked lists, or recommendation history`);
         return filteredRecommendations;
       } catch (error) {
         console.error(`Error filtering existing ${this.isMovieMode ? 'movies' : 'shows'}:`, error);
@@ -3405,7 +3373,7 @@ export default {
      */
     async fetchPosters() {
       // Poster handling has been moved to RecommendationResults component
-      console.log('fetchPosters method called - functionality moved to RecommendationResults component');
+      
     },
     
     /**
@@ -3499,10 +3467,6 @@ export default {
         } else {
           // If no seasons are returned, show a warning but don't create fake seasons
           showSeasonWarning = true;
-          // Use any seasons information from tvdbId if present
-          if (seriesInfo.tvdbId) {
-            console.log('No season information available for series:', title);
-          }
         }
         
         this.currentSeries = {
@@ -3593,13 +3557,13 @@ export default {
      * @param {Object} recommendation - The recommendation to show details for
      */
     openTMDBDetailModal(recommendation) {
-      console.log('Opening TMDB modal for:', recommendation.title);
+      
       
       // Set these values regardless of TMDB configuration
       this.selectedMediaTitle = recommendation.title;
       this.selectedMediaId = null; // We'll search by title
       this.showTMDBModal = true;
-      console.log('Modal state set to open:', this.showTMDBModal);
+      
     },
     
     /**
@@ -3855,7 +3819,7 @@ export default {
       // This method has been simplified since shouldUseCompactMode and gridStyle
       // have been moved to RecommendationResults.vue
       this.$forceUpdate();
-      console.log('Window resize handled in RequestRecommendations');
+      
     },
     
     /**
@@ -3864,7 +3828,7 @@ export default {
      */
     async loadRecommendationsData() {
       try {
-        console.log('Loading recommendations data');
+        
         
         // Get current recommendations from the store
         if (this.isMovieMode) {
@@ -3876,15 +3840,15 @@ export default {
         // Use the previousRecommendations getter to get the appropriate history for the current mode
         this.recommendationsRequested = this.recommendations.length > 0;
         
-        console.log(`Loaded ${this.recommendations.length} items for current ${this.isMovieMode ? 'movie' : 'TV'} recommendations`);
+        
       } catch (error) {
         console.error('Error loading recommendations data:', error);
       }
     }
   },
   async mounted() {
-    console.log('RequestRecommendations component mounted');
-    console.log('Props: radarrConfigured=', this.radarrConfigured);
+    
+    
     
     // Ensure RecommendationsStore is initialized
     if (!recommendationsStore.initialized) {
@@ -3897,7 +3861,7 @@ export default {
     // Check if Radarr service is configured directly (only if in movie mode)
     if (this.isMovieMode && (!this.movies || this.movies.length === 0) && 
         (!this.radarrConfigured || !radarrService.isConfigured())) {
-      console.log('Movie mode active, checking Radarr configuration');
+      
       if (!radarrService.isConfigured()) {
         await radarrService.loadCredentials();
       }
@@ -3955,7 +3919,7 @@ export default {
     this.previousMovieRecommendations = [];
     
     try {
-      console.log("Loading recommendations from server...");
+      
       
       // Try to load recommendations from server first
       const tvRecsResponse = await apiService.getRecommendations('tv', this.username) || [];
@@ -3967,18 +3931,18 @@ export default {
       // 1. Use the empty arrays (don't fall back to storageUtils)
       // 2. Clear storageUtils itself to be consistent with server
       
-      console.log("TV recommendations from server:", tvRecsResponse ? tvRecsResponse.length : 0, "items");
-      console.log("Movie recommendations from server:", movieRecsResponse ? movieRecsResponse.length : 0, "items");
+      
+      
       
       // Process TV recommendations
       if (Array.isArray(tvRecsResponse)) { // Process even if empty
         if (tvRecsResponse.length > 0 && typeof tvRecsResponse[0] === 'string') {
           // Simple array of titles - this is the history list
-          console.log("Loaded TV history from server (string array):", tvRecsResponse.length, "items");
+          
           this.previousShowRecommendations = tvRecsResponse;
         } else if (tvRecsResponse.length > 0) {
           // Full recommendation objects with title property
-          console.log("Loaded full TV recommendations from server:", tvRecsResponse.length, "items");
+          
           
           // Store them as full recommendations if we're in TV mode
           if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
@@ -3996,7 +3960,7 @@ export default {
           this.previousShowRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
         } else {
           // Server returned empty array
-          console.log("Server returned empty TV recommendations, clearing local history.");
+          
           this.previousShowRecommendations = [];
         }
         
@@ -4013,11 +3977,11 @@ export default {
       if (Array.isArray(movieRecsResponse)) { // Process even if empty
         if (movieRecsResponse.length > 0 && typeof movieRecsResponse[0] === 'string') {
           // Simple array of titles - this is the history list
-          console.log("Loaded movie history from server (string array):", movieRecsResponse.length, "items");
+          
           this.previousMovieRecommendations = movieRecsResponse;
         } else if (movieRecsResponse.length > 0) {
           // Full recommendation objects with title property
-          console.log("Loaded full movie recommendations from server:", movieRecsResponse.length, "items");
+          
           
           // Store them as full recommendations if we're in movie mode
           if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
@@ -4035,7 +3999,7 @@ export default {
           this.previousMovieRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
         } else {
           // Server returned empty array
-          console.log("Server returned empty movie recommendations, clearing local history.");
+          
           this.previousMovieRecommendations = [];
         }
         
@@ -4049,9 +4013,9 @@ export default {
       }
       
       // Debug current history counts
-      console.log("After loading from server - TV history count:", this.previousShowRecommendations.length);
-      console.log("After loading from server - Movie history count:", this.previousMovieRecommendations.length);
-      console.log("Currently displayed history count:", this.previousRecommendations.length);
+      
+      
+      
       
       // Load liked/disliked preferences from server based on current mode
       try {
@@ -4059,13 +4023,13 @@ export default {
         const likedContent = await apiService.getPreferences(contentType, 'liked');
         if (Array.isArray(likedContent)) {
           this.likedRecommendations = likedContent;
-          console.log(`Loaded ${likedContent.length} liked ${contentType} preferences from server`);
+          
         }
         
         const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
         if (Array.isArray(dislikedContent)) {
           this.dislikedRecommendations = dislikedContent;
-          console.log(`Loaded ${dislikedContent.length} disliked ${contentType} preferences from server`);
+          
         }
       } catch (prefError) {
         console.error("Error loading preferences from server:", prefError);
@@ -4119,12 +4083,11 @@ export default {
           databaseStorageUtils.setJSON('tvRecommendations', this.recommendations);
         }
       }
-      console.log('Saved recommendations to storageUtils only (no server call) before unmount');
+      
     } catch (error) {
       console.error('Error saving recommendations to storageUtils on unmount:', error);
     }
     
-    this.saveLikedDislikedLists();
     // Remove event listener
     window.removeEventListener('resize', this.handleResize);
     // Clear any running intervals
@@ -4137,11 +4100,11 @@ export default {
   /* eslint-disable */
   // Additional computed properties 
     filteredWatchHistory() {
-      console.log('WATCH HISTORY INSPECTION - DIRECT APPROACH:');
+      
       
       // Use the temporary watch history data we created when opening the modal
       if (this._watchHistoryData && this._watchHistoryData.length > 0) {
-        console.log('Using pre-populated watch history data:', this._watchHistoryData.length, 'items');
+        
         
         // Apply type filter if needed
         if (this.historyTypeFilter !== 'all') {
@@ -4158,7 +4121,7 @@ export default {
       let allWatchHistory = [];
       
       // If no pre-populated data, try direct access
-      console.log('Fallback: Using direct data access');
+      
       if (this.movies && this.movies.length > 0) {
         const moviesWithMetadata = this.movies.map(movie => ({
           ...movie,
@@ -4266,7 +4229,7 @@ export default {
         }
       }
       
-      console.log(`Initial combined data: ${allWatchHistory.length} items`);
+      
       
       // Apply text search filter
       if (this.historySearchFilter && this.historySearchFilter.trim()) {
@@ -4284,17 +4247,17 @@ export default {
         return dateB - dateA; // Compare directly as timestamps
       });
       
-      console.log(`Final filtered watch history: ${allWatchHistory.length} items`);
-      console.log('Movie items:', allWatchHistory.filter(item => item.type === 'movie').length);
-      console.log('TV items:', allWatchHistory.filter(item => item.type === 'show').length);
+      
+      
+      
       if (allWatchHistory.length > 0) {
-        console.log('Sample items:', allWatchHistory.slice(0, 2));
+        
         return allWatchHistory;
       }
       
       // Access raw movie data directly without processing
       if (this.recentlyWatchedMovies) {
-        console.log('Direct movie data inspection:', this.recentlyWatchedMovies);
+        
         if (Array.isArray(this.recentlyWatchedMovies)) {
           return this.recentlyWatchedMovies.map(item => ({...item, type: 'movie', source: 'plex'}));
         }

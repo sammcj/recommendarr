@@ -248,8 +248,8 @@ export default {
     },
     // Watch for changes to columnsCount
     columnsCount: {
-      handler(newValue) {
-        console.log('Columns count changed to:', newValue);
+      handler() {
+        
         // Force update to recalculate layout
         this.$forceUpdate();
       }
@@ -471,10 +471,10 @@ export default {
     // Open TMDB detail modal
     openTMDBDetailModal(recommendation) {
       if (!this.isTMDBAvailable) {
-        console.log('TMDB not available - skipping modal open');
+        
         return;
       }
-      console.log('RecommendationResults: Opening TMDB modal for:', recommendation.title);
+      
       // Make sure we emit the entire recommendation object
       this.$emit('open-tmdb-modal', recommendation);
     },
@@ -486,16 +486,16 @@ export default {
     },
     async checkTMDBAvailability() {
       try {
-        console.log('Checking TMDB availability...');
+        
         // Direct check assuming the imageService has this method
         const isAvailable = await imageService.isTMDBAvailable();
-        console.log('TMDB availability result:', isAvailable);
+        
         this.tmdbAvailable = !!isAvailable;
       } catch (error) {
         console.error('Error checking TMDB availability:', error);
         this.tmdbAvailable = false;
       }
-      console.log('TMDB availability set to:', this.tmdbAvailable);
+      
     },
     
     // Poster click is now handled directly in the template with @click.stop directive
@@ -503,16 +503,6 @@ export default {
     handleWindowResize() {
       // This triggers a reactivity update for the shouldUseCompactMode computed property
       this.$forceUpdate();
-      
-      // Force a re-computation of computed properties affected by screen size:
-      // - gridStyle for layout
-      // - shouldUseCompactMode for card display mode
-      // This ensures both the layout and card presentation adapt properly to changes
-      
-      // Log current status to help with troubleshooting
-      const isCompact = this.shouldUseCompactMode;
-      const columns = this.getNumColumns();
-      console.log(`Window resize: Compact mode ${isCompact ? 'active' : 'inactive'}, Columns: ${columns}`);
     },
     
     // Method to fetch posters for all recommendations

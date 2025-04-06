@@ -388,17 +388,17 @@ constructor() {
       });
 
       // Log response type and structure for debugging
-      console.log('Plex movie response type:', typeof response.data);
+      
       
       // Try to handle both XML and JSON responses
       let movies = [];
       
       if (typeof response.data === 'object') {
         // Handle JSON response
-        console.log('Processing Plex movie response as JSON');
+        
         if (response.data.MediaContainer && response.data.MediaContainer.Metadata) {
           const metadata = response.data.MediaContainer.Metadata;
-          console.log(`Found ${metadata.length} movies in Plex JSON response`);
+          
           
           movies = metadata.map(item => {
             // For movies, we need to make sure we're not getting TV episodes
@@ -423,7 +423,7 @@ constructor() {
         }
       } else if (typeof response.data === 'string') {
         // Handle XML response
-        console.log('Processing Plex movie response as XML');
+        
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(response.data, "text/xml");
         
@@ -433,7 +433,7 @@ constructor() {
           // Try to find Metadata elements
           const metadataNodes = mediaContainer.querySelectorAll('Metadata');
           if (metadataNodes.length > 0) {
-            console.log(`Found ${metadataNodes.length} movie Metadata nodes in XML`);
+            
             movies = Array.from(metadataNodes).map(node => {
               // For movies, we need to make sure we're not getting TV episodes
               // Check if this is actually a movie by checking for the absence of grandparentTitle
@@ -458,7 +458,7 @@ constructor() {
           } else {
             // Fall back to Video nodes
             const videoNodes = xmlDoc.querySelectorAll('Video');
-            console.log(`Found ${videoNodes.length} movie Video nodes in XML`);
+            
             movies = Array.from(videoNodes).map(node => {
               // For movies, check if this is actually a movie by looking for absence of TV show attributes
               const hasGrandparentTitle = node.getAttribute('grandparentTitle');
@@ -492,7 +492,7 @@ constructor() {
         const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
         const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
         
-        console.log(`Filtering movies watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
         
         validMovies = validMovies.filter(movie => {
           
@@ -515,7 +515,7 @@ constructor() {
       // Apply the limit after filtering
       const limitedMovies = uniqueMovies.slice(0, limit);
       
-      console.log(`Returning ${limitedMovies.length} unique recently watched movies`);
+      
       return limitedMovies;
     } catch (error) {
       console.error('Error fetching recently watched movies from Plex:', error);
@@ -577,17 +577,17 @@ constructor() {
       });
       
       // Log response type and structure for debugging
-      console.log('Plex TV response type:', typeof response.data);
+      
       
       // Store episodes with their timestamps for filtering
       const episodes = [];
       
       if (typeof response.data === 'object') {
         // Handle JSON response
-        console.log('Processing Plex TV response as JSON');
+        
         if (response.data.MediaContainer && response.data.MediaContainer.Metadata) {
           const metadata = response.data.MediaContainer.Metadata;
-          console.log(`Found ${metadata.length} episodes in Plex JSON response`);
+          
           
           // Process each episode and extract show information
           metadata.forEach(item => {
@@ -607,7 +607,7 @@ constructor() {
         }
       } else if (typeof response.data === 'string') {
         // Handle XML response
-        console.log('Processing Plex TV response as XML');
+        
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(response.data, "text/xml");
         
@@ -617,7 +617,7 @@ constructor() {
           // Try to find Metadata elements
           const metadataNodes = mediaContainer.querySelectorAll('Metadata');
           if (metadataNodes.length > 0) {
-            console.log(`Found ${metadataNodes.length} episode Metadata nodes in XML`);
+            
             
             // Process each episode metadata node
             Array.from(metadataNodes).forEach(node => {
@@ -637,7 +637,7 @@ constructor() {
           } else {
             // Fall back to Video nodes
             const videoNodes = xmlDoc.querySelectorAll('Video');
-            console.log(`Found ${videoNodes.length} episode Video nodes in XML`);
+            
             
             // Process each video node
             Array.from(videoNodes).forEach(node => {
@@ -662,7 +662,7 @@ constructor() {
         const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
         const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
         
-        console.log(`Filtering TV shows watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
         
         filteredEpisodes = episodes.filter(episode => {
           if (!episode.viewedAt) {
@@ -690,7 +690,7 @@ constructor() {
       // Apply the limit after filtering
       const limitedShows = shows.slice(0, limit);
       
-      console.log(`Returning ${limitedShows.length} unique recently watched TV shows`);
+      
       return limitedShows;
     } catch (error) {
       console.error('Error fetching recently watched shows from Plex:', error);

@@ -7,7 +7,7 @@ const authService = require('./auth');
 
 // Configure Passport authentication
 exports.setupPassport = (app) => {
-  console.log('Setting up OAuth authentication strategies...');
+  
   
   // Initialize Passport
   app.use(passport.initialize());
@@ -15,7 +15,7 @@ exports.setupPassport = (app) => {
   
   // Configure serialization/deserialization
   passport.serializeUser((user, done) => {
-    console.log(`Serializing user: ${user.username} (${user.userId})`);
+    
     done(null, user.userId);
   });
   
@@ -23,10 +23,10 @@ exports.setupPassport = (app) => {
     try {
       const user = await authService.getUserById(userId);
       if (!user) {
-        console.log(`User not found for ID: ${userId}`);
+        
         return done(null, false);
       }
-      console.log(`Deserialized user: ${user.username}`);
+      
       done(null, user);
     } catch (error) {
       console.error('Error deserializing user:', error);
@@ -36,7 +36,7 @@ exports.setupPassport = (app) => {
   
   // Set up Google OAuth if credentials exist
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-    console.log('Setting up Google OAuth strategy...');
+    
     
     passport.use(new GoogleStrategy({
       clientID: process.env.GOOGLE_CLIENT_ID,
@@ -45,7 +45,7 @@ exports.setupPassport = (app) => {
       scope: ['profile', 'email']
     }, async (accessToken, refreshToken, profile, done) => {
       try {
-        console.log('Google OAuth callback received');
+        
         const user = await authService.findOrCreateOAuthUser(profile, 'google');
         return done(null, user);
       } catch (error) {
@@ -54,14 +54,14 @@ exports.setupPassport = (app) => {
       }
     }));
     
-    console.log('Google OAuth strategy configured successfully');
+    
   } else {
-    console.log('Google OAuth not configured - missing environment variables');
+    
   }
   
   // Set up GitHub OAuth if credentials exist
   if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
-    console.log('Setting up GitHub OAuth strategy...');
+    
     
     passport.use(new GitHubStrategy({
       clientID: process.env.GITHUB_CLIENT_ID,
@@ -70,7 +70,7 @@ exports.setupPassport = (app) => {
       scope: ['user:email']
     }, async (accessToken, refreshToken, profile, done) => {
       try {
-        console.log('GitHub OAuth callback received');
+        
         const user = await authService.findOrCreateOAuthUser(profile, 'github');
         return done(null, user);
       } catch (error) {
@@ -79,9 +79,9 @@ exports.setupPassport = (app) => {
       }
     }));
     
-    console.log('GitHub OAuth strategy configured successfully');
+    
   } else {
-    console.log('GitHub OAuth not configured - missing environment variables');
+    
   }
   
   // Set up Custom OAuth2 if credentials exist
@@ -90,7 +90,7 @@ exports.setupPassport = (app) => {
       process.env.CUSTOM_OAUTH_AUTH_URL && 
       process.env.CUSTOM_OAUTH_TOKEN_URL && 
       process.env.CUSTOM_OAUTH_USERINFO_URL) {
-    console.log('Setting up Custom OAuth2 strategy...');
+    
     
     // Parse scope from environment variable or use default
     const scopeString = process.env.CUSTOM_OAUTH_SCOPE || 'openid profile email';
@@ -106,7 +106,7 @@ exports.setupPassport = (app) => {
       scope: scope
     }, async (accessToken, refreshToken, params, profile, done) => {
       try {
-        console.log('Custom OAuth callback received');
+        
         
         // Fetch user profile from userinfo endpoint
         const axios = require('axios');
@@ -116,7 +116,7 @@ exports.setupPassport = (app) => {
           }
         });
         
-        console.log('Custom OAuth userinfo response:', userInfoResponse.data);
+        
         
         // Map profile to expected format
         // This uses OpenID Connect standard fields, but can be customized
@@ -163,9 +163,9 @@ exports.setupPassport = (app) => {
     
     passport.use('custom', customOAuthStrategy);
     
-    console.log('Custom OAuth2 strategy configured successfully');
+    
   } else {
-    console.log('Custom OAuth2 not configured - missing environment variables');
+    
   }
   
   // Function to validate if OAuth providers are configured

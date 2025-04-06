@@ -16,12 +16,12 @@ class DatabaseService {
   // Initialize the database
   async init() {
     try {
-      console.log('Initializing database service...');
+      
       
       // Ensure data directory exists
       try {
         await fs.mkdir(DATA_DIR, { recursive: true });
-        console.log(`Created data directory: ${DATA_DIR}`);
+        
       } catch (err) {
         if (err.code !== 'EEXIST') {
           console.error('Error creating data directory:', err);
@@ -31,7 +31,7 @@ class DatabaseService {
       
       // Create database connection
       this.db = new Database(DB_FILE);
-      console.log(`Connected to database: ${DB_FILE}`);
+      
       
       // Enable foreign keys
       this.db.pragma('foreign_keys = ON');
@@ -40,7 +40,7 @@ class DatabaseService {
       this.createTables();
       
       this.initialized = true;
-      console.log('Database initialized successfully');
+      
       
       return true;
     } catch (err) {
@@ -51,7 +51,7 @@ class DatabaseService {
   
   // Create database tables
   createTables() {
-    console.log('Creating database tables if they don\'t exist...');
+    
     
     // Add missing columns to existing tables if needed
     this.addMissingColumns();
@@ -237,13 +237,13 @@ class DatabaseService {
       )
     `);
     
-    console.log('Database tables created successfully');
+    
   }
   
   // Migrate data from JSON files to database
   async migrateData() {
     try {
-      console.log('Starting data migration from JSON files to database...');
+      
       
       // Migrate users
       await this.migrateUsers();
@@ -257,7 +257,7 @@ class DatabaseService {
       // Delete JSON files after successful migration
       await this.deleteJSONFiles();
       
-      console.log('Data migration completed successfully');
+      
       return true;
     } catch (err) {
       console.error('Error migrating data:', err);
@@ -268,7 +268,7 @@ class DatabaseService {
   // Delete JSON files after successful migration
   async deleteJSONFiles() {
     try {
-      console.log('Deleting JSON files after successful migration...');
+      
       
       const USERS_FILE = path.join(DATA_DIR, 'users.json');
       const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.json');
@@ -279,7 +279,7 @@ class DatabaseService {
       try {
         await fs.access(USERS_FILE);
         await fs.unlink(USERS_FILE);
-        console.log(`Deleted ${USERS_FILE}`);
+        
       } catch (err) {
         if (err.code !== 'ENOENT') {
           console.error(`Error deleting ${USERS_FILE}:`, err);
@@ -290,7 +290,7 @@ class DatabaseService {
       try {
         await fs.access(CREDENTIALS_FILE);
         await fs.unlink(CREDENTIALS_FILE);
-        console.log(`Deleted ${CREDENTIALS_FILE}`);
+        
       } catch (err) {
         if (err.code !== 'ENOENT') {
           console.error(`Error deleting ${CREDENTIALS_FILE}:`, err);
@@ -301,7 +301,7 @@ class DatabaseService {
       try {
         await fs.access(LEGACY_USER_DATA_FILE);
         await fs.unlink(LEGACY_USER_DATA_FILE);
-        console.log(`Deleted ${LEGACY_USER_DATA_FILE}`);
+        
       } catch (err) {
         if (err.code !== 'ENOENT') {
           console.error(`Error deleting ${LEGACY_USER_DATA_FILE}:`, err);
@@ -319,19 +319,19 @@ class DatabaseService {
         for (const file of files) {
           const filePath = path.join(USER_DATA_DIR, file);
           await fs.unlink(filePath);
-          console.log(`Deleted ${filePath}`);
+          
         }
         
         // Delete the directory itself
         await fs.rmdir(USER_DATA_DIR);
-        console.log(`Deleted ${USER_DATA_DIR} directory`);
+        
       } catch (err) {
         if (err.code !== 'ENOENT') {
           console.error(`Error deleting ${USER_DATA_DIR}:`, err);
         }
       }
       
-      console.log('JSON files deleted successfully');
+      
     } catch (err) {
       console.error('Error deleting JSON files:', err);
     }
@@ -347,13 +347,13 @@ class DatabaseService {
         await fs.access(USERS_FILE);
       } catch (err) {
         if (err.code === 'ENOENT') {
-          console.log('No users file found, skipping user migration');
+          
           return;
         }
         throw err;
       }
       
-      console.log('Migrating users from JSON file to database...');
+      
       
       // Read users file
       const data = await fs.readFile(USERS_FILE, 'utf8');
@@ -397,7 +397,7 @@ class DatabaseService {
       // Execute transaction
       transaction(users);
       
-      console.log(`Migrated ${Object.keys(users).length} users to database`);
+      
     } catch (err) {
       console.error('Error migrating users:', err);
       throw err;
@@ -414,13 +414,13 @@ class DatabaseService {
         await fs.access(CREDENTIALS_FILE);
       } catch (err) {
         if (err.code === 'ENOENT') {
-          console.log('No credentials file found, skipping credentials migration');
+          
           return;
         }
         throw err;
       }
       
-      console.log('Migrating credentials from JSON file to database...');
+      
       
       // Read credentials file
       const data = await fs.readFile(CREDENTIALS_FILE, 'utf8');
@@ -455,7 +455,7 @@ class DatabaseService {
       // Execute transaction
       transaction(credentials);
       
-      console.log(`Migrated ${Object.keys(credentials).length} credential services to database`);
+      
     } catch (err) {
       console.error('Error migrating credentials:', err);
       throw err;
@@ -473,7 +473,7 @@ class DatabaseService {
         await fs.access(USER_DATA_DIR);
       } catch (err) {
         if (err.code === 'ENOENT') {
-          console.log('No user data directory found, checking for legacy user data file');
+          
           
           // Check if legacy user data file exists
           try {
@@ -483,7 +483,7 @@ class DatabaseService {
             await this.migrateLegacyUserData(LEGACY_USER_DATA_FILE);
           } catch (legacyErr) {
             if (legacyErr.code === 'ENOENT') {
-              console.log('No legacy user data file found, skipping user data migration');
+              
               return;
             }
             throw legacyErr;
@@ -494,7 +494,7 @@ class DatabaseService {
         throw err;
       }
       
-      console.log('Migrating user data from JSON files to database...');
+      
       
       // Get all user data files
       const files = await fs.readdir(USER_DATA_DIR);
@@ -543,7 +543,7 @@ class DatabaseService {
         );
       }
       
-      console.log(`Migrated ${userDataFiles.length} user data files to database`);
+      
     } catch (err) {
       console.error('Error migrating user data:', err);
       throw err;
@@ -553,7 +553,7 @@ class DatabaseService {
   // Migrate legacy user data from JSON file to database
   async migrateLegacyUserData(legacyFilePath) {
     try {
-      console.log('Migrating legacy user data from JSON file to database...');
+      
       
       // Read legacy user data file
       const data = await fs.readFile(legacyFilePath, 'utf8');
@@ -573,7 +573,7 @@ class DatabaseService {
       const users = this.db.prepare('SELECT userId FROM users').all();
       
       if (users.length === 0) {
-        console.log('No users found in database, skipping legacy user data migration');
+        
         return;
       }
       
@@ -603,7 +603,7 @@ class DatabaseService {
         JSON.stringify(legacyUserData.watchHistory || { movies: [], shows: [] })
       );
       
-      console.log(`Migrated legacy user data to user: ${adminUserId}`);
+      
     } catch (err) {
       console.error('Error migrating legacy user data:', err);
       throw err;
@@ -782,11 +782,28 @@ class DatabaseService {
         };
       }
       
-      // Parse JSON fields
+      // Helper function to parse and normalize recommendation arrays
+      const parseAndNormalizeRecs = (jsonString) => {
+        try {
+          const parsed = JSON.parse(jsonString || '[]');
+          if (!Array.isArray(parsed)) return [];
+          // Ensure it's an array of strings (titles)
+          return parsed.map(item => {
+            if (typeof item === 'string') return item;
+            if (item && typeof item === 'object' && item.title) return String(item.title);
+            return null; // Return null for invalid items
+          }).filter(title => title !== null && title.trim() !== ''); // Filter out nulls and empty strings
+        } catch (e) {
+          console.error('Error parsing/normalizing recommendations JSON:', e, 'Input:', jsonString);
+          return [];
+        }
+      };
+
+      // Parse JSON fields, normalizing recommendations
       const parsedData = {
-        tvRecommendations: JSON.parse(userData.tvRecommendations || '[]'),
-        movieRecommendations: JSON.parse(userData.movieRecommendations || '[]'),
-        likedTV: JSON.parse(userData.likedTV || '[]'),
+        tvRecommendations: parseAndNormalizeRecs(userData.tvRecommendations),
+        movieRecommendations: parseAndNormalizeRecs(userData.movieRecommendations),
+        likedTV: JSON.parse(userData.likedTV || '[]'), // Liked/disliked are expected to be strings already
         dislikedTV: JSON.parse(userData.dislikedTV || '[]'),
         hiddenTV: JSON.parse(userData.hiddenTV || '[]'),
         likedMovies: JSON.parse(userData.likedMovies || '[]'),
@@ -1149,7 +1166,7 @@ class DatabaseService {
         }
       }
       
-      console.log(`Executing SQL with ${values.length} values for ${columnNames.length} columns`);
+      
       
       // Execute the statement with the values
       stmt.run(...values);
@@ -1446,7 +1463,7 @@ class DatabaseService {
         new Date().toISOString()
       );
       
-      console.log(`Saved Sonarr library for user: ${userId} (${data.length} items)`);
+      
       return true;
     } catch (err) {
       console.error(`Error saving Sonarr library for user: ${userId}`, err);
@@ -1464,7 +1481,7 @@ class DatabaseService {
       }
       
       const library = JSON.parse(row.data);
-      console.log(`Retrieved Sonarr library for user: ${userId} (${library.length} items, last updated: ${row.lastUpdated})`);
+      
       return library;
     } catch (err) {
       console.error(`Error getting Sonarr library for user: ${userId}`, err);
@@ -1488,7 +1505,7 @@ class DatabaseService {
         new Date().toISOString()
       );
       
-      console.log(`Saved Radarr library for user: ${userId} (${data.length} items)`);
+      
       return true;
     } catch (err) {
       console.error(`Error saving Radarr library for user: ${userId}`, err);
@@ -1506,7 +1523,7 @@ class DatabaseService {
       }
       
       const library = JSON.parse(row.data);
-      console.log(`Retrieved Radarr library for user: ${userId} (${library.length} items, last updated: ${row.lastUpdated})`);
+      
       return library;
     } catch (err) {
       console.error(`Error getting Radarr library for user: ${userId}`, err);
@@ -1517,7 +1534,7 @@ class DatabaseService {
   // Get a specific user setting directly from the database column
   getUserSetting(userId, settingName) {
     try {
-      console.log(`Getting user setting ${settingName} directly from database for userId: ${userId}`);
+      
       
       // Get table info to determine if this is a direct column
       const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
@@ -1529,12 +1546,12 @@ class DatabaseService {
         const row = this.db.prepare(query).get(userId);
         
         if (!row) {
-          console.log(`No row found for userId: ${userId}, returning default value`);
+          
           return null;
         }
         
         const value = row[settingName];
-        console.log(`Retrieved value for ${settingName}:`, value);
+        
         
         // Process the value based on its type and column name
         return this.processSettingValue(settingName, value);
@@ -1630,7 +1647,7 @@ class DatabaseService {
   // Update a specific user setting directly in the database column
   updateUserSetting(userId, settingName, value) {
     try {
-      console.log(`Updating user setting ${settingName} for userId: ${userId}`);
+      
       
       // Special handling for timestamp values
       const timestampSettings = [
@@ -1673,7 +1690,7 @@ class DatabaseService {
       let processedValue = value;
       
       // Log the original value and its type
-      console.log(`Original value for ${settingName}:`, value, `(type: ${typeof value})`);
+      
       
       // Handle timestamp settings
       if (timestampSettings.includes(settingName) && value !== null && typeof value === 'string' && value.includes('T')) {
@@ -1683,10 +1700,10 @@ class DatabaseService {
           const date = new Date(value);
           if (!isNaN(date.getTime())) {
             processedValue = date.toISOString();
-            console.log(`Converted timestamp to ISO format: ${processedValue}`);
+            
           }
         } catch (e) {
-          console.log('Failed to parse date string, using as-is');
+          
         }
       }
       
@@ -1695,23 +1712,23 @@ class DatabaseService {
         // Convert boolean values to integers (1 for true, 0 for false)
         if (typeof processedValue === 'boolean') {
           processedValue = processedValue ? 1 : 0;
-          console.log(`Converted boolean to integer for ${settingName}: ${processedValue}`);
+          
         } else if (processedValue === 'true' || processedValue === 'false') {
           // Handle string 'true'/'false' values
           processedValue = processedValue === 'true' ? 1 : 0;
-          console.log(`Converted string boolean to integer for ${settingName}: ${processedValue}`);
+          
         } else if (typeof processedValue === 'object' && processedValue !== null && processedValue.value !== undefined) {
           // Handle {value: true/false} format from API
           const boolValue = processedValue.value === true || processedValue.value === 'true';
           processedValue = boolValue ? 1 : 0;
-          console.log(`Extracted boolean from object for ${settingName}: ${processedValue}`);
+          
         } else if (processedValue === 1 || processedValue === 0 || processedValue === '1' || processedValue === '0') {
           // Already in the right format, just ensure it's a number
           processedValue = parseInt(processedValue);
-          console.log(`Normalized integer boolean for ${settingName}: ${processedValue}`);
+          
         } else {
           // Default to false for any other values
-          console.log(`Unrecognized boolean format for ${settingName}, defaulting to 0`);
+          
           processedValue = 0;
         }
       }
@@ -1721,41 +1738,41 @@ class DatabaseService {
         // Handle null values for array settings
         if (processedValue === null) {
           processedValue = JSON.stringify([]);
-          console.log(`Converted null to empty array for ${settingName}: ${processedValue}`);
+          
         }
         // Ensure arrays are properly JSON-stringified
         else if (Array.isArray(processedValue)) {
           processedValue = JSON.stringify(processedValue);
-          console.log(`JSON-stringified array value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+          
         } else if (typeof processedValue === 'object' && processedValue !== null) {
           // If it's an object with a value property (from API), extract the value
           if (processedValue.value !== undefined) {
             if (processedValue.value === null) {
               processedValue = JSON.stringify([]);
-              console.log(`Converted null object.value to empty array for ${settingName}: ${processedValue}`);
+              
             } else if (Array.isArray(processedValue.value)) {
               processedValue = JSON.stringify(processedValue.value);
-              console.log(`JSON-stringified array from object.value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+              
             } else {
               // If value is not an array but still an object, stringify it
               processedValue = JSON.stringify(processedValue.value);
-              console.log(`JSON-stringified object.value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+              
             }
           } else {
             // If it's already an object (like from the request body), stringify it
             processedValue = JSON.stringify(processedValue);
-            console.log(`JSON-stringified object value for ${settingName}: ${processedValue.substring(0, 50)}...`);
+            
           }
         } else if (typeof processedValue === 'string') {
           // If it's already a string, check if it's valid JSON
           try {
             // Try to parse it to make sure it's valid JSON
             JSON.parse(processedValue);
-            console.log(`Value for ${settingName} is already a valid JSON string`);
+            
           } catch (e) {
             // If it's not valid JSON, wrap it in an array and stringify
             processedValue = JSON.stringify([processedValue]);
-            console.log(`Converted string to JSON array for ${settingName}: ${processedValue}`);
+            
           }
         }
       }
@@ -1771,7 +1788,7 @@ class DatabaseService {
       if (typeof processedValue === 'object' && processedValue !== null && !(processedValue instanceof Buffer)) {
         try {
           processedValue = JSON.stringify(processedValue);
-          console.log(`Final JSON-stringify for SQLite compatibility: ${settingName}`);
+          
         } catch (e) {
           console.error(`Failed to stringify object for SQLite binding:`, e);
           return false;
@@ -1780,7 +1797,7 @@ class DatabaseService {
       
       // If the setting is a direct column in the database, update it directly
       if (columnNames.includes(settingName)) {
-        console.log(`Updating column ${settingName} directly in database with type: ${typeof processedValue}`);
+        
         const sql = `UPDATE user_data SET ${settingName} = ? WHERE userId = ?`;
         result = this.db.prepare(sql).run(processedValue, userId);
       } else {
@@ -1789,7 +1806,7 @@ class DatabaseService {
         return false;
       }
 
-      console.log(`Updated ${settingName} for userId: ${userId}, changes: ${result ? result.changes : 0}`);
+      
       return result && result.changes > 0;
     } catch (err) {
       console.error(`Error updating user setting ${settingName} for userId: ${userId}:`, err);
@@ -1799,7 +1816,7 @@ class DatabaseService {
   // Add missing columns to existing tables
   addMissingColumns() {
     try {
-      console.log('Checking for missing columns in the database...');
+      
       
       // Get table info to see which columns already exist
       const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
@@ -1822,10 +1839,10 @@ class DatabaseService {
       // Add any missing columns
       for (const column of requiredColumns) {
         if (!existingColumns.includes(column.name)) {
-          console.log(`Adding missing column ${column.name} to user_data table`);
+          
           const sql = `ALTER TABLE user_data ADD COLUMN ${column.name} ${column.type} DEFAULT ${column.default}`;
           this.db.exec(sql);
-          console.log(`Added column ${column.name} successfully`);
+          
         }
       }
     } catch (err) {

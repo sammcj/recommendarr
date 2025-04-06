@@ -120,7 +120,7 @@ export default {
         
         // Only emit event if successful
         if (result.success) {
-          console.log('Auto-connect to Radarr successful:', result.message);
+          
           this.$emit('connected');
         } else {
           // Log the error but KEEP the credentials
@@ -164,7 +164,7 @@ export default {
         
         // Log the message for debugging
         if (result.success) {
-          console.log('Radarr connection successful:', result.message);
+          console.log("Radarr connection successful");
         } else {
           console.error('Radarr connection failed:', result.message);
         }

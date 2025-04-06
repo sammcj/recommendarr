@@ -185,10 +185,10 @@ export default {
           const existingCredentials = await credentialsService.getCredentials('tautulli');
           if (existingCredentials && existingCredentials.recentLimit !== undefined) {
             recentLimitToUse = existingCredentials.recentLimit;
-            console.log('Using existing recentLimit from credentials:', recentLimitToUse);
+            
           }
         } catch (credError) {
-          console.log('No existing credentials found, using input recentLimit:', recentLimitToUse);
+          console.error(credError);
         }
         
         // Configure the Tautulli service with the credentials and recentLimit
@@ -204,7 +204,7 @@ export default {
           // Save to user settings in database using individual setting API
           try {
             await apiService.saveSetting('tautulliRecentLimit', this.recentLimit);
-            console.log('Saved tautulliRecentLimit to database:', this.recentLimit);
+            
           } catch (settingsError) {
             console.error('Error saving tautulliRecentLimit to database:', settingsError);
             // Continue even if settings save fails
@@ -249,7 +249,7 @@ export default {
       // Save to user settings in database using individual setting API
       try {
         await apiService.saveSetting('tautulliRecentLimit', this.recentLimit);
-        console.log('Saved tautulliRecentLimit to database:', this.recentLimit);
+        
       } catch (settingsError) {
         console.error('Error saving tautulliRecentLimit to database:', settingsError);
         // Continue even if settings save fails

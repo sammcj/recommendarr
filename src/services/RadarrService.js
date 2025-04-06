@@ -27,7 +27,7 @@ constructor() {
       const credentials = await credentialsService.getCredentials('radarr');
       
       if (credentials && credentials.baseUrl && credentials.apiKey) {
-        console.log('Found Radarr credentials in server storage');
+        
         
         // Only update if the credentials are valid (non-empty strings)
         if (typeof credentials.baseUrl === 'string' && credentials.baseUrl.trim() !== '' &&
@@ -35,7 +35,7 @@ constructor() {
           this.baseUrl = credentials.baseUrl;
           this.apiKey = credentials.apiKey;
           
-          console.log('Successfully loaded valid Radarr credentials');
+          
           this.credentialsLoaded = true; // Set flag after successful load
           return true;
         } else {
@@ -44,13 +44,13 @@ constructor() {
           return false;
         }
       } else {
-        console.log('No valid Radarr credentials found in server storage');
+        
         return false;
       }
     } catch (error) {
       console.error('Error loading Radarr credentials:', error);
       // Don't clear existing credentials on error
-      console.log('Keeping existing Radarr credentials after load error');
+      
       return false;
     }
   }
@@ -71,18 +71,16 @@ constructor() {
     
     // Check if service is configured with valid credentials
     if (!this.isConfigured()) {
-      console.log('Radarr service not configured, attempting to load credentials');
+      
       
       // Only load credentials if they haven't been loaded yet
       if (!this.credentialsLoaded) {
-        const credentialsLoaded = await this.loadCredentials();
+        await this.loadCredentials();
         
         // Double-check configuration after loading credentials
         if (!this.isConfigured()) {
           console.error('Radarr service is not configured after credential load attempt');
           throw new Error('Radarr service is not configured. Please set valid baseUrl and apiKey.');
-        } else if (credentialsLoaded) {
-          console.log('Successfully loaded Radarr credentials for API request');
         }
       } else {
         // Credentials were already loaded but service is still not configured
@@ -103,7 +101,7 @@ constructor() {
       try {
         if (this.useProxy) {
           // Log attempt to connect through proxy for debugging
-          console.log(`Making ${method} request to Radarr via proxy: ${endpoint}`);
+          
           
           const response = await apiService.proxyRequest({
             url,
@@ -116,7 +114,7 @@ constructor() {
           return response.data;
         } else {
           // Direct API request
-          console.log(`Making direct ${method} request to Radarr: ${endpoint}`);
+          
           
           const response = await axios({
             url,
@@ -145,7 +143,7 @@ constructor() {
         }
         
         const delay = baseDelay * Math.pow(2, retryCount);
-        console.log(`Retry ${retryCount + 1}/${maxRetries} in ${delay}ms for ${endpoint}...`);
+        
         await new Promise(resolve => setTimeout(resolve, delay));
         retryCount++;
       }
@@ -174,7 +172,7 @@ constructor() {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.apiKey = apiKey;
     
-    console.log('Storing valid Radarr credentials to server');
+    
     
     try {
       // Store credentials server-side
@@ -188,7 +186,7 @@ constructor() {
         return false;
       }
       
-      console.log('Successfully stored Radarr credentials');
+      
       return true;
     } catch (error) {
       console.error('Error storing Radarr credentials:', error);
@@ -244,7 +242,7 @@ constructor() {
           const response = await apiService.get('/radarr/library');
           
           if (response.data && Array.isArray(response.data)) {
-            console.log('Using cached Radarr library from database');
+            
             return response.data;
           }
         } catch (dbError) {
@@ -254,7 +252,7 @@ constructor() {
       }
       
       // If no cached data or force refresh, get from API
-      console.log(forceRefresh ? 'Forcing refresh of Radarr library from API' : 'No cached data, fetching Radarr library from API');
+      
       const moviesData = await this._apiRequest('/api/v3/movie');
       
       // Extract essential information before saving to database
@@ -264,7 +262,7 @@ constructor() {
       try {
         // Save library to database via API
         await apiService.post('/radarr/library', essentialMoviesData);
-        console.log('Saved Radarr library to database (essential data only)');
+        
       } catch (saveError) {
         console.error('Error saving Radarr library to database:', saveError);
         // Continue even if save fails
@@ -280,7 +278,7 @@ constructor() {
         const response = await apiService.get('/radarr/library');
         
         if (response.data && Array.isArray(response.data)) {
-          console.log('API request failed, using cached Radarr library from database');
+          
           return response.data;
         }
       } catch (dbError) {
@@ -298,7 +296,7 @@ constructor() {
    */
   async refreshLibrary() {
     try {
-      console.log('Forcing refresh of Radarr library from API');
+      
       const moviesData = await this._apiRequest('/api/v3/movie');
       
       // Extract essential information before saving to database
@@ -308,7 +306,7 @@ constructor() {
       try {
         // Save library to database via API for all users
         await apiService.post('/radarr/library/refresh-all', essentialMoviesData);
-        console.log('Saved Radarr library to database for all users (essential data only)');
+        
       } catch (saveError) {
         console.error('Error saving Radarr library to database for all users:', saveError);
         // Continue even if save fails
@@ -324,7 +322,7 @@ constructor() {
         const response = await apiService.get('/radarr/library');
         
         if (response.data && Array.isArray(response.data)) {
-          console.log('API request failed, using cached Radarr library from database');
+          
           return response.data;
         }
       } catch (dbError) {
@@ -411,7 +409,7 @@ constructor() {
     try {
       // First ensure we have valid credentials
       if (!this.isConfigured()) {
-        console.log('Attempting to load credentials for connection test');
+        
         await this.loadCredentials();
         
         if (!this.isConfigured()) {
@@ -423,12 +421,12 @@ constructor() {
         }
       }
       
-      console.log(`Testing Radarr connection to ${this.baseUrl}`);
+      
       const systemStatus = await this._apiRequest('/api/v3/system/status');
       
       // Log successful connection with version info if available
       if (systemStatus && systemStatus.version) {
-        console.log(`Successfully connected to Radarr v${systemStatus.version}`);
+        
         return { 
           success: true, 
           message: `Successfully connected to Radarr v${systemStatus.version}` 
@@ -529,11 +527,6 @@ constructor() {
       
       // The first result is typically the most relevant
       const movieData = lookupData[0];
-      
-      // Log ratings data if available for debugging
-      if (movieData.ratings) {
-        console.log(`Found ratings data for "${title}":`, movieData.ratings);
-      }
       
       return movieData;
     } catch (error) {

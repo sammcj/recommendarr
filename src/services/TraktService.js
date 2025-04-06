@@ -20,7 +20,7 @@ constructor() {
     // Default recentLimit value
     this.recentLimit = 50;
     
-    console.log('TraktService: Initialized with redirectUri:', this.redirectUri);
+    
     
     // Removed automatic loading of credentials to prevent double loading
   }
@@ -58,11 +58,11 @@ constructor() {
           this.recentLimit = parseInt(credentials.recentLimit);
           // Also store in database
           await databaseStorageUtils.set('traktRecentLimit', this.recentLimit);
-          console.log(`Set TraktService.recentLimit to ${this.recentLimit} from user credentials`);
+          
         } else {
           // Default value if not in credentials
           this.recentLimit = 50;
-          console.log(`Using default TraktService.recentLimit of ${this.recentLimit}`);
+          
         }
         
         // Check if token is expired and needs refresh
@@ -79,7 +79,7 @@ constructor() {
     
     // Set default recentLimit if credentials couldn't be loaded
     this.recentLimit = 50;
-    console.log(`Using default TraktService.recentLimit of ${this.recentLimit} (no credentials)`);
+    
     return false;
   }
 
@@ -106,8 +106,8 @@ constructor() {
     // Construct the authorization URL
     const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${this.clientId}&redirect_uri=${encodeURIComponent(this.redirectUri)}&state=${state}`;
     
-    console.log('TraktService: Starting OAuth flow with URL:', authUrl);
-    console.log('TraktService: Redirect URI is:', this.redirectUri);
+    
+    
     
     // Redirect the user to the authorization page
     window.location.href = authUrl;
@@ -139,7 +139,7 @@ constructor() {
     
     // Exchange code for tokens using our proxy to avoid CORS issues
     try {
-      console.log('Using proxy for OAuth token exchange to avoid CORS issues');
+      
       
       const tokenResponse = await apiService.proxyRequest({
         url: 'https://api.trakt.tv/oauth/token',
@@ -165,7 +165,7 @@ constructor() {
       const data = tokenResponse.data;
       const expiresAt = Date.now() + (data.expires_in * 1000);
       
-      console.log('Successfully obtained tokens from Trakt');
+      
       
       // Update service properties
       this.clientId = clientId;
@@ -219,7 +219,7 @@ constructor() {
     }
     
     try {
-      console.log('Refreshing Trakt access token using proxy to avoid CORS issues');
+      
       
       const tokenResponse = await apiService.proxyRequest({
         url: 'https://api.trakt.tv/oauth/token',
@@ -245,7 +245,7 @@ constructor() {
       const data = tokenResponse.data;
       const expiresAt = Date.now() + (data.expires_in * 1000);
       
-      console.log('Successfully refreshed Trakt access token');
+      
       
       this.accessToken = data.access_token;
       this.refreshToken = data.refresh_token;
@@ -293,7 +293,7 @@ constructor() {
       const existingCredentials = await credentialsService.getCredentials('trakt');
       
       if (!existingCredentials) {
-        console.log('No existing Trakt credentials found when updating recentLimit');
+        
         return false;
       }
       
@@ -312,7 +312,7 @@ constructor() {
       // Store updated credentials on the server
       await credentialsService.storeCredentials('trakt', updatedCredentials);
       
-      console.log(`Updated Trakt recentLimit to ${this.recentLimit} while preserving other credentials`);
+      
       return true;
     } catch (error) {
       console.error('Failed to update Trakt recentLimit:', error);
@@ -368,7 +368,7 @@ constructor() {
         // Store credentials on the server
         await credentialsService.storeCredentials('trakt', credentials);
         
-        console.log('Trakt service configured with client ID and secret');
+        
         return true;
       } catch (error) {
         console.error('Failed to configure Trakt service:', error);
@@ -448,7 +448,7 @@ constructor() {
     try {
       if (this.useProxy) {
         // Log attempt to connect through proxy for debugging
-        console.log(`Making request to Trakt via proxy: endpoint=${endpoint}, method=${method}`);
+        
         
         const response = await apiService.proxyRequest({
           url,
@@ -462,7 +462,7 @@ constructor() {
         return response.data;
       } else {
         // Direct API request
-        console.log(`Making direct request to Trakt: endpoint=${endpoint}, method=${method}`);
+        
         
         const options = {
           params,
@@ -533,14 +533,14 @@ constructor() {
         extended: 'full'
       };
       
-      console.log(`Getting Trakt ratings for user ${username}, type: ${type}`);
+      
       const response = await this._apiRequest(endpoint, params);
       
       // Handle different response formats
       // If response is wrapped in a data property (from proxy), extract it
       const ratingsData = response.data ? response.data : response;
       
-      console.log(`Received ${ratingsData ? ratingsData.length : 0} ratings for ${type}`);
+      
       return ratingsData || [];
     } catch (error) {
       console.error(`Failed to get Trakt ${type} ratings:`, error);
@@ -604,11 +604,6 @@ constructor() {
       // Create a map of ratings by item ID for faster lookup
       const ratingsMap = new Map();
       
-      // Log a sample rating item to debug
-      if (ratings.length > 0) {
-        console.log('Sample rating item:', JSON.stringify(ratings[0]));
-      }
-      
       ratings.forEach(ratingItem => {
         // Check if the rating is 5.0 or lower
         if (ratingItem.rating !== undefined && ratingItem.rating <= 5.0) {
@@ -618,7 +613,7 @@ constructor() {
             
             // Add to disliked list if not already there
             if (item.title && !updatedDislikedList.includes(item.title)) {
-              console.log(`Adding low-rated item to disliked list: ${item.title} (rating: ${ratingItem.rating})`);
+              
               updatedDislikedList.push(item.title);
             }
           }
@@ -639,7 +634,7 @@ constructor() {
       // If we have new disliked items, save the updated list
       if (updatedDislikedList.length > dislikedContent.length) {
         await apiService.savePreferences(contentType, 'disliked', updatedDislikedList);
-        console.log(`Added ${updatedDislikedList.length - dislikedContent.length} low-rated ${contentType}s to disliked list`);
+        
       }
       
       // Remove disliked items from watch history
@@ -653,7 +648,7 @@ constructor() {
         watchHistory.length = 0;
         filteredHistory.forEach(item => watchHistory.push(item));
         
-        console.log(`Removed ${itemsToRemove.length} disliked ${contentType}s from watch history`);
+        
       }
       
       return watchHistory;
@@ -674,8 +669,7 @@ constructor() {
   
   async getRecentlyWatchedMovies(limit = null, daysAgo = 0) {
     // Use the service's recentLimit if no limit is provided
-    const actualLimit = limit || this.recentLimit || 50;
-    console.log(`TraktService: Getting ${actualLimit} recently watched movies, daysAgo=${daysAgo}`);
+    
     try {
       let options = {
         limit,
@@ -688,14 +682,14 @@ constructor() {
         past.setDate(today.getDate() - daysAgo);
         
         options.startDate = past.toISOString();
-        console.log(`TraktService: Using startDate filter: ${options.startDate}`);
+        
       }
       
       const historyData = await this.getWatchHistory(options);
-      console.log(`TraktService: Received ${historyData ? historyData.length : 0} movie history items from Trakt API`);
+      
       
       if (!historyData || historyData.length === 0) {
-        console.log('TraktService: No movie history data returned from API');
+        
         return [];
       }
       
@@ -720,11 +714,6 @@ constructor() {
           type: 'movie'
         };
       }).filter(item => item !== null); // Filter out any null items
-      
-      console.log(`TraktService: Returning ${formattedData.length} formatted watched movies`);
-      if (formattedData.length > 0) {
-        console.log('TraktService: First movie sample:', formattedData[0]);
-      }
       
       return formattedData;
     } catch (error) {
@@ -751,10 +740,10 @@ constructor() {
       }
       
       const historyData = await this.getWatchHistory(options);
-      console.log(`TraktService: Received ${historyData ? historyData.length : 0} episode history items from Trakt API`);
+      
       
       if (!historyData || historyData.length === 0) {
-        console.log('TraktService: No episode history data returned from API');
+        
         return [];
       }
       
@@ -810,11 +799,6 @@ constructor() {
       
       // Get ratings for shows
       const ratings = await this.getUserRatings('shows');
-      console.log(`TraktService: Received ${ratings ? ratings.length : 0} show ratings from Trakt API`);
-      
-      if (ratings && ratings.length > 0) {
-        console.log('TraktService: Sample show rating:', JSON.stringify(ratings[0]));
-      }
       
       // Get current disliked list
       const dislikedContent = await apiService.getPreferences('tv', 'disliked') || [];
@@ -830,7 +814,7 @@ constructor() {
             
             // Add to disliked list if not already there
             if (show.title && !updatedDislikedList.includes(show.title)) {
-              console.log(`TraktService: Adding low-rated show to disliked list: ${show.title} (rating: ${ratingItem.rating})`);
+              
               updatedDislikedList.push(show.title);
             }
             
@@ -845,7 +829,7 @@ constructor() {
       // If we have new disliked items, save the updated list
       if (updatedDislikedList.length > dislikedContent.length) {
         await apiService.savePreferences('tv', 'disliked', updatedDislikedList);
-        console.log(`TraktService: Added ${updatedDislikedList.length - dislikedContent.length} low-rated shows to disliked list`);
+        
       }
       
       // Remove disliked shows from the results
@@ -853,17 +837,12 @@ constructor() {
         showMap.delete(showId);
       });
       
-      console.log(`TraktService: Removed ${showsToRemove.size} disliked shows from results`);
+      
       
       // Convert map to array and sort by last watched (most recent first)
       const result = Array.from(showMap.values()).sort((a, b) => {
         return new Date(b.lastWatched) - new Date(a.lastWatched);
       });
-      
-      console.log(`TraktService: Returning ${result.length} formatted watched shows`);
-      if (result.length > 0) {
-        console.log('TraktService: First show sample:', result[0]);
-      }
       
       return result;
     } catch (error) {
@@ -877,14 +856,14 @@ constructor() {
    */
   async revokeAccess() {
     if (!this.clientId || !this.accessToken) {
-      console.log('No token to revoke');
+      
       return true;
     }
     
     try {
       if (this.clientId && this.accessToken) {
         // Attempt to revoke the token via API
-        console.log('Revoking Trakt access token');
+        
         
         await this._apiRequest('/oauth/revoke', {}, 'POST', {
           token: this.accessToken,

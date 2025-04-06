@@ -67,7 +67,7 @@ constructor() {
       try {
         if (this.useProxy) {
           // Log attempt to connect through proxy for debugging
-          console.log(`Making ${method} request to Sonarr via proxy: ${endpoint}`);
+          
           
           const response = await apiService.proxyRequest({
             url,
@@ -80,7 +80,7 @@ constructor() {
           return response.data;
         } else {
           // Direct API request
-          console.log(`Making direct ${method} request to Sonarr: ${endpoint}`);
+          
           
           const response = await axios({
             url,
@@ -109,7 +109,7 @@ constructor() {
         }
         
         const delay = baseDelay * Math.pow(2, retryCount);
-        console.log(`Retry ${retryCount + 1}/${maxRetries} in ${delay}ms for ${endpoint}...`);
+        
         await new Promise(resolve => setTimeout(resolve, delay));
         retryCount++;
       }
@@ -179,7 +179,7 @@ constructor() {
           const response = await apiService.get('/sonarr/library');
           
           if (response.data && Array.isArray(response.data)) {
-            console.log('Using cached Sonarr library from database');
+            
             return response.data;
           }
         } catch (dbError) {
@@ -189,7 +189,7 @@ constructor() {
       }
       
       // If no cached data or force refresh, get from API
-      console.log(forceRefresh ? 'Forcing refresh of Sonarr library from API' : 'No cached data, fetching Sonarr library from API');
+      
       const seriesData = await this._apiRequest('/api/v3/series');
       
       // Extract essential information before saving to database
@@ -199,7 +199,7 @@ constructor() {
       try {
         // Save library to database via API
         await apiService.post('/sonarr/library', essentialSeriesData);
-        console.log('Saved Sonarr library to database (essential data only)');
+        
       } catch (saveError) {
         console.error('Error saving Sonarr library to database:', saveError);
         // Continue even if save fails
@@ -215,7 +215,7 @@ constructor() {
         const response = await apiService.get('/sonarr/library');
         
         if (response.data && Array.isArray(response.data)) {
-          console.log('API request failed, using cached Sonarr library from database');
+          
           return response.data;
         }
       } catch (dbError) {
@@ -233,7 +233,7 @@ constructor() {
    */
   async refreshLibrary() {
     try {
-      console.log('Forcing refresh of Sonarr library from API');
+      
       const seriesData = await this._apiRequest('/api/v3/series');
       
       // Extract essential information before saving to database
@@ -243,7 +243,7 @@ constructor() {
       try {
         // Save library to database via API for all users
         await apiService.post('/sonarr/library/refresh-all', essentialSeriesData);
-        console.log('Saved Sonarr library to database for all users (essential data only)');
+        
       } catch (saveError) {
         console.error('Error saving Sonarr library to database for all users:', saveError);
         // Continue even if save fails
@@ -259,7 +259,7 @@ constructor() {
         const response = await apiService.get('/sonarr/library');
         
         if (response.data && Array.isArray(response.data)) {
-          console.log('API request failed, using cached Sonarr library from database');
+          
           return response.data;
         }
       } catch (dbError) {
@@ -344,18 +344,13 @@ constructor() {
    */
   async testConnection() {
     try {
-      console.log('Testing Sonarr connection with URL:', this.baseUrl);
+      
       await this._apiRequest('/api/v3/system/status');
-      console.log('Sonarr connection successful');
+      
       return true;
     } catch (error) {
       console.error('Error connecting to Sonarr:', error);
       // Log more detailed diagnostics information
-      if (this.useProxy) {
-        console.log('Using proxy mode - check server logs for details');
-      } else {
-        console.log('Using direct connection mode');
-      }
       return false;
     }
   }
@@ -402,11 +397,6 @@ constructor() {
       
       // The first result is typically the most relevant
       const seriesData = lookupData[0];
-      
-      // Log ratings data if available for debugging
-      if (seriesData.ratings) {
-        console.log(`Found ratings data for "${title}":`, seriesData.ratings);
-      }
       
       return seriesData;
     } catch (error) {
@@ -485,7 +475,7 @@ constructor() {
       
       // Handle case where no seasons are returned from the API
       if (!seriesData.seasons || seriesData.seasons.length === 0) {
-        console.log('No season information available for series:', title);
+        
         // When no seasons information is available, don't set any seasons
         // This will make Sonarr monitor all seasons by default
         // We won't include seasons in the payload below
@@ -531,8 +521,6 @@ constructor() {
       // This allows Sonarr to use its default behavior when seasons aren't specified
       if (seasons.length > 0) {
         payload.seasons = seasons;
-      } else {
-        console.log(`Adding series "${title}" without season information - Sonarr will monitor all seasons by default`);
       }
       
       // 5. Add the series

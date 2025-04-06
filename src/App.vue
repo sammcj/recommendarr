@@ -400,17 +400,17 @@ export default {
       return; // No need to do the other initializations yet
     }
     
-    console.log('App created, isAuthenticated:', this.isAuthenticated);
+    
     
     // Setup API with auth token if available
     if (this.isAuthenticated) {
-      console.log('User is authenticated, setting auth header and loading data...');
+      
       
       // Set auth header for all API requests
       authService.setAuthHeader();
       
       // Verify that auth header is set correctly
-      console.log('Initialized API with authentication');
+      
       
       try {
         // Run these operations in parallel for better performance
@@ -441,7 +441,7 @@ export default {
         const savedJellyfinUserId = await databaseStorageUtils.get('selectedJellyfinUserId');
         if (savedJellyfinUserId) {
           this.selectedJellyfinUserId = savedJellyfinUserId;
-          console.log(`Loaded Jellyfin user ID from database: ${savedJellyfinUserId}`);
+          
         } else {
           this.selectedJellyfinUserId = jellyfinService.userId;
         }
@@ -450,7 +450,7 @@ export default {
         const savedTautulliUserId = await databaseStorageUtils.get('selectedTautulliUserId');
         if (savedTautulliUserId) {
           this.selectedTautulliUserId = savedTautulliUserId;
-          console.log(`Loaded Tautulli user ID from database: ${savedTautulliUserId}`);
+          
         }
 
         // After connections are established, fetch and store watch history
@@ -462,7 +462,7 @@ export default {
         
         // If we get unauthorized error, the token might be invalid
         if (error.response && error.response.status === 401) {
-          console.log('Authentication token is invalid, logging out...');
+          
           this.isAuthenticated = false;
           await authService.logout();
         }
@@ -471,7 +471,7 @@ export default {
         this.isLoading = false;
       }
     } else {
-      console.log('User is not authenticated, showing login form');
+      
       this.isLoading = false;
     }
   },
@@ -489,7 +489,7 @@ export default {
     
     // Handle clearing all data except user auth
     async handleClearData() {
-      console.log("User clicked clear data...");
+      
       
       // Ask for another confirmation
       if (!confirm('This will remove all your service connections and data, but keep your username and password. Continue?')) {
@@ -498,18 +498,13 @@ export default {
       
       try {
         // Reset server-side data
-        const success = await credentialsService.resetUserData();
-        if (success) {
-          console.log("Server-side data cleared successfully");
-        } else {
-          console.error("Failed to clear server-side data");
-        }
+        await credentialsService.resetUserData();
       } catch (error) {
         console.error("Error clearing server-side data:", error);
       }
       
       // We're preserving database settings on logout
-      console.log('Database settings preserved for next login');
+      
       
       // Reset service configurations
       sonarrService.configure('', '');
@@ -561,18 +556,18 @@ export default {
     // Fetch AI models to prepare for recommendations
     async fetchAIModels(retry = true) {
       try {
-        console.log('Attempting to fetch AI models...');
+        
         // Check if OpenAI service is configured first
         if (openAIService.isConfigured()) {
-          console.log('OpenAI service is configured, fetching models...');
+          
           try {
-            const models = await openAIService.fetchModels();
-            console.log(`Successfully fetched ${models.length} AI models`);
+            await openAIService.fetchModels();
+            
             return true; // Success
           } catch (fetchError) {
             console.error('Error during initial fetch of AI models:', fetchError);
             if (retry) {
-              console.log('Will retry fetching models after a short delay...');
+              
               // Wait a bit before retrying
               await new Promise(resolve => setTimeout(resolve, 1500));
               return this.fetchAIModels(false); // Retry once
@@ -580,30 +575,28 @@ export default {
             throw fetchError; // Re-throw if already retried
           }
         } else {
-          console.log('OpenAI service is not configured yet');
+          
           // First try to load credentials with 2 retries
-          const credentialsLoaded = await openAIService.loadCredentials(2, 1500);
-          console.log('Credentials load result:', credentialsLoaded);
+          await openAIService.loadCredentials(2, 1500);
+          
           
           // Check again after loading credentials
           if (openAIService.isConfigured()) {
-            console.log('OpenAI service is now configured after loading credentials, fetching models...');
+            
             try {
-              const models = await openAIService.fetchModels();
-              console.log(`Successfully fetched ${models.length} AI models`);
+              await openAIService.fetchModels();
+              
               return true; // Success
             } catch (fetchError) {
               console.error('Error during fetch after loading credentials:', fetchError);
               if (retry) {
-                console.log('Will retry fetching models after a short delay...');
+                
                 // Wait a bit before retrying
                 await new Promise(resolve => setTimeout(resolve, 1500));
                 return this.fetchAIModels(false); // Retry once
               }
               throw fetchError; // Re-throw if already retried
             }
-          } else {
-            console.log('OpenAI service still not configured after loading credentials');
           }
         }
         return false; // Not configured
@@ -616,27 +609,27 @@ export default {
     
   // Handle successful authentication
   async handleAuthenticated() {
-    console.log('User authenticated successfully');
+    
     this.isAuthenticated = true;
     this.isLoading = true; // Set loading state while we fetch data
     
     // Set auth header for API requests
     authService.setAuthHeader();
-    console.log('Auth header set after login');
+    
     
     try {  
       // Start parallel tasks for efficiency
       const tasks = [];
       
       // Try to fetch AI models after login to check if OpenAI is configured
-      console.log('Starting AI model fetch process...');
+      
       tasks.push(this.fetchAIModels().catch(err => {
         console.error('Error fetching AI models:', err);
         return false;
       }));
       
       // Load stored credentials and other data
-      console.log('Loading data after authentication...');
+      
       tasks.push(this.checkStoredCredentials().catch(err => {
         console.error('Error checking stored credentials:', err);
         return false;
@@ -657,23 +650,23 @@ export default {
       
       // Explicitly load genre and language preferences for both TV and movie modes
       try {
-        console.log('Loading genre and language preferences for current user...');
+        
         // Load TV genre preferences
-        const tvGenres = await databaseStorageUtils.getJSON('tvGenrePreferences', []);
-        console.log('Loaded TV genre preferences:', tvGenres);
+        await databaseStorageUtils.getJSON('tvGenrePreferences', []);
+        
         
         // Load movie genre preferences
-        const movieGenres = await databaseStorageUtils.getJSON('movieGenrePreferences', []);
-        console.log('Loaded movie genre preferences:', movieGenres);
+        await databaseStorageUtils.getJSON('movieGenrePreferences', []);
+        
         
         // Load universal language preference
-        const languagePreference = await databaseStorageUtils.get('languagePreference', '');
-        console.log('Loaded universal language preference:', languagePreference);
+        await databaseStorageUtils.get('languagePreference', '');
+        
       } catch (prefError) {
         console.error('Error loading genre/language preferences:', prefError);
       }
       
-      console.log('Data loaded successfully after authentication');
+      
     } catch (error) {
       console.error('Error loading data after authentication:', error);
     } finally {
@@ -684,61 +677,33 @@ export default {
   // Load cached watch history from database
   async loadCachedWatchHistory() {
     try {
-      console.log('Loading cached watch history from database...');
+      
       
       // Try to load movies watch history from database
       this.recentlyWatchedMovies = await databaseStorageUtils.getJSON('watchHistoryMovies', []);
-      if (this.recentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.recentlyWatchedMovies.length} movies from database cache`);
-      } else {
-        console.log('No movie watch history found in database cache');
-      }
       
       // Try to load shows watch history from database
       this.recentlyWatchedShows = await databaseStorageUtils.getJSON('watchHistoryShows', []);
-      if (this.recentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.recentlyWatchedShows.length} shows from database cache`);
-      } else {
-        console.log('No TV show watch history found in database cache');
-      }
 
       // Try to load jellyfin history
       this.jellyfinRecentlyWatchedMovies = await databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies', []);
-      if (this.jellyfinRecentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.jellyfinRecentlyWatchedMovies.length} Jellyfin movies from database cache`);
-      }
 
       this.jellyfinRecentlyWatchedShows = await databaseStorageUtils.getJSON('jellyfinWatchHistoryShows', []);
-      if (this.jellyfinRecentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.jellyfinRecentlyWatchedShows.length} Jellyfin shows from database cache`);
-      }
 
       // Try to load tautulli history
       this.tautulliRecentlyWatchedMovies = await databaseStorageUtils.getJSON('tautulliWatchHistoryMovies', []);
-      if (this.tautulliRecentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.tautulliRecentlyWatchedMovies.length} Tautulli movies from database cache`);
-      }
 
       this.tautulliRecentlyWatchedShows = await databaseStorageUtils.getJSON('tautulliWatchHistoryShows', []);
-      if (this.tautulliRecentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.tautulliRecentlyWatchedShows.length} Tautulli shows from database cache`);
-      }
 
       // Try to load trakt history
       this.traktRecentlyWatchedMovies = await databaseStorageUtils.getJSON('traktWatchHistoryMovies', []);
-      if (this.traktRecentlyWatchedMovies.length > 0) {
-        console.log(`Loaded ${this.traktRecentlyWatchedMovies.length} Trakt movies from database cache`);
-      }
 
       this.traktRecentlyWatchedShows = await databaseStorageUtils.getJSON('traktWatchHistoryShows', []);
-      if (this.traktRecentlyWatchedShows.length > 0) {
-        console.log(`Loaded ${this.traktRecentlyWatchedShows.length} Trakt shows from database cache`);
-      }
 
       // Also try to load from server if available
       await this.loadWatchHistoryFromServer();
       
-      console.log('Finished loading cached watch history');
+      
       return true;
     } catch (error) {
       console.error('Error loading cached watch history from database:', error);
@@ -773,22 +738,22 @@ export default {
           
           if (plexMovies.length > 0) {
             this.recentlyWatchedMovies = plexMovies;
-            console.log(`Loaded ${plexMovies.length} Plex movies from server`);
+            
           }
           
           if (jellyfinMovies.length > 0) {
             this.jellyfinRecentlyWatchedMovies = jellyfinMovies;
-            console.log(`Loaded ${jellyfinMovies.length} Jellyfin movies from server`);
+            
           }
           
           if (tautulliMovies.length > 0) {
             this.tautulliRecentlyWatchedMovies = tautulliMovies;
-            console.log(`Loaded ${tautulliMovies.length} Tautulli movies from server`);
+            
           }
           
           if (traktMovies.length > 0) {
             this.traktRecentlyWatchedMovies = traktMovies;
-            console.log(`Loaded ${traktMovies.length} Trakt movies from server`);
+            
           }
         }
         
@@ -801,22 +766,22 @@ export default {
           
           if (plexShows.length > 0) {
             this.recentlyWatchedShows = plexShows;
-            console.log(`Loaded ${plexShows.length} Plex shows from server`);
+            
           }
           
           if (jellyfinShows.length > 0) {
             this.jellyfinRecentlyWatchedShows = jellyfinShows;
-            console.log(`Loaded ${jellyfinShows.length} Jellyfin shows from server`);
+            
           }
           
           if (tautulliShows.length > 0) {
             this.tautulliRecentlyWatchedShows = tautulliShows;
-            console.log(`Loaded ${tautulliShows.length} Tautulli shows from server`);
+            
           }
           
           if (traktShows.length > 0) {
             this.traktRecentlyWatchedShows = traktShows;
-            console.log(`Loaded ${traktShows.length} Trakt shows from server`);
+            
           }
         }
       } catch (error) {
@@ -827,7 +792,7 @@ export default {
     // Helper method to check if refresh is needed based on timestamp
     isRefreshNeeded(timestamp) {
       if (!timestamp) {
-        console.log('No timestamp found, refresh needed');
+        
         return true; // No timestamp, refresh needed
       }
       
@@ -843,7 +808,7 @@ export default {
             const keys = Object.keys(parsedObj);
             if (keys.length > 0) {
               dateToUse = keys[0];
-              console.log(`Extracted timestamp from object: ${dateToUse}`);
+              
             }
           } catch (jsonError) {
             // If it's not valid JSON but still has the format "{"date":""}"
@@ -851,7 +816,7 @@ export default {
             const dateMatch = timestamp.match(/"(.*?)"/);
             if (dateMatch && dateMatch[1]) {
               dateToUse = dateMatch[1];
-              console.log(`Extracted timestamp using regex: ${dateToUse}`);
+              
             }
           }
         }
@@ -860,7 +825,7 @@ export default {
         const now = new Date();
         const hoursSinceRefresh = (now - lastRefresh) / (1000 * 60 * 60);
         
-        console.log(`Last refresh: ${lastRefresh.toISOString()}, hours since: ${hoursSinceRefresh.toFixed(2)}`);
+        
         
         // Refresh if more than 24 hours have passed
         return hoursSinceRefresh >= 24;
@@ -872,7 +837,7 @@ export default {
     
     // Fetch watch history from all connected services and store it
     async fetchAndStoreWatchHistory() {
-      console.log('Fetching watch history from all connected services...');
+      
       const fetchPromises = [];
 
       // Fetch individual timestamp settings from the server
@@ -911,7 +876,7 @@ export default {
       // Plex
       if (this.plexConnected) {
         const plexRefreshNeeded = this.isRefreshNeeded(lastPlexHistoryRefresh);
-        console.log(`Plex refresh needed: ${plexRefreshNeeded}`);
+        
 
         if (plexRefreshNeeded) {
           fetchPromises.push(this.fetchPlexData().then(async () => {
@@ -928,10 +893,8 @@ export default {
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
             await apiService.post('/settings/lastPlexHistoryRefresh', now);
-            console.log(`Updated Plex history refresh timestamp: ${now}`);
+            
           }));
-        } else {
-          console.log('Skipping Plex history refresh (less than 24 hours since last refresh)');
         }
       }
 
@@ -939,12 +902,12 @@ export default {
       if (this.jellyfinConnected || jellyfinService.isConfigured()) {
         // If service is configured but not marked as connected, try to set the flag
         if (!this.jellyfinConnected && jellyfinService.isConfigured()) {
-          console.log('Jellyfin service is configured but not marked as connected. Setting connected flag.');
+          
           this.jellyfinConnected = true;
         }
 
         const jellyfinRefreshNeeded = this.isRefreshNeeded(lastJellyfinHistoryRefresh);
-        console.log(`Jellyfin refresh needed: ${jellyfinRefreshNeeded}`);
+        
 
         if (jellyfinRefreshNeeded) {
           fetchPromises.push(this.fetchJellyfinData().then(async () => {
@@ -961,17 +924,15 @@ export default {
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
             await apiService.post('/settings/lastJellyfinHistoryRefresh', now);
-            console.log(`Updated Jellyfin history refresh timestamp: ${now}`);
+            
           }));
-        } else {
-          console.log('Skipping Jellyfin history refresh (less than 24 hours since last refresh)');
         }
       }
 
       // Tautulli
       if (this.tautulliConnected) {
         const tautulliRefreshNeeded = this.isRefreshNeeded(lastTautulliHistoryRefresh);
-        console.log(`Tautulli refresh needed: ${tautulliRefreshNeeded}`);
+        
 
         if (tautulliRefreshNeeded) {
           fetchPromises.push(this.fetchTautulliData().then(async () => {
@@ -988,17 +949,15 @@ export default {
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
             await apiService.post('/settings/lastTautulliHistoryRefresh', now);
-            console.log(`Updated Tautulli history refresh timestamp: ${now}`);
+            
           }));
-        } else {
-          console.log('Skipping Tautulli history refresh (less than 24 hours since last refresh)');
         }
       }
 
       // Trakt
       if (this.traktConnected) {
         const traktRefreshNeeded = this.isRefreshNeeded(lastTraktHistoryRefresh);
-        console.log(`Trakt refresh needed: ${traktRefreshNeeded}`);
+        
 
         if (traktRefreshNeeded) {
           fetchPromises.push(this.fetchTraktData(true).then(async () => {
@@ -1015,17 +974,15 @@ export default {
             const now = new Date().toISOString();
             // Save directly to database column instead of through settings object
             await apiService.post('/settings/lastTraktHistoryRefresh', now);
-            console.log(`Updated Trakt history refresh timestamp: ${now}`);
+            
           }));
-        } else {
-          console.log('Skipping Trakt history refresh (less than 24 hours since last refresh)');
         }
       }
 
       try {
         // Wait for all fetches to complete
         await Promise.all(fetchPromises);
-        console.log('All watch history fetched and stored in database');
+        
 
         // Combine all watch history for server storage
         const allMovies = [
@@ -1051,7 +1008,7 @@ export default {
           await apiService.saveWatchHistory('shows', allShows);
         }
 
-        console.log('Watch history stored to server');
+        
       } catch (error) {
         console.error('Error fetching and storing watch history:', error);
       }
@@ -1061,14 +1018,14 @@ export default {
   async loadLocalSettings() {
     try {
       // Load all settings at once from the database
-      console.log('Loading all settings from database');
+      
       
       
       // Get all settings from the cache
       const settings = databaseStorageUtils.cache;
       
       if (settings) {
-        console.log('Loaded settings from database cache');
+        
         
         // Apply all settings at once
         
@@ -1094,14 +1051,14 @@ export default {
         // but are not part of App.vue's data properties, so we don't need to do anything
         // as they're already in the database cache
         
-        console.log('Settings applied from database cache');
+        
         return;
       }
     } catch (error) {
       console.error('Error loading settings from database:', error);
       
       // Use default values if database loading fails
-      console.log('Using default settings since database loading failed');
+      
       this.plexRecentLimit = 100;
       this.jellyfinRecentLimit = 100;
       this.plexHistoryMode = 'all';
@@ -1118,7 +1075,7 @@ export default {
     
     // Check if we have credentials stored server-side
     async checkStoredCredentials() {
-      console.log('Checking for stored credentials...');
+      
       try {
         // Only show loading state if no services are already connected
         if (!this.hasAnyServiceConnected()) {
@@ -1126,7 +1083,7 @@ export default {
         }
         
         // Load all credentials at once to populate the cache
-        console.log('Loading all credentials at once to populate cache...');
+        
         const allCredentials = await credentialsService.loadAllCredentials();
         
         // Check which services have credentials
@@ -1145,11 +1102,11 @@ export default {
         
         // Check if we have any stored credentials
         this.hasAnyServiceCredentials = serviceResults.some(result => result === true);
-        console.log('Has any service credentials:', this.hasAnyServiceCredentials);
+        
         
         // If any service has credentials, set up the appropriate services
         if (this.hasAnyServiceCredentials) {
-          console.log('Found stored credentials, configuring services...');
+          
           // Try to configure services with stored credentials
           await Promise.all([
             this.configureServiceFromCredentials('sonarr'),
@@ -1160,7 +1117,7 @@ export default {
             this.configureServiceFromCredentials('trakt')
           ]);
           
-          console.log('Services configured, any connected?', this.hasAnyServiceConnected());
+          
         }
       } catch (error) {
         console.error('Error checking for stored credentials:', error);
@@ -1191,29 +1148,29 @@ export default {
             
           case 'radarr':
             if (credentials.baseUrl && credentials.apiKey) {
-              console.log('Configuring Radarr from stored credentials');
+              
               await radarrService.configure(credentials.baseUrl, credentials.apiKey);
               
               // Test the connection
-              console.log('Testing Radarr connection from stored credentials');
+              
               const success = await radarrService.testConnection();
               
               if (success) {
-                console.log('Radarr connection successful from stored credentials');
+                
                 this.radarrConnected = true;
                 
                 // Fetch movies data if successful
                 if (this.movies.length === 0) {
-                  console.log('Fetching movies data from stored credentials');
+                  
                   await this.fetchMoviesData();
                 }
               } else {
                 this.radarrConnected = false;
-                console.log('Radarr connection test failed during configuration');
+                
               }
             } else {
               this.radarrConnected = false;
-              console.log('Incomplete Radarr credentials (missing baseUrl or apiKey)');
+              
             }
             break;
             
@@ -1231,7 +1188,7 @@ export default {
               this.selectedPlexUserId = credentials.selectedUserId || '';
               if (credentials.recentLimit) {
                 this.plexRecentLimit = parseInt(credentials.recentLimit);
-                console.log(`Updated plexRecentLimit to ${this.plexRecentLimit} from credentials`);
+                
               }
               
               const success = await plexService.testConnection();
@@ -1258,7 +1215,7 @@ export default {
               if (result.success) {
                 this.jellyfinConnected = true;
                 // Pass the userId explicitly to ensure it's used
-                console.log(`Using Jellyfin user ID from credentials: ${this.selectedJellyfinUserId}`);
+                
                 this.fetchJellyfinData(this.selectedJellyfinUserId);
               }
             }
@@ -1287,10 +1244,10 @@ export default {
               // Update tautulliRecentLimit from credentials if available
               if (credentials.recentLimit) {
                 this.tautulliRecentLimit = parseInt(credentials.recentLimit);
-                console.log(`Updated tautulliRecentLimit to ${this.tautulliRecentLimit} from credentials`);
+                
               } else {
                 // If not in credentials, use the default value
-                console.log(`Using default tautulliRecentLimit: ${this.tautulliRecentLimit}`);
+                
               }
               
               const success = await tautulliService.testConnection();
@@ -1304,7 +1261,7 @@ export default {
             
           case 'trakt':
             if (credentials.clientId && credentials.accessToken) {
-              console.log('Configuring Trakt from stored credentials');
+              
               traktService.clientId = credentials.clientId;
               traktService.clientSecret = credentials.clientSecret || '';
               traktService.accessToken = credentials.accessToken;
@@ -1315,21 +1272,21 @@ export default {
               // Update traktRecentLimit from credentials if available
               if (credentials.recentLimit) {
                 this.traktRecentLimit = parseInt(credentials.recentLimit);
-                console.log(`Updated traktRecentLimit to ${this.traktRecentLimit} from credentials`);
+                
               } else {
                 // If not in credentials, use the value from TraktService
                 this.traktRecentLimit = traktService.getRecentLimit();
-                console.log(`Using traktRecentLimit from TraktService: ${this.traktRecentLimit}`);
+                
               }
               
               const success = await traktService.testConnection();
               if (success) {
-                console.log('Trakt connection successful from stored credentials');
+                
                 this.traktConnected = true;
                 await this.fetchTraktData();
               } else {
                 this.traktConnected = false;
-                console.log('Trakt connection test failed during configuration');
+                
               }
             }
             break;
@@ -1413,7 +1370,7 @@ export default {
       this.traktConnected = true;
       this.showTraktConnect = false; // Don't show connect modal
       await this.fetchTraktData();
-      console.log('Trakt connected successfully, data fetched');
+      
     },
     
     async traktDisconnectionHandler() {
@@ -1433,10 +1390,10 @@ export default {
     },
     
     async fetchTraktData(forceRefresh = false) {
-      console.log('🔄 fetchTraktData called - refreshing Trakt history data');
+      
       
       if (!traktService.isConfigured()) {
-        console.log('❌ Trakt service is not configured, skipping data fetch');
+        
         return;
       }
       
@@ -1448,7 +1405,7 @@ export default {
           const traktRefreshNeeded = this.isRefreshNeeded(lastTraktHistoryRefresh);
           
           if (!traktRefreshNeeded) {
-            console.log('Skipping Trakt history refresh (less than 24 hours since last refresh)');
+            
             return;
           }
         }
@@ -1462,7 +1419,7 @@ export default {
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.traktHistoryMode === 'recent' ? 30 : 0;
         
-        console.log(`Requesting Trakt history with daysAgo=${daysAgo}`);
+        
         
         // Fetch movies and track timing
         console.time('Trakt movies fetch');
@@ -1477,8 +1434,8 @@ export default {
         console.timeEnd('Trakt movies fetch');
         console.timeEnd('Trakt shows fetch');
         
-        console.log(`📊 Trakt movies response: ${moviesResponse ? moviesResponse.length : 0} items`);
-        console.log(`📊 Trakt shows response: ${showsResponse ? showsResponse.length : 0} items`);
+        
+        
         
         this.traktRecentlyWatchedMovies = moviesResponse;
         this.traktRecentlyWatchedShows = showsResponse;
@@ -1488,23 +1445,10 @@ export default {
           showsCount: this.traktRecentlyWatchedShows.length
         });
         
-        // Log a sample of the first movie and show to verify data structure
-        if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
-          console.log('Trakt movie sample:', this.traktRecentlyWatchedMovies[0]);
-        } else {
-          console.log('No Trakt movies in watch history');
-        }
-        
-        if (this.traktRecentlyWatchedShows && this.traktRecentlyWatchedShows.length > 0) {
-          console.log('Trakt show sample:', this.traktRecentlyWatchedShows[0]);
-        } else {
-          console.log('No Trakt shows in watch history');
-        }
-        
         // Update the timestamp
         const now = new Date().toISOString();
         await apiService.post('/settings/lastTraktHistoryRefresh', now);
-        console.log(`Updated Trakt history refresh timestamp: ${now}`);
+        
         
         // Save to database
         if (this.traktRecentlyWatchedMovies && this.traktRecentlyWatchedMovies.length > 0) {
@@ -1581,7 +1525,7 @@ export default {
         this.showJellyfinUserSelect = false;
         
         // Fetch updated watch history with the explicitly selected user ID
-        console.log(`Applying Jellyfin user selection: ${this.selectedJellyfinUserId}`);
+        
         
         // Fetch the user history with force refresh
         await this.fetchJellyfinData(this.selectedJellyfinUserId, true);
@@ -1614,7 +1558,7 @@ export default {
           await apiService.saveWatchHistory('shows', allShows);
         }
         
-        console.log('Jellyfin watch history stored successfully');
+        
       } catch (error) {
         console.error('Error fetching and storing Jellyfin watch history:', error);
       }
@@ -1660,7 +1604,7 @@ export default {
         // Fetch updated watch history with the new user filter
         // If selectedTautulliUserId is empty, pass null to indicate "all users"
         const userId = this.selectedTautulliUserId ? this.selectedTautulliUserId : null;
-        console.log(`Applying Tautulli user selection: ${userId || 'all users'}`);
+        
         
         // Fetch the user history with force refresh
         await this.fetchTautulliData(userId, true);
@@ -1693,7 +1637,7 @@ export default {
           await apiService.saveWatchHistory('shows', allShows);
         }
         
-        console.log('Tautulli watch history stored successfully');
+        
       } catch (error) {
         console.error('Error fetching and storing Tautulli watch history:', error);
       }
@@ -1772,7 +1716,7 @@ export default {
           await apiService.saveWatchHistory('shows', allShows);
         }
         
-        console.log('Plex watch history stored successfully');
+        
       } catch (error) {
         console.error('Error fetching and storing Plex watch history:', error);
       }
@@ -1886,14 +1830,14 @@ export default {
     
     async checkTraktConnection() {
       try {
-        console.log('Checking Trakt connection...');
+        
         const success = await traktService.testConnection();
         if (success) {
-          console.log('Trakt connection successful');
+          
           this.traktConnected = true;
           await this.fetchTraktData();
         } else {
-          console.log('Trakt connection test failed');
+          
           this.traktConnected = false;
         }
       } catch (error) {
@@ -1984,7 +1928,7 @@ export default {
     },
     
     handleTraktHistoryModeChanged(mode) {
-      console.log('Trakt history mode changed to:', mode);
+      
       this.traktHistoryMode = mode;
       this.fetchTraktData();
     },
@@ -2002,7 +1946,7 @@ export default {
     },
     
     handleTraktOnlyModeChanged(enabled) {
-      console.log('Trakt only mode changed to:', enabled);
+      
       this.traktOnlyMode = enabled;
     },
     handleNavigate(tab, subtab) {
@@ -2021,8 +1965,8 @@ export default {
       // If we're switching to movie recommendations, check if we need to fetch movies data
       if (tab === 'movie-recommendations') {
         // Check if Radarr is connected
-        console.log('Radarr connected:', this.radarrConnected);
-        console.log('Current movies array length:', this.movies.length);
+        
+        
         
         // Check if Radarr service is actually configured
         if (radarrService.isConfigured()) {
@@ -2030,10 +1974,8 @@ export default {
           
           // Only fetch movies if we don't have any yet
           if (this.movies.length === 0) {
-            console.log('Movie array is empty, fetching movies data');
+            
             this.fetchMoviesData();
-          } else {
-            console.log('Movie array already populated, skipping fetch');
           }
         }
       }
@@ -2052,16 +1994,11 @@ export default {
     async fetchMoviesData() {
       // Prevent simultaneous calls to fetchMoviesData
       if (this._fetchingMovies) {
-        console.log('fetchMoviesData already in progress, skipping duplicate call');
         return;
       }
       
       try {
         this._fetchingMovies = true;
-        console.log('Fetching movies data...');
-        console.log('Radarr configured:', radarrService.isConfigured());
-        console.log('Radarr baseUrl:', radarrService.baseUrl);
-        console.log('Radarr apiKey:', radarrService.apiKey ? '✓ Set' : '✗ Not set');
         
         // Try to load credentials explicitly if not configured
         if (!radarrService.isConfigured()) {
@@ -2070,14 +2007,14 @@ export default {
         
         // If still not configured, log a message
         if (!radarrService.isConfigured()) {
-          console.log('Radarr service is still not configured after loading credentials');
+          
           this.radarrConnected = false;
           return;
         }
         
         // Fetch movies
         const movies = await radarrService.getMovies();
-        console.log('Fetched movies:', movies);
+        
         
         this.movies = movies;
         this.radarrConnected = true;
@@ -2102,12 +2039,10 @@ export default {
           const plexRefreshNeeded = this.isRefreshNeeded(lastPlexHistoryRefresh);
           
           if (!plexRefreshNeeded) {
-            console.log('Skipping Plex history refresh (less than 24 hours since last refresh)');
+            
             return;
           }
         }
-        
-        console.log('Fetching Plex watch history...');
         
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.plexHistoryMode === 'recent' ? 30 : 0;
@@ -2118,7 +2053,7 @@ export default {
         
         // Always ensure plexService has the updated selectedUserId for future calls
         if (userIdToUse && userIdToUse !== plexService.selectedUserId) {
-          console.log(`Updating plexService.selectedUserId to ${userIdToUse}`);
+          
           await plexService.configure(plexService.baseUrl, plexService.token, userIdToUse, this.plexRecentLimit);
         }
         
@@ -2140,7 +2075,7 @@ export default {
         // Update the timestamp
         const now = new Date().toISOString();
         await apiService.post('/settings/lastPlexHistoryRefresh',now);
-        console.log(`Updated Plex history refresh timestamp: ${now}`);
+        
         
         // Save to database
         if (this.recentlyWatchedMovies && this.recentlyWatchedMovies.length > 0) {
@@ -2170,12 +2105,12 @@ export default {
           const jellyfinRefreshNeeded = this.isRefreshNeeded(lastJellyfinHistoryRefresh);
           
           if (!jellyfinRefreshNeeded) {
-            console.log('Skipping Jellyfin history refresh (less than 24 hours since last refresh)');
+            
             return;
           }
         }
         
-        console.log('Fetching Jellyfin watch history...');
+        
         
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.jellyfinHistoryMode === 'recent' ? 30 : 0;
@@ -2202,11 +2137,11 @@ export default {
           return;
         }
         
-        console.log(`Fetching Jellyfin history with user ID: ${userIdToUse}`);
+        
         
         // Always ensure jellyfinService has the updated userId for future calls
         if (userIdToUse !== jellyfinService.userId) {
-          console.log(`Updating jellyfinService.userId to ${userIdToUse}`);
+          
           await jellyfinService.configure(
             jellyfinService.baseUrl,
             jellyfinService.apiKey,
@@ -2233,7 +2168,7 @@ export default {
         // Update the timestamp
         const now = new Date().toISOString();
         await apiService.post('/settings/lastJellyfinHistoryRefresh', now);
-        console.log(`Updated Jellyfin history refresh timestamp: ${now}`);
+        
         
         // Save to database
         if (this.jellyfinRecentlyWatchedMovies && this.jellyfinRecentlyWatchedMovies.length > 0) {
@@ -2263,12 +2198,12 @@ export default {
           const tautulliRefreshNeeded = this.isRefreshNeeded(lastTautulliHistoryRefresh);
           
           if (!tautulliRefreshNeeded) {
-            console.log('Skipping Tautulli history refresh (less than 24 hours since last refresh)');
+            
             return;
           }
         }
         
-        console.log('Fetching Tautulli watch history...');
+        
         
         // Determine if we should apply a days filter based on the history mode
         const daysAgo = this.tautulliHistoryMode === 'recent' ? 30 : 0;
@@ -2292,7 +2227,7 @@ export default {
           await databaseStorageUtils.set('selectedTautulliUserId', userIdToUse);
         }
         
-        console.log(`Fetching Tautulli history with user ID: ${userIdToUse || 'all users'}`);
+        
         
         // Fetch both shows and movies in parallel for efficiency
         const [moviesResponse, showsResponse] = await Promise.all([
@@ -2312,7 +2247,7 @@ export default {
         // Update the timestamp
         const now = new Date().toISOString();
         await apiService.post('/settings/lastTautulliHistoryRefresh', now);
-        console.log(`Updated Tautulli history refresh timestamp: ${now}`);
+        
         
         // Save to database
         if (this.tautulliRecentlyWatchedMovies && this.tautulliRecentlyWatchedMovies.length > 0) {
@@ -2330,7 +2265,7 @@ export default {
     },
     handleSettingsUpdated() {
       // When AI settings are updated, show a brief notification or just stay on the settings page
-      console.log('AI settings updated successfully');
+      
     },
     
     async handleSonarrSettingsUpdated() {
@@ -2338,7 +2273,7 @@ export default {
       if (sonarrService.isConfigured()) {
         // Check the Sonarr connection with the new settings
         this.checkSonarrConnection();
-        console.log('Sonarr settings updated, testing connection');
+        
         return;
       }
       
@@ -2352,26 +2287,26 @@ export default {
     },
     
     async handleRadarrSettingsUpdated() {
-      console.log('Radarr settings updated event received');
+      
       
       // Check if Radarr service is configured in memory
       const isConfigured = radarrService.isConfigured();
-      console.log('Is Radarr configured in memory:', isConfigured);
+      
       
       if (isConfigured) {
         // Check the Radarr connection with the new settings
-        console.log('Testing Radarr connection with existing credentials');
+        
         await this.checkRadarrConnection();
       } else {
         // Try to load credentials from server storage
-        console.log('Radarr not configured in memory, checking server storage');
+        
         try {
           await radarrService.loadCredentials();
           if (radarrService.isConfigured()) {
-            console.log('Loaded Radarr credentials from server, testing connection');
+            
             await this.checkRadarrConnection();
           } else {
-            console.log('No Radarr credentials found in server storage');
+            
             this.radarrConnected = false;
           }
         } catch (error) {
@@ -2382,7 +2317,7 @@ export default {
       
       // If we have movies and radarrService is configured, force the state to be true
       if (this.movies.length > 0 && radarrService.isConfigured()) {
-        console.log('Radarr is configured and movies are loaded, setting radarrConnected to true');
+        
         this.radarrConnected = true;
       }
     },
@@ -2392,7 +2327,7 @@ export default {
       if (plexService.isConfigured()) {
         // Check the Plex connection with the new settings
         this.checkPlexConnection();
-        console.log('Plex settings updated, testing connection');
+        
         return;
       }
       
@@ -2410,7 +2345,7 @@ export default {
       if (jellyfinService.isConfigured()) {
         // Check the Jellyfin connection with the new settings
         this.checkJellyfinConnection();
-        console.log('Jellyfin settings updated, testing connection');
+        
         return;
       }
       
@@ -2428,7 +2363,7 @@ export default {
       if (tautulliService.isConfigured()) {
         // Check the Tautulli connection with the new settings
         this.checkTautulliConnection();
-        console.log('Tautulli settings updated, testing connection');
+        
         return;
       }
       
@@ -2446,7 +2381,7 @@ export default {
       if (traktService.isConfigured()) {
         // Check the Trakt connection with the new settings
         this.checkTraktConnection();
-        console.log('Trakt settings updated, testing connection');
+        
         return;
       }
       
@@ -2460,8 +2395,6 @@ export default {
     },
     
     async handleLogout() {
-      console.log("User clicked logout...");
-      
       // Don't use await here - we'll just clear local auth data first
       // to prevent the potential circular logout request
       authService.clearLocalAuth();
@@ -2469,16 +2402,7 @@ export default {
       
       // Now call logout endpoint separately without awaiting it
       // This prevents potential 401 errors from causing a refresh loop
-      authService.logoutOnServer().catch(err => {
-        console.log('Logout from server failed, but local logout was successful:', err);
-      });
-      
-      // We're preserving database settings on logout
-      console.log('Database settings preserved for next login');
-      
-      // We're no longer resetting user data on logout
-      // This preserves the user's settings between sessions
-      console.log("User data and credentials preserved for next login");
+      authService.logoutOnServer();
       
       // Reset service configurations
       sonarrService.configure('', '');
@@ -2527,7 +2451,7 @@ export default {
       // Clear the database cache to ensure a fresh load for the next user
       databaseStorageUtils.cache = {};
       databaseStorageUtils.cacheLoaded = false;
-      console.log('Database cache cleared for next user login');
+      
     }
   }
 }

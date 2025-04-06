@@ -51,7 +51,7 @@ export default {
     }
     
     try {
-      console.log('TraktCallback: Processing OAuth callback with code and state');
+      
       // Process the OAuth callback
       await traktService.handleOAuthCallback(code, state);
       
@@ -60,7 +60,7 @@ export default {
       
       if (success) {
         this.success = true;
-        console.log('TraktCallback: Successfully connected to Trakt');
+        
       } else {
         this.error = 'Connected to Trakt, but could not fetch data. Please try again.';
         console.error('TraktCallback: Connection test failed after OAuth');
@@ -81,7 +81,7 @@ export default {
     goToSettings() {
       // Without a proper router, we'll use location.href to redirect
       // The page will reload and will check for Trakt credentials
-      console.log("Redirecting to settings after successful authorization");
+      
       window.location.href = '/';
     }
   }

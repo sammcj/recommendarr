@@ -11,7 +11,7 @@ class ApiService {
     // This enables both to run on the same port
     this.baseUrl = '/api';
     
-    console.log(`Using relative API path: ${this.baseUrl}`);
+    
     
     // Create axios instance with default config
     this.axiosInstance = axios.create({
@@ -24,7 +24,7 @@ class ApiService {
       error => {
         // Handle 401 Unauthorized or 530 errors - both indicate auth issues
         if (error.response && (error.response.status === 401 || error.response.status === 530)) {
-          console.log(`Auth error (${error.response.status}) detected, checking...`, error.config?.url);
+          
           
           // Skip auth-related paths to prevent loops
           const skipPaths = ['/auth/login', '/auth/logout', '/auth/register'];
@@ -46,7 +46,7 @@ class ApiService {
                                    error.config.url.includes('/settings'));
       
       if (!isAuthRequest && !isLoginPage && !isCredentialsRequest) {
-            console.log('Session expired, clearing auth data...');
+            
             
             // Force clear the auth cookie by setting it to expire in the past
             document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
@@ -75,10 +75,8 @@ class ApiService {
     try {
       const token = localStorage.getItem('auth_token');
       if (token) {
-        console.log('Found token in localStorage (legacy support)');
+        
         this.setHeader('Authorization', `Bearer ${token}`);
-      } else {
-        console.log('No stored auth token found - using HttpOnly cookies');
       }
     } catch (error) {
       console.error('Error accessing localStorage in ApiService:', error);
@@ -119,7 +117,7 @@ class ApiService {
    */
   async loadSavedSettings() {
     // Skip loading saved settings as app-config feature has been removed
-    console.log('Using environment-configured API URL settings');
+    
     return;
   }
   
@@ -345,7 +343,7 @@ class ApiService {
   async saveWatchHistory(type, items) {
     try {
       await this.post(`/watch-history/${type}`, items);
-      console.log(`Saved ${items.length} ${type} watch history items to server`);
+      
       return true;
     } catch (error) {
       console.error(`Failed to save ${type} watch history:`, error);
@@ -367,7 +365,7 @@ class ApiService {
       (this.currentUser && user && this.currentUser.userId !== user.userId);
     
     if (userChanged) {
-      console.log('ApiService: User changed, resetting caches and state...');
+      
       
       // Clear any internal caches or state here if implemented in the future
     }

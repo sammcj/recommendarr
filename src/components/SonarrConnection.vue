@@ -182,10 +182,10 @@ export default {
     // Diagnostic helper to test network connectivity
     async diagnoseConnection(host, port) {
       try {
-        console.log(`Diagnosing connection to ${host}:${port}`);
+        
         // Check if the API server can reach the Sonarr host
-        const response = await axios.get(`/api/net-test?target=${host}&port=${port}`);
-        console.log('Connection diagnostic results:', response.data);
+        await axios.get(`/api/net-test?target=${host}&port=${port}`);
+        
       } catch (error) {
         console.error('Error running connection diagnostics:', error);
       }

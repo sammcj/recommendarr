@@ -65,7 +65,7 @@ class JellyfinService {
       // Use individual setting API to update the timestamp
       await databaseStorageUtils.set('lastJellyfinHistoryRefresh', now);
       
-      console.log(`Updated lastJellyfinHistoryRefresh to ${now}`);
+      
       return true;
     } catch (error) {
       console.error('Error updating lastJellyfinHistoryRefresh:', error);

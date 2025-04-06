@@ -22,7 +22,7 @@ class CredentialsService {
   async migrateFromLocalStorage(serviceName) {
     // Check if user is authenticated before attempting migration
     if (!apiService.getCurrentUser()) {
-      console.log(`Not migrating ${serviceName} credentials - user is not authenticated`);
+      
       return null;
     }
     
@@ -35,14 +35,14 @@ class CredentialsService {
     this.migrated[serviceName] = true;
     
     try {
-      console.log(`Attempting to migrate ${serviceName} credentials from localStorage`);
+      
       
       // Try to get legacy credentials from localStorage
       const legacyKey = `${serviceName}_credentials`;
       const legacyCredentials = localStorage.getItem(legacyKey);
       
       if (!legacyCredentials) {
-        console.log(`No legacy ${serviceName} credentials found in localStorage`);
+        
         return null;
       }
       
@@ -53,10 +53,10 @@ class CredentialsService {
       const success = await this.storeCredentials(serviceName, credentials);
       
       if (success) {
-        console.log(`Successfully migrated ${serviceName} credentials to server storage`);
+        
         
         // Migration is no longer needed
-        console.log('Migration functionality has been removed');
+        
         
         return credentials;
       } else {
@@ -76,19 +76,19 @@ class CredentialsService {
    */
   async resetUserData() {
     try {
-      console.log('Calling reset endpoint to reset user data');
+      
       
       // Use ApiService for proper auth header
       const response = await apiService.post('/reset');
-      console.log('Reset response:', response.data);
+      
       
       // Verify the reset was successful
       if (response.data && response.data.success) {
-        console.log('✓ Server confirmed user_data.json was reset successfully');
+        
         
         // Clear the credentials cache since all user data was reset
         this.credentialsCache = {};
-        console.log('Credentials cache cleared after user data reset');
+        
         
         return true;
       } else {
@@ -117,14 +117,14 @@ class CredentialsService {
     try {
       // Check if user is authenticated before making the request
       if (!apiService.getCurrentUser()) {
-        console.log(`Not storing credentials for ${serviceName} - user is not authenticated`);
+        
         return false;
       }
       
-      console.log(`Storing credentials for ${serviceName}`);
+      
       // Send credentials to server using ApiService with auth header
       const response = await apiService.post(`/credentials/${serviceName}`, credentials);
-      console.log(`Credentials for ${serviceName} stored successfully`);
+      
       
       // Update cache on successful store
       if (response.data.success) {
@@ -147,15 +147,15 @@ class CredentialsService {
   async getCredentials(serviceName) {
     // Check if we have cached credentials
     if (this.credentialsCache[serviceName]) {
-      console.log(`Using cached credentials for ${serviceName}`);
+      
       return this.credentialsCache[serviceName];
     }
     
     try {
-      console.log(`Getting credentials for ${serviceName}`);
+      
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.get(`/credentials/${serviceName}`);
-      console.log(`Retrieved credentials for ${serviceName} successfully`);
+      
       
       // Store in cache
       this.credentialsCache[serviceName] = response.data;
@@ -163,7 +163,7 @@ class CredentialsService {
       return response.data;
     } catch (error) {
       if (error.response?.status === 404) {
-        console.log(`${serviceName} credentials not found, trying localStorage migration`);
+        
         // Service not found - try migrating from localStorage
         const migratedCredentials = await this.migrateFromLocalStorage(serviceName);
         
@@ -211,18 +211,18 @@ class CredentialsService {
   async hasCredentials(serviceName) {
     // Check cache first
     if (this.credentialsCache[serviceName]) {
-      console.log(`Credentials for ${serviceName} found in cache`);
+      
       return true;
     }
     
     try {
-      console.log(`Checking if credentials exist for ${serviceName}`);
+      
       
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.get('/credentials');
       
       const hasService = !!response.data.services[serviceName];
-      console.log(`Credentials for ${serviceName}: ${hasService ? 'FOUND' : 'NOT FOUND'}`);
+      
       
       return hasService;
     } catch (error) {
@@ -239,7 +239,7 @@ class CredentialsService {
    */
   async loadAllCredentials() {
     try {
-      console.log('Loading all credentials at once');
+      
       
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.get('/credentials');
@@ -248,7 +248,7 @@ class CredentialsService {
         const services = response.data.services;
         const serviceNames = Object.keys(services);
         
-        console.log(`Found ${serviceNames.length} services with credentials`);
+        
         
         // Load each service's credentials into cache
         const loadPromises = serviceNames.map(async (serviceName) => {
@@ -257,7 +257,7 @@ class CredentialsService {
               // Get the full credentials for this service
               const credentials = await this.getCredentials(serviceName);
               if (credentials) {
-                console.log(`Loaded credentials for ${serviceName} into cache`);
+                
                 // The getCredentials method already updates the cache
               }
               return { serviceName, credentials };
@@ -280,11 +280,11 @@ class CredentialsService {
           }
         });
         
-        console.log('All credentials loaded into cache');
+        
         return credentialsMap;
       }
       
-      console.log('No credentials found');
+      
       return {};
     } catch (error) {
       console.error('Error loading all credentials:', error);

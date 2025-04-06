@@ -110,7 +110,7 @@ export default {
       
       // If logout parameter is present, clear local authentication data
       if (logoutParam === 'true') {
-        console.log('Logout parameter detected, ensuring user is fully logged out');
+        
         AuthService.clearLocalAuth();
         // Clean up URL to remove logout parameter
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -118,12 +118,12 @@ export default {
       
       // Simple check if user is already authenticated in localStorage
       if (AuthService.isAuthenticated()) {
-        console.log('User appears authenticated in localStorage, verifying with server...');
+        
         // Verify the session with the server before proceeding
         const isSessionValid = await AuthService.verifySession();
         
         if (isSessionValid) {
-          console.log('Server verified session is valid');
+          
           // Only clean URL and emit authenticated if not coming from OAuth callback
           if (!codeParam) {
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -131,18 +131,16 @@ export default {
           this.$emit('authenticated');
           return;
         } else {
-          console.log('Server rejected session, clearing local auth data');
+          
           // If server says session is invalid but we have local data, clear it
           AuthService.clearLocalAuth();
         }
-      } else {
-        console.log('No local authentication data found');
       }
       
       // First verify session with server immediately
       let isAuthenticated = await AuthService.verifySession();
       if (isAuthenticated) {
-        console.log('Session verified with server on first attempt');
+        
         
         // Import and reset RecommendationsStore first to ensure clean state
         try {
@@ -150,7 +148,7 @@ export default {
           const RecommendationsStore = RecommendationsStoreModule.default;
           
           if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
-            console.log('RecommendationsStore: Forcing reset before authentication event');
+            
             RecommendationsStore.resetStore();
           }
         } catch (resetError) {
@@ -163,7 +161,7 @@ export default {
 
       // If we're returning from OAuth callback (has code param but no error)
       if (codeParam && !errorParam) {
-        console.log('OAuth callback detected, waiting for authentication to complete');
+        
         // Show loading state
         this.loading = true;
         
@@ -171,17 +169,17 @@ export default {
         isAuthenticated = false;
         for (let i = 0; i < 5; i++) {  // Increased from 3 to 5 attempts
           const delay = 300 * (i + 1);  // Progressive delay: 300ms, 600ms, 900ms, 1200ms, 1500ms
-          console.log(`Waiting ${delay}ms before verification attempt ${i + 1}`);
+          
           await new Promise(resolve => setTimeout(resolve, delay));
           
           isAuthenticated = await AuthService.verifySession();
-          console.log(`Verification attempt ${i + 1}: ${isAuthenticated ? 'Success' : 'Failed'}`);
+          
           
           if (isAuthenticated) break;
         }
         
         if (isAuthenticated) {
-          console.log('OAuth login successful');
+          
           
           // Import and reset RecommendationsStore first to ensure clean state
           try {
@@ -189,7 +187,7 @@ export default {
             const RecommendationsStore = RecommendationsStoreModule.default;
             
             if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
-              console.log('RecommendationsStore: Forcing reset before authentication event after OAuth login');
+              
               RecommendationsStore.resetStore();
             }
           } catch (resetError) {
@@ -201,7 +199,7 @@ export default {
           this.$emit('authenticated');
           return;
         } else {
-          console.log('OAuth login failed after multiple attempts');
+          
           this.error = 'OAuth login failed. Please try again.';
           // Clean up URL even if authentication fails to prevent reload loops
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -244,7 +242,7 @@ export default {
           const RecommendationsStore = RecommendationsStoreModule.default;
           
           if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
-            console.log('RecommendationsStore: Forcing reset before authentication event');
+            
             RecommendationsStore.resetStore();
           }
         } catch (resetError) {

@@ -130,6 +130,9 @@ class DatabaseService {
         traktRecentLimit INTEGER DEFAULT 50,
         traktHistoryMode TEXT DEFAULT 'all',
         traktOnlyMode INTEGER DEFAULT 0,
+        trakt_client_id TEXT DEFAULT NULL,
+        trakt_client_secret TEXT DEFAULT NULL,
+        trakt_oauth_state TEXT DEFAULT NULL,
         
         -- Watch history refresh timestamps
         lastPlexHistoryRefresh TEXT DEFAULT NULL,
@@ -1703,7 +1706,7 @@ class DatabaseService {
             
           }
         } catch (e) {
-          
+          console.log(e);
         }
       }
       
@@ -1816,8 +1819,6 @@ class DatabaseService {
   // Add missing columns to existing tables
   addMissingColumns() {
     try {
-      
-      
       // Get table info to see which columns already exist
       const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
       const existingColumns = tableInfo.map(col => col.name);
@@ -1833,6 +1834,21 @@ class DatabaseService {
           name: 'currentMovieRecommendations',
           type: 'TEXT',
           default: "'[]'"
+        },
+        {
+          name: 'trakt_client_id',
+          type: 'TEXT',
+          default: 'NULL'
+        },
+        {
+          name: 'trakt_client_secret',
+          type: 'TEXT',
+          default: 'NULL'
+        },
+        {
+          name: 'trakt_oauth_state',
+          type: 'TEXT',
+          default: 'NULL'
         }
       ];
       

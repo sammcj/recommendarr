@@ -1,6 +1,6 @@
 # Recommendarr
 
-![image](https://github.com/user-attachments/assets/19d332af-f90d-4b6d-8750-4be07bc45161)
+![image](https://github.com/user-attachments/assets/d0189d62-9644-4ef2-b44d-af78ad3e29f4)
 
 Recommendarr is a web application that generates personalized TV show and movie recommendations based on your Sonarr, Radarr, Plex, and Jellyfin libraries using AI.
 

@@ -1570,7 +1570,7 @@ export default {
         // First try to get from service directly
         if (traktService.isConfigured()) {
           this.traktSettings.clientId = traktService.clientId;
-          this.traktSettings.recentLimit = databaseStorageUtils.getSync('traktRecentLimit', 50);
+          this.traktSettings.recentLimit = await databaseStorageUtils.get('traktRecentLimit', 50); // Use async get
           return;
         }
         
@@ -1578,7 +1578,7 @@ export default {
         const credentials = await credentialsService.getCredentials('trakt');
         if (credentials) {
           this.traktSettings.clientId = credentials.clientId || '';
-          this.traktSettings.recentLimit = databaseStorageUtils.getSync('traktRecentLimit', 50);
+          this.traktSettings.recentLimit = await databaseStorageUtils.get('traktRecentLimit', 50); // Use async get
         }
       } catch (error) {
         console.error('Error loading Trakt settings:', error);

@@ -26,7 +26,7 @@ constructor() {
    */
   async initSelectedUserId() {
     try {
-      this.selectedUserId = await databaseStorageUtils.getSync('selectedTautulliUserId') || '';
+      this.selectedUserId = await databaseStorageUtils.get('selectedTautulliUserId') || '';
     } catch (error) {
       console.error('Error initializing selectedTautulliUserId:', error);
       this.selectedUserId = '';

@@ -16,12 +16,9 @@ class DatabaseService {
   // Initialize the database
   async init() {
     try {
-      
-      
       // Ensure data directory exists
       try {
         await fs.mkdir(DATA_DIR, { recursive: true });
-        
       } catch (err) {
         if (err.code !== 'EEXIST') {
           console.error('Error creating data directory:', err);
@@ -32,7 +29,6 @@ class DatabaseService {
       // Create database connection
       this.db = new Database(DB_FILE);
       
-      
       // Enable foreign keys
       this.db.pragma('foreign_keys = ON');
       
@@ -40,7 +36,6 @@ class DatabaseService {
       this.createTables();
       
       this.initialized = true;
-      
       
       return true;
     } catch (err) {
@@ -51,8 +46,6 @@ class DatabaseService {
   
   // Create database tables
   createTables() {
-    
-    
     // Add missing columns to existing tables if needed
     this.addMissingColumns();
     
@@ -130,6 +123,9 @@ class DatabaseService {
         traktRecentLimit INTEGER DEFAULT 50,
         traktHistoryMode TEXT DEFAULT 'all',
         traktOnlyMode INTEGER DEFAULT 0,
+        trakt_client_id TEXT DEFAULT NULL,
+        trakt_client_secret TEXT DEFAULT NULL,
+        trakt_oauth_state TEXT DEFAULT NULL,
         
         -- Watch history refresh timestamps
         lastPlexHistoryRefresh TEXT DEFAULT NULL,
@@ -243,6 +239,13 @@ class DatabaseService {
   // Migrate data from JSON files to database
   async migrateData() {
     try {
+      // Migrate users
+      await this.migrateUsers();
+      
+      // Migrate credentials
+      await this.migrateCredentials();
+      
+      // Migrate user data
       
       
       // Migrate users
@@ -1703,7 +1706,7 @@ class DatabaseService {
             
           }
         } catch (e) {
-          
+          console.log(e);
         }
       }
       
@@ -1816,8 +1819,6 @@ class DatabaseService {
   // Add missing columns to existing tables
   addMissingColumns() {
     try {
-      
-      
       // Get table info to see which columns already exist
       const tableInfo = this.db.prepare("PRAGMA table_info(user_data)").all();
       const existingColumns = tableInfo.map(col => col.name);
@@ -1833,6 +1834,26 @@ class DatabaseService {
           name: 'currentMovieRecommendations',
           type: 'TEXT',
           default: "'[]'"
+        },
+        {
+          name: 'trakt_client_id',
+          type: 'TEXT',
+          default: 'NULL'
+        },
+        {
+          name: 'trakt_client_secret',
+          type: 'TEXT',
+          default: 'NULL'
+        },
+        {
+          name: 'trakt_oauth_state',
+          type: 'TEXT',
+          default: 'NULL'
+        },
+        {
+          name: 'traktRecentLimit',
+          type: 'INTEGER',
+          default: '50'
         }
       ];
       

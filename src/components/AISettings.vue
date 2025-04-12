@@ -1521,22 +1521,11 @@ export default {
         if (jellyfinService.isConfigured()) {
           this.jellyfinSettings.baseUrl = jellyfinService.baseUrl;
           this.jellyfinSettings.apiKey = jellyfinService.apiKey;
+          this.jellyfinSettings.baseUrl = jellyfinService.baseUrl;
+          this.jellyfinSettings.apiKey = jellyfinService.apiKey;
           this.jellyfinSettings.userId = jellyfinService.userId;
+          this.jellyfinSettings.username = jellyfinService.username; // Load username directly from service
           this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit');
-          
-          // Try to look up the username for the current userId
-          if (this.jellyfinSettings.userId) {
-            try {
-              const users = await jellyfinService.getUsers();
-              const user = users.find(u => u.id === this.jellyfinSettings.userId);
-              if (user) {
-                this.jellyfinSettings.username = user.name;
-              }
-            } catch (error) {
-              console.error('Error retrieving username for current user ID:', error);
-            }
-          }
-          
           return;
         }
         
@@ -1545,29 +1534,9 @@ export default {
         if (credentials) {
           this.jellyfinSettings.baseUrl = credentials.baseUrl || '';
           this.jellyfinSettings.apiKey = credentials.apiKey || '';
-          this.jellyfinSettings.userId = credentials.userId || '';
+          this.jellyfinSettings.username = credentials.username || ''; // Load username from credentials
+          this.jellyfinSettings.userId = credentials.userId || ''; // Keep loading userId for potential future use
           this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit');
-          
-          // If we have credentials but no service configured yet, configure it temporarily to look up username
-          if (this.jellyfinSettings.baseUrl && this.jellyfinSettings.apiKey && this.jellyfinSettings.userId) {
-            try {
-              // Temporarily configure service
-              await jellyfinService.configure(
-                this.jellyfinSettings.baseUrl,
-                this.jellyfinSettings.apiKey,
-                this.jellyfinSettings.userId
-              );
-              
-              // Look up the username
-              const users = await jellyfinService.getUsers();
-              const user = users.find(u => u.id === this.jellyfinSettings.userId);
-              if (user) {
-                this.jellyfinSettings.username = user.name;
-              }
-            } catch (error) {
-              console.error('Error retrieving username for stored user ID:', error);
-            }
-          }
         }
       } catch (error) {
         console.error('Error loading Jellyfin settings:', error);
@@ -2088,11 +2057,12 @@ export default {
           return;
         }
         
-        // Configure the service with the looked-up userId
+        // Configure the service with the looked-up userId and username
         await jellyfinService.configure(
           this.jellyfinSettings.baseUrl, 
           this.jellyfinSettings.apiKey,
-          userId
+          userId,
+          this.jellyfinSettings.username // Pass username
         );
         
         // Store the recent limit in database (server doesn't need this)
@@ -2158,11 +2128,12 @@ export default {
           return;
         }
         
-        // Configure the service with the looked-up userId and recent limit
+        // Configure the service with the looked-up userId, username, and recent limit
         await jellyfinService.configure(
           this.jellyfinSettings.baseUrl, 
           this.jellyfinSettings.apiKey,
           userId,
+          this.jellyfinSettings.username, // Pass username
           this.jellyfinSettings.recentLimit
         );
         

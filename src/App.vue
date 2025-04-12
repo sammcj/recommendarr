@@ -1139,85 +1139,88 @@ export default {
             if (credentials.baseUrl && credentials.apiKey) {
               await sonarrService.configure(credentials.baseUrl, credentials.apiKey);
               const success = await sonarrService.testConnection();
+              this.sonarrConnected = success; // Explicitly set state
               if (success) {
-                this.sonarrConnected = true;
                 this.fetchSeriesData();
               }
+            } else {
+              this.sonarrConnected = false; // Ensure state is false if config fails
             }
             break;
             
           case 'radarr':
             if (credentials.baseUrl && credentials.apiKey) {
-              
               await radarrService.configure(credentials.baseUrl, credentials.apiKey);
-              
-              // Test the connection
-              
               const success = await radarrService.testConnection();
-              
+              this.radarrConnected = success; // Explicitly set state
               if (success) {
-                
-                this.radarrConnected = true;
-                
-                // Fetch movies data if successful
                 if (this.movies.length === 0) {
-                  
                   await this.fetchMoviesData();
                 }
-              } else {
-                this.radarrConnected = false;
-                
               }
             } else {
-              this.radarrConnected = false;
-              
+              this.radarrConnected = false; // Ensure state is false if config fails
             }
             break;
             
           case 'plex':
             if (credentials.baseUrl && credentials.token) {
-              // Make sure to include selectedUserId and recentLimit from credentials if they exist
               await plexService.configure(
                 credentials.baseUrl, 
                 credentials.token,
                 credentials.selectedUserId || '',
                 credentials.recentLimit || this.plexRecentLimit
               );
-              
-              // Update the component's state with values from credentials
               this.selectedPlexUserId = credentials.selectedUserId || '';
               if (credentials.recentLimit) {
                 this.plexRecentLimit = parseInt(credentials.recentLimit);
-                
               }
-              
               const success = await plexService.testConnection();
+              this.plexConnected = success; // Explicitly set state
               if (success) {
-                this.plexConnected = true;
-                // Pass the selectedUserId directly to ensure it's used
                 this.fetchPlexData(this.selectedPlexUserId);
               }
+            } else {
+              this.plexConnected = false; // Ensure state is false if config fails
             }
             break;
             
           case 'jellyfin':
-            if (credentials.baseUrl && credentials.apiKey && credentials.userId) {
-              // Configure jellyfin service with stored credentials
-              await jellyfinService.configure(credentials.baseUrl, credentials.apiKey, credentials.userId);
+            // Check for essential credentials first
+            if (credentials.baseUrl && credentials.apiKey) {
+              // Configure with potentially missing userId initially, testConnection will handle lookup
+              await jellyfinService.configure(
+                credentials.baseUrl, 
+                credentials.apiKey, 
+                credentials.userId, // Pass stored userId (might be empty)
+                credentials.username // Pass stored username
+              ); 
               
-              // Update the component's state with the user ID from credentials
-              this.selectedJellyfinUserId = credentials.userId || '';
-              
-              // Save the userId to database for persistence
-              await databaseStorageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
-              
-              const result = await jellyfinService.testConnection();
-              if (result.success) {
-                this.jellyfinConnected = true;
-                // Pass the userId explicitly to ensure it's used
-                
-                this.fetchJellyfinData(this.selectedJellyfinUserId);
+              // Update component state with potentially stored userId
+              this.selectedJellyfinUserId = credentials.userId || ''; 
+              if (this.selectedJellyfinUserId) {
+                 await databaseStorageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
               }
+
+              console.log(`[App.vue] Testing Jellyfin connection during init...`);
+              const result = await jellyfinService.testConnection();
+              console.log(`[App.vue] Jellyfin testConnection result:`, result);
+              
+              this.jellyfinConnected = result.success; // Explicitly set state based on test result
+              
+              if (result.success) {
+                 // If connection succeeded, ensure userId in service is up-to-date and fetch data
+                 this.selectedJellyfinUserId = jellyfinService.userId; // Get potentially updated ID from service
+                 if (this.selectedJellyfinUserId) {
+                    await databaseStorageUtils.set('selectedJellyfinUserId', this.selectedJellyfinUserId);
+                 }
+                 this.fetchJellyfinData(this.selectedJellyfinUserId);
+              } else {
+                 console.error(`[App.vue] Jellyfin connection test failed during init: ${result.message}`);
+              }
+            } else {
+              console.log(`[App.vue] Jellyfin credentials missing (URL or APIKey), setting connected=false.`);
+              this.jellyfinConnected = false; // Ensure state is false if essential config is missing
             }
             break;
             

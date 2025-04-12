@@ -263,10 +263,10 @@ constructor() {
       this.refreshToken = data.refresh_token;
       this.expiresAt = expiresAt;
       
-      // Get existing recentLimit from database if available
-      const recentLimit = await databaseStorageUtils.getSync('traktRecentLimit');
+      // Get existing recentLimit from database if available using async get
+      const recentLimit = await databaseStorageUtils.get('traktRecentLimit');
       
-      // Store updated credentials
+      // Store updated credentials (persistent values only)
       const credentials = {
         clientId: this.clientId,
         clientSecret: this.clientSecret,
@@ -890,10 +890,10 @@ constructor() {
       this.expiresAt = null;
       this.configured = false;
       
-      // Get existing recentLimit from database
-      const recentLimit = await databaseStorageUtils.getSync('traktRecentLimit');
+      // Get existing recentLimit from database using async get
+      const recentLimit = await databaseStorageUtils.get('traktRecentLimit');
       
-      // Clear credentials on server
+      // Clear credentials on server (persistent values only)
       const credentials = {
         clientId: this.clientId,
         clientSecret: this.clientSecret,

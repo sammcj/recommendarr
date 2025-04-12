@@ -101,6 +101,7 @@ class JellyfinService {
   }
 
   isConfigured() {
+    // Only check for base URL and API key, as userId can be looked up
     return !!this.baseUrl && !!this.apiKey;
   }
   
@@ -158,58 +159,102 @@ class JellyfinService {
   }
 
   async testConnection() {
-    // Try to load credentials if not already configured
+    // Ensure credentials are loaded if not already
+    if (!this.credentialsLoaded) {
+      await this.loadCredentials();
+    }
+    
+    // Check basic configuration (URL and API Key)
     if (!this.isConfigured()) {
-      // Only load credentials if they haven't been loaded yet
-      if (!this.credentialsLoaded) {
-        await this.loadCredentials();
-      }
-      
-      if (!this.isConfigured()) {
-        return { success: false, message: 'Jellyfin URL and API key are required.' };
-      }
+      return { success: false, message: 'Jellyfin URL and API key are required.' };
     }
 
     try {
-      // First check if we can connect to the server
+      // 1. Basic System Info Check
       const systemResponse = await apiService.proxyRequest({
         url: `${this.baseUrl}/System/Info`,
         method: 'GET',
-        headers: {
-          'X-Emby-Token': this.apiKey
-        }
+        headers: { 'X-Emby-Token': this.apiKey }
       });
       
       if (systemResponse.status !== 200) {
-        return { success: false, message: `Error connecting to Jellyfin: ${systemResponse.status}` };
+        return { success: false, message: `Error connecting to Jellyfin server: ${systemResponse.status}` };
       }
-      
-      // If userId is provided, verify it's valid
+
+      // 2. Ensure userId is loaded
+      if (!this.userId) {
+        await this.loadUserId(); // Wait for userId to load if it wasn't already
+      }
+
+      // 3. Primary User Validation (if userId exists)
+      let userValid = false;
+      let userName = '';
       if (this.userId) {
         try {
           const userResponse = await apiService.proxyRequest({
             url: `${this.baseUrl}/Users/${this.userId}`,
             method: 'GET',
-            headers: {
-              'X-Emby-Token': this.apiKey
-            }
+            headers: { 'X-Emby-Token': this.apiKey }
           });
-          
-          return { 
-            success: true, 
-            message: `Connected to Jellyfin successfully! User: ${userResponse.data.Name}`
-          };
+          if (userResponse.status === 200) {
+            userValid = true;
+            userName = userResponse.data.Name;
+          }
         } catch (userError) {
-          // User ID may be invalid
-          return { 
-            success: false, 
-            message: 'Connected to Jellyfin, but the User ID is invalid.'
-          };
+          console.warn(`Initial validation for userId ${this.userId} failed. Will attempt username lookup.`);
+          userValid = false;
         }
       }
+
+      // 4. Fallback: Lookup userId by username if primary validation failed or userId was missing
+      if (!userValid && this.username) {
+        console.log(`Attempting to find userId for username: ${this.username}`);
+        const foundUserId = await this.getUserIdByUsername(this.username);
+        
+        if (foundUserId) {
+          console.log(`Found userId ${foundUserId} for username ${this.username}. Validating...`);
+          // Store the found ID and try validation again
+          this.userId = foundUserId;
+          await databaseStorageUtils.set('selectedJellyfinUserId', this.userId);
+          
+          try {
+            const userResponse = await apiService.proxyRequest({
+              url: `${this.baseUrl}/Users/${this.userId}`,
+              method: 'GET',
+              headers: { 'X-Emby-Token': this.apiKey }
+            });
+            if (userResponse.status === 200) {
+              userValid = true;
+              userName = userResponse.data.Name;
+            }
+          } catch (fallbackUserError) {
+            console.error(`Validation failed even after username lookup for userId ${this.userId}.`);
+            userValid = false;
+          }
+        } else {
+          console.warn(`Could not find userId for username: ${this.username}`);
+        }
+      }
+
+      // 5. Final Result
+      if (userValid) {
+        return { 
+          success: true, 
+          message: `Connected to Jellyfin successfully! User: ${userName}`
+        };
+      } else if (!this.username && !this.userId) {
+        // Connected to server, but no user info available to check
+        return { success: true, message: 'Connected to Jellyfin server, but no user specified.' };
+      } else {
+        // Connected to server, but user validation failed
+        return { 
+          success: false, 
+          message: 'Connected to Jellyfin server, but failed to validate the specified user.' 
+        };
+      }
       
-      return { success: true, message: 'Connected to Jellyfin successfully!' };
     } catch (error) {
+      // Catch errors from the initial /System/Info call or other unexpected issues
       return { 
         success: false, 
         message: `Error connecting to Jellyfin: ${error.message || 'Unknown error'}`

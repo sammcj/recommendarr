@@ -117,22 +117,38 @@ constructor() {
    * Handle OAuth callback by exchanging authorization code for tokens
    */
   async handleOAuthCallback(code, state) {
-    // Verify state parameter matches what we stored
-    const storedState = await databaseStorageUtils.getSync('trakt_oauth_state');
+    // Retrieve stored state using async get
+    let storedState = await databaseStorageUtils.get('trakt_oauth_state');
+    
+    // Add a small delay and retry if state is initially null
+    if (!storedState) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      storedState = await databaseStorageUtils.get('trakt_oauth_state');
+    }
+
+    // Now perform the state comparison
     if (state !== storedState) {
+      console.error(`OAuth State Mismatch: URL State='${state}', Stored State='${storedState}'`);
       throw new Error('OAuth state mismatch - possible CSRF attack');
     }
     
-    // Get client ID from database
-    const clientId = await databaseStorageUtils.getSync('trakt_client_id');
+    // Get client ID from database using async get
+    let clientId = await databaseStorageUtils.get('trakt_client_id');
     if (!clientId) {
-      throw new Error('Client ID not found in database');
+      // Add a small delay and retry
+      await new Promise(resolve => setTimeout(resolve, 500));
+      clientId = await databaseStorageUtils.get('trakt_client_id');
+      if (!clientId) {
+        throw new Error('Client ID not found in database after retry');
+      }
     }
+    this.clientId = clientId; // Store retrieved clientId
     
-    // Get client secret from database if available
-    const clientSecret = await databaseStorageUtils.getSync('trakt_client_secret', '');
+    // Get client secret from database if available using async get
+    const clientSecret = await databaseStorageUtils.get('trakt_client_secret', '');
+    this.clientSecret = clientSecret; // Store retrieved clientSecret
     
-    // Clear database values
+    // Clear database values *after* successful retrieval and state check
     await databaseStorageUtils.remove('trakt_oauth_state');
     await databaseStorageUtils.remove('trakt_client_id');
     await databaseStorageUtils.remove('trakt_client_secret');
@@ -146,8 +162,8 @@ constructor() {
         method: 'POST',
         data: {
           code,
-          client_id: clientId,
-          client_secret: clientSecret,
+          client_id: this.clientId, // Use stored clientId
+          client_secret: this.clientSecret, // Use stored clientSecret
           redirect_uri: this.redirectUri,
           grant_type: 'authorization_code'
         },
@@ -165,18 +181,14 @@ constructor() {
       const data = tokenResponse.data;
       const expiresAt = Date.now() + (data.expires_in * 1000);
       
-      
-      
-      // Update service properties
-      this.clientId = clientId;
-      this.clientSecret = clientSecret;
+      // Update service properties (clientId and clientSecret already set)
       this.accessToken = data.access_token;
       this.refreshToken = data.refresh_token;
       this.expiresAt = expiresAt;
       this.configured = true;
       
-      // Get existing recentLimit from database if available
-      const recentLimit = await databaseStorageUtils.getSync('traktRecentLimit');
+      // Get existing recentLimit from database if available using async get
+      const recentLimit = await databaseStorageUtils.get('traktRecentLimit');
       
       // Store credentials on the server
       const credentials = {

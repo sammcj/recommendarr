@@ -16,12 +16,9 @@ class DatabaseService {
   // Initialize the database
   async init() {
     try {
-      
-      
       // Ensure data directory exists
       try {
         await fs.mkdir(DATA_DIR, { recursive: true });
-        
       } catch (err) {
         if (err.code !== 'EEXIST') {
           console.error('Error creating data directory:', err);
@@ -32,7 +29,6 @@ class DatabaseService {
       // Create database connection
       this.db = new Database(DB_FILE);
       
-      
       // Enable foreign keys
       this.db.pragma('foreign_keys = ON');
       
@@ -40,7 +36,6 @@ class DatabaseService {
       this.createTables();
       
       this.initialized = true;
-      
       
       return true;
     } catch (err) {
@@ -51,8 +46,6 @@ class DatabaseService {
   
   // Create database tables
   createTables() {
-    
-    
     // Add missing columns to existing tables if needed
     this.addMissingColumns();
     
@@ -246,6 +239,13 @@ class DatabaseService {
   // Migrate data from JSON files to database
   async migrateData() {
     try {
+      // Migrate users
+      await this.migrateUsers();
+      
+      // Migrate credentials
+      await this.migrateCredentials();
+      
+      // Migrate user data
       
       
       // Migrate users
@@ -1849,6 +1849,11 @@ class DatabaseService {
           name: 'trakt_oauth_state',
           type: 'TEXT',
           default: 'NULL'
+        },
+        {
+          name: 'traktRecentLimit',
+          type: 'INTEGER',
+          default: '50'
         }
       ];
       

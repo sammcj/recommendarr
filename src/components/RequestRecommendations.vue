@@ -2,24 +2,7 @@
   <div class="recommendations">
     <div class="recommendation-header">
       <h2>{{ isMovieMode ? 'Movie Recommendations' : 'TV Show Recommendations' }}</h2>
-      <div class="content-type-selector">
-        <button 
-          class="content-type-button" 
-          :class="{ 'active': !isMovieMode }"
-          @click="setContentType(false)"
-        >
-          <span class="button-icon">📺</span>
-          <span>TV Shows</span>
-        </button>
-        <button 
-          class="content-type-button" 
-          :class="{ 'active': isMovieMode }"
-          @click="setContentType(true)"
-        >
-          <span class="button-icon">🎬</span>
-          <span>Movies</span>
-        </button>
-      </div>
+      <p class="user-recommendation-info" v-if="username">Personalized for user: {{ username }}</p>
     </div>
     
     <div v-if="!openaiConfigured" class="setup-section">
@@ -37,791 +20,110 @@
     <div v-else>
       <div class="actions">
         <div class="recommendations-settings">
-          <div class="settings-container">
-            <div class="settings-header" @click="toggleSettings">
-              <h3>Configuration <span class="toggle-icon">{{ settingsExpanded ? '▼' : '▶' }}</span></h3>
-            </div>
-            <div class="settings-content" :class="{ 'collapsed': !settingsExpanded }">
-              <div class="settings-layout">
-              <div class="settings-left">
-                <div class="info-section">
-                  <h3 class="info-section-title collapsible-header" @click="toggleConfiguration">
-                    Current Configuration
-                    <span class="toggle-icon">{{ configurationExpanded ? '▼' : '▶' }}</span>
-                  </h3>
-                  <div class="model-info config-content" :class="{ 'collapsed': !configurationExpanded }" v-show="configurationExpanded">
-                    <div class="model-header">
-                      <span class="current-model">Model:</span>
-                      <button 
-                        @click.stop="fetchModels" 
-                        class="fetch-models-button"
-                        :disabled="fetchingModels"
-                        title="Refresh models from API"
-                      >
-                        <span v-if="fetchingModels" class="loading-icon">⟳</span>
-                        <span v-else>⟳</span>
-                      </button>
-                    </div>
-                    <div class="model-select-container">
-                      <select v-model="selectedModel" @change="updateModel" class="model-select">
-                        <option value="" disabled>{{ modelOptions.length === 0 ? 'No models available' : 'Select a model' }}</option>
-                        <option v-for="model in modelOptions" :key="model.id" :value="model.id">{{ model.id }}</option>
-                        <option value="custom">Custom/Other...</option>
-                      </select>
-                      <div v-if="fetchError" class="fetch-error" @click="goToSettings">{{ fetchError }} <span class="error-link">Click to configure API settings</span></div>
-                      <div class="model-select-custom" v-if="isCustomModel">
-                        <input 
-                          type="text" 
-                          v-model="customModel" 
-                          placeholder="Enter model name" 
-                          class="custom-model-input"
-                          @blur="updateCustomModel"
-                          @keyup.enter="updateCustomModel"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div class="temperature-control">
-                      <div class="slider-header">
-                        <label for="temperature-slider">Temperature</label>
-                        <span class="slider-value">{{ temperature.toFixed(1) }}</span>
-                      </div>
-                      <div class="modern-slider-container">
-                        <div class="slider-labels">
-                          <span>Creative</span>
-                          <span>Precise</span>
-                        </div>
-                        <div class="slider-track-container">
-                          <input 
-                            type="range" 
-                            id="temperature-slider"
-                            v-model.number="temperature"
-                            min="0" 
-                            max="1"
-                            step="0.1"
-                            class="modern-slider"
-                            @change="updateTemperature"
-                          />
-                          <div class="slider-track" :style="{ width: `${temperature * 100}%` }"></div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="library-mode-toggle">
-                      <label class="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          v-model="useSampledLibrary" 
-                          @change="saveLibraryModePreference"
-                        >
-                        Use Sampled Library Mode
-                      </label>
-                      <div class="setting-description">
-                        Samples a subset of your library to reduce token usage while still providing relevant recommendations.
-                      </div>
-                      
-                      <div v-if="useSampledLibrary" class="sample-size-control">
-                        <div class="slider-header">
-                          <label for="sampleSizeSlider">Sample size</label>
-                          <span class="slider-value">{{ sampleSize }}</span>
-                        </div>
-                        <div class="modern-slider-container">
-                          <div class="slider-track-container">
-                            <input 
-                              type="range" 
-                              id="sampleSizeSlider"
-                              v-model.number="sampleSize"
-                              min="5" 
-                              max="1000"
-                              class="modern-slider"
-                              @change="saveSampleSize"
-                            >
-                            <div class="slider-track"></div>
-                          </div>
-                          <div class="slider-range-labels">
-                            <span>5</span>
-                            <span>1000</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="experimental-toggle">
-                        <label class="checkbox-label">
-                          <input 
-                            type="checkbox" 
-                            v-model="useStructuredOutput" 
-                            @change="saveStructuredOutputPreference"
-                          >
-                          Use Structured Output (Experimental)
-                        </label>
-                        <div class="setting-description">
-                          Uses OpenAI's JSON schema feature for more reliable and consistent LLM results formatting.
-                          Check if your model supports Structured Outputs. Disable if you are seeing failures or inconsistent recommendation counts.
-                          <span class="experimental-badge">BETA</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="history-info">
-                    <span>{{ previousRecommendations.length }} {{ isMovieMode ? 'movies' : 'shows' }} in history</span>
-                    <button 
-                      v-if="previousRecommendations.length > 0" 
-                      @click="clearRecommendationHistory" 
-                      class="clear-history-button"
-                      title="Clear recommendation history"
-                    >
-                      Clear History
-                    </button>
-                  </div>
-                  
-                  <!-- <div class="watch-history-section">
-                    <h3 class="info-section-title collapsible-header" @click="toggleWatchHistory">
-                      Watch History
-                      <span class="toggle-icon">{{ watchHistoryExpanded ? '▼' : '▶' }}</span>
-                    </h3>
-                    <div class="watch-history-content" :class="{ 'collapsed': !watchHistoryExpanded }" v-show="watchHistoryExpanded">
-                      <div class="watch-history-info">
-                        <p>View your watch history currently being used for recommendations</p>
-                        <button 
-                          @click="openWatchHistoryModal" 
-                          class="view-history-button"
-                          title="View watch history"
-                        >
-                          View Watch History
-                        </button>
-                      </div>
-                    </div>
-                  </div> -->
-                </div>
-                
-                <div class="count-selector">
-                  <div class="collapsible-header" @click="toggleRecNumber">
-                    <div class="slider-header">
-                      <label for="recommendationsSlider">Number of recommendations</label>
-                      <div class="header-right">
-                        <span class="slider-value">{{ numRecommendations }}</span>
-                        <span class="toggle-icon">{{ recNumberExpanded ? '▼' : '▶' }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="rec-number-content" :class="{ 'collapsed': !recNumberExpanded }" v-show="recNumberExpanded">
-                    <div class="modern-slider-container">
-                      <div class="slider-track-container">
-                        <input 
-                          type="range" 
-                          id="recommendationsSlider"
-                          v-model.number="numRecommendations"
-                          min="1" 
-                          max="50"
-                          class="modern-slider"
-                          @change="saveRecommendationCount"
-                        >
-                        <div class="slider-track" :style="{ width: `${(numRecommendations - 1) / 49 * 100}%` }"></div>
-                      </div>
-                      <div class="slider-range-labels">
-                        <span>1</span>
-                        <span>50</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="count-selector">
-                  <div class="collapsible-header" @click="togglePostersPerRow">
-                    <div class="slider-header">
-                      <label for="columnsSlider">Posters per row</label>
-                      <div class="header-right">
-                        <span class="slider-value">{{ columnsCount }}</span>
-                        <span class="toggle-icon">{{ postersPerRowExpanded ? '▼' : '▶' }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="posters-row-content" :class="{ 'collapsed': !postersPerRowExpanded }" v-show="postersPerRowExpanded">
-                    <div class="modern-slider-container">
-                      <div class="slider-track-container">
-                        <input 
-                          type="range" 
-                          id="columnsSlider"
-                          v-model.number="columnsCount"
-                          min="1" 
-                          max="10"
-                          class="modern-slider"
-                          @input="handleResize" 
-                          @change="saveColumnsCount"
-                        >
-                        <div class="slider-track"></div>
-                      </div>
-                      <div class="slider-range-labels">
-                        <span>1</span>
-                        <span>10</span>
-                      </div>
-                    </div>
-                    
-                  </div>
-                </div>
-              </div>
-              
-              <div class="settings-right">
-                <div class="genre-selector">
-                  <div class="section-header collapsible-header" @click="toggleGenrePreferences">
-                    <label>Genre preferences</label>
-                    <div class="header-right">
-                      <span v-if="selectedGenres && selectedGenres.length > 0" class="genre-badge">{{ selectedGenres.length }}</span>
-                      <span class="toggle-icon">{{ genrePreferencesExpanded ? '▼' : '▶' }}</span>
-                    </div>
-                  </div>
-                  <div class="genre-content" :class="{ 'collapsed': !genrePreferencesExpanded }" v-show="genrePreferencesExpanded">
-                    <div class="genre-tags-container">
-                      <div 
-                        v-for="genre in availableGenres" 
-                        :key="genre.value"
-                        :class="['genre-tag', {'selected': selectedGenres && selectedGenres.includes(genre.value)}]"
-                        @click="toggleGenre(genre.value)"
-                      >
-                        {{ genre.label }}
-                      </div>
-                      <button 
-                        v-if="selectedGenres && selectedGenres.length > 0" 
-                        @click="clearGenres" 
-                        class="clear-all-button"
-                        title="Clear all selected genres"
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="vibe-selector">
-                  <div class="section-header collapsible-header" @click="toggleCustomVibe">
-                    <label for="customVibe">Recommendation Style</label>
-                    <div class="header-right">
-                      <button 
-                        v-if="customVibe" 
-                        @click.stop="clearCustomVibe" 
-                        class="clear-prompt-button"
-                        title="Clear prompt"
-                      >
-                        Clear
-                      </button>
-                      <span class="toggle-icon">{{ customVibeExpanded ? '▼' : '▶' }}</span>
-                    </div>
-                  </div>
-                  <div class="vibe-content" :class="{ 'collapsed': !customVibeExpanded }" v-show="customVibeExpanded">
-                    <div class="prompt-style-selector">
-                      <label for="promptStyle">Prompt Style:</label>
-                      <div class="select-container">
-                        <select 
-                          id="promptStyle" 
-                          v-model="promptStyle"
-                          @change="savePromptStyle"
-                          class="prompt-style-select"
-                        >
-                          <option value="vibe">Vibe-Based</option>
-                          <option value="analytical">Analytical</option>
-                          <option value="creative">Creative</option>
-                          <option value="technical">Technical</option>
-                        </select>
-                        <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </div>
-                      
-                      <!-- Prompt Style Help Text -->
-                      <div class="prompt-style-help">
-                        <div v-if="promptStyle === 'vibe'" class="prompt-style-info">
-                          <h4>Vibe-Based Style</h4>
-                          <p>Focuses on the emotional atmosphere and sensory experience of content in your library. Recommendations prioritize matching the <em>feeling</em> and mood of your favorite shows/movies rather than just genre or plot similarities.</p>
-                          <p>Best for: Finding content that <em>feels</em> similar to what you love, capturing specific tones and atmospheres.</p>
-                        </div>
-                        <div v-if="promptStyle === 'analytical'" class="prompt-style-info">
-                          <h4>Analytical Style</h4>
-                          <p>Performs a detailed examination of narrative structures, thematic patterns, and formal techniques. Recommendations are based on substantive analysis of cinematic/television elements that connect works on a deeper level.</p>
-                          <p>Best for: Intellectual exploration and discovering content with similar artistic approaches or thematic depth.</p>
-                        </div>
-                        <div v-if="promptStyle === 'creative'" class="prompt-style-info">
-                          <h4>Creative Style</h4>
-                          <p>Looks beyond conventional categorizations to find unexpected connections between works. Prioritizes emotional journeys, artistic vision, and creative storytelling approaches.</p>
-                          <p>Best for: Discovering surprising recommendations that might not seem related at first glance but share creative DNA.</p>
-                        </div>
-                        <div v-if="promptStyle === 'technical'" class="prompt-style-info">
-                          <h4>Technical Style</h4>
-                          <p>Focuses on production craft, filmmaking/television techniques, and technical execution. Analyzes directorial methods, cinematography, editing styles, and production elements.</p>
-                          <p>Best for: Appreciation of craft elements and finding content with similar production quality or technical innovation.</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="vibe-input-container">
-                      <label for="customVibe">Additional Keywords/Themes:</label>
-                      <textarea 
-                        id="customVibe" 
-                        v-model="customVibe"
-                        @change="saveCustomVibe"
-                        @input="this.recommendationsRequested = false"
-                        placeholder="e.g., cozy mysteries, dark comedy, mind-bending, nostalgic 90s feel..."
-                        class="vibe-input"
-                        rows="2"
-                      ></textarea>
-                    </div>
-                    
-                    <div class="prompt-option-toggle">
-                      <div class="checkbox-header">
-                        <input 
-                            type="checkbox" 
-                            v-model="useCustomPromptOnly" 
-                            @change="saveCustomPromptOnlyPreference"
-                          >
-                        <span class="checkbox-label">Only base results on custom prompt</span>
-                        <label class="checkbox">
-                        </label>
-                      </div>
-                      <div class="setting-description">
-                        Recommendations will be based solely on the "Additional Keywords/Themes" field. Library and watch history will not be included in the prompt.
-                      </div>
-                    </div>
-                    
-                    <div class="setting-tip">
-                      <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                      </svg>
-                      <span>Choose a prompt style and add specific themes or preferences</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="language-selector">
-                  <div class="section-header collapsible-header" @click="toggleContentLanguage">
-                    <label for="languageSelect">Content language</label>
-                    <div class="header-right">
-                      <span v-if="selectedLanguage" class="language-badge">{{ getLanguageName(selectedLanguage) }}</span>
-                      <span class="toggle-icon">{{ contentLanguageExpanded ? '▼' : '▶' }}</span>
-                    </div>
-                  </div>
-                  <div class="language-content" :class="{ 'collapsed': !contentLanguageExpanded }" v-show="contentLanguageExpanded">
-                    <div class="select-wrapper">
-                      <select 
-                        id="languageSelect" 
-                        v-model="selectedLanguage"
-                        @change="saveLanguagePreference"
-                        class="language-select"
-                      >
-                        <option value="">Any language</option>
-                        <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
-                          {{ lang.name }}
-                        </option>
-                      </select>
-                      <svg class="select-arrow-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                    </div>
-                    <div class="setting-tip">
-                      <svg class="tip-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M10 14V10M10 6H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                      </svg>
-                      <span>Focus recommendations on content in a specific language</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div v-if="plexConfigured" class="plex-options">
-                  <div class="service-header collapsible-header" @click="togglePlexHistory">
-                    <label>Plex Watch History:</label>
-                    <div class="header-right">
-                      <div class="service-controls">
-                        <label class="toggle-switch">
-                          <input 
-                            type="checkbox" 
-                            v-model="plexUseHistory" 
-                            @change="savePlexUseHistory"
-                            @click.stop
-                          >
-                          <span class="toggle-slider"></span>
-                          <span class="toggle-label">{{ plexUseHistory ? 'Include' : 'Exclude' }}</span>
-                        </label>
-                      </div>
-                      <span class="toggle-icon">{{ plexHistoryExpanded ? '▼' : '▶' }}</span>
-                    </div>
-                  </div>
-                  
-                  <div v-if="plexUseHistory" class="service-settings plex-content" :class="{ 'collapsed': !plexHistoryExpanded }" v-show="plexHistoryExpanded">
-                    <div class="plex-history-toggle">
-                      <div class="history-selection">
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="plexHistoryMode" 
-                            value="all"
-                            @change="savePlexHistoryMode"
-                          >
-                          All watch history
-                        </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="plexHistoryMode" 
-                            value="recent"
-                            @change="savePlexHistoryMode"
-                          >
-                          Recent (30 days)
-                        </label>
-                      </div>
-                      
-                      <div v-if="plexHistoryMode === 'custom'" class="days-slider-container">
-                        <div class="slider-header">
-                          <label for="plexDaysSlider">Days of history</label>
-                          <span class="slider-value">{{ plexCustomHistoryDays }}</span>
-                        </div>
-                        <div class="modern-slider-container">
-                          <div class="slider-track-container">
-                            <input 
-                              type="range" 
-                              id="plexDaysSlider"
-                              v-model.number="plexCustomHistoryDays"
-                              min="1" 
-                              max="365"
-                              class="modern-slider"
-                              @change="savePlexCustomHistoryDays"
-                            >
-                            <div class="slider-track" :style="{ width: `${(plexCustomHistoryDays - 1) / 364 * 100}%` }"></div>
-                          </div>
-                          <div class="slider-range-labels">
-                            <span>1</span>
-                            <span>365</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="plex-only-toggle">
-                      <label class="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          v-model="plexOnlyMode" 
-                          @change="savePlexOnlyMode"
-                          :disabled="!plexUseHistory"
-                        >
-                        Use only Plex history for recommendations (ignore library)
-                      </label>
-                    </div>
-                    <br>
-                    <button 
-                      class="action-button plex-user-select-button"
-                      @click="$emit('openPlexUserSelect')"
-                      style="padding: 6px 12px; font-size: 13px; background-color: #E5A00D; color: white;"
-                    >
-                      Change User
-                    </button>
-                  </div>
-                </div>
-                
-                <div v-if="jellyfinConfigured" class="jellyfin-options">
-                  <div class="service-header collapsible-header" @click="toggleJellyfinHistory">
-                    <label>Jellyfin Watch History:</label>
-                    <div class="header-right">
-                      <div class="service-controls">
-                        <label class="toggle-switch">
-                          <input 
-                            type="checkbox" 
-                            v-model="jellyfinUseHistory" 
-                            @change="saveJellyfinUseHistory"
-                            @click.stop
-                          >
-                          <span class="toggle-slider"></span>
-                          <span class="toggle-label">{{ jellyfinUseHistory ? 'Include' : 'Exclude' }}</span>
-                        </label>
-                      </div>
-                      <span class="toggle-icon">{{ jellyfinHistoryExpanded ? '▼' : '▶' }}</span>
-                    </div>
-                  </div>
-                  
-                  <div v-if="jellyfinUseHistory" class="service-settings jellyfin-content" :class="{ 'collapsed': !jellyfinHistoryExpanded }" v-show="jellyfinHistoryExpanded">
-                    <div class="jellyfin-history-toggle">
-                      <div class="history-selection">
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="jellyfinHistoryMode" 
-                            value="all"
-                            @change="saveJellyfinHistoryMode"
-                          >
-                          All watch history
-                        </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="jellyfinHistoryMode" 
-                            value="recent"
-                            @change="saveJellyfinHistoryMode"
-                          >
-                          Recent (30 days)
-                        </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="jellyfinHistoryMode" 
-                            value="custom"
-                            @change="saveJellyfinHistoryMode"
-                          >
-                          Custom period
-                        </label>
-                      </div>
-                      
-                      <div v-if="jellyfinHistoryMode === 'custom'" class="days-slider-container">
-                        <div class="slider-header">
-                          <label for="jellyfinDaysSlider">Days of history</label>
-                          <span class="slider-value">{{ jellyfinCustomHistoryDays }}</span>
-                        </div>
-                        <div class="modern-slider-container">
-                          <div class="slider-track-container">
-                            <input 
-                              type="range" 
-                              id="jellyfinDaysSlider"
-                              v-model.number="jellyfinCustomHistoryDays"
-                              min="1" 
-                              max="365"
-                              class="modern-slider"
-                              @change="saveJellyfinCustomHistoryDays"
-                            >
-                            <div class="slider-track" :style="{ width: `${(jellyfinCustomHistoryDays - 1) / 364 * 100}%` }"></div>
-                          </div>
-                          <div class="slider-range-labels">
-                            <span>1</span>
-                            <span>365</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="jellyfin-only-toggle">
-                      <label class="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          v-model="jellyfinOnlyMode" 
-                          @change="saveJellyfinOnlyMode"
-                          :disabled="!jellyfinUseHistory"
-                        >
-                        Use only Jellyfin history for recommendations (ignore library)
-                      </label>
-                    </div>
-                    
-                    <button 
-                      class="action-button jellyfin-user-select-button"
-                      @click="$emit('openJellyfinUserSelect')"
-                      style="padding: 6px 12px; font-size: 13px; background-color: #34A853; color: white;"
-                    >
-                      Change User
-                    </button>
-                  </div>
-                </div>
-                
-                <div v-if="tautulliConfigured" class="tautulli-options">
-                  <div class="service-header collapsible-header" @click="toggleTautulliHistory">
-                    <label>Tautulli Watch History:</label>
-                    <div class="header-right">
-                      <div class="service-controls">
-                        <label class="toggle-switch">
-                          <input 
-                            type="checkbox" 
-                            v-model="tautulliUseHistory" 
-                            @change="saveTautulliUseHistory"
-                            @click.stop
-                          >
-                          <span class="toggle-slider"></span>
-                          <span class="toggle-label">{{ tautulliUseHistory ? 'Include' : 'Exclude' }}</span>
-                        </label>
-                      </div>
-                      <span class="toggle-icon">{{ tautulliHistoryExpanded ? '▼' : '▶' }}</span>
-                    </div>
-                  </div>
-                  
-                  <div v-if="tautulliUseHistory" class="service-settings tautulli-content" :class="{ 'collapsed': !tautulliHistoryExpanded }" v-show="tautulliHistoryExpanded">
-                    <div class="tautulli-history-toggle">
-                      <div class="history-selection">
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="tautulliHistoryMode" 
-                            value="all"
-                            @change="saveTautulliHistoryMode"
-                          >
-                          All watch history
-                        </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="tautulliHistoryMode" 
-                            value="recent"
-                            @change="saveTautulliHistoryMode"
-                          >
-                          Recent (30 days)
-                        </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="tautulliHistoryMode" 
-                            value="custom"
-                            @change="saveTautulliHistoryMode"
-                          >
-                          Custom period
-                        </label>
-                      </div>
-                      
-                      <div v-if="tautulliHistoryMode === 'custom'" class="days-slider-container">
-                        <div class="slider-header">
-                          <label for="tautulliDaysSlider">Days of history</label>
-                          <span class="slider-value">{{ tautulliCustomHistoryDays }}</span>
-                        </div>
-                        <div class="modern-slider-container">
-                          <div class="slider-track-container">
-                            <input 
-                              type="range" 
-                              id="tautulliDaysSlider"
-                              v-model.number="tautulliCustomHistoryDays"
-                              min="1" 
-                              max="365"
-                              class="modern-slider"
-                              @change="saveTautulliCustomHistoryDays"
-                            >
-                            <div class="slider-track" :style="{ width: `${(tautulliCustomHistoryDays - 1) / 364 * 100}%` }"></div>
-                          </div>
-                          <div class="slider-range-labels">
-                            <span>1</span>
-                            <span>365</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="tautulli-only-toggle">
-                      <label class="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          v-model="tautulliOnlyMode" 
-                          @change="saveTautulliOnlyMode"
-                          :disabled="!tautulliUseHistory"
-                        >
-                        Use only Tautulli history for recommendations (ignore library)
-                      </label>
-                    </div>
-                    
-                    <button 
-                      class="action-button tautulli-user-select-button"
-                      @click="$emit('openTautulliUserSelect')"
-                      style="padding: 6px 12px; font-size: 13px; background-color: #34A853; color: white;"
-                    >
-                      Change User
-                    </button>
-                  </div>
-                </div>
-                
-                <div v-if="traktConfigured" class="trakt-options">
-                  <div class="service-header collapsible-header" @click="toggleTraktHistory">
-                    <label>Trakt Watch History:</label>
-                    <div class="header-right">
-                      <div class="service-controls">
-                        <label class="toggle-switch">
-                          <input 
-                            type="checkbox" 
-                            v-model="traktUseHistory" 
-                            @change="saveTraktUseHistory"
-                            @click.stop
-                          >
-                          <span class="toggle-slider"></span>
-                          <span class="toggle-label">{{ traktUseHistory ? 'Include' : 'Exclude' }}</span>
-                        </label>
-                      </div>
-                      <span class="toggle-icon">{{ traktHistoryExpanded ? '▼' : '▶' }}</span>
-                    </div>
-                  </div>
-                  
-                  <div v-if="traktUseHistory" class="service-settings trakt-content" :class="{ 'collapsed': !traktHistoryExpanded }" v-show="traktHistoryExpanded">
-                    <div class="trakt-history-toggle">
-                      <div class="history-selection">
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="traktHistoryMode" 
-                            value="all"
-                            @change="saveTraktHistoryMode"
-                          >
-                          All watch history
-                        </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="traktHistoryMode" 
-                            value="recent"
-                            @change="saveTraktHistoryMode"
-                          >
-                          Recent (30 days)
-                        </label>
-                        <label class="toggle-option">
-                          <input 
-                            type="radio" 
-                            v-model="traktHistoryMode" 
-                            value="custom"
-                            @change="saveTraktHistoryMode"
-                          >
-                          Custom period
-                        </label>
-                      </div>
-                      
-                      <div v-if="traktHistoryMode === 'custom'" class="days-slider-container">
-                        <div class="slider-header">
-                          <label for="traktDaysSlider">Days of history</label>
-                          <span class="slider-value">{{ traktCustomHistoryDays }}</span>
-                        </div>
-                        <div class="modern-slider-container">
-                          <div class="slider-track-container">
-                            <input 
-                              type="range" 
-                              id="traktDaysSlider"
-                              v-model.number="traktCustomHistoryDays"
-                              min="1" 
-                              max="365"
-                              class="modern-slider"
-                              @change="saveTraktCustomHistoryDays"
-                            >
-                            <div class="slider-track" :style="{ width: `${(traktCustomHistoryDays - 1) / 364 * 100}%` }"></div>
-                          </div>
-                          <div class="slider-range-labels">
-                            <span>1</span>
-                            <span>365</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="trakt-only-toggle">
-                      <label class="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          v-model="traktOnlyMode" 
-                          @change="saveTraktOnlyMode"
-                          :disabled="!traktUseHistory"
-                        >
-                        Use only Trakt history for recommendations (ignore library)
-                      </label>
-                    </div>
-                    
-                    <button 
-                      class="action-button trakt-refresh-button"
-                      @click="$emit('refreshTraktHistory')"
-                      style="padding: 6px 12px; font-size: 13px; background-color: #ED2224; color: white; margin-top: 15px;"
-                    >
-                      Refresh Trakt History
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>
+          <RecommendationSettings
+            ref="settingsComponent"
+            :settingsExpanded="settingsExpanded"
+            :configurationExpanded="configurationExpanded"
+            :recNumberExpanded="recNumberExpanded"
+            :postersPerRowExpanded="postersPerRowExpanded"
+            :genrePreferencesExpanded="genrePreferencesExpanded"
+            :customVibeExpanded="customVibeExpanded"
+            :contentLanguageExpanded="contentLanguageExpanded"
+            :plexHistoryExpanded="plexHistoryExpanded"
+            :jellyfinHistoryExpanded="jellyfinHistoryExpanded"
+            :tautulliHistoryExpanded="tautulliHistoryExpanded"
+            :traktHistoryExpanded="traktHistoryExpanded"
+            :isMovieMode="isMovieMode"
+            :modelOptions="modelOptions"
+            :selectedModel="selectedModel"
+            :customModel="customModel"
+            :isCustomModel="isCustomModel"
+            :fetchingModels="fetchingModels"
+            :fetchError="fetchError"
+            :temperature="temperature"
+            :useSampledLibrary="useSampledLibrary"
+            :sampleSize="sampleSize"
+            :useStructuredOutput="useStructuredOutput"
+            :previousRecommendations="previousRecommendations"
+            :numRecommendations="numRecommendations"
+            :columnsCount="columnsCount"
+            :availableGenres="availableGenres"
+            :selectedGenres="selectedGenres"
+            :promptStyle="promptStyle"
+            :customVibe="customVibe"
+            :useCustomPromptOnly="useCustomPromptOnly"
+            :availableLanguages="availableLanguages"
+            :selectedLanguage="selectedLanguage"
+            :plexConfigured="plexConfigured"
+            :plexUseHistory="plexUseHistory"
+            :plexHistoryMode="plexHistoryMode"
+            :plexCustomHistoryDays="plexCustomHistoryDays"
+            :plexOnlyMode="plexOnlyMode"
+            :jellyfinConfigured="jellyfinConfigured"
+            :jellyfinUseHistory="jellyfinUseHistory"
+            :jellyfinHistoryMode="jellyfinHistoryMode"
+            :jellyfinCustomHistoryDays="jellyfinCustomHistoryDays"
+            :jellyfinOnlyMode="jellyfinOnlyMode"
+            :tautulliConfigured="tautulliConfigured"
+            :tautulliUseHistory="tautulliUseHistory"
+            :tautulliHistoryMode="tautulliHistoryMode"
+            :tautulliCustomHistoryDays="tautulliCustomHistoryDays"
+            :tautulliOnlyMode="tautulliOnlyMode"
+            :traktConfigured="traktConfigured"
+            :traktUseHistory="traktUseHistory"
+            :traktHistoryMode="traktHistoryMode"
+            :traktCustomHistoryDays="traktCustomHistoryDays"
+            :traktOnlyMode="traktOnlyMode"
+            @toggle-settings="toggleSettings"
+            @toggle-configuration="toggleConfiguration"
+            @toggle-rec-number="toggleRecNumber"
+            @toggle-posters-per-row="togglePostersPerRow"
+            @toggle-genre-preferences="toggleGenrePreferences"
+            @toggle-custom-vibe="toggleCustomVibe"
+            @toggle-content-language="toggleContentLanguage"
+            @toggle-plex-history="togglePlexHistory"
+            @toggle-jellyfin-history="toggleJellyfinHistory"
+            @toggle-tautulli-history="toggleTautulliHistory"
+            @toggle-trakt-history="toggleTraktHistory"
+            @fetch-models="fetchModels"
+            @update-model="updateModel"
+            @update-custom-model="updateCustomModel"
+            @update-temperature="updateTemperature"
+            @save-library-mode-preference="saveLibraryModePreference"
+            @save-sample-size="saveSampleSize"
+            @save-structured-output-preference="saveStructuredOutputPreference"
+            @clear-recommendation-history="clearRecommendationHistory"
+            @save-recommendation-count="saveRecommendationCount"
+            @save-columns-count="saveColumnsCount"
+            @handle-resize="handleResize"
+            @toggle-genre="toggleGenre"
+            @clear-genres="clearGenres"
+            @save-prompt-style="savePromptStyle"
+            @save-custom-vibe="saveCustomVibe"
+            @clear-custom-vibe="clearCustomVibe"
+            @save-custom-prompt-only-preference="saveCustomPromptOnlyPreference"
+            @save-language-preference="saveLanguagePreference"
+            @save-plex-use-history="savePlexUseHistory"
+            @save-plex-history-mode="savePlexHistoryMode"
+            @save-plex-custom-history-days="savePlexCustomHistoryDays"
+            @save-plex-only-mode="savePlexOnlyMode"
+            @save-jellyfin-use-history="saveJellyfinUseHistory"
+            @save-jellyfin-history-mode="saveJellyfinHistoryMode"
+            @save-jellyfin-custom-history-days="saveJellyfinCustomHistoryDays"
+            @save-jellyfin-only-mode="saveJellyfinOnlyMode"
+            @save-tautulli-use-history="saveTautulliUseHistory"
+            @save-tautulli-history-mode="saveTautulliHistoryMode"
+            @save-tautulli-custom-history-days="saveTautulliCustomHistoryDays"
+            @save-tautulli-only-mode="saveTautulliOnlyMode"
+            @save-trakt-use-history="saveTraktUseHistory"
+            @save-trakt-history-mode="saveTraktHistoryMode"
+            @save-trakt-custom-history-days="saveTraktCustomHistoryDays"
+            @save-trakt-only-mode="saveTraktOnlyMode"
+            @openPlexUserSelect="openPlexUserSelect"
+            @openJellyfinUserSelect="openJellyfinUserSelect"
+            @openTautulliUserSelect="openTautulliSelect"
+            @refreshTraktHistory="refreshTraktHistory" />
         </div>
-
         <div class="discover-card-container" :class="{'visible-when-collapsed': !settingsExpanded}">
           <div 
             @click="!loading && getRecommendations()" 
@@ -889,130 +191,20 @@
         </div>
       </div>
       
-      <div v-if="!error && recommendations.length > 0" class="recommendation-list" :style="gridStyle">
-        <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card" :class="{ 'compact-mode': shouldUseCompactMode, 'expanded': expandedCards.has(index) }">
-          <!-- Clean title for poster lookup -->
-          <div class="card-content" 
-            @click="openTMDBDetailModal(rec)" 
-            :class="{ 'clickable': isTMDBAvailable, 'compact-layout': shouldUseCompactMode }"
-            :title="isTMDBAvailable ? 'Click for more details' : ''"
-          >
-            <!-- Expand info button for compact mode moved to end of card -->
-            <div class="poster-container">
-              <div 
-                class="poster" 
-                :style="getPosterStyle(rec.title)"
-                :title="rec.title"
-              >
-                <div v-if="!hasPoster(rec.title)" class="title-fallback">
-                  {{ getInitials(rec.title) }}
-                </div>
-                <button 
-                  v-if="isPosterFallback(rec.title)" 
-                  class="retry-poster-button" 
-                  :class="{ 'loading': loadingPosters.get(cleanTitle(rec.title)) }"
-                  @click.stop.prevent="retryPoster(rec.title)"
-                  title="Retry loading poster"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M23 12c0 6.075-4.925 11-11 11S1 18.075 1 12 5.925 1 12 1s11 4.925 11 11z"/>
-                    <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/>
-                    <path d="M12 8v4l3 3"/>
-                    <path d="M7 6.7l1.5 1.5M17 6.7L15.5 8.2M7 17.3l1.5-1.5M17 17.3l-1.5-1.5"/>
-                  </svg>
-                </button>
-              </div>
-              
-              <div v-if="rec.rating" class="rating-badge" 
-                :class="getScoreClass(rec.rating)"
-                :data-rating="extractScore(rec.rating) + '%'">
-              </div>
-            </div>
-            
-            <div class="details-container">
-              <div class="card-header">
-                <h3>{{ rec.title }}</h3>
-                <div class="card-actions">
-                  <div class="like-dislike-buttons">
-                    <button 
-                      @click.stop="likeRecommendation(rec.title)" 
-                      class="action-btn like-btn"
-                      :class="{'active': isLiked(rec.title)}"
-                      title="Like this recommendation">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                      </svg>
-                    </button>
-                    <button 
-                      @click.stop="dislikeRecommendation(rec.title)" 
-                      class="action-btn dislike-btn"
-                      :class="{'active': isDisliked(rec.title)}"
-                      title="Dislike this recommendation">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm10-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path>
-                      </svg>
-                    </button>
-                  </div>
-                  <button 
-                    @click.stop="requestSeries(rec.title)" 
-                    class="request-button"
-                    :class="{'loading': requestingSeries === rec.title, 'requested': requestStatus[rec.title]?.success}"
-                    :disabled="requestingSeries || requestStatus[rec.title]?.success"
-                    :title="isMovieMode ? 'Add to Radarr' : 'Add to Sonarr'">
-                    <span v-if="requestingSeries === rec.title">
-                      <div class="small-spinner"></div>
-                    </span>
-                    <span v-else-if="requestStatus[rec.title]?.success">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                    </span>
-                    <span v-else>Add</span>
-                  </button>
-                </div>
-              </div>
-              
-              <div class="content-container">
-                <div v-if="rec.description" class="description">
-                  <p>{{ rec.description }}</p>
-                </div>
-                
-                <div v-if="rec.reasoning" class="reasoning">
-                  <div class="reasoning-header">
-                    <div class="reasoning-icon">✨</div>
-                    <span class="reasoning-label">Why you might like it</span>
-                  </div>
-                  <div class="reasoning-content">
-                    <p>{{ rec.reasoning }}</p>
-                  </div>
-                </div>
-                
-                <div v-if="rec.rating" class="rating-info"></div>
-                
-                
-                <div v-if="!rec.description && !rec.reasoning" class="full-text">
-                  <p>{{ rec.fullText }}</p>
-                </div>
-              </div>
-              
-              <!-- Full-width expand button at bottom of card for compact mode -->
-              <button v-if="shouldUseCompactMode" 
-                      class="full-width-expand-button" 
-                      @click.stop="toggleCardExpansion(index)"
-                      :title="expandedCards.has(index) ? 'Hide details' : 'Show more details'"
-                      :class="{ 'expanded': expandedCards.has(index) }">
-                <span>{{ expandedCards.has(index) ? 'Show Less' : 'Show More' }}</span>
-                <svg v-if="!expandedCards.has(index)" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="7 13 12 18 17 13"></polyline>
-                </svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="7 11 12 6 17 11"></polyline>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <RecommendationResults
+        :recommendations="recommendations"
+        :error="error"
+        :request-status="requestStatus"
+        :requesting-series="requestingSeries"
+        :is-movie-mode="isMovieMode"
+        :liked-recommendations="likedRecommendations"
+        :disliked-recommendations="dislikedRecommendations"
+        :columns-count="columnsCount"
+        @update:liked-recommendations="handleUpdateLiked($event)"
+        @update:disliked-recommendations="handleUpdateDisliked($event)"
+        @open-tmdb-modal="openTMDBDetailModal"
+        @request-series="requestSeries"
+      />
       
       <!-- TMDB Detail Modal - moved outside of conditional rendering -->
       <TMDBDetailModal 
@@ -1413,16 +605,22 @@
 
 <script>
 import openAIService from '../services/OpenAIService';
-import imageService from '../services/ImageService';
 import sonarrService from '../services/SonarrService';
 import radarrService from '../services/RadarrService';
 import apiService from '../services/ApiService';
+import authService from '../services/AuthService';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
+import recommendationsStore from '../stores/RecommendationsStore'; // Keep store import
 import TMDBDetailModal from './TMDBDetailModal.vue';
+import RecommendationResults from './RecommendationResults.vue';
+import RecommendationSettings from './RecommendationSettings.vue';
 
 export default {
   name: 'TVRecommendations',
   components: {
-    TMDBDetailModal
+    TMDBDetailModal,
+    RecommendationResults,
+    RecommendationSettings
   },
   props: {
     initialMovieMode: {
@@ -1495,74 +693,111 @@ export default {
     }
   },
   computed: {
-    shouldUseCompactMode() {
-      // Improved compact mode detection that works better on all screen sizes
-      
-      // Already responsive on mobile with single column
-      if (window.innerWidth <= 600) return false;
-      
-      // Get the current app container width based on responsive design
-      let containerWidth;
-      if (window.innerWidth >= 2560) {
-        // Very large screens (4K, etc)
-        containerWidth = Math.min(window.innerWidth * 0.8, 3000);
-      } else if (window.innerWidth >= 1920) {
-        // Large screens
-        containerWidth = Math.min(window.innerWidth * 0.85, 2400);
-      } else {
-        // Standard screens
-        containerWidth = Math.min(window.innerWidth * 0.95, 1600);
-      }
-      
-      // Account for container padding and card gaps
-      const containerPadding = 40; // Container padding (20px on each side)
-      const cardGap = 20; // Gap between cards (from CSS)
-      const availableWidth = containerWidth - containerPadding;
-      
-      // Calculate the width each card would have, accounting for gaps
-      const gapSpace = (this.columnsCount - 1) * cardGap;
-      const cardWidth = (availableWidth - gapSpace) / this.columnsCount;
-      
-      // Use compact mode if cards would be narrower than 340px
-      // For larger screens with more columns, we might want a slightly different threshold
-      const compactThreshold = (this.columnsCount >= 6) ? 300 : 340;
-      
-      // Debug message to help troubleshoot
-      console.log(`Card width calculation: ${cardWidth}px with ${this.columnsCount} columns, threshold: ${compactThreshold}px`);
-      
-      return cardWidth < compactThreshold;
+    // Direct store references for all settings
+    isMovieMode() {
+      return recommendationsStore.state.isMovieMode;
     },
-    
-    gridStyle() {
-      // Get screen width and user's column preference
-      const screenWidth = window.innerWidth;
-      const userColumnCount = this.columnsCount;
-      
-      // On mobile devices, we use a simpler approach
-      if (screenWidth <= 600) {
-        return {
-          gridTemplateColumns: '1fr', // Single column for mobile
-          gap: '15px'
-        };
-      }
-      
-      // For tablets (small screens)
-      if (screenWidth <= 840) {
-        const columns = Math.min(2, userColumnCount);
-        return {
-          gridTemplateColumns: `repeat(${columns}, 1fr)`
-        };
-      }
-      
-      // For larger screens: use exact number of columns based on user preference
-      return {
-        gridTemplateColumns: `repeat(${userColumnCount}, 1fr)`
-      };
+    selectedModel() {
+      return recommendationsStore.state.selectedModel;
     },
-    
-    // Computed property to get the current active history based on mode
-    currentHistory() {
-      return this.isMovieMode ? this.previousMovieRecommendations : this.previousShowRecommendations;
+    customModel() {
+      return recommendationsStore.state.customModel;
+    },
+    temperature() {
+      return recommendationsStore.state.temperature;
+    },
+    useSampledLibrary() {
+      return recommendationsStore.state.useSampledLibrary;
+    },
+    sampleSize() {
+      return recommendationsStore.state.sampleSize;
+    },
+    useStructuredOutput() {
+      return recommendationsStore.state.useStructuredOutput;
+    },
+    numRecommendations() {
+      return recommendationsStore.state.numRecommendations;
+    },
+    columnsCount() {
+      return recommendationsStore.state.columnsCount;
+    },
+    selectedGenres() {
+      return recommendationsStore.state.selectedGenres;
+    },
+    promptStyle() {
+      return recommendationsStore.state.promptStyle;
+    },
+    customVibe() {
+      return recommendationsStore.state.customVibe;
+    },
+    useCustomPromptOnly() {
+      return recommendationsStore.state.useCustomPromptOnly;
+    },
+    selectedLanguage() {
+      return recommendationsStore.state.selectedLanguage;
+    },
+    plexUseHistory() {
+      return recommendationsStore.state.plexUseHistory;
+    },
+    plexHistoryMode() {
+      return recommendationsStore.state.plexHistoryMode;
+    },
+    plexCustomHistoryDays() {
+      return recommendationsStore.state.plexCustomHistoryDays;
+    },
+    plexOnlyMode() {
+      return recommendationsStore.state.plexOnlyMode;
+    },
+    jellyfinUseHistory() {
+      return recommendationsStore.state.jellyfinUseHistory;
+    },
+    jellyfinHistoryMode() {
+      return recommendationsStore.state.jellyfinHistoryMode;
+    },
+    jellyfinCustomHistoryDays() {
+      return recommendationsStore.state.jellyfinCustomHistoryDays;
+    },
+    jellyfinOnlyMode() {
+      return recommendationsStore.state.jellyfinOnlyMode;
+    },
+    tautulliUseHistory() {
+      return recommendationsStore.state.tautulliUseHistory;
+    },
+    tautulliHistoryMode() {
+      return recommendationsStore.state.tautulliHistoryMode;
+    },
+    tautulliCustomHistoryDays() {
+      return recommendationsStore.state.tautulliCustomHistoryDays;
+    },
+    tautulliOnlyMode() {
+      return recommendationsStore.state.tautulliOnlyMode;
+    },
+    traktUseHistory() {
+      return recommendationsStore.state.traktUseHistory;
+    },
+    traktHistoryMode() {
+      return recommendationsStore.state.traktHistoryMode;
+    },
+    traktCustomHistoryDays() {
+      return recommendationsStore.state.traktCustomHistoryDays;
+    },
+    traktOnlyMode() {
+      return recommendationsStore.state.traktOnlyMode;
+    },
+    previousRecommendations() {
+      return recommendationsStore.previousRecommendations;
+    },
+    previousShowRecommendations() {
+      return recommendationsStore.state.previousShowRecommendations;
+    },
+    previousMovieRecommendations() {
+      return recommendationsStore.state.previousMovieRecommendations;
+    },
+    likedRecommendations() {
+      return recommendationsStore.state.likedRecommendations;
+    },
+    dislikedRecommendations() {
+      return recommendationsStore.state.dislikedRecommendations;
     },
     
     // Computed property to get movie watch history from all sources
@@ -1594,27 +829,24 @@ export default {
       ];
     },
     
-    // Computed property to check if TMDB integration is available
-    isTMDBAvailable() {
-      return imageService.isTMDBAvailable();
-    }
+    // isTMDBAvailable property moved to RecommendationResults.vue
   },
   watch: {
     // Watch for changes to radarrConfigured prop (for example when saving credentials)
     radarrConfigured: {
       handler(newValue, oldValue) {
-        console.log('RequestRecommendations: radarrConfigured prop changed:', newValue);
+        
         // Only fetch if the value actually changed from false to true
         // and we don't already have movies data
         if (newValue && !oldValue && this.isMovieMode) {
           // If radarrConfigured became true while in movie mode, try to load movies
-          console.log('Radarr is now configured and we are in movie mode, checking movies data');
+          
           if ((!this.movies || this.movies.length === 0) && 
               (!this.localMovies || this.localMovies.length === 0)) {
-            console.log('Movies array is empty, trying to fetch from radarr service');
+            
             radarrService.getMovies().then(moviesData => {
               if (moviesData && moviesData.length > 0) {
-                console.log(`Successfully loaded ${moviesData.length} movies`);
+                
                 // Update localMovies instead of directly mutating the prop
                 this.localMovies = moviesData;
               }
@@ -1634,7 +866,7 @@ export default {
     // Watch for changes to movies prop to update localMovies
     movies: {
       handler(newValue) {
-        console.log('Movies prop changed, updating localMovies');
+        
         this.localMovies = [...newValue];
       },
       immediate: true
@@ -1642,45 +874,17 @@ export default {
   },
   data() {
     return {
+      username: authService.getUser()?.username || '',
       openaiConfigured: openAIService.isConfigured(), // Initialize with current configuration state
       recommendations: [],
-      expandedCards: new Set(), // Track which cards are in expanded view
       loading: false,
       error: null,
       recommendationsRequested: false,
-      posters: new Map(), // Using a reactive Map for poster URLs
-      loadingPosters: new Map(), // Track which posters are being loaded
-      numRecommendations: 5, // Default number of recommendations to request
-      columnsCount: 2, // Default number of posters per row
-      isMovieMode: this.initialMovieMode || false, // Toggle between TV shows (false) and movies (true)
-      selectedGenres: [], // Multiple genre selections
-      customVibe: '', // Custom vibe/mood input from user
-      promptStyle: 'vibe', // Style of prompt to use for recommendations: 'vibe', 'analytical', 'creative', 'technical'
-      plexHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      plexOnlyMode: false, // Whether to use only Plex history for recommendations
-      plexUseHistory: true, // Whether to include Plex watch history at all
-      plexCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
-      // modelOptions already defined later in the data object
-      
-      jellyfinHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      jellyfinOnlyMode: false, // Whether to use only Jellyfin history for recommendations
-      jellyfinUseHistory: true, // Whether to include Jellyfin watch history at all
-      jellyfinCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
-      
-      tautulliHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      tautulliOnlyMode: false, // Whether to use only Tautulli history for recommendations
-      tautulliUseHistory: true, // Whether to include Tautulli watch history at all
-      tautulliCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
-      
-      traktHistoryMode: 'all', // 'all', 'recent', or 'custom'
-      traktOnlyMode: false, // Whether to use only Trakt history for recommendations
-      traktUseHistory: true, // Whether to include Trakt watch history at all
-      traktCustomHistoryDays: 30, // Custom number of days for history when using 'custom' mode
+    
       localMovies: [], // Local copy of movies prop to avoid direct mutation
-      useSampledLibrary: false, // Whether to use sampled library or full library
-      sampleSize: 20, // Default sample size when using sampled library
-      useStructuredOutput: false, // Whether to use OpenAI's structured output feature - default to off
-      useCustomPromptOnly: false, // Whether to use only custom prompt for recommendations
+      localSeries: [], // Local copy of series prop to avoid direct mutation
+  
+      structuredOutputEnabled: false, // Backing property for the toggle
       rootFolders: [], // Available Sonarr root folders
       qualityProfiles: [], // Available Sonarr quality profiles
       selectedRootFolder: null, // Selected root folder for series
@@ -1769,14 +973,10 @@ export default {
         { code: 'nl', name: 'Dutch' },
         { code: 'pl', name: 'Polish' }
       ],
-      selectedLanguage: '',
+      
       requestingSeries: null, // Track which series is being requested
       requestStatus: {}, // Track request status for each series
-      previousShowRecommendations: [], // Track previous TV show recommendations
-      previousMovieRecommendations: [], // Track previous movie recommendations
-      previousRecommendations: [], // Current mode's previous recommendations
-      likedRecommendations: [], // TV shows that user has liked
-      dislikedRecommendations: [], // TV shows that user has disliked
+      
       maxStoredRecommendations: 500, // Maximum number of previous recommendations to store
       showSeasonModal: false, // Control visibility of season selection modal
       currentSeries: null, // Current series being added
@@ -1790,14 +990,13 @@ export default {
       selectedMovieRootFolder: null, // Selected root folder for movie
       selectedMovieQualityProfile: null, // Selected quality profile for movie
       loadingMovieFolders: false, // Loading status for movie folders
-      selectedModel: '', // Current selected model
-      customModel: '', // For custom model input
+      
       isCustomModel: false, // Whether the custom model input is visible
       modelOptions: [], // Available models from API
       fetchingModels: false, // Loading state for fetching models
       fetchError: null, // Error when fetching models
       settingsExpanded: false, // Controls visibility of settings panel
-      temperature: 0.5, // AI temperature parameter
+      
       recNumberExpanded: true, // Number of recommendations section
       postersPerRowExpanded: true, // Posters per row section
       genrePreferencesExpanded: true, // Genre preferences section
@@ -1822,57 +1021,52 @@ export default {
     };
   },
   methods: {
+    // Wrapper methods to call store actions from the template
+    handleUpdateLiked(updatedList) {
+      recommendationsStore.updateLikedRecommendations(updatedList);
+    },
+    handleUpdateDisliked(updatedList) {
+      recommendationsStore.updateDislikedRecommendations(updatedList);
+    },
+
+    /**
+     * Remove duplicate recommendations based on title
+     * @param {Array} recommendations - The recommendations array to deduplicate
+     * @returns {Array} - Deduplicated recommendations array
+     */
+    removeDuplicateRecommendations(recommendations) {
+      if (!recommendations || recommendations.length === 0) {
+        return recommendations;
+      }
+      
+      
+      
+      // Use a Map to track unique titles (case-insensitive)
+      const uniqueTitles = new Map();
+      
+      // Filter the recommendations array to keep only the first occurrence of each title
+      const deduplicated = recommendations.filter(rec => {
+        if (!rec || !rec.title) return false;
+        
+        const normalizedTitle = rec.title.toLowerCase();
+        
+        if (uniqueTitles.has(normalizedTitle)) {
+          
+          return false;
+        }
+        
+        uniqueTitles.set(normalizedTitle, true);
+        return true;
+      });
+      
+      
+      return deduplicated;
+    },
+    
     // Handle window resize for responsive features like compact mode
     handleWindowResize() {
       // This triggers a reactivity update for the shouldUseCompactMode computed property
       this.$forceUpdate();
-    },
-    
-    // Toggle card expansion in compact mode
-    toggleCardExpansion(index) {
-      if (this.expandedCards.has(index)) {
-        this.expandedCards.delete(index);
-      } else {
-        this.expandedCards.add(index);
-      }
-      // Force a reactivity update since Set mutations aren't automatically detected
-      this.$forceUpdate();
-    },
-    
-    // Watch history modal methods
-    async openWatchHistoryModal() {
-      this.showWatchHistoryModal = true;
-      this.currentHistoryPage = 1;
-      this.historySourceFilter = 'all';
-      this.historyTypeFilter = 'all';
-      this.historySearchFilter = '';
-      
-      // Log data directly when modal is opened
-      console.log('MODAL OPENED - DIRECT DATA CHECK:');
-      console.log('Movies data when modal opened:', this.movies);
-      console.log('Shows data when modal opened:', this.recentlyWatchedShows);
-      
-      // Create temporary watch history data for testing
-      // This will be a "global" property that the computed property can access
-      this._watchHistoryData = [];
-      
-      // Add movies from the movies prop
-      if (this.movies && this.movies.length > 0) {
-        this._watchHistoryData = this.movies.map(movie => ({
-          ...movie,
-          title: movie.title,
-          type: 'movie',
-          source: 'plex',
-          // Convert Unix timestamp to readable date if needed
-          watchedDate: movie.viewedAt ? new Date(movie.viewedAt * 1000).toISOString() : new Date().toISOString()
-        }));
-        console.log('Created watch history data with movies:', this._watchHistoryData.length);
-      }
-      
-      // Try accessing data from App component directly
-      if (this.$root) {
-        console.log('Root component data:', this.$root);
-      }
     },
     
     closeWatchHistoryModal() {
@@ -1882,7 +1076,7 @@ export default {
       // Clean up our temporary data
       this._watchHistoryData = null;
       
-      console.log('Watch history modal closed and temporary data cleared');
+      
     },
     
     viewRawHistoryData() {
@@ -1937,11 +1131,6 @@ export default {
     // Helper methods for finding properties in different data formats
     findTitle(item) {
       if (!item) return 'Unknown';
-      
-      // Debug the item structure when it's the first item
-      if (this.filteredWatchHistory && this.filteredWatchHistory[0] === item) {
-        console.log('DEBUG: First item structure in findTitle:', JSON.stringify(item));
-      }
       
       // Try different possible property names for the title
       return item.title || item.name || item.showName || item.movieName || 
@@ -2078,7 +1267,7 @@ export default {
       try {
         const tags = await radarrService.getTags();
         this.availableTags.radarr = tags || [];
-        console.log('Loaded Radarr tags:', this.availableTags.radarr);
+        
       } catch (error) {
         console.error('Error loading Radarr tags:', error);
       } finally {
@@ -2096,7 +1285,7 @@ export default {
       try {
         const tags = await sonarrService.getTags();
         this.availableTags.sonarr = tags || [];
-        console.log('Loaded Sonarr tags:', this.availableTags.sonarr);
+        
       } catch (error) {
         console.error('Error loading Sonarr tags:', error);
       } finally {
@@ -2141,7 +1330,15 @@ export default {
     },
     
     // Mounted and Destroyed lifecycle hooks
-    mounted() {
+    async mounted() {
+      // Initialize the recommendations store
+      
+      await recommendationsStore.initialize();
+      
+      
+      // Initialize OpenAI service with settings from store
+      await this.loadSettings();
+      
       // Add window resize event listener for compact mode calculations
       window.addEventListener('resize', this.handleWindowResize);
       
@@ -2153,57 +1350,24 @@ export default {
       if (sonarrService.isConfigured()) {
         this.loadSonarrTags();
       }
-      
-      // Load the prompt style from localStorage or server
-      this.loadPromptStyle();
-      
-      // Debug watch history directly
-      console.log('MOUNTED HOOK - DIRECT INSPECTION:');
-      console.log('recentlyWatchedMovies direct inspection:', this.recentlyWatchedMovies);
-      console.log('recentlyWatchedShows direct inspection:', this.recentlyWatchedShows);
-      
-      // Set up a delayed check to see if data comes in later
-      setTimeout(() => {
-        console.log('DELAYED CHECK (1 second):');
-        console.log('recentlyWatchedMovies delayed check:', this.recentlyWatchedMovies);
-        console.log('recentlyWatchedShows delayed check:', this.recentlyWatchedShows);
-        
-        // Manually try to access data from parent component and store it
-        if (this.$parent && this.$parent.recentlyWatchedMovies) {
-          console.log('Found data in parent component!');
-        }
-      }, 1000);
     },
     
     // This will be called when the component is shown (keep-alive)
     async activated() {
-      console.log("RequestRecommendations component activated, reloading recommendations from server");
+      
       
       try {
-        // Reload recommendations based on current mode
-        if (this.isMovieMode) {
-          const movieRecsResponse = await apiService.getRecommendationsReadOnly('movie') || [];
-          if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
-            console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server on activation (read-only)`);
-            this.previousMovieRecommendations = movieRecsResponse;
-            this.previousRecommendations = [...this.previousMovieRecommendations];
-          }
-        } else {
-          const tvRecsResponse = await apiService.getRecommendationsReadOnly('tv') || [];
-          if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
-            console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server on activation (read-only)`);
-            this.previousShowRecommendations = tvRecsResponse;
-            this.previousRecommendations = [...this.previousShowRecommendations];
-          }
-        }
+        // Reload recommendation history from the store
+        await recommendationsStore.loadRecommendationHistory();
+        
       } catch (error) {
-        console.error("Error reloading recommendations on activation:", error);
+        console.error("Error refreshing store data on activation:", error);
       }
     },
     
     // Add deactivated hook to prevent saving state when component is hidden
     deactivated() {
-      console.log("RequestRecommendations component deactivated");
+      
       // Do not save state when navigating away
     },
     
@@ -2223,46 +1387,53 @@ export default {
         this.isMovieMode = isMovie;
         await this.saveContentTypePreference();
         
-        // Reload the previous recommendations from the server after switching content type
+        // Reload the previous recommendations and liked/disliked lists from the server after switching content type
         try {
-          console.log("Content type changed, reloading recommendations from server...");
-          if (isMovie) {
-            // Switching to movie mode - reload movie recommendations
-            const movieRecsResponse = await apiService.getRecommendations('movie') || [];
-            if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
-              console.log(`Loaded ${movieRecsResponse.length} movie recommendations from server after content type change`);
-              this.previousMovieRecommendations = movieRecsResponse;
+          
+          
+          // Load recommendations based on new mode
+          const contentType = isMovie ? 'movie' : 'tv';
+          const recsResponse = await apiService.getRecommendations(contentType, this.username) || [];
+          
+          if (Array.isArray(recsResponse) && recsResponse.length > 0) {
+            
+            
+            if (isMovie) {
+              this.previousMovieRecommendations = recsResponse;
               this.previousRecommendations = [...this.previousMovieRecommendations];
-            }
-          } else {
-            // Switching to TV mode - reload TV recommendations
-            const tvRecsResponse = await apiService.getRecommendations('tv') || [];
-            if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
-              console.log(`Loaded ${tvRecsResponse.length} TV recommendations from server after content type change`);
-              this.previousShowRecommendations = tvRecsResponse;
+            } else {
+              this.previousShowRecommendations = recsResponse;
               this.previousRecommendations = [...this.previousShowRecommendations];
             }
           }
+          
+          // Load liked/disliked preferences for the new content type
+          const likedContent = await apiService.getPreferences(contentType, 'liked');
+          if (Array.isArray(likedContent)) {
+            this.likedRecommendations = likedContent;
+            
+          } else {
+            // Reset if no data found
+            this.likedRecommendations = [];
+          }
+          
+          const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
+          if (Array.isArray(dislikedContent)) {
+            this.dislikedRecommendations = dislikedContent;
+            
+          } else {
+            // Reset if no data found
+            this.dislikedRecommendations = [];
+          }
         } catch (error) {
-          console.error("Error reloading recommendations after content type change:", error);
+          console.error("Error reloading data after content type change:", error);
         }
       }
     },
     
     // Save content type preference (TV or Movies)
-    async saveContentTypePreference() {
-      try {
-        await apiService.saveSettings({
-          contentTypePreference: this.isMovieMode ? 'movies' : 'tvshows',
-          isMovieMode: this.isMovieMode
-        });
-      } catch (error) {
-        console.error('Error saving content type preference to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
-        localStorage.setItem('isMovieMode', this.isMovieMode.toString());
-      }
-      
+    async saveContentTypePreference() {      
+      await databaseStorageUtils.set('contentTypePreference', this.isMovieMode ? 'movies' : 'tvshows');
       // Update the current recommendations list based on mode
       this.previousRecommendations = this.isMovieMode ? 
         this.previousMovieRecommendations : this.previousShowRecommendations;
@@ -2272,7 +1443,7 @@ export default {
       
       // Clear openai conversation/context to ensure fresh recommendations
       openAIService.resetConversation();
-      console.log('Content type switched, conversation history cleared');
+      
     },
     
     toggleSettings() {
@@ -2418,87 +1589,13 @@ export default {
         panel.addEventListener('transitionend', panel._transitionEndHandler);
       }
     },
-    // Clean title for consistent poster lookup
-    cleanTitle(title) {
-      return title.replace(/[:.!?]+$/, '').trim();
-    },
-    
-    // Check if we have a poster for this title
-    hasPoster(title) {
-      const clean = this.cleanTitle(title);
-      return this.posters.has(clean);
-    },
-    
-    // Check if poster is a fallback and should have retry button
-    isPosterFallback(title) {
-      const clean = this.cleanTitle(title);
-      const posterUrl = this.posters.get(clean);
-      
-      // If it's loading, don't show retry button
-      if (this.loadingPosters.get(clean)) {
-        return false;
-      }
-      
-      // If we have a poster URL and it's an SVG data URL (our fallback)
-      return posterUrl && posterUrl.startsWith('data:image/svg+xml;base64,');
-    },
-    
-    // Retry loading a poster for a specific title
-    async retryPoster(title) {
-      const clean = this.cleanTitle(title);
-      
-      // Set loading state for this poster
-      this.loadingPosters.set(clean, true);
-      
-      try {
-        // Try to get the poster with cache disabled based on content type
-        const posterUrl = this.isMovieMode
-          ? await imageService.getPosterForMovie(clean, true)
-          : await imageService.getPosterForShow(clean, true);
-        
-        if (posterUrl) {
-          // Update poster in state
-          this.posters.set(clean, posterUrl);
-        } else {
-          // If still no poster, set fallback
-          this.posters.set(clean, imageService.getFallbackImageUrl(clean));
-        }
-      } catch (error) {
-        console.error(`Error retrying poster for "${clean}":`, error);
-        // Keep fallback in case of error
-        this.posters.set(clean, imageService.getFallbackImageUrl(clean));
-      } finally {
-        // Clear loading state
-        this.loadingPosters.delete(clean);
-      }
-    },
-    
-    // Get poster style for CSS
-    getPosterStyle(title) {
-      const clean = this.cleanTitle(title);
-      const posterUrl = this.posters.get(clean);
-      
-      if (posterUrl) {
-        return { backgroundImage: `url(${posterUrl})` };
-      }
-      
-      // Generate fallback color
-      const hash = this.simpleHash(clean);
-      const hue = hash % 360;
-      return { backgroundColor: `hsl(${hue}, 70%, 40%)` };
-    },
-    
-    // Get initials for fallback display
-    getInitials(title) {
-      if (!title) return '';
-      
-      return title
-        .split(' ')
-        .filter(word => word.length > 0)
-        .map(word => word[0].toUpperCase())
-        .slice(0, 2)
-        .join('');
-    },
+    // The following methods have been moved to RecommendationResults.vue:
+    // - cleanTitle
+    // - hasPoster
+    // - isPosterFallback
+    // - retryPoster
+    // - getPosterStyle
+    // - getInitials
     
     // Simple hash function for consistent colors
     simpleHash(str) {
@@ -2579,7 +1676,7 @@ export default {
       
       // If we find any match, return the first capture group as a number
       if (scoreMatch) {
-        return parseInt(scoreMatch[1], 10);
+        return parseInt(scoreMatch[1]);
       }
       
       // If no pattern matches, return 0
@@ -2603,7 +1700,7 @@ export default {
         return 'score-unknown';
       }
       
-      const score = parseInt(scoreValue, 10);
+      const score = parseInt(scoreValue);
       
       // Apply our rating scale
       if (score >= 90) {
@@ -2616,89 +1713,47 @@ export default {
         return 'score-unknown'; // Below average
       }
     },
-    // Save recommendation count to server
-    async saveRecommendationCount() {
-      try {
-        console.log('Saving numRecommendations to server:', this.numRecommendations);
-        await apiService.saveSettings({ numRecommendations: this.numRecommendations });
-        
-        // Also save to localStorage as a backup
-        localStorage.setItem('numRecommendations', this.numRecommendations.toString());
-      } catch (error) {
-        console.error('Error saving recommendation count to server:', error);
-        // Fallback to localStorage only
-        localStorage.setItem('numRecommendations', this.numRecommendations.toString());
-      }
+    // Handle recommendation count change without duplicate saving
+    async saveRecommendationCount(value) {
+      // The store update is already handled by RecommendationSettings
+      console.log(`Saving Recommendations ${value}`);
     },
     
     
+    // Handle columns count change without duplicate saving
     async saveColumnsCount() {
-      try {
-        console.log('Saving columnsCount to server:', this.columnsCount);
-        await apiService.saveSettings({ columnsCount: this.columnsCount });
-        
-        // Also save to localStorage as a backup
-        localStorage.setItem('columnsCount', this.columnsCount.toString());
-        
-        // Clear expanded cards when column count changes
-        this.expandedCards.clear();
-        
-        // Force grid layout to update with new column count
-        this.$nextTick(() => {
-          this.handleResize();
-        });
-      } catch (error) {
-        console.error('Error saving columns count to server:', error);
-        // Fallback to localStorage only
-        localStorage.setItem('columnsCount', this.columnsCount.toString());
-        
-        // Still clear expanded cards even on error
-        this.expandedCards.clear();
-        
-        // Force grid layout to update with new column count
-        this.$nextTick(() => {
-          this.handleResize();
-        });
-      }
+      // The store update is already handled by RecommendationSettings
+      // Just handle the UI updates
+      
+      // Force grid layout to update with new column count
+      this.$nextTick(() => {
+        this.handleResize();
+      });
     },
     
     // Save genre preferences to server when they change
     async saveGenrePreference() {
-      try {
-        await apiService.saveSettings({ tvGenrePreferences: this.selectedGenres });
-      } catch (error) {
-        console.error('Error saving genre preferences to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('tvGenrePreferences', JSON.stringify(this.selectedGenres));
-      }
+      // This method is now handled by the store's toggleGenre method
+      
     },
     
-    // Toggle a genre selection
-    toggleGenre(genreValue) {
-      const index = this.selectedGenres.indexOf(genreValue);
-      if (index === -1) {
-        // Genre not selected, add it
-        this.selectedGenres.push(genreValue);
-      } else {
-        // Genre already selected, remove it
-        this.selectedGenres.splice(index, 1);
-      }
-      this.saveGenrePreference();
-      
-      // Reset conversation when genre selection changes
-      openAIService.resetConversation();
-      
-      // Clear current recommendations if any
-      if (this.recommendations.length > 0) {
-        this.recommendations = [];
-        this.recommendationsRequested = false;
-      }
-    },
+  // Handle genre toggle without duplicate saving
+  async toggleGenre() {
+    // No need to call store method as RecommendationSettings already did that
     
-    // Clear all selected genres
-    clearGenres() {
-      this.selectedGenres = [];
-      this.saveGenrePreference();
+    // Reset conversation when genre selection changes
+    openAIService.resetConversation();
+    
+    // Clear current recommendations if any
+    if (this.recommendations.length > 0) {
+      this.recommendations = [];
+      this.recommendationsRequested = false;
+    }
+  },
+    
+    // Handle clear genres without duplicate saving
+    async clearGenres() {
+      // No need to call store method as RecommendationSettings already did that
       
       // Reset conversation when genres are cleared
       openAIService.resetConversation();
@@ -2710,145 +1765,67 @@ export default {
       }
     },
     
-    // Save custom vibe preference to server and reset conversation
+    // Handle custom vibe change without duplicate saving
     async saveCustomVibe() {
-      try {
-        await apiService.saveSettings({ tvCustomVibe: this.customVibe });
-        // Reset OpenAI conversation context when vibe changes
-        openAIService.resetConversation();
-        console.log('Custom vibe updated, conversation history cleared');
-      } catch (error) {
-        console.error('Error saving custom vibe to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('tvCustomVibe', this.customVibe);
-        // Still reset conversation even if server save fails
-        openAIService.resetConversation();
+      // No need to call store method as RecommendationSettings already did that
+      
+      // Reset OpenAI conversation context when vibe changes
+      openAIService.resetConversation();
+      
+    },
+    
+    // Handle clear custom vibe without duplicate saving
+    async clearCustomVibe() {
+      // No need to call store method as RecommendationSettings already did that
+      // Reset OpenAI conversation is handled by RecommendationSettings
+    },
+    
+    // Handle prompt style change without duplicate saving
+    async savePromptStyle(value) {
+      // No need to call store method as RecommendationSettings already did that
+      
+      // Set the promptStyle in OpenAIService
+      openAIService.setPromptStyle(value);
+      
+      // Reset OpenAI conversation context when prompt style changes
+      openAIService.resetConversation();
+      
+      
+      // Reset recommendations when changing prompt style
+      this.recommendationsRequested = false;
+    },
+    
+    // Handle custom prompt only preference change without duplicate saving
+    async saveCustomPromptOnlyPreference(value) {
+      // No need to call store method as RecommendationSettings already did that
+      
+      // Set in the OpenAIService
+      if (typeof openAIService.setUseCustomPromptOnly === 'function') {
+        openAIService.setUseCustomPromptOnly(value);
+      } else {
+        // If method doesn't exist, add the property directly
+        openAIService.useCustomPromptOnly = value;
       }
+      
+      // Reset OpenAI conversation context when preference changes
+      openAIService.resetConversation();
+      
+      
+      // Reset recommendations when changing prompt settings
+      this.recommendationsRequested = false;
     },
     
-    // Clear custom vibe input and reset conversation
-    clearCustomVibe() {
-      this.customVibe = '';
-      this.saveCustomVibe();
-      // Reset OpenAI conversation is handled in saveCustomVibe
+    // Load settings is now handled by the RecommendationsStore
+    async loadSettings() {
+      // Settings initialization is now handled by the store
+      // Just make sure the promptStyle is set in OpenAIService
+      openAIService.setPromptStyle(recommendationsStore.state.promptStyle);
     },
     
-    // Save prompt style preference
-    async savePromptStyle() {
-      try {
-        // Set the promptStyle in OpenAIService
-        openAIService.setPromptStyle(this.promptStyle);
-        
-        // Save to server
-        await apiService.saveSettings({ promptStyle: this.promptStyle });
-        
-        // Reset OpenAI conversation context when prompt style changes
-        openAIService.resetConversation();
-        console.log('Prompt style updated to:', this.promptStyle, 'conversation history cleared');
-        
-        // Reset recommendations when changing prompt style
-        this.recommendationsRequested = false;
-      } catch (error) {
-        console.error('Error saving prompt style to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('promptStyle', this.promptStyle);
-        // Still reset conversation even if server save fails
-        openAIService.resetConversation();
-      }
-    },
-    
-    // Save custom prompt only preference
-    async saveCustomPromptOnlyPreference() {
-      try {
-        // Save to server
-        await apiService.saveSettings({ useCustomPromptOnly: this.useCustomPromptOnly });
-        
-        // Set in the OpenAIService
-        if (typeof openAIService.setUseCustomPromptOnly === 'function') {
-          openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
-        } else {
-          // If method doesn't exist, add the property directly
-          openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
-        }
-        
-        // Reset OpenAI conversation context when preference changes
-        openAIService.resetConversation();
-        console.log('Custom prompt only preference updated to:', this.useCustomPromptOnly, 'conversation history cleared');
-        
-        // Reset recommendations when changing prompt settings
-        this.recommendationsRequested = false;
-      } catch (error) {
-        console.error('Error saving custom prompt only preference to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('useCustomPromptOnly', this.useCustomPromptOnly.toString());
-        
-        // Still set in OpenAIService in case of server error
-        if (typeof openAIService.setUseCustomPromptOnly === 'function') {
-          openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
-        } else {
-          openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
-        }
-      }
-    },
-    
-    // Load prompt style from server or localStorage
-    async loadPromptStyle() {
-      try {
-        // First try to get the prompt style from server settings
-        const settings = await apiService.getSettings();
-        if (settings && settings.promptStyle) {
-          this.promptStyle = settings.promptStyle;
-          console.log('Loaded prompt style from server:', this.promptStyle);
-          
-          // Also load useCustomPromptOnly if it exists in settings
-          if (Object.prototype.hasOwnProperty.call(settings, 'useCustomPromptOnly')) {
-            this.useCustomPromptOnly = settings.useCustomPromptOnly === true;
-            console.log('Loaded useCustomPromptOnly from server:', this.useCustomPromptOnly);
-          }
-        } else {
-          // If not available from server, try localStorage
-          const localPromptStyle = localStorage.getItem('promptStyle');
-          if (localPromptStyle) {
-            this.promptStyle = localPromptStyle;
-            console.log('Loaded prompt style from localStorage:', this.promptStyle);
-          }
-          
-          // Try to load useCustomPromptOnly from localStorage
-          const localCustomPromptOnly = localStorage.getItem('useCustomPromptOnly');
-          if (localCustomPromptOnly) {
-            this.useCustomPromptOnly = localCustomPromptOnly === 'true';
-            console.log('Loaded useCustomPromptOnly from localStorage:', this.useCustomPromptOnly);
-          }
-        }
-        
-        // Set the promptStyle in OpenAIService
-        openAIService.setPromptStyle(this.promptStyle);
-      } catch (error) {
-        console.error('Error loading prompt style:', error);
-        // If error loading from server, try localStorage
-        const localPromptStyle = localStorage.getItem('promptStyle');
-        if (localPromptStyle) {
-          this.promptStyle = localPromptStyle;
-          openAIService.setPromptStyle(this.promptStyle);
-        }
-        
-        // Try to load useCustomPromptOnly from localStorage
-        const localCustomPromptOnly = localStorage.getItem('useCustomPromptOnly');
-        if (localCustomPromptOnly) {
-          this.useCustomPromptOnly = localCustomPromptOnly === 'true';
-        }
-      }
-    },
-    
-    // Save language preference to server
+    // Handle language preference change without duplicate saving
     async saveLanguagePreference() {
-      try {
-        await apiService.saveSettings({ tvLanguagePreference: this.selectedLanguage });
-      } catch (error) {
-        console.error('Error saving language preference to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('tvLanguagePreference', this.selectedLanguage);
-      }
+      // No need to call store method as RecommendationSettings already did that
+      
     },
     
     // Get language name from code
@@ -2858,73 +1835,49 @@ export default {
       return language ? language.name : code;
     },
     
-    // Save Plex history mode preference
-    async savePlexHistoryMode() {
-      try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          plexHistoryMode: this.plexHistoryMode,
-          plexCustomHistoryDays: this.plexCustomHistoryDays
-        });
-        this.$emit('plexHistoryModeChanged', this.plexHistoryMode);
-        
-        // Reset conversation when watch history settings change
-        openAIService.resetConversation();
-        
-        // Clear current recommendations if any
-        if (this.recommendations.length > 0) {
-          this.recommendations = [];
-          this.recommendationsRequested = false;
-        }
-      } catch (error) {
-        console.error('Error saving Plex history mode to server:', error);
+    // Handle Plex history mode change without duplicate saving
+    async savePlexHistoryMode(value) {
+      // No need to call store method as RecommendationSettings already did that
+      
+      this.$emit('plexHistoryModeChanged', value);
+      
+      // Reset conversation when watch history settings change
+      openAIService.resetConversation();
+      
+      // Clear current recommendations if any
+      if (this.recommendations.length > 0) {
+        this.recommendations = [];
+        this.recommendationsRequested = false;
       }
     },
     
-    // Save Plex use history preference
+    // Handle Plex use history change without duplicate saving
     async savePlexUseHistory() {
-      try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ plexUseHistory: this.plexUseHistory });
-        
-        // If turning off history usage, also turn off the plex-only mode
-        if (!this.plexUseHistory && this.plexOnlyMode) {
-          this.plexOnlyMode = false;
-          await this.savePlexOnlyMode();
-        }
-      } catch (error) {
-        console.error('Error saving Plex use history preference to server:', error);
-      }
+      // No need to call store method as RecommendationSettings already did that
+      
     },
     
-    // Save Plex custom history days
+    // Handle Plex custom history days change without duplicate saving
     async savePlexCustomHistoryDays() {
-      try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ plexCustomHistoryDays: this.plexCustomHistoryDays });
-        
-        // Reset conversation when watch history days change
-        openAIService.resetConversation();
-        
-        // Clear current recommendations if any
-        if (this.recommendations.length > 0) {
-          this.recommendations = [];
-          this.recommendationsRequested = false;
-        }
-      } catch (error) {
-        console.error('Error saving Plex custom history days to server:', error);
+      // No need to call store method as RecommendationSettings already did that
+      
+      // Reset conversation when watch history days change
+      openAIService.resetConversation();
+      
+      // Clear current recommendations if any
+      if (this.recommendations.length > 0) {
+        this.recommendations = [];
+        this.recommendationsRequested = false;
       }
     },
     
     // Save Jellyfin history mode preference
-    async saveJellyfinHistoryMode() {
+    async saveJellyfinHistoryMode(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          jellyfinHistoryMode: this.jellyfinHistoryMode,
-          jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays
-        });
-        this.$emit('jellyfinHistoryModeChanged', this.jellyfinHistoryMode);
+        // Use the store to update Jellyfin history mode
+        await recommendationsStore.updateJellyfinHistoryMode(value);
+        
+        this.$emit('jellyfinHistoryModeChanged', value);
         
         // Reset conversation when watch history settings change
         openAIService.resetConversation();
@@ -2940,26 +1893,20 @@ export default {
     },
     
     // Save Jellyfin use history preference
-    async saveJellyfinUseHistory() {
+    async saveJellyfinUseHistory(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ jellyfinUseHistory: this.jellyfinUseHistory });
-        
-        // If turning off history usage, also turn off the jellyfin-only mode
-        if (!this.jellyfinUseHistory && this.jellyfinOnlyMode) {
-          this.jellyfinOnlyMode = false;
-          await this.saveJellyfinOnlyMode();
-        }
+        // Use the store to update Jellyfin use history
+        await recommendationsStore.updateJellyfinUseHistory(value);
       } catch (error) {
         console.error('Error saving Jellyfin use history preference to server:', error);
       }
     },
     
     // Save Jellyfin custom history days
-    async saveJellyfinCustomHistoryDays() {
+    async saveJellyfinCustomHistoryDays(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ jellyfinCustomHistoryDays: this.jellyfinCustomHistoryDays });
+        // Use the store to update Jellyfin custom history days
+        await recommendationsStore.updateJellyfinCustomHistoryDays(value);
         
         // Reset conversation when watch history days change
         openAIService.resetConversation();
@@ -2974,329 +1921,212 @@ export default {
       }
     },
     
-    // Save Plex only mode preference
-    async savePlexOnlyMode() {
-      try {
-        // If enabling Plex only mode, disable other only modes
-        if (this.plexOnlyMode) {
-          const settings = { plexOnlyMode: this.plexOnlyMode };
-          
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            settings.jellyfinOnlyMode = false;
-            this.$emit('jellyfinOnlyModeChanged', false);
-          }
-          
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            settings.tautulliOnlyMode = false;
-            this.$emit('tautulliOnlyModeChanged', false);
-          }
-          
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            settings.traktOnlyMode = false;
-            this.$emit('traktOnlyModeChanged', false);
-          }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ plexOnlyMode: this.plexOnlyMode });
+    // Handle Plex only mode change without duplicate saving
+    async savePlexOnlyMode(value) {
+      // No need to call store method as RecommendationSettings already did that
+      
+      // Emit event for parent components
+      this.$emit('plexOnlyModeChanged', value);
+      
+      // Handle UI updates for other only modes
+      if (value) {
+        if (recommendationsStore.state.jellyfinOnlyMode) {
+          this.$emit('jellyfinOnlyModeChanged', false);
         }
         
-        this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
-      } catch (error) {
-        console.error('Error saving Plex only mode to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('plexOnlyMode', this.plexOnlyMode.toString());
-        
-        // If enabling Plex only mode, disable other only modes
-        if (this.plexOnlyMode) {
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            localStorage.setItem('jellyfinOnlyMode', 'false');
-            this.$emit('jellyfinOnlyModeChanged', false);
-          }
-          
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            localStorage.setItem('tautulliOnlyMode', 'false');
-            this.$emit('tautulliOnlyModeChanged', false);
-          }
-          
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            localStorage.setItem('traktOnlyMode', 'false');
-            this.$emit('traktOnlyModeChanged', false);
-          }
+        if (recommendationsStore.state.tautulliOnlyMode) {
+          this.$emit('tautulliOnlyModeChanged', false);
         }
         
-        this.$emit('plexOnlyModeChanged', this.plexOnlyMode);
+        if (recommendationsStore.state.traktOnlyMode) {
+          this.$emit('traktOnlyModeChanged', false);
+        }
       }
     },
     
     // Save Jellyfin only mode preference
-    async saveJellyfinOnlyMode() {
+    async saveJellyfinOnlyMode(value) {
       try {
-        // If enabling Jellyfin only mode, disable other only modes
-        if (this.jellyfinOnlyMode) {
-          const settings = { jellyfinOnlyMode: this.jellyfinOnlyMode };
-          
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            settings.plexOnlyMode = false;
+        // Use the store to update Jellyfin only mode
+        await recommendationsStore.updateJellyfinOnlyMode(value);
+        
+        // Emit event for parent components
+        this.$emit('jellyfinOnlyModeChanged', value);
+        
+        // Store handles disabling other only modes
+        if (value) {
+          if (recommendationsStore.state.plexOnlyMode) {
             this.$emit('plexOnlyModeChanged', false);
           }
           
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            settings.tautulliOnlyMode = false;
+          if (recommendationsStore.state.tautulliOnlyMode) {
             this.$emit('tautulliOnlyModeChanged', false);
           }
           
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            settings.traktOnlyMode = false;
+          if (recommendationsStore.state.traktOnlyMode) {
             this.$emit('traktOnlyModeChanged', false);
           }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ jellyfinOnlyMode: this.jellyfinOnlyMode });
         }
-        
-        this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
       } catch (error) {
         console.error('Error saving Jellyfin only mode to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('jellyfinOnlyMode', this.jellyfinOnlyMode.toString());
-        
-        // If enabling Jellyfin only mode, disable other only modes
-        if (this.jellyfinOnlyMode) {
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            localStorage.setItem('plexOnlyMode', 'false');
-            this.$emit('plexOnlyModeChanged', false);
-          }
-          
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            localStorage.setItem('tautulliOnlyMode', 'false');
-            this.$emit('tautulliOnlyModeChanged', false);
-          }
-          
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            localStorage.setItem('traktOnlyMode', 'false');
-            this.$emit('traktOnlyModeChanged', false);
-          }
-        }
-        
-        this.$emit('jellyfinOnlyModeChanged', this.jellyfinOnlyMode);
+        this.$emit('jellyfinOnlyModeChanged', value);
       }
     },
     
     // Save Tautulli history mode preference
-    async saveTautulliHistoryMode() {
+    async saveTautulliHistoryMode(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          tautulliHistoryMode: this.tautulliHistoryMode,
-          tautulliCustomHistoryDays: this.tautulliCustomHistoryDays
-        });
-        this.$emit('tautulliHistoryModeChanged', this.tautulliHistoryMode);
+        // Use the store to update Tautulli history mode
+        await recommendationsStore.updateTautulliHistoryMode(value);
+        
+        this.$emit('tautulliHistoryModeChanged', value);
+        
+        // Reset conversation when watch history settings change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Tautulli history mode to server:', error);
       }
     },
     
     // Save Tautulli use history preference
-    async saveTautulliUseHistory() {
+    async saveTautulliUseHistory(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ tautulliUseHistory: this.tautulliUseHistory });
-        
-        // If turning off history usage, also turn off the tautulli-only mode
-        if (!this.tautulliUseHistory && this.tautulliOnlyMode) {
-          this.tautulliOnlyMode = false;
-          await this.saveTautulliOnlyMode();
-        }
+        // Use the store to update Tautulli use history
+        await recommendationsStore.updateTautulliUseHistory(value);
       } catch (error) {
         console.error('Error saving Tautulli use history preference to server:', error);
       }
     },
     
     // Save Tautulli custom history days
-    async saveTautulliCustomHistoryDays() {
+    async saveTautulliCustomHistoryDays(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ tautulliCustomHistoryDays: this.tautulliCustomHistoryDays });
+        // Use the store to update Tautulli custom history days
+        await recommendationsStore.updateTautulliCustomHistoryDays(value);
+        
+        // Reset conversation when watch history days change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Tautulli custom history days to server:', error);
       }
     },
-    
     // Save Tautulli only mode preference
-    async saveTautulliOnlyMode() {
+    async saveTautulliOnlyMode(value) {
       try {
-        // If enabling Tautulli only mode, disable Plex only mode, Jellyfin only mode, and Trakt only mode
-        if (this.tautulliOnlyMode) {
-          const settings = { tautulliOnlyMode: this.tautulliOnlyMode };
-          
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            settings.plexOnlyMode = false;
+        // Use the store to update Tautulli only mode
+        await recommendationsStore.updateTautulliOnlyMode(value);
+        
+        // Emit event for parent components
+        this.$emit('tautulliOnlyModeChanged', value);
+        
+        // Store handles disabling other only modes
+        if (value) {
+          if (recommendationsStore.state.plexOnlyMode) {
             this.$emit('plexOnlyModeChanged', false);
           }
           
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            settings.jellyfinOnlyMode = false;
+          if (recommendationsStore.state.jellyfinOnlyMode) {
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            settings.traktOnlyMode = false;
+          if (recommendationsStore.state.traktOnlyMode) {
             this.$emit('traktOnlyModeChanged', false);
           }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ tautulliOnlyMode: this.tautulliOnlyMode });
         }
-        
-        this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
       } catch (error) {
         console.error('Error saving Tautulli only mode to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('tautulliOnlyMode', this.tautulliOnlyMode.toString());
-        
-        // If enabling Tautulli only mode, disable other only modes
-        if (this.tautulliOnlyMode) {
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            localStorage.setItem('plexOnlyMode', 'false');
-            this.$emit('plexOnlyModeChanged', false);
-          }
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            localStorage.setItem('jellyfinOnlyMode', 'false');
-            this.$emit('jellyfinOnlyModeChanged', false);
-          }
-          if (this.traktOnlyMode) {
-            this.traktOnlyMode = false;
-            localStorage.setItem('traktOnlyMode', 'false');
-            this.$emit('traktOnlyModeChanged', false);
-          }
-        }
-        
-        this.$emit('tautulliOnlyModeChanged', this.tautulliOnlyMode);
+        this.$emit('tautulliOnlyModeChanged', value);
       }
     },
     
     // Save Trakt history mode preference
-    async saveTraktHistoryMode() {
+    async saveTraktHistoryMode(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ 
-          traktHistoryMode: this.traktHistoryMode,
-          traktCustomHistoryDays: this.traktCustomHistoryDays
-        });
-        this.$emit('traktHistoryModeChanged', this.traktHistoryMode);
+        // Use the store to update Trakt history mode
+        await recommendationsStore.updateTraktHistoryMode(value);
+        
+        this.$emit('traktHistoryModeChanged', value);
+        
+        // Reset conversation when watch history settings change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Trakt history mode to server:', error);
       }
     },
     
     // Save Trakt use history preference
-    async saveTraktUseHistory() {
-      console.log('Saving Trakt use history preference:', this.traktUseHistory);
+    async saveTraktUseHistory(value) {
       try {
-        // Explicitly convert to boolean to avoid any string conversion issues
-        const useHistoryValue = this.traktUseHistory === true;
-        
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ traktUseHistory: useHistoryValue });
-        console.log('Successfully saved traktUseHistory setting:', useHistoryValue);
-        
-        // If turning off history usage, also turn off the trakt-only mode
-        if (!this.traktUseHistory && this.traktOnlyMode) {
-          console.log('Trakt history disabled but "only mode" was on - turning off "only mode"');
-          this.traktOnlyMode = false;
-          await this.saveTraktOnlyMode();
-        }
+        // Use the store to update Trakt use history
+        await recommendationsStore.updateTraktUseHistory(value);
       } catch (error) {
         console.error('Error saving Trakt use history preference to server:', error);
       }
     },
     
     // Save Trakt custom history days
-    async saveTraktCustomHistoryDays() {
+    async saveTraktCustomHistoryDays(value) {
       try {
-        // Save to User_Data.json via API service
-        await apiService.saveSettings({ traktCustomHistoryDays: this.traktCustomHistoryDays });
+        // Use the store to update Trakt custom history days
+        await recommendationsStore.updateTraktCustomHistoryDays(value);
+        
+        // Reset conversation when watch history days change
+        openAIService.resetConversation();
+        
+        // Clear current recommendations if any
+        if (this.recommendations.length > 0) {
+          this.recommendations = [];
+          this.recommendationsRequested = false;
+        }
       } catch (error) {
         console.error('Error saving Trakt custom history days to server:', error);
       }
     },
     
     // Save Trakt only mode preference
-    async saveTraktOnlyMode() {
+    async saveTraktOnlyMode(value) {
       try {
-        // If enabling Trakt only mode, disable other only modes
-        if (this.traktOnlyMode) {
-          const settings = { traktOnlyMode: this.traktOnlyMode };
-          
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            settings.plexOnlyMode = false;
+        // Use the store to update Trakt only mode
+        await recommendationsStore.updateTraktOnlyMode(value);
+        
+        // Emit event for parent components
+        this.$emit('traktOnlyModeChanged', value);
+        
+        // Store handles disabling other only modes
+        if (value) {
+          if (recommendationsStore.state.plexOnlyMode) {
             this.$emit('plexOnlyModeChanged', false);
           }
           
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            settings.jellyfinOnlyMode = false;
+          if (recommendationsStore.state.jellyfinOnlyMode) {
             this.$emit('jellyfinOnlyModeChanged', false);
           }
           
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            settings.tautulliOnlyMode = false;
+          if (recommendationsStore.state.tautulliOnlyMode) {
             this.$emit('tautulliOnlyModeChanged', false);
           }
-          
-          await apiService.saveSettings(settings);
-        } else {
-          await apiService.saveSettings({ traktOnlyMode: this.traktOnlyMode });
         }
-        
-        this.$emit('traktOnlyModeChanged', this.traktOnlyMode);
       } catch (error) {
         console.error('Error saving Trakt only mode to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('traktOnlyMode', this.traktOnlyMode.toString());
-        
-        // If enabling Trakt only mode, disable other only modes
-        if (this.traktOnlyMode) {
-          if (this.plexOnlyMode) {
-            this.plexOnlyMode = false;
-            localStorage.setItem('plexOnlyMode', 'false');
-            this.$emit('plexOnlyModeChanged', false);
-          }
-          if (this.jellyfinOnlyMode) {
-            this.jellyfinOnlyMode = false;
-            localStorage.setItem('jellyfinOnlyMode', 'false');
-            this.$emit('jellyfinOnlyModeChanged', false);
-          }
-          if (this.tautulliOnlyMode) {
-            this.tautulliOnlyMode = false;
-            localStorage.setItem('tautulliOnlyMode', 'false');
-            this.$emit('tautulliOnlyModeChanged', false);
-          }
-        }
-        
-        this.$emit('traktOnlyModeChanged', this.traktOnlyMode);
+        this.$emit('traktOnlyModeChanged', value);
       }
     },
     
@@ -3307,34 +2137,40 @@ export default {
         if (this.isMovieMode) {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
-            await apiService.saveRecommendations('movie', this.recommendations);
+            
+            await apiService.saveRecommendations('movie', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
-            await apiService.saveRecommendations('movie', this.previousMovieRecommendations);
+            
+            await apiService.saveRecommendations('movie', this.previousMovieRecommendations, this.username);
           }
         } else {
           // If we have active recommendations, save them
           if (this.recommendations && this.recommendations.length > 0) {
-            await apiService.saveRecommendations('tv', this.recommendations);
+            
+            await apiService.saveRecommendations('tv', this.recommendations, this.username);
           } else {
             // Otherwise just save the history titles
-            await apiService.saveRecommendations('tv', this.previousShowRecommendations);
+            
+            await apiService.saveRecommendations('tv', this.previousShowRecommendations, this.username);
           }
         }
       } catch (error) {
         console.error('Error saving recommendations to server:', error);
-        // Fallback to localStorage
+        // Fallback to storageUtils
         if (this.isMovieMode) {
           // Save both history and current recommendations
-          localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
+          databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
           if (this.recommendations && this.recommendations.length > 0) {
-            localStorage.setItem('currentMovieRecommendations', JSON.stringify(this.recommendations));
+            // Store recommendations to movieRecommendations to match server
+            databaseStorageUtils.setJSON('movieRecommendations', this.recommendations);
           }
         } else {
           // Save both history and current recommendations
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
+          databaseStorageUtils.setJSON('tvRecommendations', this.previousShowRecommendations);
           if (this.recommendations && this.recommendations.length > 0) {
-            localStorage.setItem('currentTVRecommendations', JSON.stringify(this.recommendations));
+            // Store recommendations to tvRecommendations to match server
+            databaseStorageUtils.setJSON('tvRecommendations', this.recommendations);
           }
         }
       }
@@ -3342,162 +2178,50 @@ export default {
     
     // Add current recommendations to the history
     async addToRecommendationHistory(newRecommendations) {
-      // Extract just the titles for the title-only history array
-      const titlesToAdd = newRecommendations.map(rec => rec.title);
       
-      // Reference to the correct history array based on mode
-      const historyArray = this.isMovieMode ? 
-        this.previousMovieRecommendations : this.previousShowRecommendations;
       
-      // Combine with existing recommendations, remove duplicates
-      const combinedRecommendations = [...historyArray, ...titlesToAdd];
-      
-      // Keep only unique recommendations (as strings)
-      const uniqueRecommendations = [...new Set(combinedRecommendations)];
-      
-      // If over the limit, remove oldest recommendations
-      if (uniqueRecommendations.length > this.maxStoredRecommendations) {
-        if (this.isMovieMode) {
-          this.previousMovieRecommendations = uniqueRecommendations.slice(
-            uniqueRecommendations.length - this.maxStoredRecommendations
-          );
-          // Also update the current view
-          this.previousRecommendations = this.previousMovieRecommendations;
-        } else {
-          this.previousShowRecommendations = uniqueRecommendations.slice(
-            uniqueRecommendations.length - this.maxStoredRecommendations
-          );
-          // Also update the current view
-          this.previousRecommendations = this.previousShowRecommendations;
-        }
-      } else {
-        if (this.isMovieMode) {
-          this.previousMovieRecommendations = uniqueRecommendations;
-          // Also update the current view
-          this.previousRecommendations = this.previousMovieRecommendations;
-        } else {
-          this.previousShowRecommendations = uniqueRecommendations;
-          // Also update the current view
-          this.previousRecommendations = this.previousShowRecommendations;
-        }
-      }
-      
-      // Save only the title history to the server for consistency
-      try {
-        if (this.isMovieMode) {
-          // Save only the titles array to the server
-          await apiService.saveRecommendations('movie', this.previousMovieRecommendations);
-          
-          // Store in localStorage for backup only after successfully saving to server
-          localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
-          localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
-        } else {
-          // Save only the titles array to the server
-          // Ensure all items are valid strings before saving
-          const sanitizedRecommendations = this.previousShowRecommendations
-            .filter(item => item !== null && item !== undefined)
-            .map(item => String(item));
-          await apiService.saveRecommendations('tv', sanitizedRecommendations);
-          
-          // Store in localStorage for backup only after successfully saving to server
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(sanitizedRecommendations));
-          
-          // Also update our local array with the sanitized version to maintain consistency
-          this.previousShowRecommendations = sanitizedRecommendations;
-          this.previousRecommendations = sanitizedRecommendations;
-          
-          // Store current recommendations separately
-          localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
-        }
-        
-        console.log(`Saved ${this.isMovieMode ? 'movie' : 'TV'} recommendation history to server (${this.previousRecommendations.length} items)`);
-      } catch (error) {
-        console.error('Error saving recommendation history to server:', error);
-        
-        // Fallback to localStorage
-        if (this.isMovieMode) {
-          localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
-          localStorage.setItem('currentMovieRecommendations', JSON.stringify(newRecommendations));
-        } else {
-          // Ensure all items are valid strings before saving to localStorage
-          const sanitizedRecommendations = this.previousShowRecommendations
-            .filter(item => item !== null && item !== undefined)
-            .map(item => String(item));
-            
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(sanitizedRecommendations));
-          
-          // Also update our local array with the sanitized version to maintain consistency
-          this.previousShowRecommendations = sanitizedRecommendations;
-          this.previousRecommendations = sanitizedRecommendations;
-          
-          localStorage.setItem('currentTVRecommendations', JSON.stringify(newRecommendations));
-        }
-      }
+      // Use the store action to add to recommendation history
+      await recommendationsStore.addToRecommendationHistory(newRecommendations);
     },
     
     // Clear recommendation history
     async clearRecommendationHistory() {
       // Ask for confirmation with appropriate content type
       const contentType = this.isMovieMode ? 'movies' : 'shows';
-      if (confirm(`Clear your history of ${this.previousRecommendations.length} previously recommended ${contentType}?`)) {
-        if (this.isMovieMode) {
-          // Clear movie history
-          this.previousMovieRecommendations = [];
-          this.previousRecommendations = [];
-          
-          // Clear from localStorage
-          localStorage.removeItem('previousMovieRecommendations');
-          
-          // Clear from server
-          try {
-            await apiService.saveRecommendations('movie', []);
-            console.log('Successfully cleared movie history from server');
-          } catch (error) {
-            console.error('Failed to clear movie history from server:', error);
-          }
-        } else {
-          // Clear TV history
-          this.previousShowRecommendations = [];
-          this.previousRecommendations = [];
-          
-          // Clear from localStorage
-          localStorage.removeItem('previousTVRecommendations');
-          
-          // Clear from server
-          try {
-            await apiService.saveRecommendations('tv', []);
-            console.log('Successfully cleared TV history from server');
-          } catch (error) {
-            console.error('Failed to clear TV history from server:', error);
-          }
-        }
+      if (confirm(`Clear your history of ${recommendationsStore.previousRecommendations.length} previously recommended ${contentType}?`)) {
+        // Use the store action to clear recommendation history
+        await recommendationsStore.clearRecommendationHistory();
         
-        // No need to call savePreviousRecommendations since we already saved to both localStorage and server
+        // Reset current recommendations since history is now gone
+        this.recommendations = [];
+        this.recommendationsRequested = false;
+        
       }
     },
     
     // Update the model selection
-    async updateModel() {
-      if (this.selectedModel === 'custom') {
+    async updateModel(value) {
+      if (value === 'custom') {
         this.isCustomModel = true;
         // If we already have a custom model set, use that as the initial value
         if (openAIService.model && !this.modelOptions.some(model => model.id === openAIService.model)) {
-          this.customModel = openAIService.model;
+          // Update the custom model in the store
+          await recommendationsStore.updateCustomModel(openAIService.model);
         }
       } else {
         this.isCustomModel = false;
         
         try {
-          // Save model setting to server
-          await apiService.saveSettings({ openaiModel: this.selectedModel });
+          // Update the model in the store
+          await recommendationsStore.updateSelectedModel(value);
           
           // Update service
-          openAIService.model = this.selectedModel;
+          openAIService.model = value;
           
           // Also save to the server-side credentials
           await openAIService.configure(
             openAIService.apiKey, 
-            this.selectedModel,
+            value,
             openAIService.baseUrl,
             openAIService.maxTokens,
             openAIService.temperature,
@@ -3506,27 +2230,25 @@ export default {
           );
         } catch (error) {
           console.error('Error saving model settings:', error);
-          // Fallback to localStorage
-          localStorage.setItem('openaiModel', this.selectedModel);
-          openAIService.model = this.selectedModel;
+          // Store handles the fallback already
         }
       }
     },
     
     // Update the custom model name
-    async updateCustomModel() {
-      if (this.customModel.trim()) {
+    async updateCustomModel(value) {
+      if (value && value.trim()) {
         try {
-          // Save custom model setting to server
-          await apiService.saveSettings({ openaiModel: this.customModel });
+          // Update the custom model in the store
+          await recommendationsStore.updateCustomModel(value);
           
           // Update service
-          openAIService.model = this.customModel;
+          openAIService.model = value;
           
           // Also save to the server-side credentials
           await openAIService.configure(
             openAIService.apiKey, 
-            this.customModel,
+            value,
             openAIService.baseUrl,
             openAIService.maxTokens,
             openAIService.temperature,
@@ -3535,88 +2257,67 @@ export default {
           );
         } catch (error) {
           console.error('Error saving custom model settings:', error);
-          // Fallback to localStorage
-          localStorage.setItem('openaiModel', this.customModel);
-          openAIService.model = this.customModel;
+          // Store handles the fallback already
         }
       }
     },
     
     // Update temperature and save to server
-    async updateTemperature() {
+    async updateTemperature(value) {
       try {
-        console.log('Saving temperature to server:', this.temperature);
-        await apiService.saveSettings({ aiTemperature: this.temperature.toString() });
-        
-        // Also save to localStorage as a backup
-        localStorage.setItem('aiTemperature', this.temperature.toString());
+        // Update the temperature in the store
+        await recommendationsStore.updateTemperature(value);
         
         // Update in OpenAI service
-        openAIService.temperature = this.temperature;
+        openAIService.temperature = value;
       } catch (error) {
         console.error('Error saving temperature to server:', error);
-        // Fallback to localStorage only
-        localStorage.setItem('aiTemperature', this.temperature.toString());
-        openAIService.temperature = this.temperature;
       }
     },
     
     // Save library mode preference to server
-    async saveLibraryModePreference() {
+    async saveLibraryModePreference(value) {
       try {
-        await apiService.saveSettings({ useSampledLibrary: this.useSampledLibrary });
-        openAIService.useSampledLibrary = this.useSampledLibrary;
+        // Update the sampled library setting in the store
+        await recommendationsStore.updateSampledLibrary(value);
+        
+        // Update the service
+        openAIService.useSampledLibrary = value;
       } catch (error) {
         console.error('Error saving library mode preference to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('useSampledLibrary', this.useSampledLibrary.toString());
-        openAIService.useSampledLibrary = this.useSampledLibrary;
       }
     },
     
     // Save sample size to server
-    async saveSampleSize() {
+    async saveSampleSize(value) {
       try {
-        await apiService.saveSettings({ librarySampleSize: this.sampleSize });
-        openAIService.sampleSize = this.sampleSize;
+        // Update the sample size in the store
+        await recommendationsStore.updateSampleSize(value);
+        
+        // Update the service
+        openAIService.sampleSize = value;
       } catch (error) {
         console.error('Error saving sample size to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('librarySampleSize', this.sampleSize.toString());
-        openAIService.sampleSize = this.sampleSize;
       }
     },
     
-    // Save structured output preference
-    async saveStructuredOutputPreference() {
-      try {
-        console.log('Saving structured output preference:', this.useStructuredOutput);
-        await apiService.saveSettings({ useStructuredOutput: this.useStructuredOutput });
+    // Handle structured output preference change without duplicate saving
+    async saveStructuredOutputPreference(value) {
+      // No need to save to store as RecommendationSettings already did that
+      // Just handle the UI updates and OpenAI configuration
+      
+      // Set the useStructuredOutput property on the OpenAIService
+      openAIService.useStructuredOutput = value;
+      
+      // Reset the conversation history in OpenAI service to ensure proper formatting
+      openAIService.resetConversation();
+      
+      
+      // Reset current recommendations if any to encourage getting fresh ones with the new format
+      if (this.recommendations.length > 0) {
+        this.recommendations = [];
+        this.recommendationsRequested = false;
         
-        // Also save to localStorage as a backup
-        localStorage.setItem('useStructuredOutput', this.useStructuredOutput.toString());
-        
-        // Set the useStructuredOutput property on the OpenAIService
-        openAIService.useStructuredOutput = this.useStructuredOutput;
-        
-        // Reset the conversation history in OpenAI service to ensure proper formatting
-        openAIService.resetConversation();
-        console.log('Conversation history reset due to structured output setting change');
-        
-        // Reset current recommendations if any to encourage getting fresh ones with the new format
-        if (this.recommendations.length > 0) {
-          this.recommendations = [];
-          this.recommendationsRequested = false;
-          console.log('Cleared current recommendations due to structured output setting change');
-        }
-      } catch (error) {
-        console.error('Error saving structured output preference to server:', error);
-        // Fallback to localStorage only
-        localStorage.setItem('useStructuredOutput', this.useStructuredOutput.toString());
-        openAIService.useStructuredOutput = this.useStructuredOutput;
-        
-        // Still reset the conversation even if there was an error saving
-        openAIService.resetConversation();
       }
     },
     
@@ -3672,72 +2373,10 @@ export default {
       }
     },
     
-    // Like a TV show recommendation
-    async likeRecommendation(title) {
-      // If it's already liked, remove it from liked list (toggle behavior)
-      if (this.isLiked(title)) {
-        this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
-      } else {
-        // Add to liked list
-        this.likedRecommendations.push(title);
-        
-        // Remove from disliked list if it was there
-        if (this.isDisliked(title)) {
-          this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
-        }
-      }
-      
-      // Save to server (this will also fall back to localStorage if needed)
-      await this.saveLikedDislikedLists();
-    },
-    
-    // Dislike a TV show recommendation
-    async dislikeRecommendation(title) {
-      // If it's already disliked, remove it from disliked list (toggle behavior)
-      if (this.isDisliked(title)) {
-        this.dislikedRecommendations = this.dislikedRecommendations.filter(item => item !== title);
-      } else {
-        // Add to disliked list
-        this.dislikedRecommendations.push(title);
-        
-        // Remove from liked list if it was there
-        if (this.isLiked(title)) {
-          this.likedRecommendations = this.likedRecommendations.filter(item => item !== title);
-        }
-      }
-      
-      // Save to server (this will also fall back to localStorage if needed)
-      await this.saveLikedDislikedLists();
-    },
-    
-    // Check if a TV show is liked
-    isLiked(title) {
-      return this.likedRecommendations.includes(title);
-    },
-    
-    // Check if a TV show is disliked
-    isDisliked(title) {
-      return this.dislikedRecommendations.includes(title);
-    },
-    
-    // Save liked and disliked lists to server
-    async saveLikedDislikedLists() {
-      try {
-        if (this.isMovieMode) {
-          await apiService.savePreferences('movie', 'liked', this.likedRecommendations);
-          await apiService.savePreferences('movie', 'disliked', this.dislikedRecommendations);
-        } else {
-          await apiService.savePreferences('tv', 'liked', this.likedRecommendations);
-          await apiService.savePreferences('tv', 'disliked', this.dislikedRecommendations);
-        }
-      } catch (error) {
-        console.error('Error saving preferences to server:', error);
-        // Fallback to localStorage
-        localStorage.setItem('likedTVRecommendations', JSON.stringify(this.likedRecommendations));
-        localStorage.setItem('dislikedTVRecommendations', JSON.stringify(this.dislikedRecommendations));
-      }
-    },
-    
+    // The likeRecommendation, dislikeRecommendation, isLiked, isDisliked, and saveLikedDislikedLists methods
+    // have been removed as this functionality is now handled by the RecommendationsStore
+    // and the RecommendationResults component directly updates the store via events.
+
     /**
      * Filter watch history based on the selected history mode
      * @param {Array} historyArray - The original history array to filter
@@ -3746,11 +2385,11 @@ export default {
      */
     filterWatchHistory(historyArray, service) {
       if (!historyArray || !historyArray.length) {
-        console.log(`Empty ${service} history array`);
+        
         return [];
       }
       
-      console.log(`Filtering ${historyArray.length} items for ${service} history`);
+      
       
       // Get the appropriate mode and custom days settings based on service
       let historyMode, customDays;
@@ -3771,7 +2410,7 @@ export default {
         case 'trakt':
           historyMode = this.traktHistoryMode;
           customDays = this.traktCustomHistoryDays;
-          console.log(`Trakt history mode: ${historyMode}, custom days: ${customDays}`);
+          
           break;
         default:
           // Default to 'all' if service is unknown
@@ -3780,7 +2419,7 @@ export default {
       
       // Return unfiltered array if using 'all' mode
       if (historyMode === 'all') {
-        console.log(`${service} using 'all' mode, returning all ${historyArray.length} items`);
+        
         return historyArray;
       }
       
@@ -3792,15 +2431,15 @@ export default {
         // Recent mode is hardcoded to 30 days
         cutoffDate = new Date(now);
         cutoffDate.setDate(now.getDate() - 30);
-        console.log(`${service} using 'recent' mode, cut-off date: ${cutoffDate.toISOString()}`);
+        
       } else if (historyMode === 'custom') {
         // Custom mode uses user-specified days
         cutoffDate = new Date(now);
         cutoffDate.setDate(now.getDate() - customDays);
-        console.log(`${service} using 'custom' mode (${customDays} days), cut-off date: ${cutoffDate.toISOString()}`);
+        
       } else {
         // Unknown mode, return original array
-        console.log(`${service} using unknown mode '${historyMode}', returning all items`);
+        
         return historyArray;
       }
       
@@ -3814,7 +2453,7 @@ export default {
         // Plex uses viewedAt, others may use lastWatched or watched
         const watchDateStr = item.lastWatched || item.watched || item.viewedAt;
         if (!watchDateStr) {
-          console.log(`${service} item missing watch date:`, item);
+          
           return false;
         }
         
@@ -3822,7 +2461,7 @@ export default {
         let watchDate;
         if (typeof watchDateStr === 'number' || (typeof watchDateStr === 'string' && !isNaN(parseInt(watchDateStr, 10)))) {
           // Handle Unix timestamps (seconds since epoch)
-          const timestamp = parseInt(watchDateStr, 10);
+          const timestamp = parseInt(watchDateStr);
           // Check if timestamp is in seconds (Plex) or milliseconds
           watchDate = timestamp > 9999999999 
             ? new Date(timestamp) // Already in milliseconds
@@ -3834,22 +2473,8 @@ export default {
         
         const shouldInclude = watchDate >= cutoffDate;
         
-        // Debug output if filtering out item
-        if (!shouldInclude) {
-          console.log(`Filtering out ${service} item "${item.title}" with date ${watchDate.toISOString()} before cutoff ${cutoffDate.toISOString()}`);
-        }
-        
-        if (service === 'trakt' && !shouldInclude) {
-          console.log(`Filtering out Trakt item with date ${watchDate.toISOString()} before cutoff ${cutoffDate.toISOString()}`);
-        }
-        
         return shouldInclude;
       });
-      
-      console.log(`${service} history: filtered from ${historyArray.length} to ${filteredArray.length} items`);
-      if (filteredArray.length > 0) {
-        console.log(`${service} first filtered item:`, filteredArray[0]);
-      }
       
       return filteredArray;
     },
@@ -3896,7 +2521,7 @@ export default {
       if (!this.plexOnlyMode && !this.jellyfinOnlyMode && !this.tautulliOnlyMode && !this.traktOnlyMode && activeServices.length > 0) {
         baseMessage = `Analyzing your ${contentType} library and ${activeServices.join('/')} watch history...`;
       }
-      
+            
       this.currentLoadingMessage = baseMessage;
       
       // Clear any existing interval
@@ -3923,6 +2548,18 @@ export default {
         this.currentLoadingMessage = this.funLoadingMessages[randomIndex];
       }, 10000); // Change message every 10 seconds
     },
+    openTautulliSelect() {
+      this.$emit('openTautulliUserSelect');
+    },
+     openPlexUserSelect() {
+      this.$emit('openPlexUserSelect');
+    },
+    openJellyfinUserSelect() {
+      this.$emit('openJellyfinUserSelect');
+    },
+    refreshTraktHistory() {
+      this.$emit('refreshTraktHistory');
+    },
     
     /**
      * Stop the rotating loading message animation
@@ -3934,14 +2571,14 @@ export default {
       }
     },
     
-    async getRecommendations() {
+  async getRecommendations() {
       // Debug the radarrConfigured prop state when requesting recommendations
-      console.log('RequestRecommendations: Starting getRecommendations');
-      console.log('radarrConfigured prop:', this.radarrConfigured);
-      console.log('radarrService.isConfigured():', radarrService.isConfigured());
+      
+      
+      
       console.log('radarrService state:', {
         baseUrl: radarrService.baseUrl,
-        apiKey: radarrService.apiKey ? 'set' : 'not set'
+        apiKey: radarrService.apiKey ? '✓ Set' : '✗ Not set'
       });
       
       // Check if we have any watch history providers configured
@@ -3963,7 +2600,7 @@ export default {
       if (isServiceConfigured) {
         if (this.isMovieMode) {
           // Always try to load the latest Radarr credentials if we're in movie mode
-          console.log('Movie mode active, loading latest Radarr credentials');
+          
           await radarrService.loadCredentials();
           
           if (!radarrService.isConfigured()) {
@@ -3980,12 +2617,12 @@ export default {
             });
           }
         } else if (!this.isMovieMode && (!sonarrService.isConfigured() || !sonarrService.apiKey || !sonarrService.baseUrl)) {
-          await sonarrService.loadCredentials();
-          if (!sonarrService.isConfigured() && !hasWatchHistoryProvider) {
-            this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
-            return;
+            await sonarrService.loadCredentials();
+            if (!sonarrService.isConfigured() && !hasWatchHistoryProvider) {
+              this.error = "Sonarr service isn't fully configured. Please check your connection settings.";
+              return;
+            }
           }
-        }
       }
       
       // Check if the library is empty
@@ -4007,14 +2644,14 @@ export default {
           // First check if we already have movies in our local cache
           // to avoid unnecessary API calls
           if (this.localMovies && this.localMovies.length > 0) {
-            console.log(`Using ${this.localMovies.length} movies from local cache`);
+              console.log("Movies loaded already");
           } else {
             // Try to fetch movies directly from Radarr if Radarr is configured but movies prop is empty
-            console.log('Movies array is empty but Radarr is configured, attempting to fetch movies');
+            
             try {
               const moviesData = await radarrService.getMovies();
               if (moviesData && moviesData.length > 0) {
-                console.log(`Successfully fetched ${moviesData.length} movies from Radarr directly`);
+                
                 // Use the movies we just fetched for recommendations
                 this.localMovies = moviesData;
               } else if (!hasWatchHistoryProvider) {
@@ -4035,10 +2672,45 @@ export default {
         }
       }
       
+      // Try to load cached library data from database if not already loaded
+      if (this.isMovieMode && (!this.localMovies || this.localMovies.length === 0) && this.movies.length === 0) {
+        
+        try {
+          const cachedMovies = await databaseStorageUtils.getJSON('radarrLibrary', []);
+          if (cachedMovies && cachedMovies.length > 0) {
+            
+            this.localMovies = cachedMovies;
+          }
+        } catch (error) {
+          console.error('Error loading cached Radarr library:', error);
+        }
+      } else if (!this.isMovieMode && this.series.length === 0) {
+        
+        try {
+          const cachedSeries = await databaseStorageUtils.getJSON('sonarrLibrary', []);
+          if (cachedSeries && cachedSeries.length > 0) {
+            
+            this.localSeries = cachedSeries;
+          }
+        } catch (error) {
+          console.error('Error loading cached Sonarr library:', error);
+        }
+      }
+      
+      // First check if API is configured
       if (!openAIService.isConfigured()) {
         this.error = 'AI service is not configured. Please provide an API key.';
         this.goToSettings();
         return;
+      }
+      
+      // Ensure settings are synced from the store to the OpenAI service
+      
+      try {
+        await openAIService.ensureSettings();
+        
+      } catch (error) {
+        console.error('Error ensuring settings:', error);
       }
       
       // Reset recommendations array to ensure counter starts at 0
@@ -4069,7 +2741,7 @@ export default {
         // Prepare watch history based on user configuration
         let watchHistory = [];
         
-        // First try to load from localStorage cache
+        // First try to load from storageUtils cache
         let plexHistoryFiltered = [];
         let jellyfinHistoryFiltered = [];
         let tautulliHistoryFiltered = [];
@@ -4079,17 +2751,13 @@ export default {
         if (this.plexUseHistory) {
           let plexHistory;
           if (this.isMovieMode) {
-            plexHistory = localStorage.getItem('watchHistoryMovies');
-            if (plexHistory) {
-              plexHistory = JSON.parse(plexHistory);
-            } else {
+            plexHistory = await databaseStorageUtils.getJSON('watchHistoryMovies');
+            if (!plexHistory) {
               plexHistory = this.recentlyWatchedMovies || [];
             }
           } else {
-            plexHistory = localStorage.getItem('watchHistoryShows');
-            if (plexHistory) {
-              plexHistory = JSON.parse(plexHistory);
-            } else {
+            plexHistory = await databaseStorageUtils.getJSON('watchHistoryShows');
+            if (!plexHistory) {
               plexHistory = this.recentlyWatchedShows || [];
             }
           }
@@ -4100,17 +2768,13 @@ export default {
         if (this.jellyfinUseHistory) {
           let jellyfinHistory;
           if (this.isMovieMode) {
-            jellyfinHistory = localStorage.getItem('jellyfinWatchHistoryMovies');
-            if (jellyfinHistory) {
-              jellyfinHistory = JSON.parse(jellyfinHistory);
-            } else {
+            jellyfinHistory = await databaseStorageUtils.getJSON('jellyfinWatchHistoryMovies');
+            if (!jellyfinHistory) {
               jellyfinHistory = this.jellyfinRecentlyWatchedMovies || [];
             }
           } else {
-            jellyfinHistory = localStorage.getItem('jellyfinWatchHistoryShows');
-            if (jellyfinHistory) {
-              jellyfinHistory = JSON.parse(jellyfinHistory);
-            } else {
+            jellyfinHistory = await databaseStorageUtils.getJSON('jellyfinWatchHistoryShows');
+            if (!jellyfinHistory) {
               jellyfinHistory = this.jellyfinRecentlyWatchedShows || [];
             }
           }
@@ -4121,17 +2785,13 @@ export default {
         if (this.tautulliUseHistory) {
           let tautulliHistory;
           if (this.isMovieMode) {
-            tautulliHistory = localStorage.getItem('tautulliWatchHistoryMovies');
-            if (tautulliHistory) {
-              tautulliHistory = JSON.parse(tautulliHistory);
-            } else {
+            tautulliHistory = await databaseStorageUtils.getJSON('tautulliWatchHistoryMovies');
+            if (!tautulliHistory) {
               tautulliHistory = this.tautulliRecentlyWatchedMovies || [];
             }
           } else {
-            tautulliHistory = localStorage.getItem('tautulliWatchHistoryShows');
-            if (tautulliHistory) {
-              tautulliHistory = JSON.parse(tautulliHistory);
-            } else {
+            tautulliHistory = await databaseStorageUtils.getJSON('tautulliWatchHistoryShows');
+            if (!tautulliHistory) {
               tautulliHistory = this.tautulliRecentlyWatchedShows || [];
             }
           }
@@ -4142,17 +2802,13 @@ export default {
         if (this.traktUseHistory) {
           let traktHistory;
           if (this.isMovieMode) {
-            traktHistory = localStorage.getItem('traktWatchHistoryMovies');
-            if (traktHistory) {
-              traktHistory = JSON.parse(traktHistory);
-            } else {
+            traktHistory = await databaseStorageUtils.getJSON('traktWatchHistoryMovies');
+            if (!traktHistory) {
               traktHistory = this.traktRecentlyWatchedMovies || [];
             }
           } else {
-            traktHistory = localStorage.getItem('traktWatchHistoryShows');
-            if (traktHistory) {
-              traktHistory = JSON.parse(traktHistory);
-            } else {
+            traktHistory = await databaseStorageUtils.getJSON('traktWatchHistoryShows');
+            if (!traktHistory) {
               traktHistory = this.traktRecentlyWatchedShows || [];
             }
           }
@@ -4161,25 +2817,25 @@ export default {
         
         // If no local cache, fall back to props
         if (plexHistoryFiltered.length === 0 && this.plexUseHistory) {
-          console.log('No cached Plex history found, using prop data');
+          
           const plexHistory = this.isMovieMode ? this.recentlyWatchedMovies || [] : this.recentlyWatchedShows || [];
           plexHistoryFiltered = this.filterWatchHistory(plexHistory, 'plex');
         }
         
         if (jellyfinHistoryFiltered.length === 0 && this.jellyfinUseHistory) {
-          console.log('No cached Jellyfin history found, using prop data');
+          
           const jellyfinHistory = this.isMovieMode ? this.jellyfinRecentlyWatchedMovies || [] : this.jellyfinRecentlyWatchedShows || [];
           jellyfinHistoryFiltered = this.filterWatchHistory(jellyfinHistory, 'jellyfin');
         }
         
         if (tautulliHistoryFiltered.length === 0 && this.tautulliUseHistory) {
-          console.log('No cached Tautulli history found, using prop data');
+          
           const tautulliHistory = this.isMovieMode ? this.tautulliRecentlyWatchedMovies || [] : this.tautulliRecentlyWatchedShows || [];
           tautulliHistoryFiltered = this.filterWatchHistory(tautulliHistory, 'tautulli');
         }
         
         if (traktHistoryFiltered.length === 0 && this.traktUseHistory) {
-          console.log('No cached Trakt history found, using prop data');
+          
           const traktHistory = this.isMovieMode ? this.traktRecentlyWatchedMovies || [] : this.traktRecentlyWatchedShows || [];
           traktHistoryFiltered = this.filterWatchHistory(traktHistory, 'trakt');
         }
@@ -4203,21 +2859,21 @@ export default {
           ];
         }
         
-        console.log(`Using watch history: ${watchHistory.length} items (Plex: ${plexHistoryFiltered.length}, Jellyfin: ${jellyfinHistoryFiltered.length}, Tautulli: ${tautulliHistoryFiltered.length}, Trakt: ${traktHistoryFiltered.length})`);
+        
         
         // If no watch history is available or all are disabled, use empty array
         if (watchHistory.length === 0) {
-          console.log('No watch history is being used for recommendations');
+          
           
           // If still no history found, refresh from server as last resort
           if (this.plexUseHistory || this.jellyfinUseHistory || this.tautulliUseHistory || this.traktUseHistory) {
             try {
-              console.log('No watch history found locally, trying to fetch from server...');
+              
               const historyType = this.isMovieMode ? 'movies' : 'shows';
               const serverHistory = await apiService.getWatchHistory(historyType);
               
               if (serverHistory && serverHistory.length > 0) {
-                console.log(`Loaded ${serverHistory.length} items from server watch history`);
+                
                 
                 // Filter by source based on user preferences
                 if (this.plexOnlyMode && this.plexUseHistory) {
@@ -4251,7 +2907,7 @@ export default {
                   watchHistory = filteredHistory;
                 }
                 
-                console.log(`Using ${watchHistory.length} items from server history after filtering`);
+                
               }
             } catch (error) {
               console.error('Error fetching watch history from server:', error);
@@ -4261,12 +2917,12 @@ export default {
         
         // Get initial recommendations using the appropriate service method based on mode
         if (this.isMovieMode) {
-          console.log("Starting movie recommendations...");
-          console.log("Movies array:", this.localMovies ? this.localMovies.length : 0, "items");
-          console.log("NumRecommendations:", this.numRecommendations);
-          console.log("GenreString:", genreString);
-          console.log("PreviousMovieRecommendations:", this.previousMovieRecommendations.length, "items");
-          console.log("Watch history:", watchHistory.length, "items");
+          
+          
+          
+          
+          
+          
           
           try {
             // Use movie recommendations method
@@ -4323,7 +2979,7 @@ export default {
                 }
               })
             );
-            console.log("Movie recommendations completed successfully:", this.recommendations);
+            
           } catch (error) {
             console.error("Error getting movie recommendations:", error);
             throw error; // Rethrow to be caught by the outer try/catch
@@ -4369,6 +3025,11 @@ export default {
         // Always do this filtering regardless of mode to ensure clean recommendations
         if (this.recommendations.length > 0) {
           this.recommendations = await this.filterExistingShows(this.recommendations);
+          
+          // Remove any duplicate recommendations
+          this.recommendations = this.removeDuplicateRecommendations(this.recommendations);
+          
+          // Ratings will be fetched after all recommendations are gathered
         }
         
         // If we have fewer recommendations than requested after filtering, get more
@@ -4387,9 +3048,13 @@ export default {
             return scoreB - scoreA;
           });
           
-          console.log("Recommendations sorted by recommendarr rating (highest first)");
+          
         }
-        
+
+        if (this.recommendations.length > 0) {
+          this.fetchRatingsForRecommendations()
+        }
+      
         // Add new recommendations to history
         this.addToRecommendationHistory(this.recommendations);
         
@@ -4435,7 +3100,7 @@ export default {
     async getAdditionalRecommendations(additionalCount, genreString, recursionDepth = 0) {
       if (additionalCount <= 0 || recursionDepth >= 10) return;
       
-      console.log(`Getting ${additionalCount} additional ${this.isMovieMode ? 'movie' : 'TV show'} recommendations after filtering (recursion depth: ${recursionDepth})`);
+      
       
       // Update base message for the message rotator to use
       const baseMessage = `Getting additional recommendations to match your request...`;
@@ -4447,6 +3112,9 @@ export default {
         const currentTitles = this.recommendations.map(rec => rec.title);
         const previousRecsList = this.isMovieMode ? this.previousMovieRecommendations : this.previousShowRecommendations;
         const updatedPrevious = [...new Set([...previousRecsList, ...currentTitles])];
+        
+        // Log the liked/disliked lists for debugging
+        
         
         // Request more recommendations than we need to account for filtering
         const requestCount = Math.min(additionalCount * 2, 25); // Request 100% more, up to 25 max
@@ -4488,6 +3156,9 @@ export default {
         // Combine with existing recommendations
         this.recommendations = [...this.recommendations, ...filteredAdditional];
         
+        // Remove any duplicate recommendations after combining
+        this.recommendations = this.removeDuplicateRecommendations(this.recommendations);
+        
         // Sort recommendations by recommendarr rating from highest to lowest
         if (this.recommendations.length > 0) {
           this.recommendations.sort((a, b) => {
@@ -4499,7 +3170,7 @@ export default {
             return scoreB - scoreA;
           });
           
-          console.log("Additional recommendations sorted by recommendarr rating (highest first)");
+          
         }
         
         // If we still don't have enough, try again with incremented recursion depth
@@ -4508,21 +3179,19 @@ export default {
           // Calculate how many more we need
           const stillNeeded = this.numRecommendations - this.recommendations.length;
           
-          console.log(`After filtering, have ${this.recommendations.length}/${this.numRecommendations} recommendations. Need ${stillNeeded} more. Recursion depth: ${recursionDepth}`);
+          
           
           // Recursive call with updated exclusion list and incremented recursion depth
           if (stillNeeded > 0) {
             await this.getAdditionalRecommendations(stillNeeded, genreString, recursionDepth + 1);
           }
-        } else {
-          console.log(`Successfully gathered all ${this.numRecommendations} recommendations at recursion depth ${recursionDepth}`);
         }
       } catch (error) {
         console.error('Error getting additional recommendations:', error);
         
         // Count this as one attempt but continue if we're not at the limit
         if (recursionDepth + 1 < 10) {
-          console.log(`Retrying after error (recursion depth: ${recursionDepth + 1})`);
+          
           // Calculate how many we still need
           const stillNeeded = this.numRecommendations - this.recommendations.length;
           if (stillNeeded > 0) {
@@ -4532,6 +3201,69 @@ export default {
           }
         }
       }
+    },
+    
+    /**
+     * Fetch ratings data from Sonarr/Radarr for each recommendation
+     * This adds the ratings object to each recommendation if available
+     */
+    async fetchRatingsForRecommendations() {
+      // Skip if no recommendations or services not configured
+      if (!this.recommendations.length) return;
+      
+      const isRadarrConfigured = this.radarrConfigured || radarrService.isConfigured();
+      const isSonarrConfigured = this.sonarrConfigured || sonarrService.isConfigured();
+      
+      if ((this.isMovieMode && !isRadarrConfigured) || (!this.isMovieMode && !isSonarrConfigured)) {
+        
+        return;
+      }
+      
+      
+      
+      // Process recommendations in batches to avoid overwhelming the API
+      const batchSize = 5;
+      for (let i = 0; i < this.recommendations.length; i += batchSize) {
+        const batch = this.recommendations.slice(i, i + batchSize);
+        
+        // Process each recommendation in the batch in parallel
+        await Promise.all(batch.map(async (rec) => {
+          try {
+            if (this.isMovieMode) {
+              // Lookup movie in Radarr
+              const movieData = await radarrService.lookupMovie(rec.title);
+              if (movieData && movieData.ratings) {
+                rec.ratings = movieData.ratings;
+                
+              }
+        } else {
+          // Lookup series in Sonarr
+          const seriesData = await sonarrService.lookupSeries(rec.title);
+          if (seriesData && seriesData.ratings) {
+            // Transform Sonarr ratings to match expected structure
+            // Sonarr ratings are just IMDB ratings
+            rec.ratings = {
+              imdb: {
+                value: seriesData.ratings.value,
+                votes: seriesData.ratings.votes
+              }
+            };
+            
+          }
+            }
+          } catch (error) {
+            console.error(`Error fetching ratings for "${rec.title}":`, error);
+            // Continue with other recommendations even if one fails
+          }
+        }));
+        
+        // Small delay between batches to be nice to the API
+        if (i + batchSize < this.recommendations.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      
     },
     
     /**
@@ -4580,7 +3312,6 @@ export default {
         const filteredRecommendations = recommendations.filter(rec => {
           const normalizedTitle = rec.title.toLowerCase();
           
-          // Check for exact matches
           if (existingTitles.has(normalizedTitle) || 
               likedRecommendationTitles.has(normalizedTitle) || 
               dislikedRecommendationTitles.has(normalizedTitle) || 
@@ -4630,8 +3361,6 @@ export default {
           return true;
         });
         
-        const contentType = this.isMovieMode ? 'movies' : 'shows';
-        console.log(`Filtered out ${recommendations.length - filteredRecommendations.length} ${contentType} that already exist in the library, liked/disliked lists, or recommendation history`);
         return filteredRecommendations;
       } catch (error) {
         console.error(`Error filtering existing ${this.isMovieMode ? 'movies' : 'shows'}:`, error);
@@ -4643,36 +3372,8 @@ export default {
      * Fetch posters for each recommendation in parallel
      */
     async fetchPosters() {
-      // Reset posters
-      this.posters.clear();
+      // Poster handling has been moved to RecommendationResults component
       
-      // Create requests for all recommendations
-      const posterPromises = this.recommendations.map(async (rec) => {
-        try {
-          // Extract clean title (removing any punctuation at the end)
-          const cleanTitle = rec.title.replace(/[:.!?]+$/, '').trim();
-          
-          // Use the appropriate poster fetching method based on content type
-          const posterUrl = this.isMovieMode 
-            ? await imageService.getPosterForMovie(cleanTitle)
-            : await imageService.getPosterForShow(cleanTitle);
-          
-          if (posterUrl) {
-            // Update posters state using Map methods
-            this.posters.set(cleanTitle, posterUrl);
-          } else {
-            // Set fallback image
-            this.posters.set(cleanTitle, imageService.getFallbackImageUrl(cleanTitle));
-          }
-        } catch (error) {
-          console.error(`Error fetching poster for "${rec.title}":`, error);
-          // Fallback image
-          this.posters.set(rec.title, imageService.getFallbackImageUrl(rec.title));
-        }
-      });
-      
-      // Wait for all requests to complete
-      await Promise.all(posterPromises);
     },
     
     /**
@@ -4766,10 +3467,6 @@ export default {
         } else {
           // If no seasons are returned, show a warning but don't create fake seasons
           showSeasonWarning = true;
-          // Use any seasons information from tvdbId if present
-          if (seriesInfo.tvdbId) {
-            console.log('No season information available for series:', title);
-          }
         }
         
         this.currentSeries = {
@@ -4860,13 +3557,13 @@ export default {
      * @param {Object} recommendation - The recommendation to show details for
      */
     openTMDBDetailModal(recommendation) {
-      console.log('Opening TMDB modal for:', recommendation.title);
+      
       
       // Set these values regardless of TMDB configuration
       this.selectedMediaTitle = recommendation.title;
       this.selectedMediaId = null; // We'll search by title
       this.showTMDBModal = true;
-      console.log('Modal state set to open:', this.showTMDBModal);
+      
     },
     
     /**
@@ -5119,219 +3816,54 @@ export default {
      * Handle window resize events to update the grid layout
      */
     handleResize() {
-      // Force a re-computation of computed properties affected by screen size:
-      // - gridStyle for layout
-      // - shouldUseCompactMode for card display mode
-      // This ensures both the layout and card presentation adapt properly to changes
+      // This method has been simplified since shouldUseCompactMode and gridStyle
+      // have been moved to RecommendationResults.vue
       this.$forceUpdate();
       
-      // If we have many posters per row, periodically check if compact mode
-      // should be activated as the user adjusts settings
-      if (this.columnsCount > 5) {
-        // Check for compact mode applicability with a small delay
-        setTimeout(() => {
-          // Log current status to help with troubleshooting
-          const isCompact = this.shouldUseCompactMode;
-          console.log(`Compact mode status after resize: ${isCompact ? 'active' : 'inactive'}`);
-          
-          // Force update again if needed
-          if (isCompact) {
-            this.$forceUpdate();
-          }
-        }, 50);
-      }
     },
     
     /**
-     * Load all saved settings from server via API service
+     * Load recommendations data 
+     * Note: Most settings are now loaded via RecommendationsStore by the RecommendationSettings component
      */
-    async loadSavedSettings() {
+    async loadRecommendationsData() {
       try {
-        // Fetch all settings from the server
-        const settings = await apiService.getSettings();
-        
-        if (!settings) {
-          console.log('No settings found on server');
-          return;
-        }
-        
-        console.log('Loaded settings from server:', settings);
-        
-        // Load number of recommendations setting
-        if (settings.numRecommendations !== undefined) {
-          const numRecs = parseInt(settings.numRecommendations, 10);
-          if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
-            this.numRecommendations = numRecs;
-            console.log('Setting numRecommendations from server:', this.numRecommendations);
-          }
-        }
-        
-        // Load columns count setting
-        if (settings.columnsCount !== undefined) {
-          const columns = parseInt(settings.columnsCount, 10);
-          if (!isNaN(columns) && columns >= 1 && columns <= 4) {
-            this.columnsCount = columns;
-            console.log('Setting columnsCount from server:', this.columnsCount);
-          }
-        }
         
         
-        // Temperature setting
-        if (settings.aiTemperature !== undefined) {
-          const temp = parseFloat(settings.aiTemperature);
-          if (!isNaN(temp) && temp >= 0 && temp <= 1) {
-            this.temperature = temp;
-          }
-        }
-        
-        // Library sampling settings
-        if (settings.useSampledLibrary !== undefined) {
-          this.useSampledLibrary = settings.useSampledLibrary === true || settings.useSampledLibrary === 'true';
-        }
-        
-        if (settings.librarySampleSize !== undefined) {
-          const sampleSize = parseInt(settings.librarySampleSize, 10);
-          if (!isNaN(sampleSize) && sampleSize >= 5 && sampleSize <= 1000) {
-            this.sampleSize = sampleSize;
-          }
-        }
-        
-        // Structured output setting
-        if (settings.useStructuredOutput !== undefined) {
-          this.useStructuredOutput = settings.useStructuredOutput === true || settings.useStructuredOutput === 'true';
-          // Also set it in the OpenAIService
-          openAIService.useStructuredOutput = this.useStructuredOutput;
-        }
-        
-        // Load custom prompt only setting
-        if (Object.prototype.hasOwnProperty.call(settings, 'useCustomPromptOnly')) {
-          this.useCustomPromptOnly = settings.useCustomPromptOnly === true || settings.useCustomPromptOnly === 'true';
-          console.log('Setting useCustomPromptOnly from server:', this.useCustomPromptOnly);
-          // Set in the OpenAIService if needed
-          if (typeof openAIService.setUseCustomPromptOnly === 'function') {
-            openAIService.setUseCustomPromptOnly(this.useCustomPromptOnly);
-          } else {
-            // If method doesn't exist, add the property directly
-            openAIService.useCustomPromptOnly = this.useCustomPromptOnly;
-          }
-        }
-        
-        // Load prompt style setting
-        if (settings.promptStyle) {
-          this.promptStyle = settings.promptStyle;
-          console.log('Setting promptStyle from server:', this.promptStyle);
-          // Set in the OpenAIService
-          openAIService.setPromptStyle(this.promptStyle);
-        }
-        
-        // Plex settings
-        if (settings.plexHistoryMode) {
-          this.plexHistoryMode = settings.plexHistoryMode;
-        }
-        
-        if (settings.plexOnlyMode !== undefined) {
-          this.plexOnlyMode = settings.plexOnlyMode;
-        }
-        
-        if (settings.plexUseHistory !== undefined) {
-          this.plexUseHistory = settings.plexUseHistory;
-        }
-        
-        if (settings.plexCustomHistoryDays) {
-          this.plexCustomHistoryDays = parseInt(settings.plexCustomHistoryDays, 10);
-        }
-        
-        // Jellyfin settings
-        if (settings.jellyfinHistoryMode) {
-          this.jellyfinHistoryMode = settings.jellyfinHistoryMode;
-        }
-        
-        if (settings.jellyfinOnlyMode !== undefined) {
-          this.jellyfinOnlyMode = settings.jellyfinOnlyMode;
-        }
-        
-        if (settings.jellyfinUseHistory !== undefined) {
-          this.jellyfinUseHistory = settings.jellyfinUseHistory;
-        }
-        
-        if (settings.jellyfinCustomHistoryDays) {
-          this.jellyfinCustomHistoryDays = parseInt(settings.jellyfinCustomHistoryDays, 10);
-        }
-        
-        // Tautulli settings
-        if (settings.tautulliHistoryMode) {
-          this.tautulliHistoryMode = settings.tautulliHistoryMode;
-        }
-        
-        if (settings.tautulliOnlyMode !== undefined) {
-          this.tautulliOnlyMode = settings.tautulliOnlyMode;
-        }
-        
-        if (settings.tautulliUseHistory !== undefined) {
-          this.tautulliUseHistory = settings.tautulliUseHistory;
-        }
-        
-        if (settings.tautulliCustomHistoryDays) {
-          this.tautulliCustomHistoryDays = parseInt(settings.tautulliCustomHistoryDays, 10);
-        }
-        
-        // Trakt settings
-        console.log('Loading Trakt settings from server:', { 
-          traktHistoryMode: settings.traktHistoryMode, 
-          traktOnlyMode: settings.traktOnlyMode,
-          traktUseHistory: settings.traktUseHistory,
-          traktCustomHistoryDays: settings.traktCustomHistoryDays
-        });
-        
-        if (settings.traktHistoryMode) {
-          this.traktHistoryMode = settings.traktHistoryMode;
-        }
-        
-        if (settings.traktOnlyMode !== undefined) {
-          this.traktOnlyMode = settings.traktOnlyMode;
-        }
-        
-        if (settings.traktUseHistory !== undefined) {
-          // Make sure we convert it to a boolean in case it's stored as a string
-          this.traktUseHistory = settings.traktUseHistory === true || settings.traktUseHistory === 'true';
-          console.log('Trakt history use flag set to:', this.traktUseHistory, 'from value:', settings.traktUseHistory);
+        // Get current recommendations from the store
+        if (this.isMovieMode) {
+          this.recommendations = recommendationsStore.state.currentMovieRecommendations || [];
         } else {
-          console.log('traktUseHistory setting not found in server settings, using default:', this.traktUseHistory);
+          this.recommendations = recommendationsStore.state.currentTVRecommendations || [];
         }
         
-        if (settings.traktCustomHistoryDays) {
-          this.traktCustomHistoryDays = parseInt(settings.traktCustomHistoryDays, 10);
-        }
+        // Use the previousRecommendations getter to get the appropriate history for the current mode
+        this.recommendationsRequested = this.recommendations.length > 0;
+        
+        
       } catch (error) {
-        console.error('Error loading settings from server:', error);
+        console.error('Error loading recommendations data:', error);
       }
     }
   },
   async mounted() {
-    console.log('RequestRecommendations component mounted');
-    console.log('Props: radarrConfigured=', this.radarrConfigured);
     
-    // Load all saved settings from the server
-    await this.loadSavedSettings();
     
-    // Check if Radarr service is configured directly
-    if (this.isMovieMode) {
-      // First check props
-      console.log('Movie mode active, checking Radarr configuration');
+    
+    // Ensure RecommendationsStore is initialized
+    if (!recommendationsStore.initialized) {
+      await recommendationsStore.initialize();
+    }
+    
+    // Load recommendations data (not settings which are now handled by store)
+    await this.loadRecommendationsData();
+    
+    // Check if Radarr service is configured directly (only if in movie mode)
+    if (this.isMovieMode && (!this.movies || this.movies.length === 0) && 
+        (!this.radarrConfigured || !radarrService.isConfigured())) {
       
-      // Only load credentials if needed and if movies array is empty
-      // This prevents double loading
-      if ((!this.movies || this.movies.length === 0) && 
-          (!this.radarrConfigured || !radarrService.isConfigured())) {
-        console.log('radarrConfigured prop is false or no movies loaded, checking service directly');
-        
-        // Check if Radarr service is configured directly
-        if (!radarrService.isConfigured()) {
-          console.log('Radarr service not configured in memory, trying to load credentials');
-          // Try to load credentials from server-side storage
-          await radarrService.loadCredentials();
-          console.log('After loading credentials, Radarr service configured:', radarrService.isConfigured());
-        }
+      if (!radarrService.isConfigured()) {
+        await radarrService.loadCredentials();
       }
     }
     
@@ -5339,7 +3871,6 @@ export default {
     if (!openAIService.isConfigured()) {
       try {
         await openAIService.loadCredentials();
-        console.log('After loading OpenAI credentials, service configured:', openAIService.isConfigured());
       } catch (error) {
         console.error('Error loading OpenAI credentials:', error);
       }
@@ -5348,168 +3879,39 @@ export default {
     // Check if OpenAI is configured after loading credentials
     this.openaiConfigured = openAIService.isConfigured();
     
-    // Initialize model selection
-    const currentModel = openAIService.model || 'gpt-3.5-turbo';
-    
-    // Set to custom by default, we'll update once models are fetched
-    this.customModel = currentModel;
-    this.selectedModel = 'custom';
-    this.isCustomModel = true;
-    
     // Add window resize listener to update grid style when screen size changes
     window.addEventListener('resize', this.handleResize);
     
-    // We've already loaded temperature from server in loadSavedSettings
-    // Only check localStorage or service if the temperature is still at default (0.8)
-    if (this.temperature === 0.8) {
-      // Try to get from localStorage first
-      const savedTemp = localStorage.getItem('aiTemperature');
-      if (savedTemp) {
-        const temp = parseFloat(savedTemp);
-        // Validate the value is within range
-        if (!isNaN(temp) && temp >= 0 && temp <= 1) {
-          this.temperature = temp;
-          console.log('Setting temperature from localStorage:', this.temperature);
-        }
-      } else if (openAIService.temperature !== 0.8) {
-        // If still at default, try the service value
-        this.temperature = openAIService.temperature;
-        console.log('Setting temperature from OpenAIService:', this.temperature);
-      }
-    } else {
-      console.log('Using temperature from server settings:', this.temperature);
-    }
-    
-    // Initialize library mode preferences from service
-    this.useSampledLibrary = openAIService.useSampledLibrary;
-    this.sampleSize = openAIService.sampleSize;
-    
-    // If there are already recommendations, collapse the settings by default
-    if (this.recommendations.length > 0) {
-      this.settingsExpanded = false;
-    } else {
-      this.settingsExpanded = true;
-    }
+    // Set default UI state - if recommendations exist, collapse settings panel
+    this.settingsExpanded = !(this.recommendations && this.recommendations.length > 0);
     
     // Fetch models if API is configured
     if (openAIService.isConfigured()) {
-      this.fetchModels().then(() => {
-        // Make sure modelOptions is an array before calling some()
-        if (Array.isArray(this.modelOptions) && this.modelOptions.length > 0) {
-          // Check if the current model is in the fetched models
-          const modelExists = this.modelOptions.some(model => model.id === currentModel);
-          
-          if (modelExists) {
-            // If current model exists in options, select it
-            this.selectedModel = currentModel;
-            this.isCustomModel = false;
-          }
-        } else {
-          console.log('No model options available or not an array');
-        }
-      });
-    }
-    
-    // We've already loaded the server settings in loadSavedSettings
-    // But check localStorage as a fallback if server settings didn't include these
-    if (this.numRecommendations === 5) { // 5 is the default - if it's still default, check localStorage
-      // Restore saved recommendation count from localStorage (if exists)
-      const savedCount = localStorage.getItem('numRecommendations');
-      if (savedCount) {
-        const numRecs = parseInt(savedCount, 10);
-        // Validate the value is within range
-        if (!isNaN(numRecs) && numRecs >= 1 && numRecs <= 50) {
-          this.numRecommendations = numRecs;
-          console.log('Setting numRecommendations from localStorage:', this.numRecommendations);
-        }
-      }
-    }
-    
-    // Check for structured output setting in localStorage if we didn't get it from server
-    const savedStructuredOutput = localStorage.getItem('useStructuredOutput');
-    if (savedStructuredOutput !== null) {
-      const useStructured = savedStructuredOutput === 'true';
-      this.useStructuredOutput = useStructured;
-      openAIService.useStructuredOutput = useStructured;
-      console.log('Setting useStructuredOutput from localStorage:', useStructured);
-    }
-    
-    
-    if (this.columnsCount === 2) { // 2 is the default - if it's still default, check localStorage
-      // Restore saved columns count from localStorage (if exists)
-      const savedColumnsCount = localStorage.getItem('columnsCount');
-      if (savedColumnsCount) {
-        const columns = parseInt(savedColumnsCount, 10);
-        // Validate the value is within range
-        if (!isNaN(columns) && columns >= 1 && columns <= 4) {
-          this.columnsCount = columns;
-          console.log('Setting columnsCount from localStorage:', this.columnsCount);
-        }
-      }
-    }
-    
-    // Set initial movie mode from props if provided, otherwise use saved preference
-    if (this.initialMovieMode) {
-      this.isMovieMode = true;
-    } else {
-      // Restore saved content type preference (movie/TV toggle)
-      const savedMovieMode = localStorage.getItem('isMovieMode');
-      if (savedMovieMode) {
-        this.isMovieMode = savedMovieMode === 'true';
-      }
-    }
-    
-    // Restore saved genre preferences if they exist
-    const savedGenres = localStorage.getItem('tvGenrePreferences');
-    if (savedGenres) {
-      try {
-        this.selectedGenres = JSON.parse(savedGenres);
-      } catch (error) {
-        console.error('Error parsing saved genres:', error);
-        this.selectedGenres = [];
-      }
-    }
-    
-    // Load custom vibe from settings
-    const settings = await apiService.getSettings();
-    if (settings && settings.tvCustomVibe) {
-      this.customVibe = settings.tvCustomVibe;
-    } else {
-      // Fallback to localStorage if not in server settings
-      const savedVibe = localStorage.getItem('tvCustomVibe');
-      if (savedVibe) {
-        this.customVibe = savedVibe;
-      }
-    }
-    
-    // Restore saved language preference if it exists
-    const savedLanguage = localStorage.getItem('tvLanguagePreference');
-    if (savedLanguage) {
-      this.selectedLanguage = savedLanguage;
+      this.fetchModels();
     }
     
     // Restore saved Plex history mode if it exists
-    const savedPlexHistoryMode = localStorage.getItem('plexHistoryMode');
+    const savedPlexHistoryMode = await databaseStorageUtils.get('plexHistoryMode');
     if (savedPlexHistoryMode) {
       this.plexHistoryMode = savedPlexHistoryMode;
     }
     
     // Restore saved Plex only mode if it exists
-    const savedPlexOnlyMode = localStorage.getItem('plexOnlyMode');
-    if (savedPlexOnlyMode) {
-      this.plexOnlyMode = savedPlexOnlyMode === 'true';
+    const savedPlexOnlyMode = await databaseStorageUtils.get('plexOnlyMode');
+    if (savedPlexOnlyMode !== null) {
+      this.plexOnlyMode = savedPlexOnlyMode === 'true' || savedPlexOnlyMode === true;
     }
     
     // Restore saved Plex use history setting
-    const savedPlexUseHistory = localStorage.getItem('plexUseHistory');
+    const savedPlexUseHistory = await databaseStorageUtils.get('plexUseHistory');
     if (savedPlexUseHistory !== null) {
-      this.plexUseHistory = savedPlexUseHistory === 'true';
+      this.plexUseHistory = savedPlexUseHistory === 'true' || savedPlexUseHistory === true;
     }
     
     // Restore saved Plex custom history days
-    const savedPlexCustomHistoryDays = localStorage.getItem('plexCustomHistoryDays');
-    if (savedPlexCustomHistoryDays) {
-      this.plexCustomHistoryDays = parseInt(savedPlexCustomHistoryDays, 10);
+    const savedPlexCustomHistoryDays = await databaseStorageUtils.get('plexCustomHistoryDays');
+    if (savedPlexCustomHistoryDays !== null) {
+      this.plexCustomHistoryDays = parseInt(savedPlexCustomHistoryDays);
     }
     
     // Initialize history arrays with empty arrays to prevent issues
@@ -5517,50 +3919,35 @@ export default {
     this.previousMovieRecommendations = [];
     
     try {
-      console.log("Loading recommendations from server...");
+      
       
       // Try to load recommendations from server first
-      const tvRecsResponse = await apiService.getRecommendations('tv') || [];
-      const movieRecsResponse = await apiService.getRecommendations('movie') || [];
+      const tvRecsResponse = await apiService.getRecommendations('tv', this.username) || [];
+      const movieRecsResponse = await apiService.getRecommendations('movie', this.username) || [];
       
       // When the tvRecsResponse or movieRecsResponse are empty arrays,
       // this means the server cleared the data or doesn't have any data.
       // In this case, we should:
-      // 1. Use the empty arrays (don't fall back to localStorage)
-      // 2. Clear localStorage itself to be consistent with server
+      // 1. Use the empty arrays (don't fall back to storageUtils)
+      // 2. Clear storageUtils itself to be consistent with server
       
-      console.log("TV recommendations from server:", tvRecsResponse ? tvRecsResponse.length : 0, "items");
-      console.log("Movie recommendations from server:", movieRecsResponse ? movieRecsResponse.length : 0, "items");
+      
+      
       
       // Process TV recommendations
-      if (Array.isArray(tvRecsResponse) && tvRecsResponse.length > 0) {
-        if (typeof tvRecsResponse[0] === 'string') {
+      if (Array.isArray(tvRecsResponse)) { // Process even if empty
+        if (tvRecsResponse.length > 0 && typeof tvRecsResponse[0] === 'string') {
           // Simple array of titles - this is the history list
-          console.log("Loaded TV history from server (string array):", tvRecsResponse.length, "items");
+          
           this.previousShowRecommendations = tvRecsResponse;
-          
-          // Make sure we update the currently displayed history count if in TV mode
-          if (!this.isMovieMode) {
-            this.previousRecommendations = [...this.previousShowRecommendations];
-          }
-          
-          // Only save to localStorage for backup if there are actually recommendations
-          if (tvRecsResponse && tvRecsResponse.length > 0) {
-            localStorage.setItem('previousTVRecommendations', JSON.stringify(tvRecsResponse));
-          } else {
-            // If the server returned empty, clear the localStorage as well
-            localStorage.removeItem('previousTVRecommendations');
-          }
-        } else {
+        } else if (tvRecsResponse.length > 0) {
           // Full recommendation objects with title property
-          console.log("Loaded full TV recommendations from server:", tvRecsResponse.length, "items");
+          
           
           // Store them as full recommendations if we're in TV mode
           if (!this.isMovieMode && tvRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
             this.recommendations = tvRecsResponse;
-            
-            // Save current recommendations to localStorage for backup
-            localStorage.setItem('currentTVRecommendations', JSON.stringify(tvRecsResponse));
+            databaseStorageUtils.setJSON('tvRecommendations', tvRecsResponse); // Save to main tv recommendations field
           }
           
           // Extract titles for the history
@@ -5570,54 +3957,36 @@ export default {
             
           // Combine with existing history, handling duplicates
           const existingTitles = this.previousShowRecommendations || [];
-          const combinedTitles = [...new Set([...existingTitles, ...extractedTitles])];
+          this.previousShowRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
+        } else {
+          // Server returned empty array
           
-          this.previousShowRecommendations = combinedTitles;
-          
-          // Make sure we update the currently displayed history count if in TV mode
-          if (!this.isMovieMode) {
-            this.previousRecommendations = [...this.previousShowRecommendations];
-          }
-          
-          // Only save to localStorage if there are actually recommendations
-          if (combinedTitles && combinedTitles.length > 0) {
-            localStorage.setItem('previousTVRecommendations', JSON.stringify(combinedTitles));
-          } else {
-            // If combined titles is empty, clear localStorage
-            localStorage.removeItem('previousTVRecommendations');
-          }
+          this.previousShowRecommendations = [];
         }
+        
+        // Update currently displayed history if in TV mode
+        if (!this.isMovieMode) {
+          this.previousRecommendations = [...this.previousShowRecommendations];
+        }
+        
+        // Save history to storageUtils (or clear if empty)
+        databaseStorageUtils.setJSON('tvRecommendations', this.previousShowRecommendations);
       }
       
       // Process movie recommendations
-      if (Array.isArray(movieRecsResponse) && movieRecsResponse.length > 0) {
-        if (typeof movieRecsResponse[0] === 'string') {
+      if (Array.isArray(movieRecsResponse)) { // Process even if empty
+        if (movieRecsResponse.length > 0 && typeof movieRecsResponse[0] === 'string') {
           // Simple array of titles - this is the history list
-          console.log("Loaded movie history from server (string array):", movieRecsResponse.length, "items");
+          
           this.previousMovieRecommendations = movieRecsResponse;
-          
-          // Make sure we update the currently displayed history count if in movie mode
-          if (this.isMovieMode) {
-            this.previousRecommendations = [...this.previousMovieRecommendations];
-          }
-          
-          // Only save to localStorage for backup if there are actually recommendations
-          if (movieRecsResponse && movieRecsResponse.length > 0) {
-            localStorage.setItem('previousMovieRecommendations', JSON.stringify(movieRecsResponse));
-          } else {
-            // If the server returned empty, clear the localStorage as well
-            localStorage.removeItem('previousMovieRecommendations');
-          }
-        } else {
+        } else if (movieRecsResponse.length > 0) {
           // Full recommendation objects with title property
-          console.log("Loaded full movie recommendations from server:", movieRecsResponse.length, "items");
+          
           
           // Store them as full recommendations if we're in movie mode
           if (this.isMovieMode && movieRecsResponse.some(rec => rec.title && (rec.description || rec.fullText))) {
             this.recommendations = movieRecsResponse;
-            
-            // Save current recommendations to localStorage for backup
-            localStorage.setItem('currentMovieRecommendations', JSON.stringify(movieRecsResponse));
+            databaseStorageUtils.setJSON('currentMovieRecommendations', movieRecsResponse); // Save current to storage
           }
           
           // Extract titles for the history
@@ -5627,113 +3996,67 @@ export default {
             
           // Combine with existing history, handling duplicates
           const existingTitles = this.previousMovieRecommendations || [];
-          const combinedTitles = [...new Set([...existingTitles, ...extractedTitles])];
+          this.previousMovieRecommendations = [...new Set([...existingTitles, ...extractedTitles])];
+        } else {
+          // Server returned empty array
           
-          this.previousMovieRecommendations = combinedTitles;
-          
-          // Make sure we update the currently displayed history count if in movie mode
-          if (this.isMovieMode) {
-            this.previousRecommendations = [...this.previousMovieRecommendations];
-          }
-          
-          // Only save to localStorage if there are actually recommendations
-          if (combinedTitles && combinedTitles.length > 0) {
-            localStorage.setItem('previousMovieRecommendations', JSON.stringify(combinedTitles));
-          } else {
-            // If combined titles is empty, clear localStorage
-            localStorage.removeItem('previousMovieRecommendations');
-          }
+          this.previousMovieRecommendations = [];
         }
+        
+        // Update currently displayed history if in movie mode
+        if (this.isMovieMode) {
+          this.previousRecommendations = [...this.previousMovieRecommendations];
+        }
+        
+        databaseStorageUtils.setJSON('movieRecommendations', this.previousMovieRecommendations);
+
       }
       
       // Debug current history counts
-      console.log("After loading from server - TV history count:", this.previousShowRecommendations.length);
-      console.log("After loading from server - Movie history count:", this.previousMovieRecommendations.length);
-      console.log("Currently displayed history count:", this.previousRecommendations.length);
       
-      // Load liked/disliked preferences from server
+      
+      
+      
+      // Load liked/disliked preferences from server based on current mode
       try {
-        const likedTV = await apiService.getPreferences('tv', 'liked');
-        if (Array.isArray(likedTV)) {
-          this.likedRecommendations = likedTV;
+        const contentType = this.isMovieMode ? 'movie' : 'tv';
+        const likedContent = await apiService.getPreferences(contentType, 'liked');
+        if (Array.isArray(likedContent)) {
+          this.likedRecommendations = likedContent;
+          
         }
         
-        const dislikedTV = await apiService.getPreferences('tv', 'disliked');
-        if (Array.isArray(dislikedTV)) {
-          this.dislikedRecommendations = dislikedTV;
+        const dislikedContent = await apiService.getPreferences(contentType, 'disliked');
+        if (Array.isArray(dislikedContent)) {
+          this.dislikedRecommendations = dislikedContent;
+          
         }
       } catch (prefError) {
         console.error("Error loading preferences from server:", prefError);
       }
       
     } catch (error) {
-      console.error("Error loading from server, falling back to localStorage:", error);
+      console.error("Error loading from server, falling back to storageUtils:", error);
       
-      // Fall back to loading from localStorage
-      // Load previous TV recommendations from localStorage
-      const savedPreviousTVRecommendations = localStorage.getItem('previousTVRecommendations');
-      if (savedPreviousTVRecommendations) {
-        try {
-          this.previousShowRecommendations = JSON.parse(savedPreviousTVRecommendations) || [];
-        } catch (error) {
-          console.error('Error parsing previous TV recommendations:', error);
-          this.previousShowRecommendations = [];
-        }
-      }
+      // Fall back to loading from storageUtils
+      // Load previous TV recommendations from storageUtils
+      this.previousShowRecommendations = databaseStorageUtils.getJSON('previousTVRecommendations', []);
       
-      // Load previous movie recommendations from localStorage
-      const savedPreviousMovieRecommendations = localStorage.getItem('previousMovieRecommendations');
-      if (savedPreviousMovieRecommendations) {
-        try {
-          this.previousMovieRecommendations = JSON.parse(savedPreviousMovieRecommendations) || [];
-        } catch (error) {
-          console.error('Error parsing previous movie recommendations:', error);
-          this.previousMovieRecommendations = [];
-        }
-      }
+      // Load previous movie recommendations from storageUtils
+      this.previousMovieRecommendations = databaseStorageUtils.getJSON('previousMovieRecommendations', []);
       
       // Also try to load current recommendations
       if (this.isMovieMode) {
-        const currentMovieRecs = localStorage.getItem('currentMovieRecommendations');
-        if (currentMovieRecs) {
-          try {
-            this.recommendations = JSON.parse(currentMovieRecs) || [];
-          } catch (error) {
-            console.error('Error parsing current movie recommendations:', error);
-          }
-        }
+        this.recommendations = databaseStorageUtils.getJSON('currentMovieRecommendations', []);
       } else {
-        const currentTVRecs = localStorage.getItem('currentTVRecommendations');
-        if (currentTVRecs) {
-          try {
-            this.recommendations = JSON.parse(currentTVRecs) || [];
-          } catch (error) {
-            console.error('Error parsing current TV recommendations:', error);
-          }
-        }
+        this.recommendations = databaseStorageUtils.getJSON('currentTVRecommendations', []);
       }
       
-      // Load liked TV recommendations from localStorage
-      const savedLikedRecommendations = localStorage.getItem('likedTVRecommendations');
-      if (savedLikedRecommendations) {
-        try {
-          this.likedRecommendations = JSON.parse(savedLikedRecommendations);
-        } catch (error) {
-          console.error('Error parsing liked TV recommendations:', error);
-          this.likedRecommendations = [];
-        }
-      }
+      // Load liked TV recommendations from storageUtils
+      this.likedRecommendations = databaseStorageUtils.getJSON('likedTVRecommendations', []);
       
-      // Load disliked TV recommendations from localStorage
-      const savedDislikedRecommendations = localStorage.getItem('dislikedTVRecommendations');
-      if (savedDislikedRecommendations) {
-        try {
-          this.dislikedRecommendations = JSON.parse(savedDislikedRecommendations);
-        } catch (error) {
-          console.error('Error parsing disliked TV recommendations:', error);
-          this.dislikedRecommendations = [];
-        }
-      }
+      // Load disliked TV recommendations from storageUtils
+      this.dislikedRecommendations = databaseStorageUtils.getJSON('dislikedTVRecommendations', []);
     }
     
     // Set the active recommendations based on current mode
@@ -5746,26 +4069,6 @@ export default {
   
   // Save state when component is destroyed
   beforeUnmount() {
-    // Don't save recommendations on unmount - this was causing issues when navigating to History
-    // Only save to localStorage for backup, but don't make server API calls
-    try {
-      if (this.isMovieMode) {
-        localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.previousMovieRecommendations));
-        if (this.recommendations && this.recommendations.length > 0) {
-          localStorage.setItem('currentMovieRecommendations', JSON.stringify(this.recommendations));
-        }
-      } else {
-        localStorage.setItem('previousTVRecommendations', JSON.stringify(this.previousShowRecommendations));
-        if (this.recommendations && this.recommendations.length > 0) {
-          localStorage.setItem('currentTVRecommendations', JSON.stringify(this.recommendations));
-        }
-      }
-      console.log('Saved recommendations to localStorage only (no server call) before unmount');
-    } catch (error) {
-      console.error('Error saving recommendations to localStorage on unmount:', error);
-    }
-    
-    this.saveLikedDislikedLists();
     // Remove event listener
     window.removeEventListener('resize', this.handleResize);
     // Clear any running intervals
@@ -5778,11 +4081,11 @@ export default {
   /* eslint-disable */
   // Additional computed properties 
     filteredWatchHistory() {
-      console.log('WATCH HISTORY INSPECTION - DIRECT APPROACH:');
+      
       
       // Use the temporary watch history data we created when opening the modal
       if (this._watchHistoryData && this._watchHistoryData.length > 0) {
-        console.log('Using pre-populated watch history data:', this._watchHistoryData.length, 'items');
+        
         
         // Apply type filter if needed
         if (this.historyTypeFilter !== 'all') {
@@ -5799,7 +4102,7 @@ export default {
       let allWatchHistory = [];
       
       // If no pre-populated data, try direct access
-      console.log('Fallback: Using direct data access');
+      
       if (this.movies && this.movies.length > 0) {
         const moviesWithMetadata = this.movies.map(movie => ({
           ...movie,
@@ -5907,7 +4210,7 @@ export default {
         }
       }
       
-      console.log(`Initial combined data: ${allWatchHistory.length} items`);
+      
       
       // Apply text search filter
       if (this.historySearchFilter && this.historySearchFilter.trim()) {
@@ -5925,17 +4228,17 @@ export default {
         return dateB - dateA; // Compare directly as timestamps
       });
       
-      console.log(`Final filtered watch history: ${allWatchHistory.length} items`);
-      console.log('Movie items:', allWatchHistory.filter(item => item.type === 'movie').length);
-      console.log('TV items:', allWatchHistory.filter(item => item.type === 'show').length);
+      
+      
+      
       if (allWatchHistory.length > 0) {
-        console.log('Sample items:', allWatchHistory.slice(0, 2));
+        
         return allWatchHistory;
       }
       
       // Access raw movie data directly without processing
       if (this.recentlyWatchedMovies) {
-        console.log('Direct movie data inspection:', this.recentlyWatchedMovies);
+        
         if (Array.isArray(this.recentlyWatchedMovies)) {
           return this.recentlyWatchedMovies.map(item => ({...item, type: 'movie', source: 'plex'}));
         }
@@ -5976,6 +4279,15 @@ export default {
 </script>
 
 <style scoped>
+.user-recommendation-info {
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 14px;
+  margin: 0 0 10px;
+  font-style: italic;
+}
+
 /* Tags Styling */
 .tags-section {
   flex-direction: column;
@@ -5992,6 +4304,7 @@ export default {
   overflow-y: auto;
   padding: 10px;
   border: 1px solid var(--border-color);
+  border-radius: 6px;
   border-radius: 6px;
   background-color: var(--card-bg-color);
 }
@@ -6055,6 +4368,104 @@ export default {
   margin-bottom: 20px;
 }
 
+.request-button {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.request-button.compact {
+  padding: 5px 10px;
+  font-size: 12px;
+  min-width: 55px;
+  justify-content: center;
+}
+
+@media (max-width: 600px) {
+  .request-button.compact {
+    padding: 8px 12px;
+    font-size: 14px;
+    min-width: 65px;
+  }
+}
+
+.request-button:hover:not(:disabled) {
+  background-color: #1976D2;
+}
+
+.request-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.request-button.loading {
+  background-color: #64B5F6;
+}
+
+.request-button.requested {
+  background-color: #4CAF50;
+  cursor: default;
+}
+
+.small-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+.mini-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  box-sizing: border-box;
+}
+/* Added styles for quality and root folder selection */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.setting-item label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.setting-select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  font-size: 14px;
+}
+
 h2 {
   margin-top: 0;
   margin-bottom: 0;
@@ -6108,6 +4519,11 @@ h2 {
 }
 
 @media (max-width: 600px) {
+  .recommendation-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
   .content-type-selector {
     margin-left: 0;
     margin-top: 10px;
@@ -6132,699 +4548,6 @@ h2 {
   max-width: 600px;
   margin: 0 auto 30px;
   transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
-}
-
-.setup-title {
-  margin-top: 0;
-  margin-bottom: 15px;
-  color: var(--header-color);
-  font-size: 20px;
-  text-align: center;
-  transition: color var(--transition-speed);
-}
-
-.info-message {
-  margin-bottom: 10px;
-  font-size: 16px;
-  color: var(--text-color);
-  opacity: 0.9;
-  text-align: center;
-  transition: color var(--transition-speed);
-}
-
-.setup-details {
-  margin-bottom: 20px;
-  font-size: 14px;
-  color: var(--text-color);
-  opacity: 0.7;
-  text-align: center;
-  transition: color var(--transition-speed);
-}
-
-.settings-button {
-  min-width: 200px;
-  margin-top: 10px;
-  font-size: 14px;
-  background-color: #2196F3;
-  margin-left: 10px;
-  border-radius: 10px;
-  border: none;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
-}
-
-.settings-button:hover:not(:disabled) {
-  background-color: #1976D2;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.4);
-}
-
-.actions {
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-}
-
-.recommendations-settings {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 15px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.settings-container {
-  background-color: var(--card-bg-color);
-  border-radius: var(--border-radius-md);
-  box-shadow: var(--card-shadow);
-  width: 100%;
-  box-sizing: border-box;
-  padding: 20px;
-  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
-  max-width: 100%;
-  margin: 0 auto;
-}
-
-.settings-layout {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
-}
-
-.settings-left {
-  flex: 0 0 40%;
-}
-
-.settings-right {
-  flex: 0 0 60%;
-}
-
-@media (max-width: 1200px) {
-  .settings-left, .settings-right {
-    flex: 1;
-  }
-}
-
-@media (max-width: 768px) {
-  .settings-layout {
-    flex-direction: column;
-  }
-}
-
-.action-button-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 24px 0 10px;
-  width: 100%;
-}
-
-.settings-header {
-  cursor: pointer;
-  padding: 12px 15px;
-  background-color: var(--card-bg-color);
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: background-color 0.2s;
-  border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
-}
-
-.settings-header:hover {
-  background-color: rgba(0, 0, 0, 0.03);
-}
-
-/* Removed small-action-button that was previously in the header */
-
-.retry-button {
-  margin-top: 15px;
-  background-color: transparent;
-  color: var(--button-primary-bg);
-  font-size: 15px;
-  padding: 8px 20px;
-  min-width: 120px;
-  border: 1px solid var(--button-primary-bg);
-  border-radius: var(--border-radius-md);
-  transition: all 0.2s ease;
-}
-
-.retry-button:hover:not(:disabled) {
-  background-color: rgba(67, 97, 238, 0.08);
-  transform: translateY(-1px);
-}
-
-@media (max-width: 600px) {
-  .loading {
-    padding: 12px;
-    gap: 10px;
-  }
-  
-  .loading p {
-    font-size: 14px;
-    margin: 0;
-    flex: 1;
-  }
-  
-  .settings-header {
-    padding: 8px;
-    gap: 5px;
-  }
-  
-  .settings-header h3 {
-    font-size: 13px;
-  }
-}
-
-@media (min-width: 601px) {
-  /* Desktop-specific styles */
-}
-
-.settings-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--header-color);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.toggle-icon {
-  font-size: 12px;
-  transition: transform 0.2s;
-}
-
-.collapsed .settings-container {
-  border-radius: 8px;
-}
-
-.recommendations-settings.collapsed {
-  margin-bottom: 25px;
-}
-
-.settings-content {
-  padding: 20px;
-  transition: max-height 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
-  max-height: 2000px; /* Large enough to fit all content */
-  opacity: 1;
-  transform: translateY(0);
-  overflow: hidden;
-}
-
-.settings-content.collapsed {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-20px);
-  padding: 0 20px;
-}
-
-.info-section {
-  background-color: var(--primary-color-lighter);
-  padding: 20px;
-  border-radius: var(--border-radius-md);
-  margin-bottom: 24px;
-  border: 1px solid var(--primary-color-border);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.info-section:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
-}
-
-.info-section-title {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  color: var(--text-color);
-  font-weight: 600;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-}
-
-.info-section-title::before {
-  content: "";
-  display: inline-block;
-  width: 4px;
-  height: 16px;
-  margin-right: 8px;
-  background: var(--button-primary-bg);
-  border-radius: 2px;
-  opacity: 0.9;
-}
-
-.model-info {
-  padding: 10px 0;
-  font-size: 14px;
-  margin-bottom: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.current-model {
-  color: var(--text-color);
-  transition: color var(--transition-speed);
-  font-weight: 500;
-}
-
-.model-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  background-color: var(--primary-color-lighter);
-  padding: 10px 12px;
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--primary-color-border);
-}
-
-.fetch-models-button {
-  background: none;
-  border: 1px solid var(--primary-color-border);
-  color: var(--button-primary-bg);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--border-radius-sm);
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fetch-models-button:hover:not(:disabled) {
-  background-color: var(--primary-color-light);
-  transform: translateY(-1px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.fetch-models-button:disabled {
-  color: #ccc;
-  cursor: not-allowed;
-  border-color: rgba(0, 0, 0, 0.1);
-}
-
-.loading-icon {
-  display: inline-block;
-  animation: spin 1s infinite linear;
-}
-
-.fetch-error {
-  color: #f44336;
-  font-size: 12px;
-  margin-top: 4px;
-  cursor: pointer;
-}
-
-.error-link {
-  text-decoration: underline;
-  font-weight: bold;
-}
-
-.model-select-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.model-select {
-  padding: 12px 15px;
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--primary-color-border);
-  background-color: var(--input-bg);
-  color: var(--input-text);
-  font-size: 14px;
-  width: 100%;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  cursor: pointer;
-}
-
-.model-select:hover {
-  border-color: var(--button-primary-bg);
-}
-
-.model-select:focus {
-  border-color: var(--button-primary-bg);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--primary-color-shadow);
-}
-
-.model-select-custom {
-  margin-top: 5px;
-}
-
-.custom-model-input {
-  padding: 12px 15px;
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--primary-color-border);
-  background-color: var(--input-bg);
-  color: var(--input-text);
-  font-size: 14px;
-  width: 100%;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.custom-model-input:hover {
-  border-color: var(--button-primary-bg);
-}
-
-.custom-model-input:focus {
-  border-color: var(--button-primary-bg);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--primary-color-shadow);
-}
-
-/* Modern Slider Components */
-.temperature-control,
-.sample-size-control {
-  margin-top: 10px;
-}
-
-.slider-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.slider-header label {
-  font-size: 14px;
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-.slider-value {
-  font-weight: 600;
-  color: var(--button-primary-text);
-  background-color: var(--button-primary-bg);
-  border-radius: var(--border-radius-sm);
-  padding: 1px 8px;
-  min-width: 20px;
-  text-align: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  font-size: 13px;
-}
-
-.modern-slider-container {
-  position: relative;
-  padding: 0 2px;
-  margin-bottom: 8px;
-}
-
-.slider-track-container {
-  position: relative;
-  height: 40px; /* Significantly increased height for better centering */
-  display: flex;
-  align-items: center;
-}
-
-.slider-track {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 4px; /* Thinner track for better contrast with handle */
-  background: linear-gradient(to right, var(--button-primary-bg), var(--button-primary-bg));
-  border-radius: 2px;
-  z-index: 1;
-  transition: width 0.2s ease;
-}
-
-.modern-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 4px; /* Match track height */
-  border-radius: 2px;
-  background: #e5e7eb;
-  outline: none;
-  position: relative;
-  z-index: 2;
-  margin: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-body.dark-theme .modern-slider {
-  background: #4a4a4a;
-}
-
-.modern-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  border: 2px solid var(--button-primary-bg);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  position: relative;
-  z-index: 3;
-  /* Fine-tuned perfect centering */
-  transform: translateY(0px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-body.dark-theme .modern-slider::-webkit-slider-thumb {
-  background: #e0e0e0;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-}
-
-.modern-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  border: 2px solid var(--button-primary-bg);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  position: relative;
-  z-index: 3;
-  transform: translateY(0px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-body.dark-theme .modern-slider::-moz-range-thumb {
-  background: #e0e0e0;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-}
-
-.modern-slider::-webkit-slider-thumb:hover,
-.modern-slider:active::-webkit-slider-thumb {
-  transform: translateY(0px) scale(1.1);
-  box-shadow: 0 3px 8px var(--primary-color-shadow);
-}
-
-.modern-slider::-moz-range-thumb:hover,
-.modern-slider:active::-moz-range-thumb {
-  transform: translateY(0px) scale(1.1);
-  box-shadow: 0 3px 8px var(--primary-color-shadow);
-}
-
-.slider-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-color);
-  opacity: 0.7;
-  margin-bottom: 4px;
-}
-
-.slider-range-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-color);
-  opacity: 0.6;
-  margin-top: 0;
-  padding: 0 2px;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.section-header label {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-color);
-  opacity: 0.95; /* Improve readability in dark mode */
-}
-
-.genre-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  background-color: var(--button-primary-bg);
-  color: white;
-  border-radius: var(--border-radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0 6px;
-}
-
-.genre-tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  max-height: 180px;
-  overflow-y: auto;
-  padding: 5px 0;
-  margin-bottom: 10px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--button-primary-bg) rgba(67, 97, 238, 0.1);
-}
-
-.genre-tags-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.genre-tags-container::-webkit-scrollbar-track {
-  background: rgba(67, 97, 238, 0.05);
-  border-radius: 3px;
-}
-
-.genre-tags-container::-webkit-scrollbar-thumb {
-  background-color: rgba(67, 97, 238, 0.4);
-  border-radius: 3px;
-}
-
-.genre-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  background-color: rgba(48, 65, 86, 0.08);
-  border: 1px solid rgba(48, 65, 86, 0.15);
-  border-radius: var(--border-radius-md);
-  color: var(--text-color);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-body.dark-theme .genre-tag {
-  border: 1px solid rgba(48, 65, 86, 0.3);
-}
-
-.genre-tag:hover {
-  background-color: rgba(48, 65, 86, 0.15);
-  transform: translateY(-1px);
-}
-
-body.dark-theme .genre-tag:hover {
-  background-color: rgba(48, 65, 86, 0.35);
-}
-
-.genre-tag.selected {
-  background-color: #163860;;
-  color: white;
-  border-color: var(--button-primary-bg);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.genre-tag.selected:hover {
-  filter: brightness(1.05);
-}
-
-.clear-all-button {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  background-color: rgba(244, 67, 54, 0.08);
-  border: 1px solid rgba(244, 67, 54, 0.2);
-  border-radius: 30px;
-  color: #f44336;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-left: 4px;
-}
-
-.clear-all-button:hover {
-  background-color: rgba(244, 67, 54, 0.15);
-  transform: translateY(-1px);
-}
-
-.count-selector, .genre-selector {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  box-sizing: border-box;
-  transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
-  padding: 15px;
-  background-color: var(--card-bg-color);
-  border-radius: var(--border-radius-md);
-  box-shadow: var(--card-shadow);
-  border: 1px solid var(--border-color);
-}
-
-.count-selector {
-  margin-bottom: 14px;
-  padding: 10px;
-}
-
-.select-container {
-  position: relative;
-  width: 100%;
-}
-
-select {
-  width: 100%;
-  padding: 10px 12px;
-  appearance: none;
-  background-color: var(--input-bg);
-  color: var(--input-text);
-  border: 1px solid var(--input-border);
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s, background-color var(--transition-speed), color var(--transition-speed);
-}
-
-select:hover {
-  border-color: #34A853;
-}
-
-select:focus {
-  border-color: #34A853;
-  box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.2);
-  outline: none;
-}
-
-.select-arrow {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  font-size: 10px;
-  color: var(--input-text);
-}
-
-.genre-selector label {
-  font-size: 14px;
-  color: var(--text-color);
-  font-weight: 500;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  transition: color var(--transition-speed);
 }
 
 .action-button {
@@ -7260,608 +4983,6 @@ select:focus {
   font-size: 16px;
 }
 
-.recommendation-list {
-  display: grid;
-  gap: 20px;
-  margin-top: 20px;
-  transition: max-width 0.3s ease, margin 0.3s ease;
-  width: 100%;
-}
-
-.recommendations {
-  transition: width 0.3s ease, margin 0.3s ease;
-  width: 100%;
-}
-
-@media (min-width: 768px) {
-  /* Grid columns controlled by :style binding using the gridStyle computed property */
-}
-
-@media (max-width: 600px) {
-  .recommendation-list {
-    gap: 15px;
-    padding: 0;
-  }
-  
-  .recommendations {
-    padding: 10px;
-  }
-  
-  .recommendation-header {
-    flex-direction: column;
-    align-items: flex-start;
-    margin-bottom: 15px;
-  }
-  
-  .content-type-selector {
-    margin-left: 0;
-    margin-top: 10px;
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
-  }
-  
-  .content-type-button {
-    flex: 1;
-    padding: 8px;
-    white-space: nowrap;
-  }
-  
-  /* Fix settings container going off edge */
-  .settings-container {
-    padding: 15px 10px;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    margin: 0;
-  }
-  
-  /* Adjust settings layout for smaller screens */
-  .settings-layout {
-    flex-direction: column;
-    gap: 15px;
-  }
-  
-  .settings-left, 
-  .settings-right {
-    flex: 0 0 100%;
-    width: 100%;
-  }
-  
-  /* Better handle text overflow in buttons and controls */
-  button, 
-  .slider-header, 
-  .setting-description {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-.recommendation-card {
-  transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed), width 0.3s ease;
-}
-
-.recommendation-card {
-  background-color: var(--card-bg-color);
-  border-radius: 8px;
-  box-shadow: var(--card-shadow);
-  overflow: visible;
-  transition: transform 0.2s ease, box-shadow var(--transition-speed), background-color var(--transition-speed);
-  min-height: 275px; /* Use min-height instead of fixed height to allow content to expand */
-}
-
-/* Compact mode styling for better fit on small screens or with many columns */
-.recommendation-card.compact-mode {
-  min-height: auto;
-  max-width: 100%;
-  overflow: hidden; /* Prevent any content from overflowing */
-  position: relative;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.recommendation-card.compact-mode:hover {
-  transform: translateY(-3px) scale(1.02);
-  z-index: 2; /* Ensure expanded card appears above others */
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-}
-
-/* Full-width expand button at bottom of card */
-.full-width-expand-button {
-  width: 100%;
-  background-color: rgba(48, 65, 86, 0.8);
-  color: white;
-  border: none;
-  border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
-  padding: 8px 12px;
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.full-width-expand-button:hover {
-  background-color: rgba(48, 65, 86, 0.9);
-}
-
-.full-width-expand-button.expanded {
-  background-color: rgba(48, 65, 86, 0.9);
-}
-
-.full-width-expand-button svg {
-  transition: transform 0.2s ease;
-}
-
-.full-width-expand-button:hover svg {
-  transform: translateY(2px);
-}
-
-.full-width-expand-button.expanded:hover svg {
-  transform: translateY(-2px);
-}
-
-.recommendation-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-}
-
-.card-content {
-  display: flex;
-  flex-direction: row;
-  min-height: 100%;
-}
-
-.card-content.compact-layout {
-  flex-direction: column;
-  display: flex;
-  min-height: 100%;
-}
-
-.card-content.clickable {
-  cursor: pointer;
-  position: relative;
-}
-
-.card-content.clickable::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 114, 229, 0.03);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-}
-
-.card-content.clickable:hover::after {
-  opacity: 1;
-}
-
-.card-content.clickable:active {
-  transform: scale(0.99);
-}
-
-@media (max-width: 600px) {
-  .card-content {
-    flex-direction: column;
-  }
-  
-  .recommendation-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
-  }
-  
-  .content-type-toggle {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .content-type-toggle {
-    justify-content: center;
-    padding: 6px 12px;
-  }
-  
-  .toggle-label {
-    font-size: 13px;
-  }
-}
-
-.poster-container {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  flex: 0 0 150px;
-  padding: 0;
-  width: auto;
-  height: 100%;
-}
-
-.compact-layout .poster-container {
-  flex: 0 0 auto;
-  width: 100%;
-  height: auto;
-  margin-bottom: 10px;
-  padding: 10px 10px 0 10px;
-}
-
-@media (max-width: 600px) {
-  .poster-container {
-    flex: 0 0 auto;
-    width: 100%;
-    height: auto;
-    margin-bottom: 10px;
-  }
-}
-
-.poster {
-  width: 150px;
-  height: 275px;
-  background-size: cover;
-  background-position: center;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-}
-
-.compact-layout .poster {
-  width: 100%;
-  height: 180px;
-  border-radius: 4px;
-  background-position: center top; /* Show top of poster in compact mode */
-}
-
-@media (max-width: 600px) {
-  .poster {
-    width: 180px;
-    height: 270px;
-    border-radius: 4px;
-  }
-}
-
-.title-fallback {
-  color: white;
-  font-size: 36px;
-  font-weight: bold;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.retry-poster-button {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0.8;
-  transition: opacity 0.2s, transform 0.2s;
-  padding: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.retry-poster-button:hover {
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-.retry-poster-button svg {
-  width: 20px;
-  height: 20px;
-  stroke: white;
-}
-
-@keyframes rotation {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(359deg);
-  }
-}
-
-.retry-poster-button.loading svg {
-  animation: rotation 1s infinite linear;
-}
-
-.details-container {
-  flex: 1;
-  padding: 15px;
-  overflow: visible;
-  display: flex;
-  flex-direction: column;
-}
-
-.compact-layout .details-container {
-  padding: 10px 12px 15px 12px;
-}
-
-.compact-layout .description,
-.compact-layout .reasoning {
-  /* Hide longer text content in compact mode by default */
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
-  margin: 0;
-}
-
-/* Show content when expanded */
-.recommendation-card.compact-mode.expanded .description,
-.recommendation-card.compact-mode.expanded .reasoning,
-.compact-layout .card-content:hover .description,
-.compact-layout .card-content:hover .reasoning {
-  max-height: 200px; /* Enough height for content */
-  opacity: 1;
-  margin: 8px 0;
-}
-
-.compact-layout .card-header {
-  margin-bottom: 5px;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.compact-layout .card-header h3 {
-  font-size: 0.95rem;
-  margin-bottom: 8px;
-  white-space: normal;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  width: 100%;
-}
-
-.compact-layout .card-actions {
-  width: 100%;
-  justify-content: space-between;
-}
-
-@media (max-width: 600px) {
-  .details-container {
-    padding: 12px;
-  }
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-@media (max-width: 600px) {
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  
-  .card-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-}
-
-.card-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.like-dislike-buttons {
-  display: flex;
-  gap: 5px;
-}
-
-.action-btn {
-  background: none;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 5px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  color: var(--text-color);
-  width: 32px;
-  height: 32px;
-}
-
-.like-btn:hover {
-  background-color: rgba(76, 175, 80, 0.1);
-  color: #4CAF50;
-  border-color: #4CAF50;
-}
-
-.dislike-btn:hover {
-  background-color: rgba(244, 67, 54, 0.1);
-  color: #F44336;
-  border-color: #F44336;
-}
-
-.like-btn.active {
-  background-color: #4CAF50;
-  color: white;
-  border-color: #4CAF50;
-}
-
-.dislike-btn.active {
-  background-color: #F44336;
-  color: white;
-  border-color: #F44336;
-}
-
-.recommendation-card h3 {
-  margin: 0 0 5px 0;
-  color: var(--header-color);
-  overflow: hidden;
-  transition: color var(--transition-speed);
-  font-size: 18px;
-  line-height: 1.3;
-}
-
-.content-container {
-  flex: 1;
-  overflow: visible;
-}
-
-.label {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-color);
-  opacity: 0.9;
-  margin-right: 5px;
-  display: flex;
-  align-items: center;
-}
-
-.info-tooltip {
-  display: inline-flex;
-  margin-left: 4px;
-  color: var(--text-color);
-  opacity: 0.6;
-  transition: opacity 0.2s;
-  position: relative;
-}
-
-.info-tooltip:hover {
-  opacity: 1;
-}
-
-.recommendation-card p {
-  margin: 0;
-  color: var(--text-color);
-  line-height: 1.4;
-  transition: color var(--transition-speed);
-  font-size: 14px;
-}
-
-@media (max-width: 600px) {
-  .recommendation-card p {
-    font-size: 15px;
-  }
-}
-
-.description, .reasoning, .rating, .streaming {
-  margin-bottom: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.rating-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.rating-score {
-  font-weight: bold;
-  font-size: 16px;
-  display: inline-flex;
-  align-items: center;
-  color: #2196F3;
-  padding: 4px 12px;
-  border-radius: 4px;
-  width: fit-content;
-  line-height: 1;
-  margin-top: 4px;
-  vertical-align: middle;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.score-fresh {
-  color: #2196F3;
-  background-color: rgba(33, 150, 243, 0.1);
-}
-
-.score-certified {
-  color: #4CAF50;
-  background-color: rgba(76, 175, 80, 0.2);
-  font-weight: 700;
-}
-
-.score-rotten {
-  color: #FF9800;
-  background-color: rgba(255, 152, 0, 0.1);
-}
-
-.score-unknown {
-  color: #838383;
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.history-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  font-size: 14px;
-  color: var(--text-color);
-}
-
-.clear-history-button {
-  background: none;
-  border: none;
-  color: #f44336;
-  font-size: 13px;
-  padding: 2px 6px;
-  cursor: pointer;
-  opacity: 0.8;
-  transition: opacity 0.2s;
-}
-
-.library-mode-toggle {
-  display: flex;
-  flex-direction: column;
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid var(--border-color);
-}
-
-.setting-description {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-color);
-  opacity: 0.8;
-}
-
-.sample-size-control {
-  margin-top: 10px;
-  margin-left: 22px;
-  padding: 10px;
-  background-color: rgba(52, 168, 83, 0.03);
-  border-radius: 12px;
-  border: 1px solid rgba(52, 168, 83, 0.1);
-}
-
-.clear-history-button:hover {
-  opacity: 1;
-  text-decoration: underline;
-}
-
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -8039,1483 +5160,4 @@ select:focus {
   transition: color var(--transition-speed);
 }
 
-.plex-options, .jellyfin-options, .tautulli-options, .trakt-options {
-  margin-top: 20px;
-  margin-bottom: 20px;
-  background-color: var(--primary-color-lighter);
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--primary-color-border);
-  padding: 15px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.service-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.service-header label {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.service-settings {
-  margin-top: 12px;
-  padding: 12px;
-  background-color: rgba(0, 0, 0, 0.02);
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--primary-color-border);
-}
-
-.plex-history-toggle, .jellyfin-history-toggle, .tautulli-history-toggle, .trakt-history-toggle {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.history-selection {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 15px;
-}
-
-.toggle-option {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  margin: 0;
-  font-size: 14px;
-  padding: 6px 8px;
-  border-radius: var(--border-radius-sm);
-  transition: background-color 0.2s ease;
-}
-
-.toggle-option:hover {
-  background-color: rgba(0, 0, 0, 0.03);
-}
-
-.toggle-option input[type="radio"] {
-  margin-right: 10px;
-  cursor: pointer;
-}
-
-.plex-only-toggle, .jellyfin-only-toggle, .tautulli-only-toggle, .trakt-only-toggle {
-  margin-top: 15px;
-  padding-top: 12px;
-  border-top: 1px solid var(--primary-color-border);
-}
-
-.days-slider-container {
-  margin-top: 8px;
-  margin-bottom: 15px;
-  padding: 12px;
-  background-color: rgba(0, 0, 0, 0.02);
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--primary-color-border);
-}
-
-/* Toggle Switch Styles */
-.toggle-switch {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-  position: absolute;
-}
-
-.toggle-slider {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 26px;
-  background-color: #e0e0e0;
-  border-radius: 34px;
-  transition: .4s;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 20px;
-  width: 20px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  border-radius: 50%;
-  transition: .3s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.toggle-switch input:checked + .toggle-slider {
-  background-color: #34A853;
-}
-
-.toggle-switch input:checked + .toggle-slider:before {
-  transform: translateX(24px);
-}
-
-.toggle-label {
-  font-size: 14px;
-  font-weight: 500;
-  min-width: 60px;
-  text-align: left;
-}
-
-.refresh-button {
-  background-color: rgba(52, 168, 83, 0.1);
-  color: #34A853;
-  border: 1px solid rgba(52, 168, 83, 0.3);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 13px;
-  cursor: pointer;
-  margin-right: 10px;
-  transition: all 0.2s ease;
-}
-
-.refresh-button:hover {
-  background-color: rgba(52, 168, 83, 0.2);
-  transform: translateY(-1px);
-}
-
-.jellyfin-user-select-button, .tautulli-user-select-button, .trakt-refresh-button {
-  margin-top: 15px;
-  width: auto;
-  max-width: 200px;
-}
-
-.request-button {
-  background-color: #2196F3;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.request-button.compact {
-  padding: 5px 10px;
-  font-size: 12px;
-  min-width: 55px;
-  justify-content: center;
-}
-
-@media (max-width: 600px) {
-  .request-button.compact {
-    padding: 8px 12px;
-    font-size: 14px;
-    min-width: 65px;
-  }
-}
-
-.request-button:hover:not(:disabled) {
-  background-color: #1976D2;
-}
-
-.request-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.request-button.loading {
-  background-color: #64B5F6;
-}
-
-.request-button.requested {
-  background-color: #4CAF50;
-  cursor: default;
-}
-
-.small-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-left-color: white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-right: 8px;
-}
-
-.mini-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-left-color: white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  box-sizing: border-box;
-}
-/* Added styles for quality and root folder selection */
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 15px;
-}
-
-.setting-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 15px;
-}
-
-.setting-item label {
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.setting-select {
-  width: 100%;
-  padding: 10px;
-  border-radius: 4px;
-  border: 1px solid var(--input-border);
-  background-color: var(--input-bg);
-  color: var(--text-color);
-  font-size: 14px;
-}
-
-.loading-indicator {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 15px 0;
-  color: var(--text-color);
-  opacity: 0.8;
-}
-
-.loading-indicator .small-spinner {
-  width: 18px;
-  height: 18px;
-  border-width: 2px;
-}
-/* Vibe Selector Styles */
-.vibe-selector {
-  margin-top: 10px;
-  margin-bottom: 20px;
-  background-color: var(--primary-color-lighter);
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--primary-color-border);
-  padding: 15px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.vibe-input-container {
-  position: relative;
-  margin-bottom: 8px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.vibe-input {
-  width: 100%;
-  padding: 12px 15px;
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--primary-color-border);
-  background-color: var(--input-bg);
-  color: var(--input-text);
-  font-size: 14px;
-  line-height: 1.5;
-  min-height: 70px;
-  resize: vertical;
-  box-sizing: border-box;
-  max-width: 100%;
-  font-family: inherit;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.vibe-input:focus {
-  outline: none;
-  border-color: var(--button-primary-bg);
-  box-shadow: 0 0 0 1px var(--primary-color-shadow);
-}
-
-.vibe-input::placeholder {
-  color: #9ca3af;
-}
-
-/* Prompt Style Selector Styles */
-.prompt-style-selector {
-  margin-bottom: 15px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.prompt-style-selector label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.prompt-style-select {
-  width: 100%;
-  padding: 10px 15px;
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--primary-color-border);
-  background-color: var(--input-bg);
-  color: var(--input-text);
-  font-size: 14px;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-
-.prompt-style-select:focus {
-  outline: none;
-  border-color: var(--button-primary-bg);
-  box-shadow: 0 0 0 1px var(--primary-color-shadow);
-}
-
-.select-container {
-  position: relative;
-  width: 100%;
-}
-
-.select-container .select-arrow-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  pointer-events: none;
-}
-
-.clear-prompt-button {
-  background-color: transparent;
-  border: 1px solid rgba(244, 67, 54, 0.3);
-  color: #f44336;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 30px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.clear-prompt-button:hover {
-  background-color: rgba(244, 67, 54, 0.08);
-  transform: translateY(-1px);
-}
-
-.setting-tip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 6px;
-  padding-left: 2px;
-}
-
-.tip-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--button-primary-bg);
-  opacity: 0.7;
-}
-
-.language-selector {
-  margin-bottom: 20px;
-  background-color: var(--primary-color-lighter);
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--primary-color-border);
-  padding: 15px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.language-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--primary-color-light);
-  color: var(--button-primary-bg);
-  border-radius: var(--border-radius-sm);
-  font-size: 12px;
-  font-weight: 500;
-  padding: 2px 10px;
-}
-
-.select-wrapper {
-  position: relative;
-  margin-bottom: 8px;
-}
-
-.select-arrow-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  color: #6b7280;
-  pointer-events: none;
-}
-
-.language-select {
-  width: 100%;
-  padding: 12px 15px;
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--primary-color-border);
-  background-color: var(--input-bg);
-  color: var(--input-text);
-  font-size: 14px;
-  margin-bottom: 8px;
-  appearance: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.language-select:hover {
-  border-color: var(--button-primary-bg);
-}
-
-.language-select:focus {
-  outline: none;
-  border-color: var(--button-primary-bg);
-  box-shadow: 0 0 0 1px var(--primary-color-shadow);
-}
-
-.experimental-toggle {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid var(--border-color);
-}
-
-.experimental-badge {
-  display: inline-block;
-  background-color: #ff9800;
-  color: white;
-  font-size: 10px;
-  font-weight: bold;
-  padding: 2px 6px;
-  border-radius: var(--border-radius-sm);
-  margin-left: 4px;
-  vertical-align: middle;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* Collapsible section styles */
-.collapsible-header {
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  border-radius: var(--border-radius-sm);
-  position: relative;
-}
-
-.collapsible-header:hover {
-  background-color: rgba(0, 0, 0, 0.03);
-}
-
-body.dark-theme .collapsible-header:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.toggle-icon {
-  font-size: 14px;
-  color: var(--button-primary-bg);
-  transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), color 0.15s ease;
-  display: inline-block;
-  width: 14px;
-  text-align: center;
-  transform-origin: center;
-  opacity: 0.8;
-}
-
-body.dark-theme .toggle-icon {
-  opacity: 0.9;
-}
-
-.collapsible-header:hover .toggle-icon {
-  color: var(--button-primary-bg);
-}
-
-/* Improved rotation logic for toggle icon */
-[class*="-content"].collapsed ~ .header-right .toggle-icon,
-[class*="-content"].collapsed + .toggle-icon,
-.collapsed + .toggle-icon,
-.collapsed ~ .toggle-icon,
-[v-show="false"] ~ .header-right .toggle-icon {
-  transform: rotate(-90deg);
-}
-
-.collapsed {
-  max-height: 0 !important;
-  opacity: 0 !important;
-  overflow: hidden !important;
-  transform: translateY(-5px) !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  border-top-width: 0 !important;
-  border-bottom-width: 0 !important;
-}
-
-/* Base styles for all collapsible content */
-.genre-content, .language-content, .rec-number-content, .posters-row-content, 
-.plex-content, .jellyfin-content, .tautulli-content, .trakt-content,
-.config-content, .vibe-content, .settings-content {
-  will-change: max-height, opacity, transform;
-  box-sizing: border-box;
-}
-
-/* Widescreen toggle styling */
-.widescreen-toggle {
-  margin-top: 20px;
-  padding-top: 15px;
-  border-top: 1px solid var(--border-color-light);
-}
-
-.widescreen-toggle .setting-tip {
-  margin-top: 10px;
-  padding-left: 25px;
-  font-size: 0.9em;
-  color: var(--text-secondary);
-  opacity: 0.8;
-}
-
-/* Prevent scroll jumping during animations */
-.collapsible-header {
-  position: relative;
-  z-index: 1;
-}
-
-.info-section-title.collapsible-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  padding: 5px 5px 5px 0;
-  border-radius: var(--border-radius-sm);
-  margin-bottom: 10px;
-}
-
-.info-section-title.collapsible-header:hover {
-  background-color: rgba(0, 0, 0, 0.03);
-}
-
-body.dark-theme .info-section-title.collapsible-header:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-/* Watch History Modal Styles */
-.watch-history-modal {
-  max-width: 90%;
-  width: 900px;
-  max-height: 90vh;
-  z-index: 5; /* Ensure it's above the mobile menu */
-}
-
-.watch-history-section {
-  margin-top: 15px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 10px;
-}
-
-.watch-history-info {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.view-history-button {
-  background-color: var(--accent-color);
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-  align-self: flex-start;
-}
-
-.view-history-button:hover {
-  background-color: var(--accent-color-hover);
-}
-
-.history-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  margin-bottom: 20px;
-}
-
-.history-filters {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.filter-row {
-  display: flex;
-  gap: 15px;
-  align-items: flex-end;
-}
-
-.pagination-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 5px;
-}
-
-.items-per-page {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.items-per-page select {
-  padding: 8px 10px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-color);
-  color: var(--text-color);
-  min-width: 70px;
-}
-
-.pagination-buttons {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
-
-.pagination-button {
-  background-color: var(--background-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 6px 10px;
-  cursor: pointer;
-  color: var(--text-color);
-  transition: all 0.2s ease;
-}
-
-.pagination-button:hover:not(:disabled) {
-  background-color: var(--accent-color);
-  color: white;
-  border-color: var(--accent-color);
-}
-
-.pagination-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.current-page {
-  padding: 0 10px;
-  font-weight: 500;
-  color: var(--accent-color);
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.filter-group label {
-  font-size: 0.9em;
-  font-weight: 500;
-  color: var(--text-color-secondary);
-}
-
-.filter-group select {
-  padding: 8px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-color);
-  color: var(--text-color);
-  min-width: 110px;
-  max-width: 180px;
-}
-
-.search-row {
-  width: 100%;
-}
-
-.history-search {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-color);
-  color: var(--text-color);
-  font-size: 1em;
-}
-
-.history-search:focus {
-  border-color: var(--accent-color);
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
-}
-
-.pagination-info {
-  font-size: 0.9em;
-  color: var(--text-color-secondary);
-}
-
-.history-table-container {
-  overflow-x: auto;
-  max-height: 50vh;
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background-color: var(--background-color);
-  margin-top: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.history-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.history-table th,
-.history-table td {
-  padding: 12px 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.history-table tr:nth-child(even) {
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-.history-table tr:hover {
-  background-color: rgba(33, 150, 243, 0.05);
-}
-
-.history-table th {
-  background-color: #f5f7fa; /* Light solid color for light theme */
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  box-shadow: 0 1px 0 var(--border-color), 0 2px 4px rgba(0, 0, 0, 0.05);
-  font-weight: 600;
-  color: var(--accent-color);
-  padding: 15px 10px;
-}
-
-/* Dark theme support */
-body.dark-theme .history-table th {
-  background-color: #2d3748; /* Dark solid color for dark theme */
-  color: #90caf9; /* Lighter blue for dark theme */
-}
-
-.title-column {
-  max-width: 40%;
-}
-
-.no-history {
-  padding: 20px;
-  text-align: center;
-  color: var(--text-color-secondary);
-}
-
-.watch-history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 15px;
-}
-
-.history-title h4 {
-  margin-top: 0;
-  margin-bottom: 5px;
-  color: var(--accent-color);
-}
-
-.history-title .item-count {
-  font-size: 0.9em;
-  color: var(--text-color-secondary);
-  margin: 0;
-}
-
-.filter-controls {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.search-container {
-  margin-bottom: 15px;
-}
-
-/* Modern card redesign */
-.recommendation-list {
-  display: grid;
-  gap: 24px;
-  margin-top: 24px;
-  grid-auto-flow: dense; /* Fill gaps when some items span multiple rows */
-  grid-auto-rows: min-content;
-}
-
-.recommendation-card {
-  background-color: var(--card-bg-color);
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  position: relative;
-  border: none;
-  backdrop-filter: blur(5px);
-  transform-origin: center bottom;
-}
-
-.recommendation-card:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-}
-
-.card-content {
-  display: flex;
-  flex-direction: row;
-}
-
-.card-content.compact-layout {
-  flex-direction: column;
-}
-
-.poster-container {
-  position: relative;
-  flex: 0 0 150px;
-  overflow: hidden;
-  border-radius: 12px;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
-}
-
-.poster {
-  width: 100%;
-  height: 210px;
-  background-size: cover;
-  background-position: center top;
-  transition: transform 0.5s cubic-bezier(0.33, 1, 0.68, 1);
-  filter: saturate(1.1) contrast(1.05);
-  position: relative;
-}
-
-.poster::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(to bottom, 
-    rgba(0,0,0,0) 60%,
-    rgba(0,0,0,0.6) 100%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.recommendation-card:hover .poster {
-  transform: scale(1.08);
-}
-
-.recommendation-card:hover .poster::after {
-  opacity: 1;
-}
-
-.rating-badge {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  color: white;
-  font-weight: 800;
-  font-size: 18px;
-  letter-spacing: 0.5px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  transform: translateZ(0);
-  transition: all 0.3s ease;
-  overflow: hidden;
-  backdrop-filter: blur(8px);
-}
-
-.rating-badge::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.85;
-  z-index: -1;
-  transition: opacity 0.3s ease;
-}
-
-.recommendation-card:hover .rating-badge::before {
-  opacity: 0.95;
-}
-
-.rating-badge::after {
-  content: '★ ' attr(data-rating);
-  position: relative;
-  z-index: 1;
-}
-
-.rating-badge.high::before {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95));
-}
-
-.rating-badge.medium::before {
-  background: linear-gradient(90deg, rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 0.95));
-}
-
-.rating-badge.low::before {
-  background: linear-gradient(90deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
-}
-
-.details-container {
-  flex: 1;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 1;
-}
-
-.details-container:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 80px;
-  background: linear-gradient(180deg, rgba(var(--card-bg-rgb, 255, 255, 255), 0.08) 0%, rgba(var(--card-bg-rgb, 255, 255, 255), 0) 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: -1;
-  pointer-events: none;
-}
-
-.recommendation-card:hover .details-container:before {
-  opacity: 1;
-}
-
-.card-header {
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.recommendation-card h3 {
-  margin: 0 0 5px 0;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--header-color);
-  position: relative;
-  display: inline-block;
-  transition: transform 0.3s ease;
-}
-
-.card-actions {
-  display: flex;
-  gap: 10px;
-  margin-left: 8px;
-}
-
-.action-btn {
-  background: none;
-  border: none;
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 50%;
-  color: var(--text-color);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.action-btn:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: currentColor;
-  border-radius: 50%;
-  opacity: 0;
-  transform: scale(0.5);
-  transition: all 0.2s ease;
-  z-index: -1;
-}
-
-.action-btn:hover {
-  transform: translateY(-3px) scale(1.15);
-  color: white;
-}
-
-.action-btn:hover:before {
-  opacity: 0.15;
-  transform: scale(1);
-}
-
-.like-btn.active {
-  color: #10b981;
-  transform: scale(1.1);
-}
-
-.dislike-btn.active {
-  color: #ef4444;
-  transform: scale(1.1);
-}
-
-.request-button {
-  background-color: var(--primary-color, #0072e5);
-  color: white;
-  border: none;
-  border-radius: 30px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-/* Add specific styles for light mode to ensure visibility */
-body:not(.dark-theme) .request-button {
-  background-color: #0072e5;
-  color: white;
-  box-shadow: 0 2px 5px rgba(0, 114, 229, 0.25);
-}
-
-.request-button:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
-  transform: translateX(-100%);
-  transition: transform 0.6s ease;
-}
-
-.request-button:hover:not(:disabled):before {
-  transform: translateX(100%);
-}
-
-.request-button:hover:not(:disabled) {
-  background-color: var(--primary-color-dark, #005bb8);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.request-button.requested {
-  background-color: #10b981;
-}
-
-.content-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  position: relative;
-}
-
-/* Ensure expanded content doesn't disrupt the grid layout */
-.recommendation-card.expanded .content-container {
-  min-height: fit-content;
-  isolation: isolate; /* Create a new stacking context */
-}
-
-.description, .reasoning, .full-text {
-  position: relative;
-  transition: transform 0.3s ease;
-}
-
-.recommendation-card:hover .description, 
-.recommendation-card:hover .reasoning,
-.recommendation-card:hover .full-text {
-  transform: translateY(-3px);
-}
-
-.description p, .reasoning p, .full-text p {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--text-color);
-  position: relative;
-  transition: color 0.3s ease;
-}
-
-.description {
-  position: relative;
-  padding: 0 0 0 16px;
-  border-left: 3px solid rgba(var(--primary-color-rgb, 0, 114, 229), 0.3);
-  border-radius: 2px;
-  margin-bottom: 6px;
-}
-
-.description p {
-  font-style: italic;
-  opacity: 0.9;
-  font-size: 15px;
-  line-height: 1.6;
-  transition: color 0.3s ease;
-}
-
-.recommendation-card:hover .description p {
-  color: var(--header-color);
-  opacity: 1;
-}
-
-.reasoning {
-  position: relative;
-  padding: 12px 16px;
-  background-color: var(--card-bg-color, white);
-  border-radius: 12px;
-  transition: all 0.25s ease;
-  margin-top: 6px;
-  border-left: 3px solid var(--primary-color, #0072e5);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-/* Dark mode support */
-body.dark-theme .reasoning {
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-  background-color: rgba(35, 35, 40, 0.4);
-  backdrop-filter: blur(5px);
-}
-
-.recommendation-card:hover .reasoning {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-}
-
-body.dark-theme .recommendation-card:hover .reasoning {
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
-.reasoning-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-  position: relative;
-  z-index: 1;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(var(--primary-color-rgb, 0, 114, 229), 0.1);
-}
-
-.reasoning-icon {
-  font-size: 14px;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.1);
-  color: var(--primary-color, #0072e5);
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-body.dark-theme .reasoning-icon {
-  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.15);
-}
-
-.reasoning-label {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--primary-color, #0072e5);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  letter-spacing: 0.2px;
-}
-
-.reasoning-content {
-  position: relative;
-  z-index: 1;
-}
-
-.reasoning-content {
-  position: relative;
-  padding: 4px 0;
-}
-
-.reasoning-content p {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-color);
-  font-weight: 400;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  position: relative;
-  margin: 0;
-}
-
-.reasoning-content p::first-letter {
-  color: var(--primary-color, #0072e5);
-  font-weight: 500;
-}
-
-.rating-info {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-size: 14px;
-  color: var(--text-color-light);
-  opacity: 0.7;
-  transition: opacity 0.3s ease;
-}
-
-.rating-info:hover {
-  opacity: 1;
-}
-
-.info-tooltip {
-  display: inline-flex;
-  cursor: help;
-  color: var(--text-color-light);
-  padding: 4px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.info-tooltip:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  transform: scale(1.1);
-}
-
-.full-width-expand-button {
-  width: 100%;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--border-color);
-  margin-top: 10px;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  color: var(--text-color-light);
-  font-size: 14px;
-  font-weight: 500;
-  position: relative;
-  overflow: hidden;
-}
-
-.full-width-expand-button:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(to right, transparent 0%, rgba(var(--primary-color-rgb, 0, 114, 229), 0.05) 50%, transparent 100%);
-  transform: translateX(-100%);
-  transition: transform 0.4s ease;
-}
-
-.full-width-expand-button:hover:before {
-  transform: translateX(100%);
-}
-
-.full-width-expand-button:hover {
-  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.03);
-  color: var(--primary-color);
-}
-
-.full-width-expand-button.expanded {
-  background-color: rgba(var(--primary-color-rgb, 0, 114, 229), 0.04);
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-/* Compact mode adjustments */
-.recommendation-card.compact-mode {
-  display: flex;
-  flex-direction: column;
-  height: auto;
-}
-
-.recommendation-card.compact-mode:not(.expanded) .description,
-.recommendation-card.compact-mode:not(.expanded) .reasoning {
-  display: none;
-}
-
-.recommendation-card.compact-mode.expanded {
-  height: auto;
-  grid-row: auto / span 2; /* Take up more vertical space without affecting other cards */
-  z-index: 2; /* Ensure expanded card appears above others */
-}
-
-/* Add a gradient border effect to the cards */
-.recommendation-card:after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, 
-    rgba(var(--primary-color-rgb, 0, 114, 229), 0.1) 0%, 
-    rgba(var(--primary-color-rgb, 0, 114, 229), 0.01) 50%,
-    rgba(255, 255, 255, 0.1) 100%
-  );
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: destination-out;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-
-.recommendation-card:hover:after {
-  opacity: 1;
-}
-
-/* Subtle card hover lift animation */
-@keyframes card-lift {
-  0% { transform: translateY(0) scale(1); }
-  100% { transform: translateY(-8px) scale(1.02); }
-}
-
-.recommendation-card:hover {
-  animation: card-lift 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-}
-
-@media (max-width: 600px) {
-  .recommendation-list {
-    gap: 20px;
-  }
-  
-  .card-content {
-    flex-direction: column;
-  }
-  
-  .poster-container {
-    width: 100%;
-    flex: initial;
-    height: 200px;
-    overflow: hidden;
-    border-radius: 12px 12px 0 0;
-  }
-  
-  .poster {
-    height: 200px;
-    width: 100%;
-  }
-  
-  .card-header {
-    flex-direction: column;
-  }
-  
-  .card-actions {
-    width: 100%;
-    justify-content: space-between;
-    margin-left: 0;
-    margin-top: 10px;
-  }
-  
-  .recommendation-card {
-    transform: none !important;
-    animation: none !important;
-  }
-  
-  .recommendation-card:hover {
-    transform: translateY(-5px) !important;
-  }
-  
-  .recommendation-card:hover .description, 
-  .recommendation-card:hover .reasoning,
-  .recommendation-card:hover .full-text {
-    transform: none;
-  }
-}
-
-/* Prompt Style Help Styles */
-.prompt-style-help {
-  margin-top: 12px;
-  border-radius: 6px;
-  background-color: rgba(0, 0, 0, 0.04);
-  padding: 12px 15px;
-  font-size: 0.9rem;
-  line-height: 1.4;
-  transition: all 0.3s ease;
-}
-
-.dark-theme .prompt-style-help {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-.prompt-style-info h4 {
-  margin-top: 0;
-  margin-bottom: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-primary);
-}
-
-.prompt-style-info p {
-  margin: 0 0 8px;
-}
-
-.prompt-style-info p:last-child {
-  margin-bottom: 0;
-  font-style: italic;
-}
-
-.prompt-style-info em {
-  font-style: italic;
-  font-weight: 500;
-}
 </style>

@@ -6,7 +6,8 @@
       <button class="notification-close" @click="dismissNotification">×</button>
     </div>
     
-    <h2>Recommendation History</h2>
+    <h2>Your Recommendation History</h2>
+    <p class="history-user-info" v-if="username">Viewing history for user: {{ username }}</p>
     
     <div class="history-controls">
       <div class="view-toggle">
@@ -103,7 +104,7 @@
             <input 
               type="checkbox" 
               v-model="hideExistingContent" 
-              @change="applyFilters"
+              @change="handleFilterChange"
             >
             Hide items in your library
           </label>
@@ -112,7 +113,7 @@
             <input 
               type="checkbox" 
               v-model="hideLikedContent" 
-              @change="applyFilters"
+              @change="handleFilterChange"
             >
             Hide liked items
           </label>
@@ -121,7 +122,7 @@
             <input 
               type="checkbox" 
               v-model="hideDislikedContent" 
-              @change="applyFilters"
+              @change="handleFilterChange"
             >
             Hide disliked items
           </label>
@@ -130,7 +131,7 @@
             <input 
               type="checkbox" 
               v-model="hideHiddenContent" 
-              @change="applyFilters"
+              @change="handleFilterChange"
             >
             Hide hidden items
           </label>
@@ -549,14 +550,10 @@ import radarrService from '../services/RadarrService.js';
 import tmdbService from '../services/TMDBService.js';
 import TMDBDetailModal from './TMDBDetailModal.vue';
 import apiService from '../services/ApiService.js';
+import authService from '../services/AuthService.js';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils.js'; // Replaced StorageUtils
+import recommendationsStore from '../stores/RecommendationsStore.js'; // Import the store
 import axios from 'axios';
-
-// Debug services availability
-console.log('History component - Services loaded:');
-console.log('imageService available:', !!imageService);
-console.log('sonarrService available:', !!sonarrService);
-console.log('radarrService available:', !!radarrService);
-console.log('apiService available:', !!apiService);
 
 export default {
   name: 'RecommendationHistory',
@@ -575,9 +572,8 @@ export default {
   },
   data() {
     return {
+      username: authService.getUser()?.username || '',
       activeView: 'combined',
-      tvRecommendations: [],
-      movieRecommendations: [],
       filteredTVRecommendations: [],
       filteredMovieRecommendations: [],
       displayedTVShows: [],
@@ -599,7 +595,7 @@ export default {
       hideExistingContent: true,
       hideLikedContent: true,
       hideDislikedContent: true,
-      hiddenTVShows: new Set(),
+      hiddenTV: new Set(), // Renamed
       hiddenMovies: new Set(),
       hideHiddenContent: true, // Default to hiding hidden items
       
@@ -614,8 +610,7 @@ export default {
         sonarr: []
       },
       loadingTags: {
-        radarr: false,
-        sonarr: false
+        sonarr: []
       },
       
       // Intersection observer
@@ -669,11 +664,29 @@ export default {
       
       // Notification system
       notification: null,
-      notificationTimeout: null
+      notificationTimeout: null,
+      storeInitialized: false, // Track store initialization
+      isInitializing: true // Flag to prevent saving during initial load
     };
   },
   computed: {
+    // Use store state for recommendations
+    tvRecommendations() {
+      // Ensure store is initialized before accessing state
+      return this.storeInitialized ? (recommendationsStore.state.previousShowRecommendations || []) : [];
+    },
+    movieRecommendations() {
+      // Ensure store is initialized before accessing state
+      return this.storeInitialized ? (recommendationsStore.state.previousMovieRecommendations || []) : [];
+    },
+    // Keep local liked/disliked sets for now as store doesn't separate them
+    // likedTVShows() ...
+    // dislikedTVShows() ...
+    // likedMovies() ...
+    // dislikedMovies() ...
+
     noHistory() {
+      // Use computed properties accessing the store
       if (this.activeView === 'tv') {
         return this.tvRecommendations.length === 0;
       } else if (this.activeView === 'movies') {
@@ -683,13 +696,16 @@ export default {
       }
     },
     gridTemplateStyle() {
+      // Use local columnsCount as store doesn't have setter
       return `repeat(${this.columnsCount}, 1fr)`;
     },
     hasMoreTVShows() {
+      // Use computed tvRecommendations
       const source = this.hideExistingContent ? this.filteredTVRecommendations : this.tvRecommendations;
       return this.displayedTVShows.length < source.length && !this.loadingMoreTV;
     },
     hasMoreMovies() {
+      // Use computed movieRecommendations
       const source = this.hideExistingContent ? this.filteredMovieRecommendations : this.movieRecommendations;
       return this.displayedMovies.length < source.length && !this.loadingMoreMovies;
     },
@@ -697,14 +713,24 @@ export default {
       return tmdbService.isConfigured();
     }
   },
-  created() {
-    this.loadRecommendationHistory();
-    this.loadColumnsCount();
-    this.loadFilterPreferences();
-    this.loadLikedDislikedContent();
+  async created() {
+    // Initialize the store first
+    this.loading = true; // Set loading true initially
+    try {
+      await recommendationsStore.initialize();
+      this.storeInitialized = true; // Mark store as initialized
+      
+      // Load settings not managed by the store (or without setters)
+      // Moved loading logic to the storeInitialized watcher
+    } catch (error) {
+      console.error("Error initializing store:", error);
+      this.showNotification("Error initializing history.", "error");
+      this.loading = false; // Set loading false on init error
+    }
+    // No finally block needed here anymore for loading state
   },
   async mounted() {
-    console.log('History component mounted');
+    
     
     // Make sure services are loaded before proceeding
     await Promise.all([
@@ -716,15 +742,7 @@ export default {
     // Check if services are configured after loading credentials
     const sonarrReady = sonarrService.isConfigured();
     const radarrReady = radarrService.isConfigured();
-    const tmdbReady = tmdbService.isConfigured();
-    
-    console.log('Service configuration status:');
-    console.log('- sonarrConfigured prop:', this.sonarrConfigured);
-    console.log('- radarrConfigured prop:', this.radarrConfigured);
-    console.log('- Sonarr ready after credential load:', sonarrReady);
-    console.log('- Radarr ready after credential load:', radarrReady);
-    console.log('- TMDB ready after credential load:', tmdbReady);
-    
+
     // Load library content first to check if items exist in library
     await this.loadLibraryContent();
     
@@ -747,7 +765,7 @@ export default {
   beforeUnmount() {
     // Abort any in-flight requests when component is unmounted
     if (this.abortController) {
-      console.log('History component unmounting, aborting in-flight requests');
+      
       this.abortController.abort();
       this.loading = false;
     }
@@ -761,6 +779,47 @@ export default {
     }
   },
   watch: {
+    // Watch store initialization status
+    storeInitialized(newVal) {
+      if (newVal) {
+        // Store is ready, load preferences and library content, then apply filters
+        Promise.all([
+          this.loadColumnsCount(),     // Load column setting
+          this.loadFilterPreferences(), // Load hidden items etc.
+          this.loadLibraryContent()     // Load Sonarr/Radarr lists
+        ]).then(() => {
+           this.applyFilters(false); // Apply initial filters *without* saving
+           this.resetPagination(); // Reset pagination after filters
+           this.loading = false; // Set loading false after initial setup
+           this.isInitializing = false; // Mark initialization as complete
+        }).catch(error => {
+           console.error("Error during post-initialization loading:", error);
+           this.showNotification("Error applying initial settings.", "error");
+           this.loading = false; // Ensure loading is set to false even on error
+           this.isInitializing = false; // Ensure flag is set even on error
+        });
+      }
+    },
+    // Watch store recommendation arrays for changes
+    'recommendationsStore.state.previousShowRecommendations': {
+      handler() {
+        if (this.storeInitialized) {
+          this.applyFilters();
+          this.resetPagination();
+        }
+      },
+      deep: true
+    },
+    'recommendationsStore.state.previousMovieRecommendations': {
+      handler() {
+        if (this.storeInitialized) {
+          this.applyFilters();
+          this.resetPagination();
+        }
+      },
+      deep: true
+    },
+    // Keep watchers for locally managed settings/data
     existingTVShows() {
       this.applyFilters();
     },
@@ -784,14 +843,12 @@ export default {
       // Reset pagination when filters change
       this.resetPagination();
       
-      // Save to localStorage
-      localStorage.setItem('historyHideExisting', this.hideExistingContent.toString());
+      // Save to database storage
+      await databaseStorageUtils.set('historyHideExisting', this.hideExistingContent);
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyHideExisting = this.hideExistingContent;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyHideExisting', this.hideExistingContent);
       } catch (error) {
         console.error('Failed to save historyHideExisting setting to server:', error);
       }
@@ -801,14 +858,12 @@ export default {
       // Reset pagination when filters change
       this.resetPagination();
       
-      // Save to localStorage
-      localStorage.setItem('historyHideLiked', this.hideLikedContent.toString());
+      // Save to database storage
+      await databaseStorageUtils.set('historyHideLiked', this.hideLikedContent);
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyHideLiked = this.hideLikedContent;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyHideLiked', this.hideLikedContent);
       } catch (error) {
         console.error('Failed to save historyHideLiked setting to server:', error);
       }
@@ -818,26 +873,19 @@ export default {
       // Reset pagination when filters change
       this.resetPagination();
       
-      // Save to localStorage
-      localStorage.setItem('historyHideDisliked', this.hideDislikedContent.toString());
+      // Save to database storage
+      await databaseStorageUtils.set('historyHideDisliked', this.hideDislikedContent);
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyHideDisliked = this.hideDislikedContent;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyHideDisliked', this.hideDislikedContent);
       } catch (error) {
         console.error('Failed to save historyHideDisliked setting to server:', error);
       }
     },
-    tvRecommendations() {
-      this.applyFilters();
-      this.resetPagination();
-    },
-    movieRecommendations() {
-      this.applyFilters();
-      this.resetPagination();
-    },
+    // Remove watchers for local tv/movieRecommendations
+    // tvRecommendations() { ... }
+    // movieRecommendations() { ... }
     filteredTVRecommendations() {
       this.resetPagination();
     },
@@ -861,7 +909,7 @@ export default {
       try {
         const tags = await radarrService.getTags();
         this.availableTags.radarr = tags || [];
-        console.log('Loaded Radarr tags:', this.availableTags.radarr);
+        
       } catch (error) {
         console.error('Error loading Radarr tags:', error);
       } finally {
@@ -879,7 +927,7 @@ export default {
       try {
         const tags = await sonarrService.getTags();
         this.availableTags.sonarr = tags || [];
-        console.log('Loaded Sonarr tags:', this.availableTags.sonarr);
+        
       } catch (error) {
         console.error('Error loading Sonarr tags:', error);
       } finally {
@@ -932,7 +980,7 @@ export default {
         .map(item => {
           // If item is an object, get its title property or convert to string
           if (typeof item === 'object') {
-            console.log('Found object in recommendations:', item);
+            
             // Try to get title property if it exists
             if (item.title) {
               return item.title;
@@ -947,97 +995,9 @@ export default {
         .filter(str => str.trim() !== ''); // Remove empty strings
     },
     
-    async loadRecommendationHistory() {
-      this.loading = true;
-      
-      // Create a new AbortController and store the reference
-      this.abortController = new AbortController();
-      const signal = this.abortController.signal;
-      
-      try {
-        // First try to load TV recommendations from server with abort signal
-        // Use readonly method to avoid overwriting server data
-        const tvRecommendations = await this.fetchWithAbort(
-          () => apiService.getRecommendationsReadOnly('tv'),
-          signal,
-          'Loading TV recommendations (readonly)'
-        );
-        
-        if (tvRecommendations && tvRecommendations.length > 0 && !signal.aborted) {
-          console.log('Loaded TV recommendations from server:', tvRecommendations.length);
-          // Normalize recommendations to ensure they're all strings
-          this.tvRecommendations = this.normalizeArray(tvRecommendations);
-          console.log('Normalized TV recommendations:', this.tvRecommendations);
-          // Update localStorage with server data
-          localStorage.setItem('previousTVRecommendations', JSON.stringify(this.tvRecommendations));
-        } else if (!signal.aborted) {
-          // Fallback to localStorage if server returns empty
-          const tvHistory = localStorage.getItem('previousTVRecommendations');
-          if (tvHistory) {
-            const parsed = JSON.parse(tvHistory);
-            this.tvRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded TV recommendations from localStorage:', this.tvRecommendations.length);
-            // Don't save to server - server was empty by design (likely after a reset)
-          }
-        }
-        
-        // Then try to load movie recommendations from server with abort signal
-        if (!signal.aborted) {
-          const movieRecommendations = await this.fetchWithAbort(
-            () => apiService.getRecommendationsReadOnly('movie'),
-            signal,
-            'Loading movie recommendations (readonly)'
-          );
-          
-          if (movieRecommendations && movieRecommendations.length > 0 && !signal.aborted) {
-            console.log('Loaded movie recommendations from server:', movieRecommendations.length);
-            // Normalize recommendations to ensure they're all strings
-            this.movieRecommendations = this.normalizeArray(movieRecommendations);
-            console.log('Normalized movie recommendations:', this.movieRecommendations);
-            // Update localStorage with server data
-            localStorage.setItem('previousMovieRecommendations', JSON.stringify(this.movieRecommendations));
-          } else if (!signal.aborted) {
-            // Fallback to localStorage if server returns empty
-            const movieHistory = localStorage.getItem('previousMovieRecommendations');
-            if (movieHistory) {
-              const parsed = JSON.parse(movieHistory);
-              this.movieRecommendations = this.normalizeArray(parsed);
-              console.log('Loaded movie recommendations from localStorage:', this.movieRecommendations.length);
-              // Don't save to server - server was empty by design (likely after a reset)
-            }
-          }
-        }
-      } catch (error) {
-        // Only log and handle errors if not aborted
-        if (!signal.aborted) {
-          console.error('Error loading recommendations from server:', error);
-          
-          // Fallback to localStorage on error
-          const tvHistory = localStorage.getItem('previousTVRecommendations');
-          if (tvHistory) {
-            const parsed = JSON.parse(tvHistory);
-            this.tvRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded TV recommendations from localStorage (after server error)');
-          }
-          
-          const movieHistory = localStorage.getItem('previousMovieRecommendations');
-          if (movieHistory) {
-            const parsed = JSON.parse(movieHistory);
-            this.movieRecommendations = this.normalizeArray(parsed);
-            console.log('Loaded movie recommendations from localStorage (after server error)');
-          }
-        } else {
-          console.log('Request was aborted, skipping error handling');
-        }
-      } finally {
-        // Only update loading state if not aborted
-        if (!signal.aborted) {
-          this.loading = false;
-        }
-      }
-    },
+    // loadRecommendationHistory removed - handled by store initialization
     
-    // Helper method to fetch with abort signal
+    // Helper method to fetch with abort signal (keep this)
     async fetchWithAbort(fetchFunction, signal, logPrefix = '') {
       try {
         // Add the signal parameter to axios request if possible
@@ -1064,7 +1024,7 @@ export default {
       } catch (error) {
         // If aborted, log it and rethrow
         if (error.name === 'AbortError' || signal.aborted) {
-          console.log(`${logPrefix} request was aborted`);
+          
           throw new Error('Request aborted');
         }
         
@@ -1077,43 +1037,37 @@ export default {
     async loadColumnsCount() {
       try {
         // First try to load from server settings
-        const settings = await apiService.getSettings();
-        if (settings && settings.historyColumnsCount) {
-          console.log('Loaded history columns count from server:', settings.historyColumnsCount);
-          this.columnsCount = settings.historyColumnsCount;
-          // Update localStorage
-          localStorage.setItem('historyColumnsCount', settings.historyColumnsCount.toString());
+        const serverCount = await apiService.getSetting('historyColumnsCount');
+        if (serverCount !== null && serverCount !== undefined) {
+          this.columnsCount = parseInt(serverCount);
+          // Update database storage
+          await databaseStorageUtils.set('historyColumnsCount', this.columnsCount);
         } else {
-          // Fall back to localStorage
-          const savedCount = localStorage.getItem('historyColumnsCount');
-          if (savedCount) {
+          // Fall back to database storage
+          const savedCount = await databaseStorageUtils.get('historyColumnsCount');
+          if (savedCount !== null) {
             this.columnsCount = parseInt(savedCount);
-            // Save to server for future use
-            if (settings) {
-              settings.historyColumnsCount = parseInt(savedCount);
-              await apiService.saveSettings(settings);
-            }
+            // Optionally save to server if found locally but not on server
+            // await apiService.saveSetting('historyColumnsCount', this.columnsCount); // Keep commented or remove
           }
         }
       } catch (error) {
         console.error('Error loading columns count from server:', error);
-        // Fall back to localStorage
-        const savedCount = localStorage.getItem('historyColumnsCount');
+        // Fall back to database storage (add await)
+        const savedCount = await databaseStorageUtils.get('historyColumnsCount');
         if (savedCount) {
           this.columnsCount = parseInt(savedCount);
         }
       }
     },
     
-    async saveColumnsCount() {
-      // Save to localStorage
-      localStorage.setItem('historyColumnsCount', this.columnsCount.toString());
+    async saveColumnsCount() { // Already async
+      // Save to database storage (add await)
+      await databaseStorageUtils.set('historyColumnsCount', this.columnsCount);
       
       // Save to server
       try {
-        const settings = await apiService.getSettings();
-        settings.historyColumnsCount = this.columnsCount;
-        await apiService.saveSettings(settings);
+        await apiService.saveSetting('historyColumnsCount', this.columnsCount);
       } catch (error) {
         console.error('Failed to save historyColumnsCount setting to server:', error);
       }
@@ -1121,169 +1075,133 @@ export default {
     
     async loadFilterPreferences() {
       try {
-        // Try to load filter preferences from server first
-        const settings = await apiService.getSettings();
-        
+        // Load boolean settings individually from server
+        const serverHideExisting = await apiService.getSetting('historyHideExisting');
+        const serverHideLiked = await apiService.getSetting('historyHideLiked');
+        const serverHideDisliked = await apiService.getSetting('historyHideDisliked');
+        const serverHideHidden = await apiService.getSetting('historyHideHidden');
+
         // Load hide existing content preference
-        if (settings && settings.historyHideExisting !== undefined) {
-          console.log('Loaded historyHideExisting from server:', settings.historyHideExisting);
-          this.hideExistingContent = settings.historyHideExisting;
-          // Update localStorage
-          localStorage.setItem('historyHideExisting', settings.historyHideExisting.toString());
+        if (serverHideExisting !== null && serverHideExisting !== undefined) {
+          this.hideExistingContent = serverHideExisting;
+          await databaseStorageUtils.set('historyHideExisting', serverHideExisting);
         } else {
-          // Fall back to localStorage
-          const hideExisting = localStorage.getItem('historyHideExisting');
+          const hideExisting = await databaseStorageUtils.get('historyHideExisting');
           if (hideExisting !== null) {
-            this.hideExistingContent = hideExisting === 'true';
-            // Save to server for future use
-            if (settings) {
-              settings.historyHideExisting = hideExisting === 'true';
-              await apiService.saveSettings(settings);
-            }
+            this.hideExistingContent = hideExisting;
           }
         }
-        
+
         // Load hide liked content preference
-        if (settings && settings.historyHideLiked !== undefined) {
-          console.log('Loaded historyHideLiked from server:', settings.historyHideLiked);
-          this.hideLikedContent = settings.historyHideLiked;
-          // Update localStorage
-          localStorage.setItem('historyHideLiked', settings.historyHideLiked.toString());
+        if (serverHideLiked !== null && serverHideLiked !== undefined) {
+          this.hideLikedContent = serverHideLiked;
+          await databaseStorageUtils.set('historyHideLiked', serverHideLiked);
         } else {
-          // Fall back to localStorage
-          const hideLiked = localStorage.getItem('historyHideLiked');
+          const hideLiked = await databaseStorageUtils.get('historyHideLiked');
           if (hideLiked !== null) {
-            this.hideLikedContent = hideLiked === 'true';
-            // Save to server for future use
-            if (settings) {
-              settings.historyHideLiked = hideLiked === 'true';
-              await apiService.saveSettings(settings);
-            }
+            this.hideLikedContent = hideLiked;
           }
         }
-        
+
         // Load hide disliked content preference
-        if (settings && settings.historyHideDisliked !== undefined) {
-          console.log('Loaded historyHideDisliked from server:', settings.historyHideDisliked);
-          this.hideDislikedContent = settings.historyHideDisliked;
-          // Update localStorage
-          localStorage.setItem('historyHideDisliked', settings.historyHideDisliked.toString());
+        if (serverHideDisliked !== null && serverHideDisliked !== undefined) {
+          this.hideDislikedContent = serverHideDisliked;
+          await databaseStorageUtils.set('historyHideDisliked', serverHideDisliked);
         } else {
-          // Fall back to localStorage
-          const hideDisliked = localStorage.getItem('historyHideDisliked');
+          const hideDisliked = await databaseStorageUtils.get('historyHideDisliked');
           if (hideDisliked !== null) {
-            this.hideDislikedContent = hideDisliked === 'true';
-            // Save to server for future use
-            if (settings) {
-              settings.historyHideDisliked = hideDisliked === 'true';
-              await apiService.saveSettings(settings);
-            }
+            this.hideDislikedContent = hideDisliked;
           }
         }
-        
+
         // Load hide hidden content preference
-        if (settings && settings.historyHideHidden !== undefined) {
-          console.log('Loaded historyHideHidden from server:', settings.historyHideHidden);
-          this.hideHiddenContent = settings.historyHideHidden;
-          // Update localStorage
-          localStorage.setItem('historyHideHidden', settings.historyHideHidden.toString());
+        if (serverHideHidden !== null && serverHideHidden !== undefined) {
+          this.hideHiddenContent = serverHideHidden;
+          await databaseStorageUtils.set('historyHideHidden', serverHideHidden);
         } else {
-          // Fall back to localStorage or default to true
-          const hideHidden = localStorage.getItem('historyHideHidden');
+          const hideHidden = await databaseStorageUtils.get('historyHideHidden');
           if (hideHidden !== null) {
-            this.hideHiddenContent = hideHidden === 'true';
+            this.hideHiddenContent = hideHidden;
           } else {
-            // Set default to true if no setting exists anywhere
-            this.hideHiddenContent = true;
-            localStorage.setItem('historyHideHidden', 'true');
-          }
-          
-          // Save to server for future use
-          if (settings) {
-            settings.historyHideHidden = this.hideHiddenContent;
-            await apiService.saveSettings(settings);
+            this.hideHiddenContent = true; // Default to true
+            await databaseStorageUtils.set('historyHideHidden', true);
           }
         }
         
         // Load hidden TV shows
         const hiddenTVFromServer = await apiService.getPreferences('tv', 'hidden');
         if (hiddenTVFromServer && hiddenTVFromServer.length > 0) {
-          console.log('Loaded hidden TV shows from server:', hiddenTVFromServer.length);
-          this.hiddenTVShows = new Set(hiddenTVFromServer.map(show => show.toLowerCase()));
-          // Update localStorage
-          localStorage.setItem('hiddenTVShows', JSON.stringify(hiddenTVFromServer));
+          this.hiddenTV = new Set(hiddenTVFromServer.map(show => show.toLowerCase()));
+          // Update database storage
+          await databaseStorageUtils.setJSON('hiddenTV', hiddenTVFromServer);
         } else {
-          // Fall back to localStorage
-          const hiddenTV = localStorage.getItem('hiddenTVShows');
+          // Fall back to database storage
+          const hiddenTV = await databaseStorageUtils.getJSON('hiddenTV');
           if (hiddenTV) {
-            const parsed = JSON.parse(hiddenTV);
-            this.hiddenTVShows = new Set(parsed.map(show => show.toLowerCase()));
-            console.log('Loaded hidden TV shows from localStorage:', parsed.length);
-            // Save to server for future use
-            apiService.savePreferences('tv', 'hidden', parsed);
+            this.hiddenTV = new Set(hiddenTV.map(show => show.toLowerCase()));
+            // Optionally save to server if found locally but not on server
+            // await apiService.savePreferences('tv', 'hidden', hiddenTV);
           }
         }
         
         // Load hidden movies
         const hiddenMoviesFromServer = await apiService.getPreferences('movie', 'hidden');
         if (hiddenMoviesFromServer && hiddenMoviesFromServer.length > 0) {
-          console.log('Loaded hidden movies from server:', hiddenMoviesFromServer.length);
+          
           this.hiddenMovies = new Set(hiddenMoviesFromServer.map(movie => movie.toLowerCase()));
-          // Update localStorage
-          localStorage.setItem('hiddenMovies', JSON.stringify(hiddenMoviesFromServer));
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('hiddenMovies', hiddenMoviesFromServer);
         } else {
-          // Fall back to localStorage
-          const hiddenMovies = localStorage.getItem('hiddenMovies');
+          // Fall back to database storage (add await)
+          const hiddenMovies = await databaseStorageUtils.getJSON('hiddenMovies');
           if (hiddenMovies) {
-            const parsed = JSON.parse(hiddenMovies);
-            this.hiddenMovies = new Set(parsed.map(movie => movie.toLowerCase()));
-            console.log('Loaded hidden movies from localStorage:', parsed.length);
-            // Save to server for future use
-            apiService.savePreferences('movie', 'hidden', parsed);
+            this.hiddenMovies = new Set(hiddenMovies.map(movie => movie.toLowerCase()));
+            // Removed save back logic during load
+            // apiService.savePreferences('movie', 'hidden', hiddenMovies);
           }
         }
       } catch (error) {
         console.error('Error loading filter preferences from server:', error);
         
-        // Fall back to localStorage on error
+        // Fall back to database storage on error (add await)
         // Load existing content preference
-        const hideExisting = localStorage.getItem('historyHideExisting');
+        const hideExisting = await databaseStorageUtils.get('historyHideExisting');
         if (hideExisting !== null) {
-          this.hideExistingContent = hideExisting === 'true';
+          this.hideExistingContent = hideExisting;
         }
         
         // Load liked content preference
-        const hideLiked = localStorage.getItem('historyHideLiked');
+        const hideLiked = await databaseStorageUtils.get('historyHideLiked');
         if (hideLiked !== null) {
-          this.hideLikedContent = hideLiked === 'true';
+          this.hideLikedContent = hideLiked;
         }
         
         // Load disliked content preference
-        const hideDisliked = localStorage.getItem('historyHideDisliked');
+        const hideDisliked = await databaseStorageUtils.get('historyHideDisliked');
         if (hideDisliked !== null) {
-          this.hideDislikedContent = hideDisliked === 'true';
+          this.hideDislikedContent = hideDisliked;
         }
         
         // Load hidden content preference (default to true if not found)
-        const hideHidden = localStorage.getItem('historyHideHidden');
+        const hideHidden = await databaseStorageUtils.get('historyHideHidden');
         if (hideHidden !== null) {
-          this.hideHiddenContent = hideHidden === 'true';
+          this.hideHiddenContent = hideHidden;
         } else {
           // If no setting exists, default to true (hide hidden items)
           this.hideHiddenContent = true;
-          localStorage.setItem('historyHideHidden', 'true');
+          await databaseStorageUtils.set('historyHideHidden', true); // Add await
         }
         
         // Load hidden TV shows
-        const hiddenTV = localStorage.getItem('hiddenTVShows');
+        const hiddenTV = await databaseStorageUtils.getJSON('hiddenTV');
         if (hiddenTV) {
-          this.hiddenTVShows = new Set(JSON.parse(hiddenTV).map(show => show.toLowerCase()));
+          this.hiddenTV = new Set(hiddenTV.map(show => show.toLowerCase()));
         }
         
         // Load hidden movies
-        const hiddenMovies = localStorage.getItem('hiddenMovies');
+        const hiddenMovies = await databaseStorageUtils.getJSON('hiddenMovies');
         if (hiddenMovies) {
-          this.hiddenMovies = new Set(JSON.parse(hiddenMovies).map(movie => movie.toLowerCase()));
+          this.hiddenMovies = new Set(hiddenMovies.map(movie => movie.toLowerCase()));
         }
       }
       
@@ -1298,100 +1216,92 @@ export default {
         // Load liked TV shows
         const likedTVFromServer = await apiService.getPreferences('tv', 'liked');
         if (likedTVFromServer && likedTVFromServer.length > 0) {
-          console.log('Loaded liked TV shows from server:', likedTVFromServer.length);
+          
           this.likedTVShows = new Set(likedTVFromServer.map(show => show.toLowerCase()));
-          // Update localStorage
-          localStorage.setItem('likedTVRecommendations', JSON.stringify(likedTVFromServer));
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('likedTVRecommendations', likedTVFromServer);
         } else {
-          // Fall back to localStorage
-          const likedTV = localStorage.getItem('likedTVRecommendations');
+          // Fall back to database storage (add await)
+          const likedTV = await databaseStorageUtils.getJSON('likedTVRecommendations');
           if (likedTV) {
-            const parsed = JSON.parse(likedTV);
-            this.likedTVShows = new Set(parsed.map(show => show.toLowerCase()));
-            console.log('Loaded liked TV shows from localStorage:', parsed.length);
-            // Save to server for future use
-            apiService.savePreferences('tv', 'liked', parsed);
+            this.likedTVShows = new Set(likedTV.map(show => show.toLowerCase()));
+            // Removed save back logic during load
+            // apiService.savePreferences('tv', 'liked', likedTV);
           }
         }
         
         // Load disliked TV shows
         const dislikedTVFromServer = await apiService.getPreferences('tv', 'disliked');
         if (dislikedTVFromServer && dislikedTVFromServer.length > 0) {
-          console.log('Loaded disliked TV shows from server:', dislikedTVFromServer.length);
+          
           this.dislikedTVShows = new Set(dislikedTVFromServer.map(show => show.toLowerCase()));
-          // Update localStorage
-          localStorage.setItem('dislikedTVRecommendations', JSON.stringify(dislikedTVFromServer));
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('dislikedTVRecommendations', dislikedTVFromServer);
         } else {
-          // Fall back to localStorage
-          const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
+          // Fall back to database storage (add await)
+          const dislikedTV = await databaseStorageUtils.getJSON('dislikedTVRecommendations');
           if (dislikedTV) {
-            const parsed = JSON.parse(dislikedTV);
-            this.dislikedTVShows = new Set(parsed.map(show => show.toLowerCase()));
-            console.log('Loaded disliked TV shows from localStorage:', parsed.length);
-            // Save to server for future use
-            apiService.savePreferences('tv', 'disliked', parsed);
+            this.dislikedTVShows = new Set(dislikedTV.map(show => show.toLowerCase()));
+            // Removed save back logic during load
+            // apiService.savePreferences('tv', 'disliked', dislikedTV);
           }
         }
         
         // Load liked movies
         const likedMoviesFromServer = await apiService.getPreferences('movie', 'liked');
         if (likedMoviesFromServer && likedMoviesFromServer.length > 0) {
-          console.log('Loaded liked movies from server:', likedMoviesFromServer.length);
+          
           this.likedMovies = new Set(likedMoviesFromServer.map(movie => movie.toLowerCase()));
-          // Update localStorage
-          localStorage.setItem('likedMovieRecommendations', JSON.stringify(likedMoviesFromServer));
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('likedMovieRecommendations', likedMoviesFromServer);
         } else {
-          // Fall back to localStorage
-          const likedMovies = localStorage.getItem('likedMovieRecommendations');
+          // Fall back to database storage (add await)
+          const likedMovies = await databaseStorageUtils.getJSON('likedMovieRecommendations');
           if (likedMovies) {
-            const parsed = JSON.parse(likedMovies);
-            this.likedMovies = new Set(parsed.map(movie => movie.toLowerCase()));
-            console.log('Loaded liked movies from localStorage:', parsed.length);
-            // Save to server for future use
-            apiService.savePreferences('movie', 'liked', parsed);
+            this.likedMovies = new Set(likedMovies.map(movie => movie.toLowerCase()));
+            // Removed save back logic during load
+            // apiService.savePreferences('movie', 'liked', likedMovies);
           }
         }
         
         // Load disliked movies
         const dislikedMoviesFromServer = await apiService.getPreferences('movie', 'disliked');
         if (dislikedMoviesFromServer && dislikedMoviesFromServer.length > 0) {
-          console.log('Loaded disliked movies from server:', dislikedMoviesFromServer.length);
+          
           this.dislikedMovies = new Set(dislikedMoviesFromServer.map(movie => movie.toLowerCase()));
-          // Update localStorage
-          localStorage.setItem('dislikedMovieRecommendations', JSON.stringify(dislikedMoviesFromServer));
+          // Update database storage (add await)
+          await databaseStorageUtils.setJSON('dislikedMovieRecommendations', dislikedMoviesFromServer);
         } else {
-          // Fall back to localStorage
-          const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
+          // Fall back to database storage (add await)
+          const dislikedMovies = await databaseStorageUtils.getJSON('dislikedMovieRecommendations');
           if (dislikedMovies) {
-            const parsed = JSON.parse(dislikedMovies);
-            this.dislikedMovies = new Set(parsed.map(movie => movie.toLowerCase()));
-            console.log('Loaded disliked movies from localStorage:', parsed.length);
-            // Save to server for future use
-            apiService.savePreferences('movie', 'disliked', parsed);
+            this.dislikedMovies = new Set(dislikedMovies.map(movie => movie.toLowerCase()));
+            // Removed save back logic during load
+            // apiService.savePreferences('movie', 'disliked', dislikedMovies);
           }
         }
       } catch (error) {
         console.error('Error loading liked/disliked content from server:', error);
         
-        // Fall back to localStorage on error
-        const likedTV = localStorage.getItem('likedTVRecommendations');
+        // Fall back to database storage on error (add await)
+        const likedTV = await databaseStorageUtils.getJSON('likedTVRecommendations');
         if (likedTV) {
-          this.likedTVShows = new Set(JSON.parse(likedTV).map(show => show.toLowerCase()));
+          this.likedTVShows = new Set(likedTV.map(show => show.toLowerCase()));
         }
         
-        const dislikedTV = localStorage.getItem('dislikedTVRecommendations');
+        const dislikedTV = await databaseStorageUtils.getJSON('dislikedTVRecommendations');
         if (dislikedTV) {
-          this.dislikedTVShows = new Set(JSON.parse(dislikedTV).map(show => show.toLowerCase()));
+          this.dislikedTVShows = new Set(dislikedTV.map(show => show.toLowerCase()));
         }
         
-        const likedMovies = localStorage.getItem('likedMovieRecommendations');
+        const likedMovies = await databaseStorageUtils.getJSON('likedMovieRecommendations');
         if (likedMovies) {
-          this.likedMovies = new Set(JSON.parse(likedMovies).map(movie => movie.toLowerCase()));
+          this.likedMovies = new Set(likedMovies.map(movie => movie.toLowerCase()));
         }
         
-        const dislikedMovies = localStorage.getItem('dislikedMovieRecommendations');
+        const dislikedMovies = await databaseStorageUtils.getJSON('dislikedMovieRecommendations');
         if (dislikedMovies) {
-          this.dislikedMovies = new Set(JSON.parse(dislikedMovies).map(movie => movie.toLowerCase()));
+          this.dislikedMovies = new Set(dislikedMovies.map(movie => movie.toLowerCase()));
         }
       }
     },
@@ -1420,7 +1330,7 @@ export default {
       const normalizedTitle = typeof title === 'string' ? title.toLowerCase() : String(title).toLowerCase();
       
       if (type === 'tv') {
-        return this.hiddenTVShows.has(normalizedTitle);
+        return this.hiddenTV.has(normalizedTitle);
       } else if (type === 'movie') {
         return this.hiddenMovies.has(normalizedTitle);
       }
@@ -1461,9 +1371,11 @@ export default {
       
       if (type === 'tv') {
         // Add to hidden TV shows
-        this.hiddenTVShows.add(normalizedTitle);
+        this.hiddenTV.add(normalizedTitle);
         // Create a copy for Vue reactivity
-        this.hiddenTVShows = new Set(this.hiddenTVShows);
+        this.hiddenTV = new Set(this.hiddenTV);
+        // Save hidden TV shows
+        this.saveHiddenItems('tv'); 
       } else if (type === 'movie') {
         // Add to hidden movies
         this.hiddenMovies.add(normalizedTitle);
@@ -1471,8 +1383,8 @@ export default {
         this.hiddenMovies = new Set(this.hiddenMovies);
       }
       
-      // Apply filters first to update the UI
-      this.applyFilters();
+      // Apply filters first to update the UI (without saving preferences yet)
+      this.applyFilters(false); 
       
       // Save the updated hidden items asynchronously without blocking the UI
       this.$nextTick(() => {
@@ -1494,9 +1406,11 @@ export default {
       
       if (type === 'tv') {
         // Remove from hidden TV shows
-        this.hiddenTVShows.delete(normalizedTitle);
+        this.hiddenTV.delete(normalizedTitle);
         // Create a copy for Vue reactivity
-        this.hiddenTVShows = new Set(this.hiddenTVShows);
+        this.hiddenTV = new Set(this.hiddenTV);
+         // Save hidden TV shows
+        this.saveHiddenItems('tv');
       } else if (type === 'movie') {
         // Remove from hidden movies
         this.hiddenMovies.delete(normalizedTitle);
@@ -1504,6 +1418,9 @@ export default {
         this.hiddenMovies = new Set(this.hiddenMovies);
       }
       
+      // Apply filters first to update the UI (without saving preferences yet)
+      this.applyFilters(false);
+
       // Save the updated hidden items asynchronously without blocking the UI
       this.$nextTick(() => {
         this.saveFilterPreferences();
@@ -1514,25 +1431,20 @@ export default {
     },
     
     async loadLibraryContent() {
-      console.log('Loading library content in History component');
+      
       
       // Double-check with service directly in addition to props
       if (this.sonarrConfigured && sonarrService.isConfigured()) {
-        console.log('Loading Sonarr library content');
+        
         await this.loadSonarrLibrary();
-      } else {
-        console.log('Skipping Sonarr library load - not configured');
       }
       
       // Double-check with service directly in addition to props
       if (this.radarrConfigured && radarrService.isConfigured()) {
-        console.log('Loading Radarr library content');
+        
         await this.loadRadarrLibrary();
-      } else {
-        console.log('Skipping Radarr library load - not configured');
       }
       
-      console.log('Library content loaded, fetching details');
       this.fetchAllDetails();
     },
     
@@ -1545,7 +1457,7 @@ export default {
           return;
         }
         
-        console.log('Requesting series list from Sonarr');
+        
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5 second timeout
         
@@ -1559,11 +1471,11 @@ export default {
           clearTimeout(timeoutId);
           
           if (series && series.length) {
-            console.log(`Received ${series.length} series from Sonarr`);
+            
             const titles = new Set(series.map(show => show.title.toLowerCase()));
             this.existingTVShows = titles;
           } else {
-            console.log('No series received from Sonarr or request was aborted');
+            
             this.existingTVShows = new Set(); // Initialize with empty set
           }
         } catch (fetchError) {
@@ -1586,7 +1498,7 @@ export default {
           return;
         }
         
-        console.log('Requesting movie list from Radarr');
+        
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5 second timeout
         
@@ -1600,11 +1512,11 @@ export default {
           clearTimeout(timeoutId);
           
           if (movies && movies.length) {
-            console.log(`Received ${movies.length} movies from Radarr`);
+            
             const titles = new Set(movies.map(movie => movie.title.toLowerCase()));
             this.existingMovies = titles;
           } else {
-            console.log('No movies received from Radarr or request was aborted');
+            
             this.existingMovies = new Set(); // Initialize with empty set
           }
         } catch (fetchError) {
@@ -1617,8 +1529,18 @@ export default {
         this.existingMovies = new Set(); // Initialize with empty set
       }
     },
+
+    // Handler for filter checkbox changes
+    handleFilterChange() {
+      // Only save preferences if not initializing
+      if (!this.isInitializing) {
+        this.applyFilters(true); // Apply filters and save
+      } else {
+        this.applyFilters(false); // Just apply filters without saving
+      }
+    },
     
-    applyFilters() {
+    applyFilters() { // Add shouldSave parameter, default to true
       // Filter TV recommendations
       let filteredTV = [...this.tvRecommendations];
       
@@ -1650,11 +1572,11 @@ export default {
       }
       
       // Apply hidden filter
-      if (this.hideHiddenContent && this.hiddenTVShows.size > 0) {
+      if (this.hideHiddenContent && this.hiddenTV.size > 0) {
         filteredTV = filteredTV.filter(show => {
           if (show === null || show === undefined) return true; // Skip null/undefined
           const showStr = typeof show === 'string' ? show : String(show);
-          return !this.hiddenTVShows.has(showStr.toLowerCase());
+          return !this.hiddenTV.has(showStr.toLowerCase());
         });
       }
       
@@ -1701,45 +1623,56 @@ export default {
       
       this.filteredMovieRecommendations = filteredMovies;
       
-      // Save filter preferences
-      this.saveFilterPreferences();
+      // // Save filter preferences only if shouldSave is true
+      // if (shouldSave) {
+      //   this.saveFilterPreferences();
+      // }
     },
     
-    async saveFilterPreferences() {
-      // Save filter preferences to localStorage
-      localStorage.setItem('hideExistingContent', String(this.hideExistingContent));
-      localStorage.setItem('hideLikedContent', String(this.hideLikedContent));
-      localStorage.setItem('hideDislikedContent', String(this.hideDislikedContent));
-      localStorage.setItem('hideHiddenContent', String(this.hideHiddenContent));
-      
-      // Convert Sets to arrays for storage
-      const hiddenTVArray = Array.from(this.hiddenTVShows);
-      const hiddenMoviesArray = Array.from(this.hiddenMovies);
-      
-      // Save hidden items to localStorage
-      localStorage.setItem('hiddenTVShows', JSON.stringify(hiddenTVArray));
-      localStorage.setItem('hiddenMovies', JSON.stringify(hiddenMoviesArray));
-      
-      // Also save to server if possible
+    async saveFilterPreferences() { // Already async
+
+      if (!this.storeInitialized) {
+        return;
+      }
+
+      // Save filter preferences to database storage (add await)
+      await databaseStorageUtils.set('historyHideExisting', this.hideExistingContent);
+      await databaseStorageUtils.set('historyHideLiked', this.hideLikedContent);
+      await databaseStorageUtils.set('historyHideDisliked', this.hideDislikedContent);
+      await databaseStorageUtils.set('historyHideHidden', this.hideHiddenContent);
+
+      // Save boolean settings to server
       try {
-        // Save settings to server
-        await apiService.saveSettings({
-          historyHideExisting: this.hideExistingContent,
-          historyHideLiked: this.hideLikedContent,
-          historyHideDisliked: this.hideDislikedContent,
-          historyHideHidden: this.hideHiddenContent
-        });
-        
-        // Save hidden items to server - use Promise.all to run in parallel
         await Promise.all([
-          apiService.savePreferences('tv', 'hidden', hiddenTVArray),
-          apiService.savePreferences('movie', 'hidden', hiddenMoviesArray)
+          apiService.saveSetting('historyHideExisting', this.hideExistingContent),
+          apiService.saveSetting('historyHideLiked', this.hideLikedContent),
+          apiService.saveSetting('historyHideDisliked', this.hideDislikedContent),
+          apiService.saveSetting('historyHideHidden', this.hideHiddenContent),
+          // Also save hidden items arrays here
+          this.saveHiddenItems('tv'),
+          this.saveHiddenItems('movie')
         ]);
-        
-        console.log('Successfully saved filter preferences to server');
       } catch (error) {
-        console.error('Error saving filter preferences to server:', error);
-        // Continue execution - localStorage is our fallback
+        console.error('Failed to save one or more filter preferences to server:', error);
+        // Optionally show a notification to the user
+      }
+    },
+
+    // New method to save hidden items
+    async saveHiddenItems(type) {
+      if (!this.storeInitialized) return;
+
+      const itemsToSave = type === 'tv' ? Array.from(this.hiddenTV) : Array.from(this.hiddenMovies);
+      const storageKey = type === 'tv' ? 'hiddenTV' : 'hiddenMovies';
+      const preferenceType = type === 'tv' ? 'tv' : 'movie';
+
+      try {
+        // Save to database storage
+        await databaseStorageUtils.setJSON(storageKey, itemsToSave);
+        // Save to server
+        await apiService.savePreferences(preferenceType, 'hidden', itemsToSave);
+      } catch (error) {
+        console.error(`Failed to save hidden ${type} items:`, error);
       }
     },
     
@@ -1792,14 +1725,14 @@ export default {
             });
           }, options);
           
-          console.log('Intersection Observers created');
+          
           
           // Observe load more elements
           setTimeout(() => {
             if (this.$refs.tvLoadMoreTrigger && this.hasMoreTVShows && this.tvObserver) {
               try {
                 this.tvObserver.observe(this.$refs.tvLoadMoreTrigger);
-                console.log('Initial TV load more trigger observed');
+                
               } catch (error) {
                 console.error('Error observing TV load more trigger:', error);
               }
@@ -1808,7 +1741,7 @@ export default {
             if (this.$refs.movieLoadMoreTrigger && this.hasMoreMovies && this.movieObserver) {
               try {
                 this.movieObserver.observe(this.$refs.movieLoadMoreTrigger);
-                console.log('Initial Movie load more trigger observed');
+                
               } catch (error) {
                 console.error('Error observing movie load more trigger:', error);
               }
@@ -1838,7 +1771,7 @@ export default {
         return;
       }
       
-      console.log(`Loading TV shows from ${startIndex} to ${endIndex} (page ${this.tvCurrentPage})`);
+      
       
       // Get items for current page
       const newItems = source.slice(startIndex, endIndex);
@@ -1860,7 +1793,7 @@ export default {
         if (this.$refs.tvLoadMoreTrigger && this.hasMoreTVShows && this.tvObserver) {
           try {
             this.tvObserver.observe(this.$refs.tvLoadMoreTrigger);
-            console.log('TV load more trigger observed');
+            
           } catch (error) {
             console.error('Error observing TV load more trigger:', error);
           }
@@ -1886,7 +1819,7 @@ export default {
         return;
       }
       
-      console.log(`Loading movies from ${startIndex} to ${endIndex} (page ${this.movieCurrentPage})`);
+      
       
       // Get items for current page
       const newItems = source.slice(startIndex, endIndex);
@@ -1908,7 +1841,7 @@ export default {
         if (this.$refs.movieLoadMoreTrigger && this.hasMoreMovies && this.movieObserver) {
           try {
             this.movieObserver.observe(this.$refs.movieLoadMoreTrigger);
-            console.log('Movie load more trigger observed');
+            
           } catch (error) {
             console.error('Error observing movie load more trigger:', error);
           }
@@ -1920,7 +1853,7 @@ export default {
     loadDetailsForItems(items, type) {
       // We'll now just add the items to the display list
       // but NOT load posters or details yet - we'll do that with a separate observer
-      console.log(`Deferred loading details for ${items.length} ${type} items`);
+      
       
       // Setup lazy loading for these items in the next tick
       this.$nextTick(() => {
@@ -1945,7 +1878,7 @@ export default {
         return;
       }
       
-      console.log(`Setting up observers for ${itemRefs.length} ${type} items`);
+      
       
       // Create a new observer for this batch of items
       const observer = new IntersectionObserver((entries) => {
@@ -1975,13 +1908,16 @@ export default {
       // Observe each item
       itemRefs.forEach((itemEl) => {
         // Only observe if we haven't loaded data for this item yet
-        const itemTitle = type === 'tv' 
+        const item = type === 'tv' 
           ? this.displayedTVShows[parseInt(itemEl.dataset.index)] 
           : this.displayedMovies[parseInt(itemEl.dataset.index)];
+        
+        // Ensure we have an item and extract the title string
+        const itemTitle = (typeof item === 'string') ? item : (item?.title || null);
           
         if (itemTitle) {
-          // Store the title in the element's dataset for retrieval in the callback
-          itemEl.dataset.title = itemTitle;
+          // Store the actual title string in the element's dataset
+          itemEl.dataset.title = itemTitle; 
           
           // Start observing
           observer.observe(itemEl);
@@ -1989,36 +1925,59 @@ export default {
       });
     },
     
-    // Remove unused methods as we're now using the load more trigger approach instead
-    
     async clearTVHistory() {
       if (confirm('Are you sure you want to clear your TV show recommendation history?')) {
-        // Clear from localStorage
-        localStorage.removeItem('previousTVRecommendations');
-        this.tvRecommendations = [];
-        
-        // Clear from server
         try {
+          // Clear from database storage using DatabaseStorageUtils
+          await databaseStorageUtils.remove('tvRecommendations'); // Use the correct key used by the store
+          
+          // Clear from server
           await apiService.saveRecommendations('tv', []);
-          console.log('Cleared TV recommendations from server');
+          
+          // Update the store state directly
+          recommendationsStore.state.previousShowRecommendations = [];
+          
+          // Clear local filtered/displayed data
+          this.filteredTVRecommendations = [];
+          this.displayedTVShows = [];
+          
+          // Show success notification
+          this.showNotification('TV show history has been cleared successfully', 'success');
+          
+          // Reset pagination
+          this.tvCurrentPage = 1;
         } catch (error) {
-          console.error('Failed to clear TV recommendations from server:', error);
+          console.error('Failed to clear TV recommendations:', error);
+          this.showNotification('Failed to clear TV history. Please try again.', 'error');
         }
       }
     },
     
-    async clearMovieHistory() {
+    async clearMovieHistory() { // Already async
       if (confirm('Are you sure you want to clear your movie recommendation history?')) {
-        // Clear from localStorage
-        localStorage.removeItem('previousMovieRecommendations');
-        this.movieRecommendations = [];
-        
-        // Clear from server
         try {
+          // Clear from database storage using DatabaseStorageUtils (add await)
+          // Clear from database storage using DatabaseStorageUtils
+          await databaseStorageUtils.remove('movieRecommendations'); // Use the correct key used by the store
+          
+          // Clear from server
           await apiService.saveRecommendations('movie', []);
-          console.log('Cleared movie recommendations from server');
+          
+          // Update the store state directly
+          recommendationsStore.state.previousMovieRecommendations = [];
+          
+          // Clear local filtered/displayed data
+          this.filteredMovieRecommendations = [];
+          this.displayedMovies = [];
+          
+          // Show success notification
+          this.showNotification('Movie history has been cleared successfully', 'success');
+          
+          // Reset pagination
+          this.movieCurrentPage = 1;
         } catch (error) {
-          console.error('Failed to clear movie recommendations from server:', error);
+          console.error('Failed to clear movie recommendations:', error);
+          this.showNotification('Failed to clear movie history. Please try again.', 'error');
         }
       }
     },
@@ -2026,7 +1985,7 @@ export default {
     // Poster management is now handled by loadDetailsForItems method with lazy loading
     // This method is kept for backward compatibility but is no longer used directly
     async fetchAllPosters() {
-      console.log('fetchAllPosters is deprecated - posters are now loaded on demand');
+      
       return;
     },
     
@@ -2039,7 +1998,7 @@ export default {
       
       // Check if the request has been aborted
       if (signal && signal.aborted) {
-        console.log(`Poster fetch for ${type} "${title}" aborted`);
+        
         return;
       }
       
@@ -2065,11 +2024,11 @@ export default {
       
       try {
         let posterUrl;
-        console.log(`Fetching ${type} poster for "${title}" via imageService`);
+        
         
         // Check for abort before making request
         if (signal && signal.aborted) {
-          console.log(`Poster fetch for ${type} "${title}" aborted before API call`);
+          
           return;
         }
         
@@ -2080,14 +2039,14 @@ export default {
             signal,
             `TV Poster for "${title}"`
           );
-          console.log(`TV Poster result for "${title}":`, posterUrl ? 'Found poster' : 'No poster found');
+          
         } else {
           posterUrl = await this.fetchWithAbort(
             () => imageService.getPosterForMovie(title),
             signal,
             `Movie Poster for "${title}"`
           );
-          console.log(`Movie Poster result for "${title}":`, posterUrl ? 'Found poster' : 'No poster found');
+          
         }
         
         // Store the poster URL or fallback if not found
@@ -2097,11 +2056,11 @@ export default {
             // Try to extract the original URL as fallback in case proxy fails
             try {
               const originalUrl = decodeURIComponent(posterUrl.split('url=')[1]);
-              console.log(`Using direct URL for ${type} "${title}": ${originalUrl}`);
+              
               // Set the original URL instead of the proxy
               this.posters.set(key, originalUrl);
             } catch (err) {
-              console.log(`Could not extract original URL, using proxy: ${posterUrl}`);
+              
               this.posters.set(key, posterUrl);
             }
           } else {
@@ -2111,7 +2070,7 @@ export default {
           // Set fallback image when no poster is found
           const fallbackUrl = imageService.getFallbackImageUrl(title);
           this.posters.set(key, fallbackUrl);
-          console.log(`Using fallback image for ${type} "${title}"`);
+          
         }
       } catch (error) {
         console.error(`Error fetching poster for ${type} "${title}":`, error);
@@ -2213,7 +2172,7 @@ export default {
       // Fetch with skipCache=true
       try {
         let posterUrl;
-        console.log(`Retrying ${type} poster for "${title}" via imageService with skipCache=true`);
+        
         if (type === 'tv') {
           posterUrl = await imageService.getPosterForShow(title, true);
         } else {
@@ -2227,11 +2186,11 @@ export default {
             // Try to extract the original URL as fallback in case proxy fails
             try {
               const originalUrl = decodeURIComponent(posterUrl.split('url=')[1]);
-              console.log(`Using direct URL after retry for ${type} "${title}": ${originalUrl}`);
+              
               // Set the original URL instead of the proxy
               this.posters.set(key, originalUrl);
             } catch (err) {
-              console.log(`Could not extract original URL after retry, using proxy: ${posterUrl}`);
+              
               this.posters.set(key, posterUrl);
             }
           } else {
@@ -2241,7 +2200,7 @@ export default {
           // Set fallback image when no poster is found
           const fallbackUrl = imageService.getFallbackImageUrl(title);
           this.posters.set(key, fallbackUrl);
-          console.log(`Using fallback image for ${type} "${title}" after retry`);
+          
         }
       } catch (error) {
         console.error(`Error retrying poster for ${type} "${title}":`, error);
@@ -2256,17 +2215,17 @@ export default {
     // These methods are now replaced by loadDetailsForItems with lazy loading
     // Kept for backward compatibility
     async fetchAllDetails() {
-      console.log('fetchAllDetails is deprecated - details are now loaded on demand');
+      
       return;
     },
     
     async fetchAllTVDetails() {
-      console.log('fetchAllTVDetails is deprecated - details are now loaded on demand');
+      
       return;
     },
     
     async fetchAllMovieDetails() {
-      console.log('fetchAllMovieDetails is deprecated - details are now loaded on demand');
+      
       return;
     },
     
@@ -2293,13 +2252,13 @@ export default {
         
         // If TMDB is configured, try using it first
         if (tmdbService.isConfigured()) {
-          console.log(`Fetching TV details from TMDB for "${title}"`);
+          
           seriesInfo = await tmdbService.findSeriesByTitle(title);
         }
         
         // If TMDB failed or isn't configured and Sonarr is available, fall back to Sonarr
         if (!seriesInfo && sonarrService.isConfigured()) {
-          console.log(`Fetching TV details from Sonarr for "${title}"`);
+          
           seriesInfo = await sonarrService.findSeriesByTitle(title);
         }
         
@@ -2344,13 +2303,13 @@ export default {
         
         // If TMDB is configured, try using it first
         if (tmdbService.isConfigured()) {
-          console.log(`Fetching movie details from TMDB for "${title}"`);
+          
           movieInfo = await tmdbService.findMovieByTitle(title);
         }
         
         // If TMDB failed or isn't configured and Radarr is available, fall back to Radarr
         if (!movieInfo && radarrService.isConfigured()) {
-          console.log(`Fetching movie details from Radarr for "${title}"`);
+          
           movieInfo = await radarrService.findMovieByTitle(title);
         }
         
@@ -2426,6 +2385,7 @@ export default {
             throw error;
           }
         }
+
         
         // Only proceed if the request wasn't aborted
         if (!abortController.signal.aborted) {
@@ -2661,7 +2621,7 @@ export default {
     openTMDBDetailModal(mediaTitle, mediaType) {
       // Only open if TMDB is available
       if (!this.isTMDBAvailable) {
-        console.log('Cannot open TMDB modal: TMDB not configured');
+        
         return;
       }
       
@@ -2669,7 +2629,7 @@ export default {
       this.selectedMediaType = mediaType;
       this.selectedMediaId = null; // We'll search by title
       this.showTMDBModal = true;
-      console.log('Opening TMDB modal for:', mediaTitle, 'type:', mediaType);
+      
     },
     
     closeTMDBModal() {
@@ -2727,10 +2687,19 @@ export default {
 }
 
 h2 {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   color: var(--header-color);
   font-size: 24px;
   text-align: center;
+}
+
+.history-user-info {
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 14px;
+  margin-bottom: 20px;
+  font-style: italic;
 }
 
 .history-controls {

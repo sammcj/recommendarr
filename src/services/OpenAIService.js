@@ -1,7 +1,7 @@
 import credentialsService from './CredentialsService';
 
 class OpenAIService {
-  constructor() {
+constructor() {
     this.apiKey = '';
     this.baseUrl = 'https://api.openai.com/v1';
     this.model = 'gpt-3.5-turbo';
@@ -12,6 +12,10 @@ class OpenAIService {
     this.useCustomPromptOnly = false; // Whether to only use custom prompt for recommendations
     this.useStructuredOutput = false; // Default to legacy output format
     this.promptStyle = 'vibe'; // Default prompt style
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
+    // Flag to track if settings have been loaded
+    this.storeInitialized = false;
     
     // Ensure the chat completions endpoint
     this.apiUrl = this.getCompletionsUrl();
@@ -20,17 +24,71 @@ class OpenAIService {
     this.tvConversation = [];
     this.movieConversation = [];
     
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Initialize the store integration
+    this.initializeStoreIntegration();
+  }
+  
+  /**
+   * Initializes integration with RecommendationStore
+   * @returns {Promise<void>}
+   */
+  async initializeStoreIntegration() {
+    try {
+      // Import the store dynamically to avoid circular dependencies
+      const module = await import('../stores/RecommendationsStore.js');
+      this.recommendationsStore = module.default;
+      
+      // Initialize the store if it hasn't been initialized yet
+      if (!this.recommendationsStore.initialized) {
+        await this.recommendationsStore.initialize();
+      }
+      
+      // Sync settings from store to service
+      this.syncFromStore();
+      
+      this.storeInitialized = true;
+      
+    } catch (error) {
+      console.error('Error initializing store integration:', error);
+    }
+  }
+  
+  /**
+   * Syncs settings from the RecommendationsStore to this service
+   */
+  syncFromStore() {
+    if (!this.recommendationsStore) return;
     
-    // Try to get model from localStorage if it exists
-    this.loadModelFromLocalStorage();
+    // Sync all relevant settings
+    // For string/number values, use || fallback
+    this.model = this.recommendationsStore.state.selectedModel || this.model;
+    this.temperature = this.recommendationsStore.state.temperature || this.temperature;
+    this.sampleSize = this.recommendationsStore.state.sampleSize || this.sampleSize;
+    this.promptStyle = this.recommendationsStore.state.promptStyle || this.promptStyle;
     
-    // Try to get prompt style from localStorage if it exists
-    this.loadPromptStyleFromLocalStorage();
+    // For boolean values, check if they're defined before assigning
+    // This ensures false values are properly synchronized
+    if (this.recommendationsStore.state.useSampledLibrary !== undefined) {
+      this.useSampledLibrary = this.recommendationsStore.state.useSampledLibrary;
+    }
     
-    // Try to get custom prompt only preference from localStorage if it exists
-    this.loadCustomPromptOnlyFromLocalStorage();
+    if (this.recommendationsStore.state.useStructuredOutput !== undefined) {
+      this.useStructuredOutput = this.recommendationsStore.state.useStructuredOutput;
+    }
+    
+    if (this.recommendationsStore.state.useCustomPromptOnly !== undefined) {
+      this.useCustomPromptOnly = this.recommendationsStore.state.useCustomPromptOnly;
+    }
+    
+    console.log('OpenAIService: Synced settings from store', {
+      model: this.model,
+      temperature: this.temperature,
+      useSampledLibrary: this.useSampledLibrary,
+      sampleSize: this.sampleSize,
+      useStructuredOutput: this.useStructuredOutput,
+      useCustomPromptOnly: this.useCustomPromptOnly,
+      promptStyle: this.promptStyle
+    });
   }
   
   /**
@@ -38,7 +96,7 @@ class OpenAIService {
    * Ensures fresh recommendations without context contamination
    */
   resetConversation() {
-    console.log('Resetting conversation history');
+    
     this.tvConversation = [];
     this.movieConversation = [];
   }
@@ -50,12 +108,17 @@ class OpenAIService {
    * @returns {Promise<boolean>} - Whether credentials were successfully loaded
    */
   async loadCredentials(retries = 1, delay = 1000) {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return true;
+    }
+    
     try {
-      console.log('Loading OpenAI credentials from server...');
+      
       const credentials = await credentialsService.getCredentials('openai');
       
       if (credentials) {
-        console.log('Received OpenAI credentials from server');
+        
         this.apiKey = credentials.apiKey || '';
         if (credentials.apiUrl) this.baseUrl = credentials.apiUrl;
         if (credentials.model) this.model = credentials.model;
@@ -68,9 +131,11 @@ class OpenAIService {
         
         // Update API URL if baseUrl changed
         this.apiUrl = this.getCompletionsUrl();
+        
+        this.credentialsLoaded = true; // Set flag after successful load
         return true;
       } else {
-        console.log('No OpenAI credentials found on server');
+        
         return false;
       }
     } catch (error) {
@@ -78,7 +143,7 @@ class OpenAIService {
       
       // Retry with delay if we have retries left
       if (retries > 0) {
-        console.log(`Retrying OpenAI credentials load in ${delay}ms (${retries} ${retries === 1 ? 'retry' : 'retries'} left)...`);
+        
         await new Promise(resolve => setTimeout(resolve, delay));
         return this.loadCredentials(retries - 1, delay);
       }
@@ -88,56 +153,163 @@ class OpenAIService {
   }
   
   /**
-   * Load the model from localStorage if it exists
-   * Falls back to the model stored in credentials if localStorage model doesn't exist
+   * Ensure settings are loaded from the store before performing operations
+   * @returns {Promise<boolean>} - Whether the settings were loaded successfully
    */
-  loadModelFromLocalStorage() {
-    const localStorageModel = localStorage.getItem('openaiModel');
-    if (localStorageModel) {
-      this.model = localStorageModel;
+  async ensureSettings() {
+    if (this.storeInitialized) {
+      // Settings are already loaded, just sync any updates
+      this.syncFromStore();
+      return true;
+    }
+    
+    try {
+      // Initialize the store integration
+      await this.initializeStoreIntegration();
+      return this.storeInitialized;
+    } catch (error) {
+      console.error('Error ensuring settings are loaded:', error);
+      return false;
     }
   }
   
   /**
-   * Load the prompt style from localStorage if it exists
-   * Falls back to the default 'vibe' style if localStorage style doesn't exist
-   */
-  loadPromptStyleFromLocalStorage() {
-    const localStoragePromptStyle = localStorage.getItem('openaiPromptStyle');
-    if (localStoragePromptStyle) {
-      this.promptStyle = localStoragePromptStyle;
-    }
-  }
-  
-  /**
-   * Load the useCustomPromptOnly setting from localStorage if it exists
-   * Falls back to false if setting doesn't exist in localStorage
-   */
-  loadCustomPromptOnlyFromLocalStorage() {
-    const storedValue = localStorage.getItem('useCustomPromptOnly');
-    if (storedValue !== null) {
-      this.useCustomPromptOnly = storedValue === 'true';
-      console.log(`OpenAIService: Loaded useCustomPromptOnly from localStorage: ${this.useCustomPromptOnly}`);
-    }
-  }
-  
-  /**
-   * Set the prompt style and save it to localStorage
+   * Set the prompt style and save it to the store
    * @param {string} style - The prompt style ('vibe', 'analytical', 'creative', 'technical')
    */
-  setPromptStyle(style) {
+  async setPromptStyle(style) {
     this.promptStyle = style;
-    localStorage.setItem('openaiPromptStyle', style);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updatePromptStyle(style);
+        
+      }
+    } catch (error) {
+      console.error('Error saving prompt style to store:', error);
+    }
   }
   
   /**
-   * Set the useCustomPromptOnly flag and save it to localStorage
+   * Set the useCustomPromptOnly flag and save it to the store
    * @param {boolean} value - Whether to use only the custom prompt for recommendations
    */
-  setUseCustomPromptOnly(value) {
+  async setUseCustomPromptOnly(value) {
     this.useCustomPromptOnly = value === true;
-    localStorage.setItem('useCustomPromptOnly', this.useCustomPromptOnly.toString());
-    console.log(`OpenAIService: useCustomPromptOnly set to ${this.useCustomPromptOnly}`);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateCustomPromptOnly(value);
+        
+      }
+    } catch (error) {
+      console.error('Error saving useCustomPromptOnly to store:', error);
+    }
+  }
+  
+  /**
+   * Set the useStructuredOutput flag and save it to the store
+   * @param {boolean} value - Whether to use structured output for API requests
+   */
+  async setUseStructuredOutput(value) {
+    this.useStructuredOutput = value === true;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateStructuredOutput(value);
+        
+      }
+    } catch (error) {
+      console.error('Error saving useStructuredOutput to store:', error);
+    }
+  }
+  
+  /**
+   * Set the model and save it to the store
+   * @param {string} model - The model to use
+   */
+  async setModel(model) {
+    if (!model) return;
+    
+    this.model = model;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSelectedModel(model);
+        
+      }
+    } catch (error) {
+      console.error('Error saving model to store:', error);
+    }
+  }
+  
+  /**
+   * Set the temperature and save it to the store
+   * @param {number} value - The temperature for API requests
+   */
+  async setTemperature(value) {
+    if (value === null || value === undefined) return;
+    
+    this.temperature = parseFloat(value);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateTemperature(this.temperature);
+        
+      }
+    } catch (error) {
+      console.error('Error saving temperature to store:', error);
+    }
+  }
+  
+  /**
+   * Set the useSampledLibrary flag and save it to the store
+   * @param {boolean} value - Whether to use sampled library
+   */
+  async setUseSampledLibrary(value) {
+    this.useSampledLibrary = value === true;
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSampledLibrary(value);
+        
+      }
+    } catch (error) {
+      console.error('Error saving useSampledLibrary to store:', error);
+    }
+  }
+  
+  /**
+   * Set the sample size and save it to the store
+   * @param {number} value - The sample size for library sampling
+   */
+  async setSampleSize(value) {
+    if (value === null || value === undefined) return;
+    
+    this.sampleSize = parseInt(value);
+    
+    // Save to the store if it's available
+    try {
+      await this.ensureSettings();
+      if (this.recommendationsStore) {
+        await this.recommendationsStore.updateSampleSize(this.sampleSize);
+        
+      }
+    } catch (error) {
+      console.error('Error saving sampleSize to store:', error);
+    }
   }
   
   /**
@@ -145,7 +317,10 @@ class OpenAIService {
    * @param {boolean} isMovie - Whether we're getting TV show or movie recommendations
    * @returns {string} - The system prompt content
    */
-  getSystemContentByStyle(isMovie, promptStyle = null) {
+  async getSystemContentByStyle(isMovie, promptStyle = null) {
+    // Ensure settings are loaded from store
+    await this.ensureSettings();
+    
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activeStyle = promptStyle || this.promptStyle;
   
@@ -294,7 +469,7 @@ From this technical analysis, recommend series that demonstrate similar technica
 3. Directorial presence: Identify the specific sensibilities of directors whose work appears in my collection, focusing on their unique approach to creating tone and atmosphere.
 4. Cinematic texture: Note preferences for certain visual and auditory experiences—like grain vs. sharpness, bold vs. muted colors, orchestral vs. electronic scores, dialogue-heavy vs. visual storytelling, etc.
 5. Emotional journey: Understand the emotional arc and viewing experience I might be seeking, rather than just similar story elements.
-          
+
 From these insights, recommend films that evoke comparable emotional states and atmospheres, even if their plots, settings, or genres seem different. Prioritize matching the ineffable feeling and unique sensory experience of the films I love. Your recommendations should aim to recreate specific emotional textures and moods rather than merely matching plot points or conventional categorizations.`
           : ` When exploring my library, please focus on identifying and matching the distinctive emotional atmosphere and sensory experience of these series:
           
@@ -339,7 +514,7 @@ From these insights, recommend series that evoke comparable emotional states and
     
     // Special handling for Anthropic API
     if (baseUrl === 'https://api.anthropic.com/v1') {
-      console.log('Using Anthropic models endpoint');
+      
       return `${baseUrl}/models`;
     }
     
@@ -389,9 +564,7 @@ From these insights, recommend series that evoke comparable emotional states and
         headers['x-api-key'] = this.apiKey;
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
         headers['anthropic-version'] = '2023-06-01';
-        console.log('Using Anthropic headers for models request');
-      } else {
-        console.log('No API key provided for Anthropic API request');
+        
       }
     } 
     // Google AI API authentication
@@ -403,9 +576,7 @@ From these insights, recommend series that evoke comparable emotional states and
         
         // Add Authorization header
         headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
-        console.log('Using Google AI API with Authorization header');
-      } else {
-        console.log('No API key provided for Google AI API request');
+        
       }
     } 
     // Default OpenAI-compatible authentication
@@ -416,10 +587,8 @@ From these insights, recommend series that evoke comparable emotional states and
         // Always include Bearer prefix and ensure no extra whitespace
         // Use correct header case for OpenAI API (capital 'A')
         headers['Authorization'] = `Bearer ${this.apiKey.trim()}`; // OpenAI expects 'Authorization'
-        console.log('Using OpenAI headers for models request');
-        console.log('Authorization header format:', headers['Authorization'].substring(0, 15) + '...');
-      } else {
-        console.log('No API key provided, skipping Authorization header');
+        
+        
       }
     }
     
@@ -432,18 +601,18 @@ From these insights, recommend series that evoke comparable emotional states and
     
     // We intentionally DO NOT set Content-Type for GET requests to the models endpoint
     // as this causes the OpenAI API to reject the request with a 400 error
-    console.log('Not setting Content-Type header for models GET request to avoid OpenAI API errors');
+    
     
     // Ensure we preserve existing Anthropic specific headers
     if (this.baseUrl === 'https://api.anthropic.com/v1') {
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
       headers['anthropic-version'] = '2023-06-01';
-      console.log('Preserved Anthropic-specific headers');
+      
     }
     
     // Special handling for LMStudio
     if (this.baseUrl.includes('lmstudio') || this.baseUrl.match(/192\.168\.\d+\.\d+/) || this.baseUrl.match(/\d+\.\d+\.\d+\.\d+/)) {
-      console.log('Detected LMStudio or local LLM server, adding additional headers');
+      
       headers['accept'] = 'application/json, text/plain, */*';
       // Removed user-agent header which browsers block in XHR requests
     }
@@ -453,7 +622,7 @@ From these insights, recommend series that evoke comparable emotional states and
     // For Google AI API, we'll handle the key in the proxy request params
     // instead of appending it to the URL to avoid duplicates
     if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
-      console.log('Detected Google AI API, will send API key via params to avoid duplication');
+      
       // We'll use the params object instead of directly modifying the URL
       if (this.apiKey && this.apiKey.trim() !== '') {
         this.googleApiKey = this.apiKey.trim();
@@ -462,7 +631,7 @@ From these insights, recommend series that evoke comparable emotional states and
       }
     }
     
-    console.log(`Fetching models from: ${modelsUrl}`);
+    
     
     try {
       // Always use the proxy, no direct requests to avoid mixed content errors
@@ -472,7 +641,7 @@ From these insights, recommend series that evoke comparable emotional states and
       
       try {
         // Always use the proxy service for models request to avoid mixed content errors
-        console.log('Using proxy service for models request');
+        
         
         // Configure parameters for different API providers
         const params = {};
@@ -489,9 +658,7 @@ From these insights, recommend series that evoke comparable emotional states and
           if (!modelsUrl.includes('key=')) {
             params.key = this.googleApiKey;
             apiOptions.params = params;
-            console.log('Added Google API key as query parameter');
-          } else {
-            console.log('Google API key already in URL, not adding as parameter');
+            
           }
         } else {
           // For other APIs, include any params if needed
@@ -509,14 +676,14 @@ From these insights, recommend series that evoke comparable emotional states and
         
         response = await apiService.proxyRequest(apiOptions);
       } catch (proxyError) {
-        console.log('Proxy request failed:', proxyError.message);
+        
         
         // Log error but avoid excessive details
         console.error('Proxy error:', proxyError.message);
         
         // Try a direct request as fallback for all API endpoints
         // (Previously this was limited to specific endpoints, but now we try for all)
-        console.log('Attempting direct request to LLM server as fallback...');
+        
         try {
           const axios = (await import('axios')).default;
           // Prepare headers for direct request based on API type
@@ -527,7 +694,7 @@ From these insights, recommend series that evoke comparable emotional states and
           
           // Special handling for OpenAI API
           if (this.baseUrl.includes('openai.com')) {
-            console.log('Using special headers for direct OpenAI API request');
+            
             directHeaders['Authorization'] = `Bearer ${this.apiKey.trim()}`;
             // For GET requests to model endpoints, we must NOT include Content-Type
             // as OpenAI will reject the request with a 400 error
@@ -535,7 +702,7 @@ From these insights, recommend series that evoke comparable emotional states and
           }
           // Special handling for Google AI API
           else if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
-            console.log('Using special headers for direct Google AI API request');
+            
             
             // Add Authorization header
             if (this.googleApiKey) {
@@ -557,7 +724,7 @@ From these insights, recommend series that evoke comparable emotional states and
           }
           // Special handling for Anthropic API
           else if (this.baseUrl === 'https://api.anthropic.com/v1') {
-            console.log('Using special headers for direct Anthropic API request');
+            
             directHeaders['x-api-key'] = this.apiKey;
             directHeaders['anthropic-version'] = '2023-06-01';
             directHeaders['anthropic-dangerous-direct-browser-access'] = 'true';
@@ -580,27 +747,27 @@ From these insights, recommend series that evoke comparable emotional states and
           
           const directResponse = await axios(directRequestConfig);
           
-          console.log('Direct request successful!', directResponse.status);
+          
           
           // Process the response data from direct request
           
           // For OpenAI API
           if (this.baseUrl.includes('openai.com')) {
-            console.log('Processing OpenAI API direct response');
+            
             if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
-              console.log(`Successfully retrieved ${directResponse.data.data.length} OpenAI models`);
+              
               return directResponse.data.data;
             }
           }
           
           // For Google AI API
           if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
-            console.log('Processing Google AI API direct response');
+            
             if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
-              console.log(`Successfully retrieved ${directResponse.data.data.length} Google AI models`);
+              
               return directResponse.data.data;
             } else if (directResponse.data && Array.isArray(directResponse.data)) {
-              console.log(`Successfully retrieved ${directResponse.data.length} Google AI models (array format)`);
+              
               return directResponse.data.map(model => ({
                 id: model.id || model.name,
                 object: 'model',
@@ -611,11 +778,11 @@ From these insights, recommend series that evoke comparable emotional states and
           
           // For Anthropic API
           else if (this.baseUrl === 'https://api.anthropic.com/v1') {
-            console.log('Processing Anthropic API direct response');
+            
             
             // Handle format with data array property
             if (directResponse.data && directResponse.data.data && Array.isArray(directResponse.data.data)) {
-              console.log(`Successfully retrieved ${directResponse.data.data.length} Anthropic models (data array format)`);
+              
               return directResponse.data.data.map(model => ({
                 id: model.id,
                 object: 'model',
@@ -625,7 +792,7 @@ From these insights, recommend series that evoke comparable emotional states and
             }
             // Handle direct array format
             else if (Array.isArray(directResponse.data)) {
-              console.log(`Successfully retrieved ${directResponse.data.length} Anthropic models (direct array format)`);
+              
               return directResponse.data.map(model => ({
                 id: model.id || model.name,
                 object: 'model',
@@ -636,7 +803,7 @@ From these insights, recommend series that evoke comparable emotional states and
           
           // For LMStudio format
           if (directResponse.data && directResponse.data.object === 'list' && Array.isArray(directResponse.data.data)) {
-            console.log(`Successfully retrieved ${directResponse.data.data.length} models from direct request`);
+            
             // Return processed models directly instead of wrapping
             return directResponse.data.data;
           }
@@ -654,7 +821,7 @@ From these insights, recommend series that evoke comparable emotional states and
         }
       }
       
-      console.log(`Models response status: ${response.status}`);
+      
       
       // Check if the request was successful
       if (response && response.status >= 200 && response.status < 300 && response.data) {
@@ -665,7 +832,7 @@ From these insights, recommend series that evoke comparable emotional states and
         if (this.baseUrl.includes('generativelanguage.googleapis.com')) {
           // Google data array format
           if (response.data && response.data.data && Array.isArray(response.data.data)) {
-            console.log(`Successfully retrieved ${response.data.data.length} Google AI models`);
+            
             return response.data.data.map(model => ({
               id: model.id || model.name,
               object: 'model',
@@ -674,7 +841,7 @@ From these insights, recommend series that evoke comparable emotional states and
           }
           // Google direct array format 
           else if (Array.isArray(response.data)) {
-            console.log(`Successfully retrieved ${response.data.length} Google AI models (array format)`);
+            
             return response.data.map(model => ({
               id: model.id || model.name,
               object: 'model',
@@ -687,7 +854,7 @@ From these insights, recommend series that evoke comparable emotional states and
         else if (this.baseUrl === 'https://api.anthropic.com/v1') {
           // Anthropic format with data array
           if (response.data.data && Array.isArray(response.data.data)) {
-            console.log(`Successfully retrieved ${response.data.data.length} Anthropic models (data array format)`);
+            
             return response.data.data.map(model => ({
               id: model.id,
               object: 'model',
@@ -697,7 +864,7 @@ From these insights, recommend series that evoke comparable emotional states and
           }
           // Anthropic direct array format
           else if (Array.isArray(response.data)) {
-            console.log(`Successfully retrieved ${response.data.length} Anthropic models (direct array format)`);
+            
             return response.data.map(model => ({
               id: model.id || model.name,
               object: 'model',
@@ -708,19 +875,19 @@ From these insights, recommend series that evoke comparable emotional states and
         
         // Standard OpenAI API format
         if (response.data.data && Array.isArray(response.data.data)) {
-          console.log(`Successfully retrieved ${response.data.data.length} models (standard format)`);
+          
           return response.data.data;
         } 
         
         // LMStudio format with object=list
         if (response.data && response.data.object === 'list' && Array.isArray(response.data.data)) {
-          console.log(`Successfully retrieved ${response.data.data.length} models (LMStudio format)`);
+          
           return response.data.data;
         }
         
         // Generic direct array format for other providers
         if (response.data && Array.isArray(response.data)) {
-          console.log(`Successfully retrieved ${response.data.length} models (direct array format)`);
+          
           return response.data.map(model => ({ 
             id: model.id || model.name || String(model),
             object: model.object || 'model',
@@ -735,7 +902,7 @@ From these insights, recommend series that evoke comparable emotional states and
           // Look for any array property that might contain models
           for (const key in response.data) {
             if (Array.isArray(response.data[key])) {
-              console.log(`Found array in response.data.${key}, using as models list`);
+              
               return response.data[key].map(model => ({
                 id: model.id || model.name || String(model),
                 object: model.object || 'model',
@@ -746,7 +913,7 @@ From these insights, recommend series that evoke comparable emotional states and
           
           // If no arrays found but we have a data object, create a single model entry
           const modelId = response.data.id || response.data.name || 'default-model';
-          console.log(`Creating single model entry with ID: ${modelId}`);
+          
           return [{ 
             id: modelId,
             object: 'model',
@@ -788,40 +955,45 @@ From these insights, recommend series that evoke comparable emotional states and
     // Trim the API key to remove any accidental whitespace
     this.apiKey = apiKey ? apiKey.trim() : '';
     
-    if (model) {
-      this.model = model;
-      // When model is updated, also store it in localStorage for easy access
-      localStorage.setItem('openaiModel', model);
-    }
+    // Ensure the store is initialized
+    await this.ensureSettings();
     
+    // Update base URL directly as it's not stored in the recommendations store
     if (baseUrl) {
       // Normalize the base URL by removing trailing slashes
       this.baseUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
       this.apiUrl = this.getCompletionsUrl();
     }
     
+    // Max tokens is also not stored in the recommendations store
     if (maxTokens !== null) {
       this.maxTokens = maxTokens;
     }
     
+    // Use setter methods for all values that should be synchronized with the store
+    // This ensures proper two-way synchronization
+    if (model) {
+      await this.setModel(model);
+    }
+    
     if (temperature !== null) {
-      this.temperature = temperature;
+      await this.setTemperature(temperature);
     }
     
     if (useSampledLibrary !== null) {
-      this.useSampledLibrary = useSampledLibrary;
+      await this.setUseSampledLibrary(useSampledLibrary);
     }
     
     if (sampleSize !== null) {
-      this.sampleSize = sampleSize;
+      await this.setSampleSize(sampleSize);
     }
     
     if (useStructuredOutput !== null) {
-      this.useStructuredOutput = useStructuredOutput;
+      await this.setUseStructuredOutput(useStructuredOutput);
     }
     
     if (useCustomPromptOnly !== null) {
-      this.useCustomPromptOnly = useCustomPromptOnly;
+      await this.setUseCustomPromptOnly(useCustomPromptOnly);
     }
     
     // Store credentials server-side (including model selection as backup)
@@ -830,6 +1002,16 @@ From these insights, recommend series that evoke comparable emotional states and
       apiUrl: this.baseUrl,
       model: this.model,
       maxTokens: this.maxTokens,
+      temperature: this.temperature,
+      useSampledLibrary: this.useSampledLibrary,
+      sampleSize: this.sampleSize,
+      useStructuredOutput: this.useStructuredOutput,
+      useCustomPromptOnly: this.useCustomPromptOnly
+    });
+    
+    
+    console.log('OpenAIService: Current settings:', {
+      model: this.model,
       temperature: this.temperature,
       useSampledLibrary: this.useSampledLibrary,
       sampleSize: this.sampleSize,
@@ -884,6 +1066,10 @@ From these insights, recommend series that evoke comparable emotional states and
       }
     }
     
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    
+    
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activePromptStyle = promptStyle || this.promptStyle;
 
@@ -904,7 +1090,7 @@ From these insights, recommend series that evoke comparable emotional states and
         // Add library titles to exclusions to prevent recommending what user already has
         if (series && series.length > 0) {
           const sonarrTitles = series.map(show => show.title);
-          previousRecommendations = [...new Set([...previousRecommendations, ...sonarrTitles])];
+          previousRecommendations = [...new Set([...previousRecommendations.value, ...sonarrTitles])];
         }
       } else if (series && series.length > 0) {
         // Use the Sonarr library as the main library
@@ -1085,10 +1271,14 @@ CRITICAL REQUIREMENTS:
       
       // Perform final verification to ensure no existing/liked content is returned
       // This is a critical second check even though we instructed the AI to not include these
-      console.log("Verifying TV recommendations don't include library, liked, disliked, or previous items");
+      
+      
+      // Always use the full library for verification, regardless of what was sent to the AI
+      // This ensures we catch any recommendations that might be in the user's library
+      // even if we only sent a sample to the AI
       return this.verifyRecommendations(
         recommendations,
-        series,                   // Library items
+        series,                   // Library items - always use full library for verification
         likedRecommendations,     // Liked items
         dislikedRecommendations,  // Disliked items
         previousRecommendations   // Previous recommendations
@@ -1138,13 +1328,17 @@ CRITICAL REQUIREMENTS:
       }
     }
     
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    
+    
     // Use provided promptStyle if available, otherwise fall back to this.promptStyle
     const activePromptStyle = promptStyle || this.promptStyle;
 
     try {
       // Only initialize conversation history if it doesn't exist yet
       if (this.movieConversation.length === 0) {
-        console.log("Initializing new movie conversation");
+        
 
         // Determine if we should use only Plex history or include the library
         let sourceText;
@@ -1159,7 +1353,7 @@ CRITICAL REQUIREMENTS:
           // Add library titles to exclusions to prevent recommending what user already has
           if (movies && movies.length > 0) {
             const radarrTitles = movies.map(movie => movie.title);
-            previousRecommendations = [...new Set([...previousRecommendations, ...radarrTitles])];
+            previousRecommendations = [...new Set([...previousRecommendations.value, ...radarrTitles])];
           }
         } else {
           // Use the Radarr library as the main library
@@ -1330,24 +1524,24 @@ CRITICAL REQUIREMENTS:
       }
 
       // Get initial recommendations using the conversation
-      console.log("Getting formatted movie recommendations with conversation");
-      console.log("Movie conversation length:", this.movieConversation.length);
+      
+      
 
       const recommendations = await this.getFormattedRecommendationsWithConversation(this.movieConversation);
-      console.log("Raw recommendations from API:", recommendations);
+      
 
       // Perform final verification to ensure no existing/liked content is returned
       // This is a critical second check even though we instructed the AI to not include these
-      console.log("Verifying movie recommendations don't include library, liked, disliked, or previous items");
+      
       const verifiedRecommendations = this.verifyRecommendations(
         recommendations,
-        movies,                   // Library items
+        movies,                   // Library items - always use full library for verification
         likedRecommendations,     // Liked items
         dislikedRecommendations,  // Disliked items
         previousRecommendations   // Previous recommendations
       );
 
-      console.log("Verified recommendations:", verifiedRecommendations);
+      
       return verifiedRecommendations;
     } catch (error) {
       console.error('Error getting movie recommendations:', error);
@@ -1386,7 +1580,7 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of additional recommended TV shows
    */
   async getAdditionalTVRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
-    console.log(`getAdditionalTVRecommendations called with: ${libraryItems.length} library items, ${likedItems.length} liked items, ${dislikedItems.length} disliked items, ${previousRecommendations.length} previous recommendations`);
+    
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -1395,6 +1589,10 @@ CRITICAL REQUIREMENTS:
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    
 
     try {
       // Ensure count is within reasonable bounds
@@ -1461,7 +1659,7 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of additional recommended movies
    */
   async getAdditionalMovieRecommendations(count, previousRecommendations = [], genre = '', customVibe = '', language = '', libraryItems = [], likedItems = [], dislikedItems = []) {
-    console.log(`getAdditionalMovieRecommendations called with: ${libraryItems.length} library items, ${likedItems.length} liked items, ${dislikedItems.length} disliked items, ${previousRecommendations.length} previous recommendations`);
+    
     // Try to load credentials again in case they weren't ready during init
     if (!this.isConfigured()) {
       await this.loadCredentials();
@@ -1470,6 +1668,10 @@ CRITICAL REQUIREMENTS:
         throw new Error('OpenAI service is not configured. Please set apiKey.');
       }
     }
+    
+    // Ensure settings are synced from the store before proceeding
+    await this.ensureSettings();
+    
 
     try {
       // Ensure count is within reasonable bounds
@@ -1532,8 +1734,12 @@ CRITICAL REQUIREMENTS:
    * @returns {Promise<Array>} - List of formatted recommendations
    */
   async getFormattedRecommendationsWithConversation(conversation) {
-    console.log("API URL:", this.apiUrl);
-    console.log("Model:", this.model);
+    // Ensure settings are loaded and synced before making the API request
+    await this.ensureSettings();
+    
+    
+    
+    
     
     try {
       // Check if conversation is getting too large and reset if needed
@@ -1542,7 +1748,7 @@ CRITICAL REQUIREMENTS:
       
       // If conversation exceeds the limit, reset it to just the system message + latest user message
       if (conversation.length > MESSAGE_LIMIT) {
-        console.log(`Conversation history too large (${conversation.length} messages). Resetting context.`);
+        
         const systemMessage = conversation[0]; // Keep system prompt
         const userMessage = conversation[conversation.length - 1]; // Keep latest user message
         
@@ -1550,7 +1756,7 @@ CRITICAL REQUIREMENTS:
         conversation.splice(0, conversation.length);
         conversation.push(systemMessage, userMessage);
         
-        console.log(`Conversation reset to ${conversation.length} messages to avoid payload size limits.`);
+        
       }
       
       // Import the ApiService dynamically to avoid circular dependency
@@ -1566,23 +1772,23 @@ CRITICAL REQUIREMENTS:
           headers['x-api-key'] = this.apiKey;
           headers['anthropic-dangerous-direct-browser-access'] = 'true';
           headers['anthropic-version'] = '2023-06-01';
-          console.log('Using Anthropic headers configuration');
+          
         } else {
           console.warn('No API key provided for Anthropic API request');
         }
       } else if (this.apiKey && this.apiKey.trim() !== '') { // Only add Authorization header if apiKey is present and not empty
         headers['Authorization'] = `Bearer ${this.apiKey.trim()}`;
-        console.log('Using OpenAI Authorization header (Bearer token)');
-        console.log('Authorization header format:', headers['Authorization'].substring(0, 15) + '...');
-        console.log('API URL:', this.apiUrl);
+        
+        
+        
       } else {
         console.warn('No API key provided, skipping Authorization header');
       }
       
-      console.log("Is API configured:", this.isConfigured());
-      console.log("Conversation length:", conversation.length);
-      console.log("First message role:", conversation[0]?.role);
-      console.log("Last message role:", conversation[conversation.length-1]?.role);
+      
+      
+      
+      
       
       headers['Content-Type'] = 'application/json';
       
@@ -1596,7 +1802,7 @@ CRITICAL REQUIREMENTS:
       
       // Add structured output format if enabled
       if (this.useStructuredOutput) {
-        console.log('Using structured output format for API request');
+        
         requestData.response_format = {
           type: "json_schema",
           json_schema: {
@@ -1626,8 +1832,6 @@ CRITICAL REQUIREMENTS:
             strict: true
           }
         };
-      } else {
-        console.log('Using legacy format for API request (structured output disabled)');
       }
       
       let response;
@@ -1635,7 +1839,7 @@ CRITICAL REQUIREMENTS:
       
       // Try using the proxy first, then fall back to direct request if it fails
       try {
-        console.log(`Attempting to proxy request to: ${this.apiUrl} with model: ${this.model}`);
+        
         // Try the proxy service first
         response = await apiService.proxyRequest({
           url: this.apiUrl,
@@ -1644,7 +1848,7 @@ CRITICAL REQUIREMENTS:
           headers
         });
       } catch (proxyError) {
-        console.log(`Proxy request failed, falling back to direct request: ${proxyError.message}`);
+        
         // If the proxy fails, make a direct API request
         response = await axios({
           url: this.apiUrl,
@@ -1668,7 +1872,7 @@ CRITICAL REQUIREMENTS:
       
       // Get the structured JSON response
       const responseContent = response.data.choices[0].message.content;
-      console.log("Response content type:", typeof responseContent);
+      
       
       let parsedRecommendations = [];
       
@@ -1679,7 +1883,7 @@ CRITICAL REQUIREMENTS:
         // Handle different response formats
         if (typeof responseContent === 'string') {
           // Log the first part of the content to help debug
-          console.log("Response content preview:", responseContent.substring(0, 100));
+          
           
           // Clean the response if needed - some models might return invalid JSON with comments or prefixes
           let cleanedContent = responseContent.trim();
@@ -1707,7 +1911,7 @@ CRITICAL REQUIREMENTS:
                 try {
                   const extractedJson = cleanedContent.substring(firstBrace, lastBrace + 1);
                   recommendationsData = JSON.parse(extractedJson);
-                  console.log('Successfully parsed JSON after extracting braces');
+                  
                 } catch (extractError) {
                   throw new Error(`Failed to parse extracted JSON: ${extractError.message}`);
                 }
@@ -1735,7 +1939,7 @@ CRITICAL REQUIREMENTS:
         }
       } catch (parseError) {
         console.error('Error parsing structured response:', parseError);
-        console.log('Falling back to legacy parsing for content:', responseContent);
+        
         // Fall back to legacy parsing if JSON parsing fails
         parsedRecommendations = this.parseRecommendations(responseContent);
       }
@@ -1749,7 +1953,15 @@ CRITICAL REQUIREMENTS:
       return parsedRecommendations;
     } catch (error) {
       console.error('Error getting recommendations with conversation:', error);
-      throw error;
+      // Construct a more informative error message
+      let errorMessage = 'Failed to get recommendations from AI.';
+      if (error.response?.data?.error?.message) {
+        errorMessage += ` API Error: ${error.response.data.error.message}`;
+      } else if (error.message) {
+        errorMessage += ` Details: ${error.message}`;
+      }
+      // Throw a new Error object with the detailed message
+      throw new Error(errorMessage);
     }
   }
   
@@ -1810,7 +2022,7 @@ CRITICAL REQUIREMENTS:
         
         // Add structured output format if enabled
         if (this.useStructuredOutput) {
-          console.log('Using structured output format for API request');
+          
           requestData.response_format = {
             type: "json_schema",
             json_schema: {
@@ -1840,13 +2052,11 @@ CRITICAL REQUIREMENTS:
               strict: true
             }
           };
-        } else {
-          console.log('Using legacy format for API request (structured output disabled)');
         }
         
         // Try proxy first, then fall back to direct request
         try {
-          console.log(`Attempting to proxy request to: ${this.apiUrl}`);
+          
           response = await apiService.proxyRequest({
             url: this.apiUrl,
             method: 'POST',
@@ -1854,7 +2064,7 @@ CRITICAL REQUIREMENTS:
             headers
           });
         } catch (proxyError) {
-          console.log(`Proxy request failed, falling back to direct request: ${proxyError.message}`);
+          
           response = await axios({
             url: this.apiUrl,
             method: 'POST',
@@ -1877,7 +2087,7 @@ CRITICAL REQUIREMENTS:
       
       // Get the structured JSON response
       const responseContent = response.data.choices[0].message.content;
-      console.log("Response content type:", typeof responseContent);
+      
       
       let parsedRecommendations = [];
       
@@ -1888,7 +2098,7 @@ CRITICAL REQUIREMENTS:
         // Handle different response formats
         if (typeof responseContent === 'string') {
           // Log the first part of the content to help debug
-          console.log("Response content preview:", responseContent.substring(0, 100));
+          
           
           // Clean the response if needed - some models might return invalid JSON with comments or prefixes
           let cleanedContent = responseContent.trim();
@@ -1916,7 +2126,7 @@ CRITICAL REQUIREMENTS:
                 try {
                   const extractedJson = cleanedContent.substring(firstBrace, lastBrace + 1);
                   recommendationsData = JSON.parse(extractedJson);
-                  console.log('Successfully parsed JSON after extracting braces');
+                  
                 } catch (extractError) {
                   throw new Error(`Failed to parse extracted JSON: ${extractError.message}`);
                 }
@@ -1944,7 +2154,7 @@ CRITICAL REQUIREMENTS:
         }
       } catch (parseError) {
         console.error('Error parsing structured response:', parseError);
-        console.log('Falling back to legacy parsing for content:', responseContent);
+        
         // Fall back to legacy parsing if JSON parsing fails
         parsedRecommendations = this.parseRecommendations(responseContent);
       }
@@ -2000,7 +2210,7 @@ CRITICAL REQUIREMENTS:
       
       // Try to send via proxy first, then fall back to direct request
       try {
-        console.log(`Attempting to proxy chunk ${i+1}/${chunks.length} to: ${this.apiUrl}`);
+        
         await apiService.proxyRequest({
           url: this.apiUrl,
           method: 'POST',
@@ -2008,7 +2218,7 @@ CRITICAL REQUIREMENTS:
           headers
         });
       } catch (proxyError) {
-        console.log(`Proxy request for chunk ${i+1}/${chunks.length} failed, using direct request: ${proxyError.message}`);
+        
         await axios({
           url: this.apiUrl,
           method: 'POST',
@@ -2040,7 +2250,7 @@ CRITICAL REQUIREMENTS:
     
     // Add structured output format if enabled
     if (this.useStructuredOutput) {
-      console.log('Using structured output format for final chunked request');
+      
       finalRequestData.response_format = {
         type: "json_schema",
         json_schema: {
@@ -2070,13 +2280,11 @@ CRITICAL REQUIREMENTS:
           strict: true
         }
       };
-    } else {
-      console.log('Using legacy format for final chunked request (structured output disabled)');
     }
     
     // Send final chunk using proxy first, then fall back to direct request
     try {
-      console.log(`Attempting to proxy final chunk to: ${this.apiUrl}`);
+      
       return await apiService.proxyRequest({
         url: this.apiUrl,
         method: 'POST',
@@ -2084,7 +2292,7 @@ CRITICAL REQUIREMENTS:
         headers
       });
     } catch (proxyError) {
-      console.log(`Proxy request for final chunk failed, using direct request: ${proxyError.message}`);
+      
       return await axios({
         url: this.apiUrl,
         method: 'POST',
@@ -2117,14 +2325,17 @@ CRITICAL REQUIREMENTS:
     // Remove common prefixes like "the ", "a ", "an "
     normalized = normalized.replace(/^(the|a|an) /, '');
     
+    // Handle common title formats with reversed articles (e.g., "Matrix, The")
+    normalized = normalized.replace(/, (the|a|an)$/i, '');
+    
     // Remove special characters and extra spaces
     normalized = normalized.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
     
-    // Remove year patterns like (2021) or [2021]
-    normalized = normalized.replace(/[([]?(19|20)\d{2}[)\]]?/g, '').trim();
+    // Remove year patterns like (2021) or [2021] or "2021"
+    normalized = normalized.replace(/[(["]?(19|20)\d{2}[)\]"]?/g, '').trim();
     
     // Remove common suffixes or subtitles
-    const commonSplitters = [': ', ' - ', ' – '];
+    const commonSplitters = [': ', ' - ', ' – ', ': ', ':', ' | ', '~'];
     for (const splitter of commonSplitters) {
       if (normalized.includes(splitter)) {
         // Only take the main title part if it's reasonably long
@@ -2133,6 +2344,21 @@ CRITICAL REQUIREMENTS:
           normalized = mainPart;
         }
       }
+    }
+    
+    // Remove common franchise indicators
+    normalized = normalized.replace(/\bpart\s+\d+\b/i, '').trim();
+    normalized = normalized.replace(/\bvolume\s+\d+\b/i, '').trim();
+    normalized = normalized.replace(/\bvol\s+\d+\b/i, '').trim();
+    
+    // Remove common edition indicators
+    const editionPatterns = [
+      /\b(special|extended|director'?s|theatrical|ultimate|complete|collector'?s|anniversary|definitive|final)\s+(cut|edition|version|collection|release)\b/i,
+      /\b(remastered|unrated|uncut)\b/i
+    ];
+    
+    for (const pattern of editionPatterns) {
+      normalized = normalized.replace(pattern, '').trim();
     }
     
     return normalized;
@@ -2145,9 +2371,15 @@ CRITICAL REQUIREMENTS:
    * @returns {boolean} - True if titles are similar
    */
   areTitlesSimilar(title1, title2) {
+    // Skip comparison if either title is missing
+    if (!title1 || !title2) return false;
+    
     // Get normalized versions
     const normalized1 = this.normalizeTitleForComparison(title1);
     const normalized2 = this.normalizeTitleForComparison(title2);
+    
+    // Skip if either normalized title is too short (likely not a valid title)
+    if (normalized1.length < 2 || normalized2.length < 2) return false;
     
     // Check for exact match after normalization
     if (normalized1 === normalized2) {
@@ -2159,7 +2391,6 @@ CRITICAL REQUIREMENTS:
     // But "The Duke" and "The Duke of Burgundy" should NOT match
     if (normalized1.length > 4 && normalized2.length > 4) {
       // Check if one is a prefix of the other, but add boundary check to avoid partial word matches
-      // For example: "The Duke" should not match with "The Duke of Burgundy"
       const shorterStr = normalized1.length < normalized2.length ? normalized1 : normalized2;
       const longerStr = normalized1.length < normalized2.length ? normalized2 : normalized1;
       
@@ -2170,8 +2401,42 @@ CRITICAL REQUIREMENTS:
            longerStr[shorterStr.length] === ' ' ||   // Space after prefix
            longerStr[shorterStr.length] === ':' ||   // Colon after prefix
            longerStr[shorterStr.length] === '-')) {  // Dash after prefix
-        // For cases like "Star Wars" vs "Star Wars: The Force Awakens"
-        return true;
+        
+        // For franchise titles, we want to match
+        // But avoid matching titles that just happen to start with the same words
+        // For example, "The Batman" should not match "The Batman Who Laughs"
+        
+        // If the shorter string is a common franchise name, it's likely a match
+        const commonFranchises = ['star wars', 'harry potter', 'lord of the rings', 'fast and furious', 
+                                 'mission impossible', 'james bond', 'marvel', 'avengers', 'spider man',
+                                 'batman', 'superman', 'jurassic park', 'transformers', 'terminator',
+                                 'alien', 'predator', 'pirates of the caribbean', 'matrix', 'indiana jones'];
+        
+        if (commonFranchises.some(franchise => shorterStr.includes(franchise))) {
+          return true;
+        }
+        
+        // If the shorter string is very short (1-2 words), be more cautious
+        const wordCount = shorterStr.split(' ').length;
+        if (wordCount <= 2) {
+          // For short titles, require the longer title to have a clear separator
+          // This helps avoid false matches like "The Batman" and "The Batman Who Laughs"
+          const remainingPart = longerStr.substring(shorterStr.length).trim();
+          const hasClearSeparator = remainingPart.startsWith(':') || 
+                                   remainingPart.startsWith('-') || 
+                                   remainingPart.startsWith('(') ||
+                                   remainingPart.startsWith('part ');
+          
+          if (hasClearSeparator) {
+            return true;
+          }
+          
+          // If no clear separator, be more conservative about matching
+          return false;
+        } else {
+          // For longer titles (3+ words), it's more likely a legitimate match
+          return true;
+        }
       }
     }
     
@@ -2189,12 +2454,12 @@ CRITICAL REQUIREMENTS:
         return false;
       }
       
-      // Increase threshold to 85% for higher precision
+      // Increase threshold to 90% for higher precision
       // This helps distinguish between titles like "The Duke" and "The Duke of Burgundy"
       const matchRatio1 = matchingWords.length / words1.length;
       const matchRatio2 = matchingWords.length / words2.length;
       
-      if (matchRatio1 >= 0.85 || matchRatio2 >= 0.85) {
+      if (matchRatio1 >= 0.9 || matchRatio2 >= 0.9) {
         return true;
       }
     }
@@ -2209,6 +2474,16 @@ CRITICAL REQUIREMENTS:
       return true;
     }
     
+    // Check for sequels/numbered entries
+    // Remove numbers and check if the base titles match
+    const baseTitle1 = normalized1.replace(/\s+\d+$/, '');
+    const baseTitle2 = normalized2.replace(/\s+\d+$/, '');
+    
+    if (baseTitle1 !== normalized1 && baseTitle2 !== normalized2 && baseTitle1 === baseTitle2) {
+      // Both titles had numbers and the base titles match
+      return true;
+    }
+    
     return false;
   }
 
@@ -2218,25 +2493,76 @@ CRITICAL REQUIREMENTS:
     }
 
     // Prepare library items for comparison
-    const libraryTitles = libraryItems.map(item => typeof item === 'string' ? item : item.title);
-    const likedTitles = likedItems.map(item => typeof item === 'string' ? item : item.title);
-    const dislikedTitles = dislikedItems.map(item => typeof item === 'string' ? item : item.title);
-    const previousRecTitles = previousRecommendations.map(item => typeof item === 'string' ? item : item.title);
+    const getTitles = (items) => {
+      if (!Array.isArray(items)) return [];
+      try {
+        return items.map(item => {
+          if (typeof item === 'string') return item;
+          // Handle different possible structures for library items
+          // Ensure title is treated as string
+          const title = item?.title || item?.name || (item?.attributes && item.attributes.title);
+          return String(title || ''); 
+        }).filter(title => title); // Filter out empty strings
+      } catch (e) {
+        console.error("Error mapping titles:", e, "Input items:", items);
+        return []; // Return empty array on error
+      }
+    };
+
+    const libraryTitles = getTitles(libraryItems);
+    const likedTitles = getTitles(likedItems);
+    const dislikedTitles = getTitles(dislikedItems);
     
-    // All titles to check against
-    const allExistingTitles = [...libraryTitles, ...likedTitles, ...dislikedTitles, ...previousRecTitles];
+    // Handle different possible formats for previousRecommendations, including Vue ComputedRef
+    const getPreviousTitles = (input) => {
+      if (!input) return [];
+      
+      let itemsToProcess = input;
+      
+      // Check if it's a Vue Ref/ComputedRef and access its value
+      if (input && typeof input === 'object' && input.value !== undefined) {
+        
+        itemsToProcess = input.value;
+      }
+
+      // Now process the extracted value (or the original input if not a Ref)
+      if (Array.isArray(itemsToProcess)) {
+        try {
+          return itemsToProcess.map(item => {
+            if (typeof item === 'string') return item;
+            // Ensure title is treated as string
+            const title = item && typeof item === 'object' ? item.title : null;
+            return String(title || '');
+          }).filter(title => title); // Filter out empty strings
+        } catch (e) {
+          console.error("Error mapping previous titles:", e, "Input items:", itemsToProcess);
+          return [];
+        }
+      } else if (typeof itemsToProcess === 'string') {
+        // Handle case where a single string might be passed (less likely now)
+        return [itemsToProcess];
+      } else {
+        // Log the original input structure if it's still unexpected
+        console.warn('previousRecommendations has unexpected format after checking .value:', input);
+        return [];
+      }
+    };
+    const previousRecTitles = getPreviousTitles(previousRecommendations);
+    
+    // Log the number of items we're checking against
+    
 
     // Filter out any recommendations that match existing items
     const filteredRecommendations = recommendations.filter(rec => {
-      const title = rec.title;
-      
-      // Enhanced debugging of the recommendation being checked
-      console.log(`Verifying recommendation: "${title}" against ${libraryTitles.length} library items, ${allExistingTitles.length} total items`);
-      
+      // Ensure rec.title is treated as a string before comparison
+      const title = String(rec?.title || '');
+      if (!title) return false; // Skip if title is empty after string conversion
+
       // First check library items (priority and most important)
       for (const existingTitle of libraryTitles) {
+        // existingTitle is guaranteed to be a string by getTitles
         if (this.areTitlesSimilar(title, existingTitle)) {
-          console.log(`Recommendation "${title}" filtered out - LIBRARY MATCH to "${existingTitle}"`);
+          
           return false;
         }
       }
@@ -2244,7 +2570,7 @@ CRITICAL REQUIREMENTS:
       // Then check liked items specifically (these should be excluded)
       for (const existingTitle of likedTitles) {
         if (this.areTitlesSimilar(title, existingTitle)) {
-          console.log(`Recommendation "${title}" filtered out - matches LIKED item "${existingTitle}"`);
+          
           return false;
         }
       }
@@ -2252,7 +2578,7 @@ CRITICAL REQUIREMENTS:
       // Then check disliked items
       for (const existingTitle of dislikedTitles) {
         if (this.areTitlesSimilar(title, existingTitle)) {
-          console.log(`Recommendation "${title}" filtered out - matches DISLIKED item "${existingTitle}"`);
+          
           return false;
         }
       }
@@ -2260,19 +2586,13 @@ CRITICAL REQUIREMENTS:
       // Finally check previous recommendations
       for (const existingTitle of previousRecTitles) {
         if (this.areTitlesSimilar(title, existingTitle)) {
-          console.log(`Recommendation "${title}" filtered out - matches PREVIOUS rec "${existingTitle}"`);
+          
           return false;
         }
       }
       
       return true;
     });
-
-    // Log any removed recommendations
-    const removedCount = recommendations.length - filteredRecommendations.length;
-    if (removedCount > 0) {
-      console.log(`Final verification removed ${removedCount} recommendations that matched existing items`);
-    }
 
     return filteredRecommendations;
   }
@@ -2384,7 +2704,7 @@ CRITICAL REQUIREMENTS:
         // Check if this title is a duplicate (case-insensitive)
         const titleLower = title.toLowerCase();
         if (seenTitles.has(titleLower)) {
-          console.log(`Skipping duplicate recommendation: "${title}"`);
+          
           continue;
         }
         

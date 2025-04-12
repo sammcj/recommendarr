@@ -47,7 +47,7 @@
             v-model.number="recentLimit" 
             type="number" 
             min="1" 
-            max="2000" 
+            max="10000" 
             @keyup.enter="connectToTautulli"
           />
         </div>
@@ -94,7 +94,7 @@
               type="number" 
               v-model.number="newLimit" 
               min="1" 
-              max="2000"
+              max="10000"
             />
             <div class="edit-actions">
               <button class="save-button" @click="updateLimit">Save</button>
@@ -116,6 +116,9 @@
 
 <script>
 import tautulliService from '../services/TautulliService';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
+import apiService from '../services/ApiService';
+import credentialsService from '../services/CredentialsService';
 
 export default {
   name: 'TautulliConnection',
@@ -149,11 +152,18 @@ export default {
         this.baseUrl = tautulliService.baseUrl;
         this.apiKey = tautulliService.apiKey;
         
-        // Load recent limit from localStorage if available
-        const savedLimit = localStorage.getItem('tautulliRecentLimit');
-        if (savedLimit) {
-          this.recentLimit = parseInt(savedLimit, 10);
-          this.newLimit = this.recentLimit;
+        // Load recent limit from database
+        try {
+          const recentLimit = await databaseStorageUtils.getSync('tautulliRecentLimit');
+          if (recentLimit !== null) {
+            this.recentLimit = recentLimit;
+            this.newLimit = this.recentLimit;
+          }
+        } catch (error) {
+          console.error('Error loading Tautulli recent limit from database:', error);
+          // Use default value if there's an error
+          this.recentLimit = 50;
+          this.newLimit = 50;
         }
       }
     }
@@ -169,15 +179,36 @@ export default {
       this.errorMessage = '';
       
       try {
-        // Configure the Tautulli service with the credentials
-        await tautulliService.configure(this.baseUrl, this.apiKey);
+        // First, try to get existing credentials to get the recentLimit
+        let recentLimitToUse = this.recentLimit;
+        try {
+          const existingCredentials = await credentialsService.getCredentials('tautulli');
+          if (existingCredentials && existingCredentials.recentLimit !== undefined) {
+            recentLimitToUse = existingCredentials.recentLimit;
+            
+          }
+        } catch (credError) {
+          console.error(credError);
+        }
+        
+        // Configure the Tautulli service with the credentials and recentLimit
+        await tautulliService.configure(this.baseUrl, this.apiKey, '', recentLimitToUse);
         
         // Test the connection
         const success = await tautulliService.testConnection();
         
         if (success) {
-          // Save the recent limit to localStorage
-          localStorage.setItem('tautulliRecentLimit', this.recentLimit.toString());
+          // Save the recent limit to database
+          await databaseStorageUtils.set('tautulliRecentLimit', this.recentLimit);
+          
+          // Save to user settings in database using individual setting API
+          try {
+            await apiService.saveSetting('tautulliRecentLimit', this.recentLimit);
+            
+          } catch (settingsError) {
+            console.error('Error saving tautulliRecentLimit to database:', settingsError);
+            // Continue even if settings save fails
+          }
           
           // Emit connected event
           this.$emit('connected');
@@ -197,20 +228,47 @@ export default {
     
     async disconnectTautulli() {
       if (confirm('Are you sure you want to disconnect from Tautulli?')) {
+        await tautulliService.disconnect();
         this.$emit('disconnected');
       }
     },
     
-    updateLimit() {
+    async updateLimit() {
       if (this.newLimit < 1) {
         this.newLimit = 1;
-      } else if (this.newLimit > 2000) {
-        this.newLimit = 2000;
+      } else if (this.newLimit > 10000) {
+        this.newLimit = 10000;
       }
       
       this.recentLimit = this.newLimit;
-      localStorage.setItem('tautulliRecentLimit', this.recentLimit.toString());
+      
+      // Save to database
+      await databaseStorageUtils.set('tautulliRecentLimit', this.recentLimit);
       this.editLimit = false;
+      
+      // Save to user settings in database using individual setting API
+      try {
+        await apiService.saveSetting('tautulliRecentLimit', this.recentLimit);
+        
+      } catch (settingsError) {
+        console.error('Error saving tautulliRecentLimit to database:', settingsError);
+        // Continue even if settings save fails
+      }
+      
+      // Update the credentials in the database with the new limit
+      try {
+        // Get current credentials
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials) {
+          // Update the recentLimit
+          credentials.recentLimit = this.recentLimit;
+          // Store updated credentials
+          await credentialsService.storeCredentials('tautulli', credentials);
+        }
+      } catch (credError) {
+        console.error('Error updating Tautulli credentials with new limit:', credError);
+        // Continue even if credentials update fails
+      }
       
       // Emit the limit changed event
       this.$emit('limitChanged', this.recentLimit);

@@ -337,16 +337,16 @@ export default {
   },
   watch: {
     show(newVal) {
-      console.log('TMDBDetailModal show prop changed:', newVal);
+      
       
       if (newVal && (this.mediaId || this.title)) {
-        console.log('Loading details for:', this.title || `ID: ${this.mediaId}`);
+        
         this.loadDetails();
         // Reset to the overview tab when opening
         this.activeTab = 'overview';
       } else if (!newVal) {
         // Reset data when modal is closed
-        console.log('Modal closed, resetting data');
+        
         this.mediaDetails = null;
         this.cast = [];
         this.posterUrl = null;
@@ -367,7 +367,7 @@ export default {
   },
   methods: {
     async loadDetails() {
-      console.log('TMDBDetailModal loadDetails() started');
+      
       this.loading = true;
       this.error = null;
       
@@ -380,11 +380,11 @@ export default {
         let details;
         
         if (this.mediaId) {
-          console.log('Fetching by ID:', this.mediaId);
+          
           // If we already have the ID, fetch directly
           details = await this.fetchDetailsById();
         } else if (this.title) {
-          console.log('Fetching by title:', this.title);
+          
           // Otherwise search by title
           details = await this.fetchDetailsByTitle();
         } else {
@@ -397,7 +397,7 @@ export default {
           throw new Error(`Unable to find ${this.mediaType === 'tv' ? 'TV show' : 'movie'} details`);
         }
         
-        console.log('Details retrieved successfully:', details.title || details.name);
+        
         this.mediaDetails = details;
         
         // Load cast and trailers if available
@@ -409,18 +409,18 @@ export default {
         // Get poster URL
         if (details.poster_path) {
           this.posterUrl = tmdbService.getFullImageUrl(details.poster_path);
-          console.log('Poster URL:', this.posterUrl);
+          
         } else {
-          console.log('No poster path available');
+          
           this.posterUrl = null;
         }
         
         // Get backdrop URL
         if (details.backdrop_path) {
           this.backdropUrl = tmdbService.getFullImageUrl(details.backdrop_path, 'w1280');
-          console.log('Backdrop URL:', this.backdropUrl);
+          
         } else {
-          console.log('No backdrop path available');
+          
           this.backdropUrl = null;
         }
       } catch (error) {
@@ -428,23 +428,23 @@ export default {
         this.error = error.message || 'Failed to load details';
       } finally {
         this.loading = false;
-        console.log('TMDBDetailModal loadDetails() completed, loading:', this.loading);
+        
       }
     },
     
     async fetchDetailsById(id) {
       const mediaId = id || this.mediaId;
-      console.log('Fetching details by ID:', mediaId);
+      
       
       const endpoint = this.mediaType === 'tv' 
         ? `/tv/${mediaId}`
         : `/movie/${mediaId}`;
       
-      console.log('TMDB details endpoint:', endpoint);
+      
       
       try {
         const details = await tmdbService._apiRequest(endpoint);
-        console.log('Details fetched successfully:', details ? 'Yes' : 'No');
+        
         return details;
       } catch (error) {
         console.error('Error fetching details by ID:', error);
@@ -453,11 +453,11 @@ export default {
     },
     
     async fetchDetailsByTitle() {
-      console.log('Searching by title:', this.title, 'type:', this.mediaType);
+      
       // Search for the media by title
       try {
         const endpoint = this.mediaType === 'tv' ? '/search/tv' : '/search/movie';
-        console.log('TMDB endpoint:', endpoint);
+        
         
         const searchResults = await tmdbService._apiRequest(
           endpoint,
@@ -470,12 +470,12 @@ export default {
         if (searchResults && searchResults.results && searchResults.results.length > 0) {
           // Get the first result's ID and fetch its full details
           const mediaId = searchResults.results[0].id;
-          console.log('Found ID:', mediaId, 'for', this.title);
+          
           const details = await this.fetchDetailsById(mediaId);
           return details;
         }
         
-        console.log('No results found for title:', this.title);
+        
         return null;
       } catch (error) {
         console.error('Error searching for media:', error);
@@ -542,7 +542,7 @@ export default {
             return new Date(b.published_at || 0) - new Date(a.published_at || 0);
           });
           
-          console.log(`Found ${this.trailers.length} trailers for ${this.mediaDetails.title || this.mediaDetails.name}`);
+          
         }
       } catch (error) {
         console.error('Error loading trailer information:', error);

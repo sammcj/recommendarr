@@ -26,6 +26,45 @@ services:
       - PUBLIC_URL=${PUBLIC_URL:-http://localhost:${PORT:-3000}}
       # Uncomment to force secure cookies even over HTTP (only use if behind HTTPS reverse proxy)
       #- FORCE_SECURE_COOKIES=true
+      # OAuth Configuration (Optional but Recommended)
+      # ---------------------------------------------
+      # SESSION_SECRET is REQUIRED for OAuth to work securely
+      # Generate a secure random string (minimum 32 chars):
+      #   Linux/macOS: openssl rand -hex 32
+      #- SESSION_SECRET=your-generated-secret-here
+      
+      # Google OAuth Setup:
+      # 1. Create project at https://console.developers.google.com/
+      # 2. Configure OAuth consent screen
+      # 3. Create OAuth credentials (Web Application type)
+      # 4. Set authorized redirect URI to:
+      #    {PUBLIC_URL}/api/auth/google/callback
+      #- GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+      #- GOOGLE_CLIENT_SECRET=your-client-secret
+      
+      # GitHub OAuth Setup:
+      # 1. Create OAuth App at https://github.com/settings/developers
+      # 2. Set callback URL to:
+      #    {PUBLIC_URL}/api/auth/github/callback
+      #- GITHUB_CLIENT_ID=your-github-client-id
+      #- GITHUB_CLIENT_SECRET=your-github-client-secret
+      
+      # Custom OAuth2 Setup:
+      # 1. Create OAuth2 application with your provider
+      # 2. Set redirect URI to:
+      #    {PUBLIC_URL}/api/auth/custom/callback
+      # 3. Configure appropriate scopes for your provider
+      #- CUSTOM_OAUTH_AUTH_URL=https://your-oauth-provider.com/oauth/authorize
+      #- CUSTOM_OAUTH_TOKEN_URL=https://your-oauth-provider.com/oauth/token
+      #- CUSTOM_OAUTH_USERINFO_URL=https://your-oauth-provider.com/oauth/userinfo
+      #- CUSTOM_OAUTH_CLIENT_ID=your-client-id
+      #- CUSTOM_OAUTH_CLIENT_SECRET=your-client-secret
+      #- CUSTOM_OAUTH_SCOPE=openid profile email
+      
+      # Important Notes:
+      # - {PUBLIC_URL} must match exactly what you configure with the providers
+      # - For production (HTTPS), uncomment FORCE_SECURE_COOKIES below
+      # - After setup, restart the container for changes to take effect
     volumes:
       - recommendarr-data:/app/server/data
     restart: unless-stopped

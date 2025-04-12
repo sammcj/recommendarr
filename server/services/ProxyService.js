@@ -27,7 +27,7 @@ class ProxyService {
       // Leave all external URLs (including API providers) untouched
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         const processed = url.replace(/(localhost|127\.0\.0\.1)/, 'host.docker.internal');
-        console.log(`[ProxyService] Converted localhost URL to: ${processed}`);
+        
         return processed;
       }
       
@@ -35,12 +35,12 @@ class ProxyService {
       if (/^192\.168\.[0-9]{1,3}\.[0-9]{1,3}$/.test(hostname) || 
           /^10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/.test(hostname)) {
         // Keep the URL intact - container should be able to reach host network
-        console.log(`[ProxyService] Detected local IP address: ${hostname}`);
+        
         return url;
       }
       
       // For all other URLs (external APIs, etc.), don't modify them
-      console.log(`[ProxyService] Using unmodified external URL: ${url}`);
+      
       return url;
     } catch (error) {
       // If URL parsing fails, return the original URL
@@ -63,18 +63,18 @@ class ProxyService {
   async proxyRequest(options) {
     // Process the URL for Docker compatibility
     const processedUrl = this.processUrl(options.url);
-    console.log(`Processing proxy request: ${options.url} -> ${processedUrl}`);
+    
     
     // Log the headers (excluding Authorization for security)
     const sanitizedHeaders = {...options.headers};
     if (sanitizedHeaders.Authorization) {
       sanitizedHeaders.Authorization = 'Bearer [REDACTED]';
     }
-    console.log('Request headers:', JSON.stringify(sanitizedHeaders));
+    
     
     // Ensure proper headers are set for LLM API requests
     if (processedUrl.includes('/v1/models')) {
-      console.log('Adding headers for models API request');
+      
       if (!options.headers) options.headers = {};
       
       // Set Accept header to tell server what response format we want
@@ -87,12 +87,12 @@ class ProxyService {
         if (options.headers['Content-Type'] || options.headers['content-type']) {
           delete options.headers['Content-Type'];
           delete options.headers['content-type'];
-          console.log('Removed Content-Type header for GET request to avoid OpenAI API errors');
+          
         }
         
         // Ensure data is empty for GET requests
         if (options.data) {
-          console.log('Removing body data from GET request to avoid OpenAI API errors');
+          
           delete options.data;
         }
       }
@@ -100,14 +100,14 @@ class ProxyService {
       // Remove User-Agent header as browsers block this header in XHR/fetch requests
       if (options.headers['User-Agent']) {
         delete options.headers['User-Agent'];
-        console.log('Removed User-Agent header which browsers block in XHR requests');
+        
       }
       
       // Ensure authorization header has correct capitalization if present
       if (options.headers['authorization'] && !options.headers['Authorization']) {
         options.headers['Authorization'] = options.headers['authorization'];
         delete options.headers['authorization'];
-        console.log('Fixed Authorization header capitalization');
+        
       }
       
       // Handle query params for API keys (particularly for Google AI)
@@ -117,9 +117,9 @@ class ProxyService {
           const hasQueryParam = processedUrl.includes('?');
           const separator = hasQueryParam ? '&' : '?';
           processedUrl = `${processedUrl}${separator}key=${options.params.key}`;
-          console.log('Added API key as query parameter');
+          
         } else {
-          console.log('URL already contains key parameter, skipping addition');
+          
         }
         // Remove from params to avoid duplication
         delete options.params.key;
@@ -150,9 +150,9 @@ class ProxyService {
     }
     
     try {
-      console.log(`Sending ${options.method} request to ${processedUrl}`);
+      
       const response = await axios(requestOptions);
-      console.log(`Response received from ${processedUrl}, status: ${response.status}, content-type: ${response.headers['content-type'] || 'not specified'}`);
+      
       
       // Log detailed response info for debugging
       if (processedUrl.includes('/v1/models')) {
@@ -200,7 +200,7 @@ class ProxyService {
       
       // Log successful response type
       if (response.status >= 200 && response.status < 300) {
-        console.log(`Successful response (${response.status}) with data type: ${typeof response.data}`);
+        
       } else {
         console.warn(`Non-success response: ${response.status} ${response.statusText}`);
         

@@ -17,14 +17,14 @@ class EncryptionService {
       // Try to load existing key
       try {
         this.key = await fs.readFile(KEY_FILE);
-        console.log('Loaded existing encryption key');
+        
       } catch (err) {
         // Generate new key if not exists
         if (err.code === 'ENOENT') {
           // Generate a secure random key (32 bytes for AES-256)
           this.key = crypto.randomBytes(32);
           await fs.writeFile(KEY_FILE, this.key);
-          console.log('Generated new encryption key');
+          
         } else {
           throw err;
         }

@@ -8,6 +8,65 @@ class CredentialsService {
     this.baseUrl = apiService.baseUrl;
     // Used for migration from localStorage
     this.migrated = {};
+    // Cache for storing credentials to avoid repeated API calls
+    this.credentialsCache = {};
+  }
+  
+  /**
+   * Migrate credentials from localStorage to server storage
+   * Only runs when user is authenticated
+   * 
+   * @param {string} serviceName - Name of the service
+   * @returns {Promise<Object|null>} - Migrated credentials or null
+   */
+  async migrateFromLocalStorage(serviceName) {
+    // Check if user is authenticated before attempting migration
+    if (!apiService.getCurrentUser()) {
+      
+      return null;
+    }
+    
+    // Check if we've already tried to migrate this service
+    if (this.migrated[serviceName]) {
+      return null;
+    }
+    
+    // Mark as migrated to avoid repeated attempts
+    this.migrated[serviceName] = true;
+    
+    try {
+      
+      
+      // Try to get legacy credentials from localStorage
+      const legacyKey = `${serviceName}_credentials`;
+      const legacyCredentials = localStorage.getItem(legacyKey);
+      
+      if (!legacyCredentials) {
+        
+        return null;
+      }
+      
+      // Parse the credentials
+      const credentials = JSON.parse(legacyCredentials);
+      
+      // Store them server-side
+      const success = await this.storeCredentials(serviceName, credentials);
+      
+      if (success) {
+        
+        
+        // Migration is no longer needed
+        
+        
+        return credentials;
+      } else {
+        console.error(`Failed to migrate ${serviceName} credentials to server storage`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`Error migrating ${serviceName} credentials:`, error);
+      return null;
+    }
   }
   
   /**
@@ -17,15 +76,20 @@ class CredentialsService {
    */
   async resetUserData() {
     try {
-      console.log('Calling reset endpoint to reset user data');
+      
       
       // Use ApiService for proper auth header
       const response = await apiService.post('/reset');
-      console.log('Reset response:', response.data);
+      
       
       // Verify the reset was successful
       if (response.data && response.data.success) {
-        console.log('✓ Server confirmed user_data.json was reset successfully');
+        
+        
+        // Clear the credentials cache since all user data was reset
+        this.credentialsCache = {};
+        
+        
         return true;
       } else {
         console.error('Server returned success=false for reset operation');
@@ -51,10 +115,22 @@ class CredentialsService {
    */
   async storeCredentials(serviceName, credentials) {
     try {
-      console.log(`Storing credentials for ${serviceName}`);
+      // Check if user is authenticated before making the request
+      if (!apiService.getCurrentUser()) {
+        
+        return false;
+      }
+      
+      
       // Send credentials to server using ApiService with auth header
       const response = await apiService.post(`/credentials/${serviceName}`, credentials);
-      console.log(`Credentials for ${serviceName} stored successfully`);
+      
+      
+      // Update cache on successful store
+      if (response.data.success) {
+        this.credentialsCache[serviceName] = credentials;
+      }
+      
       return response.data.success;
     } catch (error) {
       console.error(`Error storing credentials for ${serviceName}:`, error);
@@ -69,17 +145,34 @@ class CredentialsService {
    * @returns {Promise<Object|null>} - Credentials object or null if not found
    */
   async getCredentials(serviceName) {
+    // Check if we have cached credentials
+    if (this.credentialsCache[serviceName]) {
+      
+      return this.credentialsCache[serviceName];
+    }
+    
     try {
-      console.log(`Getting credentials for ${serviceName}`);
+      
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.get(`/credentials/${serviceName}`);
-      console.log(`Retrieved credentials for ${serviceName} successfully`);
+      
+      
+      // Store in cache
+      this.credentialsCache[serviceName] = response.data;
+      
       return response.data;
     } catch (error) {
       if (error.response?.status === 404) {
-        console.log(`${serviceName} credentials not found, trying localStorage migration`);
+        
         // Service not found - try migrating from localStorage
-        return this.migrateFromLocalStorage(serviceName);
+        const migratedCredentials = await this.migrateFromLocalStorage(serviceName);
+        
+        // If migration successful, cache the credentials
+        if (migratedCredentials) {
+          this.credentialsCache[serviceName] = migratedCredentials;
+        }
+        
+        return migratedCredentials;
       }
       console.error(`Error retrieving credentials for ${serviceName}:`, error);
       return null;
@@ -96,6 +189,12 @@ class CredentialsService {
     try {
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.delete(`/credentials/${serviceName}`);
+      
+      // Remove from cache on successful delete
+      if (response.data.success) {
+        delete this.credentialsCache[serviceName];
+      }
+      
       return response.data.success;
     } catch (error) {
       console.error(`Error deleting credentials for ${serviceName}:`, error);
@@ -110,14 +209,20 @@ class CredentialsService {
    * @returns {Promise<boolean>} - Whether credentials exist
    */
   async hasCredentials(serviceName) {
+    // Check cache first
+    if (this.credentialsCache[serviceName]) {
+      
+      return true;
+    }
+    
     try {
-      console.log(`Checking if credentials exist for ${serviceName}`);
+      
       
       // Use ApiService's axios instance which has the auth header properly setup
       const response = await apiService.get('/credentials');
       
       const hasService = !!response.data.services[serviceName];
-      console.log(`Credentials for ${serviceName}: ${hasService ? 'FOUND' : 'NOT FOUND'}`);
+      
       
       return hasService;
     } catch (error) {
@@ -125,102 +230,65 @@ class CredentialsService {
       return false;
     }
   }
-
+  
   /**
-   * Deprecated: These methods have been moved to ApiService
+   * Load all credentials at once to populate the cache
+   * This should be called during app initialization before any service tries to access credentials
    * 
-   * Recommendations and preferences are now stored in the user_data file
-   * via the ApiService methods:
-   * - apiService.saveRecommendations(type, recommendations)
-   * - apiService.getRecommendations(type)
-   * - apiService.savePreferences(type, preference, items)
-   * - apiService.getPreferences(type, preference)
+   * @returns {Promise<Object>} - Object containing all credentials by service name
    */
-
-  /**
-   * Migrate credentials from localStorage to server-side storage
-   * Only used once per service to handle transition
-   * 
-   * @param {string} serviceName - Name of the service
-   * @returns {Promise<Object|null>} - Migrated credentials or null
-   * @private
-   */
-  async migrateFromLocalStorage(serviceName) {
-    // Don't try to migrate more than once per service
-    if (this.migrated[serviceName]) return null;
-    
+  async loadAllCredentials() {
     try {
-      let credentials = {};
       
-      // Handle different services
-      switch(serviceName) {
-        case 'sonarr': {
-          const sonarrBaseUrl = localStorage.getItem('sonarrBaseUrl');
-          const sonarrApiKey = localStorage.getItem('sonarrApiKey');
-          if (sonarrBaseUrl && sonarrApiKey) {
-            credentials = { baseUrl: sonarrBaseUrl, apiKey: sonarrApiKey };
+      
+      // Use ApiService's axios instance which has the auth header properly setup
+      const response = await apiService.get('/credentials');
+      
+      if (response.data && response.data.services) {
+        const services = response.data.services;
+        const serviceNames = Object.keys(services);
+        
+        
+        
+        // Load each service's credentials into cache
+        const loadPromises = serviceNames.map(async (serviceName) => {
+          if (services[serviceName]) {
+            try {
+              // Get the full credentials for this service
+              const credentials = await this.getCredentials(serviceName);
+              if (credentials) {
+                
+                // The getCredentials method already updates the cache
+              }
+              return { serviceName, credentials };
+            } catch (error) {
+              console.error(`Error loading credentials for ${serviceName}:`, error);
+              return { serviceName, credentials: null };
+            }
           }
-          break;
-        }
-          
-        case 'radarr': {
-          const radarrBaseUrl = localStorage.getItem('radarrBaseUrl');
-          const radarrApiKey = localStorage.getItem('radarrApiKey');
-          if (radarrBaseUrl && radarrApiKey) {
-            credentials = { baseUrl: radarrBaseUrl, apiKey: radarrApiKey };
+          return { serviceName, credentials: null };
+        });
+        
+        // Wait for all credentials to be loaded
+        const results = await Promise.all(loadPromises);
+        
+        // Convert results array to object
+        const credentialsMap = {};
+        results.forEach(result => {
+          if (result.credentials) {
+            credentialsMap[result.serviceName] = result.credentials;
           }
-          break;
-        }
-          
-        case 'plex': {
-          const plexUrl = localStorage.getItem('plexUrl');
-          const plexToken = localStorage.getItem('plexToken');
-          if (plexUrl && plexToken) {
-            credentials = { baseUrl: plexUrl, token: plexToken };
-          }
-          break;
-        }
-          
-        case 'jellyfin': {
-          const jellyfinUrl = localStorage.getItem('jellyfinUrl');
-          const jellyfinApiKey = localStorage.getItem('jellyfinApiKey');
-          const jellyfinUserId = localStorage.getItem('jellyfinUserId');
-          if (jellyfinUrl && jellyfinApiKey) {
-            credentials = { 
-              baseUrl: jellyfinUrl, 
-              apiKey: jellyfinApiKey,
-              userId: jellyfinUserId
-            };
-          }
-          break;
-        }
-          
-        case 'openai': {
-          const openaiApiUrl = localStorage.getItem('openaiApiUrl');
-          const openaiApiKey = localStorage.getItem('openaiApiKey');
-          const openaiModel = localStorage.getItem('openaiModel');
-          if (openaiApiUrl && openaiApiKey) {
-            credentials = { 
-              apiUrl: openaiApiUrl, 
-              apiKey: openaiApiKey,
-              model: openaiModel
-            };
-          }
-          break;
-        }
+        });
+        
+        
+        return credentialsMap;
       }
       
-      // If we found credentials, store them server-side
-      if (Object.keys(credentials).length > 0) {
-        await this.storeCredentials(serviceName, credentials);
-        this.migrated[serviceName] = true;
-        return credentials;
-      }
       
-      return null;
+      return {};
     } catch (error) {
-      console.error(`Error migrating ${serviceName} credentials:`, error);
-      return null;
+      console.error('Error loading all credentials:', error);
+      return {};
     }
   }
 }

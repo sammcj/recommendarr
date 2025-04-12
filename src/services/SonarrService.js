@@ -3,23 +3,30 @@ import apiService from './ApiService';
 import credentialsService from './CredentialsService';
 
 class SonarrService {
-  constructor() {
+constructor() {
     this.apiKey = '';
     this.baseUrl = '';
     // Flag to determine if we should use the proxy
     this.useProxy = true;
-    // Load credentials when instantiated
-    this.loadCredentials();
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
+    // Removed automatic loading of credentials to prevent double loading
   }
   
   /**
    * Load credentials from server-side storage
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return;
+    }
+    
     const credentials = await credentialsService.getCredentials('sonarr');
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.apiKey = credentials.apiKey || '';
+      this.credentialsLoaded = true; // Set flag after successful load
     }
   }
   
@@ -33,9 +40,15 @@ class SonarrService {
    * @private
    */
   async _apiRequest(endpoint, method = 'GET', data = null, params = {}) {
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 second
+    let retryCount = 0;
+    
     if (!this.isConfigured()) {
-      // Try to load credentials again in case they weren't ready during init
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         throw new Error('Sonarr service is not configured. Please set baseUrl and apiKey.');
@@ -50,46 +63,56 @@ class SonarrService {
     
     const url = `${this.baseUrl}${endpoint}`;
     
-    try {
-      if (this.useProxy) {
-        // Log attempt to connect through proxy for debugging
-        console.log(`Making ${method} request to Sonarr via proxy: ${endpoint}`);
+    while (retryCount <= maxRetries) {
+      try {
+        if (this.useProxy) {
+          // Log attempt to connect through proxy for debugging
+          
+          
+          const response = await apiService.proxyRequest({
+            url,
+            method,
+            data,
+            params: requestParams
+          });
+          
+          // The proxy returns the data wrapped, we need to unwrap it
+          return response.data;
+        } else {
+          // Direct API request
+          
+          
+          const response = await axios({
+            url,
+            method,
+            data,
+            params: requestParams,
+            // Removed timeout to allow slower network connections
+          });
+          
+          return response.data;
+        }
+      } catch (error) {
+        if (retryCount === maxRetries || 
+            (error.response && error.response.status < 500)) {
+          console.error(`Final attempt failed in Sonarr API request to ${endpoint}:`, error);
+          
+          // Enhance the error with more helpful information
+          const enhancedError = {
+            ...error,
+            message: error.message || 'Unknown error',
+            endpoint,
+            url
+          };
+          
+          throw enhancedError;
+        }
         
-        const response = await apiService.proxyRequest({
-          url,
-          method,
-          data,
-          params: requestParams
-        });
+        const delay = baseDelay * Math.pow(2, retryCount);
         
-        // The proxy returns the data wrapped, we need to unwrap it
-        return response.data;
-      } else {
-        // Direct API request
-        console.log(`Making direct ${method} request to Sonarr: ${endpoint}`);
-        
-        const response = await axios({
-          url,
-          method,
-          data,
-          params: requestParams,
-          // Removed timeout to allow slower network connections
-        });
-        
-        return response.data;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
       }
-    } catch (error) {
-      console.error(`Error in Sonarr API request to ${endpoint}:`, error);
-      
-      // Enhance the error with more helpful information
-      const enhancedError = {
-        ...error,
-        message: error.message || 'Unknown error',
-        endpoint,
-        url
-      };
-      
-      throw enhancedError;
     }
   }
 
@@ -119,14 +142,131 @@ class SonarrService {
   }
 
   /**
+   * Extract essential series information for storage and LLM requests
+   * @param {Array} seriesData - Full series data from Sonarr API
+   * @returns {Array} - Array of simplified series objects with only essential information
+   * @private
+   */
+  _extractSeriesEssentials(seriesData) {
+    if (!Array.isArray(seriesData)) {
+      console.error('Invalid series data provided to _extractSeriesEssentials');
+      return [];
+    }
+    
+    return seriesData.map(series => ({
+      id: series.id,
+      title: series.title,
+      year: series.year,
+      tvdbId: series.tvdbId,
+      status: series.status,
+      overview: series.overview ? series.overview.substring(0, 200) : '', // Truncate overview to save space
+      network: series.network || '',
+      genres: Array.isArray(series.genres) ? series.genres : []
+    }));
+  }
+
+  /**
    * Get all series from Sonarr
+   * @param {boolean} [forceRefresh=false] - Force refresh from API instead of using cached data
    * @returns {Promise<Array>} - List of TV shows
    */
-  async getSeries() {
+  async getSeries(forceRefresh = false) {
     try {
-      return await this._apiRequest('/api/v3/series');
+      // Check if we have data in the database and it's not a forced refresh
+      if (!forceRefresh) {
+        try {
+          // Try to get library from database via API
+          const response = await apiService.get('/sonarr/library');
+          
+          if (response.data && Array.isArray(response.data)) {
+            
+            return response.data;
+          }
+        } catch (dbError) {
+          console.error('Error accessing database for Sonarr library:', dbError);
+          // Continue to API request if database access fails
+        }
+      }
+      
+      // If no cached data or force refresh, get from API
+      
+      const seriesData = await this._apiRequest('/api/v3/series');
+      
+      // Extract essential information before saving to database
+      const essentialSeriesData = this._extractSeriesEssentials(seriesData);
+      
+      // Save to database for future use
+      try {
+        // Save library to database via API
+        await apiService.post('/sonarr/library', essentialSeriesData);
+        
+      } catch (saveError) {
+        console.error('Error saving Sonarr library to database:', saveError);
+        // Continue even if save fails
+      }
+      
+      return seriesData;
     } catch (error) {
       console.error('Error fetching series from Sonarr:', error);
+      
+      // If API request fails, try to fall back to database
+      try {
+        // Try to get library from database as fallback
+        const response = await apiService.get('/sonarr/library');
+        
+        if (response.data && Array.isArray(response.data)) {
+          
+          return response.data;
+        }
+      } catch (dbError) {
+        console.error('Error accessing database for fallback Sonarr library:', dbError);
+      }
+      
+      // If both API and database fallback fail, rethrow the original error
+      throw error;
+    }
+  }
+  
+  /**
+   * Force refresh of the Sonarr library from the API
+   * @returns {Promise<Array>} - Updated list of TV shows
+   */
+  async refreshLibrary() {
+    try {
+      
+      const seriesData = await this._apiRequest('/api/v3/series');
+      
+      // Extract essential information before saving to database
+      const essentialSeriesData = this._extractSeriesEssentials(seriesData);
+      
+      // Save to database for all users via the refresh-all endpoint
+      try {
+        // Save library to database via API for all users
+        await apiService.post('/sonarr/library/refresh-all', essentialSeriesData);
+        
+      } catch (saveError) {
+        console.error('Error saving Sonarr library to database for all users:', saveError);
+        // Continue even if save fails
+      }
+      
+      return seriesData;
+    } catch (error) {
+      console.error('Error refreshing Sonarr library:', error);
+      
+      // If API request fails, try to fall back to database
+      try {
+        // Try to get library from database as fallback
+        const response = await apiService.get('/sonarr/library');
+        
+        if (response.data && Array.isArray(response.data)) {
+          
+          return response.data;
+        }
+      } catch (dbError) {
+        console.error('Error accessing database for fallback Sonarr library:', dbError);
+      }
+      
+      // If both API and database fallback fail, rethrow the original error
       throw error;
     }
   }
@@ -138,8 +278,8 @@ class SonarrService {
    */
   async findExistingSeriesByTitle(title) {
     try {
-      // Search in the existing library
-      const libraryData = await this._apiRequest('/api/v3/series');
+      // Search in the existing library - use getSeries which handles caching
+      const libraryData = await this.getSeries();
       
       // Look for exact match first
       let match = libraryData.find(show => 
@@ -168,8 +308,8 @@ class SonarrService {
    */
   async findSeriesByTitle(title) {
     try {
-      // First try to search in existing library
-      const libraryData = await this._apiRequest('/api/v3/series');
+      // First try to search in existing library - use getSeries which handles caching
+      const libraryData = await this.getSeries();
       
       // Find closest match in library
       const libraryMatch = libraryData.find(show => 
@@ -204,18 +344,13 @@ class SonarrService {
    */
   async testConnection() {
     try {
-      console.log('Testing Sonarr connection with URL:', this.baseUrl);
+      
       await this._apiRequest('/api/v3/system/status');
-      console.log('Sonarr connection successful');
+      
       return true;
     } catch (error) {
       console.error('Error connecting to Sonarr:', error);
       // Log more detailed diagnostics information
-      if (this.useProxy) {
-        console.log('Using proxy mode - check server logs for details');
-      } else {
-        console.log('Using direct connection mode');
-      }
       return false;
     }
   }
@@ -249,7 +384,7 @@ class SonarrService {
   /**
    * Look up a series by title in Sonarr API
    * @param {string} title - The title to search for
-   * @returns {Promise<Object>} - Series details from the lookup
+   * @returns {Promise<Object>} - Series details from the lookup, including ratings if available
    */
   async lookupSeries(title) {
     try {
@@ -260,7 +395,10 @@ class SonarrService {
         throw new Error(`Series "${title}" not found in Sonarr lookup.`);
       }
       
-      return lookupData[0];
+      // The first result is typically the most relevant
+      const seriesData = lookupData[0];
+      
+      return seriesData;
     } catch (error) {
       console.error(`Error looking up series "${title}" in Sonarr:`, error);
       throw error;
@@ -337,7 +475,7 @@ class SonarrService {
       
       // Handle case where no seasons are returned from the API
       if (!seriesData.seasons || seriesData.seasons.length === 0) {
-        console.log('No season information available for series:', title);
+        
         // When no seasons information is available, don't set any seasons
         // This will make Sonarr monitor all seasons by default
         // We won't include seasons in the payload below
@@ -383,8 +521,6 @@ class SonarrService {
       // This allows Sonarr to use its default behavior when seasons aren't specified
       if (seasons.length > 0) {
         payload.seasons = seasons;
-      } else {
-        console.log(`Adding series "${title}" without season information - Sonarr will monitor all seasons by default`);
       }
       
       // 5. Add the series

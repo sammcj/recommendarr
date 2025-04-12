@@ -10,8 +10,31 @@
       <div v-if="error" class="login-error">
         {{ error }}
       </div>
+
+      <!-- OAuth providers -->
+      <div v-if="providers.length > 0" class="oauth-providers">
+        <button 
+          v-for="provider in providers" 
+          :key="provider"
+          :class="`oauth-button oauth-${provider}`"
+          @click="handleOAuthLogin(provider)"
+          :disabled="loading"
+        >
+          <span class="oauth-icon">
+            <i v-if="provider === 'google'" class="fab fa-google"></i>
+            <i v-else-if="provider === 'github'" class="fab fa-github"></i>
+            <i v-else class="fas fa-user"></i>
+          </span>
+          <span v-if="provider === 'custom'">Login with OAuth2</span>
+          <span v-else>Continue with {{ capitalizeProvider(provider) }}</span>
+        </button>
+      </div>
+
+      <div v-if="providers.length > 0 && localAuth" class="divider">
+        <span>or</span>
+      </div>
       
-      <form @submit.prevent="handleLogin" class="login-form">
+      <form v-if="localAuth" @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
           <label for="username">Username</label>
           <input 
@@ -34,6 +57,7 @@
             placeholder="Enter your password" 
             required
             :disabled="loading"
+            autocomplete="current-password"
           >
         </div>
         
@@ -48,88 +72,9 @@
           </button>
         </div>
       </form>
+
     </div>
     
-    <!-- Registration Modal -->
-    <div v-if="showRegister" class="modal-overlay">
-      <div class="register-modal">
-        <div class="modal-header">
-          <h2>Create Account</h2>
-          <button class="close-button" @click="showRegister = false">&times;</button>
-        </div>
-        
-        <div v-if="registerError" class="register-error">
-          {{ registerError }}
-        </div>
-        
-        <form @submit.prevent="handleRegister" class="register-form">
-          <div class="form-group">
-            <label for="register-username">Username</label>
-            <input 
-              type="text" 
-              id="register-username" 
-              v-model="registerUsername" 
-              placeholder="Choose a username" 
-              required
-              :disabled="registerLoading"
-            >
-          </div>
-          
-          <div class="form-group">
-            <label for="register-password">Password</label>
-            <input 
-              type="password" 
-              id="register-password" 
-              v-model="registerPassword" 
-              placeholder="Choose a password" 
-              required
-              :disabled="registerLoading"
-            >
-          </div>
-          
-          <div class="form-group">
-            <label for="confirm-password">Confirm Password</label>
-            <input 
-              type="password" 
-              id="confirm-password" 
-              v-model="confirmPassword" 
-              placeholder="Confirm your password" 
-              required
-              :disabled="registerLoading"
-            >
-          </div>
-          
-          <div class="form-actions">
-            <button 
-              type="submit" 
-              class="register-button" 
-              :disabled="registerLoading || registerPassword !== confirmPassword"
-            >
-              <span v-if="registerLoading">Creating account...</span>
-              <span v-else>Create Account</span>
-            </button>
-            
-            <button 
-              type="button" 
-              class="cancel-button" 
-              @click="showRegister = false"
-              :disabled="registerLoading"
-            >
-              Cancel
-            </button>
-          </div>
-          
-          <div v-if="registerPassword !== confirmPassword" class="password-mismatch">
-            Passwords do not match
-          </div>
-        </form>
-        
-        <div v-if="registerSuccess" class="register-success">
-          <p>{{ registerSuccess }}</p>
-          <button @click="showRegister = false" class="login-now">Login Now</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -150,10 +95,139 @@ export default {
       confirmPassword: '',
       registerLoading: false,
       registerError: null,
-      registerSuccess: null
+      registerSuccess: null,
+      providers: [],
+      localAuth: true
     };
   },
+  async mounted() {
+    try {
+      // Get URL parameters first before cleaning them
+      const urlParams = new URLSearchParams(window.location.search);
+      const codeParam = urlParams.get('code');
+      const errorParam = urlParams.get('error');
+      const logoutParam = urlParams.get('logout');
+      
+      // If logout parameter is present, clear local authentication data
+      if (logoutParam === 'true') {
+        
+        AuthService.clearLocalAuth();
+        // Clean up URL to remove logout parameter
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      
+      // Simple check if user is already authenticated in localStorage
+      if (AuthService.isAuthenticated()) {
+        
+        // Verify the session with the server before proceeding
+        const isSessionValid = await AuthService.verifySession();
+        
+        if (isSessionValid) {
+          
+          // Only clean URL and emit authenticated if not coming from OAuth callback
+          if (!codeParam) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+          this.$emit('authenticated');
+          return;
+        } else {
+          
+          // If server says session is invalid but we have local data, clear it
+          AuthService.clearLocalAuth();
+        }
+      }
+      
+      // First verify session with server immediately
+      let isAuthenticated = await AuthService.verifySession();
+      if (isAuthenticated) {
+        
+        
+        // Import and reset RecommendationsStore first to ensure clean state
+        try {
+          const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+          const RecommendationsStore = RecommendationsStoreModule.default;
+          
+          if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+            
+            RecommendationsStore.resetStore();
+          }
+        } catch (resetError) {
+          console.error('Error resetting RecommendationsStore:', resetError);
+        }
+        
+        this.$emit('authenticated');
+        return;
+      }
+
+      // If we're returning from OAuth callback (has code param but no error)
+      if (codeParam && !errorParam) {
+        
+        // Show loading state
+        this.loading = true;
+        
+        // Verify session with increasing delays to account for cookie setting
+        isAuthenticated = false;
+        for (let i = 0; i < 5; i++) {  // Increased from 3 to 5 attempts
+          const delay = 300 * (i + 1);  // Progressive delay: 300ms, 600ms, 900ms, 1200ms, 1500ms
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          isAuthenticated = await AuthService.verifySession();
+          
+          
+          if (isAuthenticated) break;
+        }
+        
+        if (isAuthenticated) {
+          
+          
+          // Import and reset RecommendationsStore first to ensure clean state
+          try {
+            const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+            const RecommendationsStore = RecommendationsStoreModule.default;
+            
+            if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+              
+              RecommendationsStore.resetStore();
+            }
+          } catch (resetError) {
+            console.error('Error resetting RecommendationsStore after OAuth login:', resetError);
+          }
+          
+          // Clean up URL and emit authenticated event
+          window.history.replaceState({}, document.title, window.location.pathname);
+          this.$emit('authenticated');
+          return;
+        } else {
+          
+          this.error = 'OAuth login failed. Please try again.';
+          // Clean up URL even if authentication fails to prevent reload loops
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    } catch (error) {
+      console.error('Error verifying session:', error);
+      this.error = 'Failed to verify authentication. Please try again.';
+    } finally {
+      this.loading = false;
+    }
+    
+    // Get enabled authentication providers
+    this.getProviders();
+  },
   methods: {
+    async getProviders() {
+      try {
+        const providersData = await AuthService.getEnabledProviders();
+        this.providers = providersData.providers || [];
+        this.localAuth = providersData.localAuth !== false;
+      } catch (err) {
+        console.error('Error fetching auth providers:', err);
+        this.providers = [];
+        this.localAuth = true;
+      }
+    },
+    
     async handleLogin() {
       this.loading = true;
       this.error = null;
@@ -161,6 +235,19 @@ export default {
       try {
         // Attempt login
         await AuthService.login(this.username, this.password);
+        
+        // Import and reset RecommendationsStore first to ensure clean state
+        try {
+          const RecommendationsStoreModule = await import('../stores/RecommendationsStore');
+          const RecommendationsStore = RecommendationsStoreModule.default;
+          
+          if (RecommendationsStore && typeof RecommendationsStore.resetStore === 'function') {
+            
+            RecommendationsStore.resetStore();
+          }
+        } catch (resetError) {
+          console.error('Error resetting RecommendationsStore:', resetError);
+        }
         
         // On success, emit the authenticated event
         this.$emit('authenticated');
@@ -196,6 +283,23 @@ export default {
       } finally {
         this.registerLoading = false;
       }
+    },
+
+    handleOAuthLogin(provider) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        // Redirect to OAuth provider
+        AuthService.oauthLogin(provider);
+      } catch (error) {
+        this.error = error || 'OAuth login failed. Please try again.';
+        this.loading = false;
+      }
+    },
+
+    capitalizeProvider(provider) {
+      return provider.charAt(0).toUpperCase() + provider.slice(1);
     }
   }
 };
@@ -330,6 +434,18 @@ body.dark-theme .login-logo {
 .login-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.register-section {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.register-section p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--text-color);
+  opacity: 0.8;
 }
 
 .register-link {
@@ -489,5 +605,80 @@ body.dark-theme .login-logo {
 
 .login-now:hover {
   filter: brightness(1.1);
+}
+
+/* OAuth Styles */
+.oauth-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.oauth-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.oauth-button:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.oauth-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.oauth-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 18px;
+}
+
+.oauth-google {
+  border-color: #4285F4;
+  color: #4285F4;
+}
+
+.oauth-github {
+  border-color: #24292E;
+  color: #24292E;
+}
+
+body.dark-theme .oauth-github {
+  border-color: #f5f5f5;
+  color: #f5f5f5;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: var(--text-color);
+  opacity: 0.5;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.divider span {
+  padding: 0 10px;
+  font-size: 14px;
 }
 </style>

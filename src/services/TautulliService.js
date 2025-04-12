@@ -1,35 +1,79 @@
 import axios from 'axios';
 import apiService from './ApiService';
 import credentialsService from './CredentialsService';
+import AuthService from './AuthService';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class TautulliService {
-  constructor() {
+constructor() {
     this.baseUrl = '';
     this.apiKey = '';
     this.configured = false;
+    this.selectedUserId = '';
     // Flag to determine if we should use the proxy
     this.useProxy = true;
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
     
-    // Try to load saved credentials
-    this.loadCredentials();
+    // Initialize selectedUserId
+    this.initSelectedUserId();
+    
+    // Removed automatic loading of credentials to prevent double loading
+  }
+  
+  /**
+   * Initialize selectedUserId from database
+   */
+  async initSelectedUserId() {
+    try {
+      this.selectedUserId = await databaseStorageUtils.getSync('selectedTautulliUserId') || '';
+    } catch (error) {
+      console.error('Error initializing selectedTautulliUserId:', error);
+      this.selectedUserId = '';
+    }
   }
   
   /**
    * Load saved credentials from the server
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return true;
+    }
+    
     try {
+      // Load credentials from server
       const credentials = await credentialsService.getCredentials('tautulli');
       if (credentials) {
         this.baseUrl = credentials.baseUrl || '';
         this.apiKey = credentials.apiKey || '';
         this.configured = !!(this.baseUrl && this.apiKey);
         
-        // Load recentLimit if available
+        // Load recentLimit if available in credentials
         if (credentials.recentLimit) {
-          localStorage.setItem('tautulliRecentLimit', credentials.recentLimit.toString());
+          await databaseStorageUtils.set('tautulliRecentLimit', credentials.recentLimit);
         }
         
+        // Also try to load selectedUserId from database directly
+        try {
+          const savedUserId = await databaseStorageUtils.get('selectedTautulliUserId');
+          if (savedUserId) {
+            this.selectedUserId = savedUserId;
+            
+          }
+        } catch (settingError) {
+          console.error('Error loading selectedTautulliUserId from database:', settingError);
+        }
+        
+        // Try to load lastTautulliHistoryRefresh from database directly
+        try {
+            await databaseStorageUtils.get('lastTautulliHistoryRefresh');
+        } catch (settingError) {
+          console.error('Error loading lastTautulliHistoryRefresh from database:', settingError);
+        }
+        
+        this.credentialsLoaded = true; // Set flag after successful load
         return true;
       }
     } catch (error) {
@@ -38,7 +82,7 @@ class TautulliService {
     return false;
   }
 
-  async configure(baseUrl, apiKey, recentLimit = null) {
+  async configure(baseUrl, apiKey, userId = '', recentLimit = null) {
     // Validate and normalize the base URL
     if (baseUrl) {
       // Make sure the URL starts with http:// or https://
@@ -51,8 +95,12 @@ class TautulliService {
       
       this.baseUrl = baseUrl;
       this.apiKey = apiKey;
+      this.selectedUserId = userId;
       this.configured = true;
       
+      await databaseStorageUtils.set('selectedTautulliUserId', this.selectedUserId);
+      
+      // Create credentials object with baseUrl and apiKey
       const credentials = {
         baseUrl: this.baseUrl,
         apiKey: this.apiKey
@@ -61,11 +109,11 @@ class TautulliService {
       // If recentLimit is provided, store it with the credentials
       if (recentLimit !== null) {
         credentials.recentLimit = recentLimit;
-        // Also store in localStorage for client-side access
-        localStorage.setItem('tautulliRecentLimit', recentLimit.toString());
+        // Also store in database for client-side access
+        await databaseStorageUtils.set('tautulliRecentLimit', recentLimit);
       }
       
-      // Store credentials on the server
+      // Store credentials server-side (single set of credentials)
       await credentialsService.storeCredentials('tautulli', credentials);
       
       return true;
@@ -95,8 +143,10 @@ class TautulliService {
   
   async _apiRequest(cmd, params = {}) {
     if (!this.isConfigured()) {
-      // Try to load credentials again in case they weren't ready during init
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         throw new Error('Tautulli service is not configured');
@@ -114,7 +164,7 @@ class TautulliService {
     try {
       if (this.useProxy) {
         // Log attempt to connect through proxy for debugging
-        console.log(`Making request to Tautulli via proxy: cmd=${cmd}`);
+        
         
         const response = await apiService.proxyRequest({
           url,
@@ -126,7 +176,7 @@ class TautulliService {
         return response.data;
       } else {
         // Direct API request
-        console.log(`Making direct request to Tautulli: cmd=${cmd}`);
+        
         
         const response = await axios.get(url, {
           params: requestParams,
@@ -162,16 +212,23 @@ class TautulliService {
   
   async getWatchHistory(userId = null, mediaType = null, limit = 50, daysAgo = 0) {
     try {
+      // For non-admin users, reload credentials to get the admin-set limit
+      if (!AuthService.isAdmin()) {
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials && credentials.recentLimit !== undefined) {
+          // Override the provided limit with the admin-set limit
+          limit = credentials.recentLimit;
+        }
+      }
+      
       const params = {
         length: limit
       };
       
       // If userId is provided and not empty string, filter by that user
       if (userId !== null && userId !== undefined && userId !== '') {
-        console.log(`Filtering Tautulli history by user_id: ${userId}`);
+        
         params.user_id = userId;
-      } else {
-        console.log('No user_id filter applied to Tautulli history (showing all users)');
       }
       
       // Filter by media type if provided (movie or episode)
@@ -198,8 +255,17 @@ class TautulliService {
     }
   }
   
-  async getRecentlyWatchedMovies(limit = 50, daysAgo = 0, userId = null) {
+  async getRecentlyWatchedMovies(limit = 50, daysAgo = 0, userId = this.selectedUserId || null) {
     try {
+      // For non-admin users, reload credentials to get the admin-set limit
+      if (!AuthService.isAdmin()) {
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials && credentials.recentLimit !== undefined) {
+          // Override the provided limit with the admin-set limit
+          limit = credentials.recentLimit;
+        }
+      }
+      
       const historyData = await this.getWatchHistory(userId, 'movie', limit, daysAgo);
       
       // Process and format the movie data
@@ -217,8 +283,17 @@ class TautulliService {
     }
   }
   
-  async getRecentlyWatchedShows(limit = 50, daysAgo = 0, userId = null) {
+  async getRecentlyWatchedShows(limit = 50, daysAgo = 0, userId = this.selectedUserId || null) {
     try {
+      // For non-admin users, reload credentials to get the admin-set limit
+      if (!AuthService.isAdmin()) {
+        const credentials = await credentialsService.getCredentials('tautulli');
+        if (credentials && credentials.recentLimit !== undefined) {
+          // Override the provided limit with the admin-set limit
+          limit = credentials.recentLimit;
+        }
+      }
+      
       const historyData = await this.getWatchHistory(userId, 'episode', limit, daysAgo);
       
       // Group episodes by show
@@ -263,6 +338,45 @@ class TautulliService {
     } catch (error) {
       console.error('Failed to get recently watched shows from Tautulli:', error);
       return [];
+    }
+  }
+
+  /**
+   * Update the last history refresh timestamp
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateLastHistoryRefresh() {
+    try {
+      const now = new Date().toISOString();
+      
+      // Use individual setting API to update the timestamp
+      await databaseStorageUtils.set('lastTautulliHistoryRefresh', now);
+      
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating lastTautulliHistoryRefresh:', error);
+      return false;
+    }
+  }
+  
+  async disconnect() {
+    try {
+      // Clear local credentials
+      this.baseUrl = '';
+      this.apiKey = '';
+      this.configured = false;
+      
+      // Remove credentials from storage
+      await credentialsService.deleteCredentials('tautulli');
+      
+      // Remove recent limit from database
+      await databaseStorageUtils.remove('tautulliRecentLimit');
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to disconnect Tautulli:', error);
+      return false;
     }
   }
 }

@@ -2,149 +2,65 @@ const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const encryptionService = require('./encryption');
+const databaseService = require('./databaseService');
 
-// User data storage location - use the same data directory as server.js uses
+// User data storage location - used only for migration
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 class AuthService {
   constructor() {
-    this.users = {};
     this.initialized = false;
   }
 
-  // Initialize the auth service - load or create users file
+  // Initialize the auth service
   async init() {
     try {
-      console.log('Initializing auth service...');
       
-      // Ensure data directory exists
-      const dataDir = path.dirname(USERS_FILE);
-      try {
-        console.log(`Ensuring data directory exists: ${dataDir}`);
-        await fs.mkdir(dataDir, { recursive: true });
-      } catch (dirErr) {
-        if (dirErr.code !== 'EEXIST') {
-          console.error('Error creating data directory:', dirErr);
-        }
+      
+      // Ensure database is initialized
+      if (!databaseService.initialized) {
+        
+        await databaseService.init();
       }
       
-      // Try to load existing users
-      try {
-        console.log(`Attempting to read users file: ${USERS_FILE}`);
-        const data = await fs.readFile(USERS_FILE, 'utf8');
-        
-        console.log('Parsing user file data...');
-        const fileData = JSON.parse(data);
-        
-        // Check if data is already encrypted
-        if (fileData.encrypted && fileData.iv && fileData.authTag) {
-          console.log('Decrypting user data...');
-          // Decrypt the data
-          this.users = encryptionService.decrypt(fileData);
-          console.log('Loaded and decrypted existing users');
-        } else {
-          // Legacy unencrypted data - encrypt it now
-          console.log('Found unencrypted user data, migrating to encrypted format...');
-          this.users = fileData;
-          await this.saveUsers();
-          console.log('Migrated unencrypted users to encrypted format');
-        }
-      } catch (err) {
-        if (err.code === 'ENOENT') {
-          console.log('Users file does not exist, creating new file with default admin user');
-          // File doesn't exist yet, initialize with empty object
-          this.users = {};
-          
-          // Create default admin user with password "1234"
-          console.log('Creating default admin user...');
-          try {
-            const salt = crypto.randomBytes(16).toString('hex');
-            const hash = crypto.pbkdf2Sync('1234', salt, 1000, 64, 'sha512').toString('hex');
-            
-            this.users['admin'] = {
-              username: 'admin',
-              salt,
-              hash,
-              isAdmin: true,
-              createdAt: new Date().toISOString()
-            };
-            
-            await this.saveUsers();
-            console.log('Created default admin user with password "1234" and saved to file');
-          } catch (createErr) {
-            console.error('Error creating default admin user:', createErr);
-            this.users = {}; // Ensure we at least have an empty users object
-          }
-        } else {
-          console.error('Error reading users file:', err);
-          // Initialize with empty object instead of throwing error
-          this.users = {};
-        }
-      }
+      // Check if we need to create a default admin user
+      const users = databaseService.getAllUsers();
       
-      // If we have an empty users object, create a default admin user
-      if (Object.keys(this.users).length === 0) {
-        console.log('No users found, creating default admin user...');
+      if (users.length === 0) {
+        
         try {
           const salt = crypto.randomBytes(16).toString('hex');
           const hash = crypto.pbkdf2Sync('1234', salt, 1000, 64, 'sha512').toString('hex');
           
-          this.users['admin'] = {
+          const adminUser = {
+            userId: 'admin',
             username: 'admin',
             salt,
             hash,
             isAdmin: true,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            authProvider: 'local'
           };
           
-          await this.saveUsers();
-          console.log('Created default admin user with password "1234" and saved to file');
+          databaseService.saveUser(adminUser);
+          
+          
+          // Also create default user data for the admin user
+          const userDataManager = require('./userDataManager');
+          
+          const defaultData = userDataManager.createDefaultUserData();
+          await userDataManager.saveUserData('admin', defaultData);
         } catch (createErr) {
           console.error('Error creating default admin user:', createErr);
         }
       }
       
-      console.log('Auth service initialization complete');
+      
       this.initialized = true;
     } catch (err) {
       console.error('Error initializing auth service:', err);
-      // Initialize with empty object instead of throwing error
-      this.users = {};
-      this.initialized = true;
-    }
-  }
-  
-  // Save users to file with encryption
-  async saveUsers() {
-    try {
-      console.log('Saving users to file...');
-      
-      // Ensure data directory exists
-      const dataDir = path.dirname(USERS_FILE);
-      try {
-        console.log(`Ensuring data directory exists: ${dataDir}`);
-        await fs.mkdir(dataDir, { recursive: true });
-      } catch (dirErr) {
-        if (dirErr.code !== 'EEXIST') {
-          console.error('Error creating data directory:', dirErr);
-          throw dirErr;
-        }
-      }
-      
-      // Encrypt the users object
-      console.log('Encrypting user data...');
-      const encryptedData = encryptionService.encrypt(this.users);
-      
-      // Write encrypted data to file
-      console.log(`Writing encrypted data to file: ${USERS_FILE}`);
-      await fs.writeFile(USERS_FILE, JSON.stringify(encryptedData, null, 2), 'utf8');
-      
-      console.log('Users saved successfully');
-      return true;
-    } catch (err) {
-      console.error('Error saving users:', err);
-      return false;
+      this.initialized = true; // Set to true anyway to prevent repeated init attempts
     }
   }
   
@@ -174,132 +90,257 @@ class AuthService {
   
   // Create a new user
   async createUser(username, password, isAdmin = false) {
-    console.log(`Creating user: ${username}, isAdmin: ${isAdmin}`);
+    
     
     try {
       // Ensure the service is initialized
       if (!this.initialized) {
-        console.log('Auth service not initialized, initializing now...');
+        
         await this.init();
       }
       
       // Check if username already exists
-      if (this.users[username]) {
-        console.log(`Username ${username} already exists`);
+      if (this.getUserByUsername(username)) {
+        
         return { success: false, message: 'Username already exists' };
       }
       
       // Hash the password
-      console.log('Hashing password...');
+      
       const { salt, hash } = this.hashPassword(password);
       
+      // Generate a userId
+      const userId = crypto.randomBytes(16).toString('hex');
+      
       // Create user object
-      console.log('Creating user object...');
-      this.users[username] = {
+      
+      const user = {
+        userId,
         username,
         salt,
         hash,
         isAdmin,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        authProvider: 'local'
       };
       
-      // Save users to file
-      console.log('Saving users to file...');
-      await this.saveUsers();
+      // Save user to database
       
-      console.log(`User ${username} created successfully`);
-      return { success: true, message: 'User created successfully' };
+      databaseService.saveUser(user);
+      
+      // Create default user data entry for this user
+      const userDataManager = require('./userDataManager');
+      
+      const defaultData = userDataManager.createDefaultUserData();
+      await userDataManager.saveUserData(userId, defaultData);
+      
+      
+      return { 
+        success: true, 
+        message: 'User created successfully',
+        user: {
+          userId,
+          username, 
+          isAdmin,
+          createdAt: new Date().toISOString(),
+          authProvider: 'local'
+        }
+      };
     } catch (error) {
       console.error('Error creating user:', error);
       return { success: false, message: `Error creating user: ${error.message}` };
     }
   }
   
-  // Authenticate a user
-  async authenticate(username, password) {
-    console.log(`Authenticating user: ${username}`);
+  // Find a user by username
+  getUserByUsername(username) {
+    return databaseService.getUserByUsername(username);
+  }
+  
+  // Find or create user from OAuth profile
+  async findOrCreateOAuthUser(profile, provider) {
+    
     
     // Ensure the service is initialized
     if (!this.initialized) {
-      console.log('Auth service not initialized, initializing now...');
+      
+      await this.init();
+    }
+    
+    // Look for an existing user with this OAuth ID
+    const oauthKey = `${provider}:${profile.id}`;
+    let user = databaseService.getUserByOAuthId(oauthKey);
+    
+    // If not found, check by email if available
+    if (!user && profile.emails && profile.emails.length > 0) {
+      const email = profile.emails[0].value;
+      const users = databaseService.getAllUsers();
+      
+      for (const existingUser of users) {
+        if (existingUser.email === email) {
+          
+          
+          // Update the user with OAuth info
+          existingUser.oauthId = oauthKey;
+          existingUser.authProvider = provider;
+          user = existingUser;
+          
+          // Save the updated user
+          databaseService.saveUser(user);
+          break;
+        }
+      }
+    }
+    
+    let isNewUser = false;
+    // If user doesn't exist, create a new one
+    if (!user) {
+      isNewUser = true;
+      
+      
+      // Generate a username from the profile
+      let username = '';
+      if (profile.displayName) {
+        username = profile.displayName.replace(/\s+/g, '').toLowerCase();
+      } else if (profile.username) {
+        username = profile.username.toLowerCase();
+      } else if (profile.emails && profile.emails.length > 0) {
+        username = profile.emails[0].value.split('@')[0].toLowerCase();
+      } else {
+        username = `${provider}user${Date.now()}`;
+      }
+      
+      // Make sure username is unique by adding a random suffix if needed
+      let uniqueUsername = username;
+      let counter = 1;
+      while (this.getUserByUsername(uniqueUsername)) {
+        uniqueUsername = `${username}${counter++}`;
+      }
+      username = uniqueUsername;
+      
+      // Get email if available
+      const email = profile.emails && profile.emails.length > 0 
+        ? profile.emails[0].value 
+        : null;
+      
+      // Generate a userId
+      const userId = crypto.randomBytes(16).toString('hex');
+      
+      // Create the user
+      const newUser = {
+        userId,
+        username,
+        email,
+        oauthId: oauthKey,
+        authProvider: provider,
+        isAdmin: false, // OAuth users are not admins by default
+        createdAt: new Date().toISOString(),
+        profile: {
+          name: profile.displayName || '',
+          photo: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null
+        }
+      };
+      
+      // Save to database
+      databaseService.saveUser(newUser);
+      
+      
+      user = newUser;
+    }
+    
+    // If this is a new user, create default user data entry
+    if (isNewUser) {
+      const userDataManager = require('./userDataManager');
+      
+      const defaultData = userDataManager.createDefaultUserData();
+      await userDataManager.saveUserData(user.userId, defaultData);
+    }
+    
+    return user;
+  }
+  
+  // Authenticate a user
+  async authenticate(username, password) {
+    
+    
+    // Ensure the service is initialized
+    if (!this.initialized) {
+      
       await this.init();
     }
     
     // Check if user exists
-    const user = this.users[username];
+    const user = this.getUserByUsername(username);
     if (!user) {
-      console.log(`User '${username}' not found`);
+      
       return { success: false, message: 'Invalid username or password' };
     }
     
-    console.log(`User '${username}' found, verifying password...`);
+    // Check if this is an OAuth user without a password
+    if (user.authProvider !== 'local' && !user.hash) {
+      
+      return { success: false, message: 'This account uses social login. Please sign in with your social provider.' };
+    }
+    
+    
     
     // Verify password
     const passwordValid = this.verifyPassword(password, user.salt, user.hash);
-    console.log(`Password verification result: ${passwordValid ? 'success' : 'failed'}`);
+    
     
     if (passwordValid) {
       // Return user info (excluding sensitive data)
-      console.log(`Authentication successful for user: ${username}`);
+      
       return {
         success: true,
         user: {
+          userId: user.userId,
           username: user.username,
           isAdmin: user.isAdmin,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          authProvider: user.authProvider,
+          email: user.email
         }
       };
     } else {
-      console.log(`Invalid password for user: ${username}`);
+      
       return { success: false, message: 'Invalid username or password' };
     }
   }
   
-  // Check if a user exists
-  async userExists(username) {
+  // Get a user by ID
+  async getUserById(userId) {
     // Ensure the service is initialized
     if (!this.initialized) {
       await this.init();
     }
     
-    return !!this.users[username];
-  }
-  
-  // Get a user by username
-  async getUser(username) {
-    // Ensure the service is initialized
-    if (!this.initialized) {
-      await this.init();
-    }
-    
-    const user = this.users[username];
-    if (!user) {
-      return null;
-    }
-    
-    // Return user info (excluding sensitive data)
-    return {
-      username: user.username,
-      isAdmin: user.isAdmin,
-      createdAt: user.createdAt
-    };
+    return databaseService.getUserById(userId);
   }
   
   // Update user password
-  async updatePassword(username, currentPassword, newPassword) {
+  async updatePassword(userId, currentPassword, newPassword) {
     // Ensure the service is initialized
     if (!this.initialized) {
       await this.init();
     }
     
     // Check if user exists
-    const user = this.users[username];
+    const user = databaseService.getUserById(userId);
     if (!user) {
       return { success: false, message: 'User not found' };
     }
     
+    // Get full user data for authentication
+    const fullUser = databaseService.getUserByUsername(user.username);
+    
+    // Check if this is an OAuth user
+    if (fullUser.authProvider !== 'local') {
+      return { success: false, message: 'Cannot change password for social login accounts' };
+    }
+    
     // Verify current password
-    if (!this.verifyPassword(currentPassword, user.salt, user.hash)) {
+    if (!this.verifyPassword(currentPassword, fullUser.salt, fullUser.hash)) {
       return { success: false, message: 'Current password is incorrect' };
     }
     
@@ -307,13 +348,67 @@ class AuthService {
     const { salt, hash } = this.hashPassword(newPassword);
     
     // Update user's password
-    user.salt = salt;
-    user.hash = hash;
+    fullUser.salt = salt;
+    fullUser.hash = hash;
     
-    // Save users to file
-    await this.saveUsers();
+    // Save user to database
+    databaseService.saveUser(fullUser);
     
     return { success: true, message: 'Password updated successfully' };
+  }
+  
+  // Update user profile
+  async updateUserProfile(userId, updates) {
+    // Ensure the service is initialized
+    if (!this.initialized) {
+      await this.init();
+    }
+    
+    // Check if user exists
+    const user = databaseService.getUserById(userId);
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+    
+    // Get full user data
+    const fullUser = databaseService.getUserByUsername(user.username);
+    
+    // Update the fields
+    if (updates.email) fullUser.email = updates.email;
+    
+    // Only admins can change admin status
+    if (Object.prototype.hasOwnProperty.call(updates, 'isAdmin') && updates.isAdmin !== undefined) {
+      // This will be checked in the route handler
+      fullUser.isAdmin = !!updates.isAdmin;
+    }
+    
+    // Initialize profile if it doesn't exist
+    if (!fullUser.profile) fullUser.profile = {};
+    
+    // Update profile fields
+    if (updates.profile) {
+      fullUser.profile = {
+        ...fullUser.profile,
+        ...updates.profile
+      };
+    }
+    
+    // Save user to database
+    databaseService.saveUser(fullUser);
+    
+    return { 
+      success: true, 
+      message: 'Profile updated successfully',
+      user: {
+        userId: fullUser.userId,
+        username: fullUser.username,
+        isAdmin: fullUser.isAdmin,
+        email: fullUser.email,
+        profile: fullUser.profile,
+        authProvider: fullUser.authProvider,
+        createdAt: fullUser.createdAt
+      }
+    };
   }
   
   // Get all users (admin function)
@@ -323,35 +418,32 @@ class AuthService {
       await this.init();
     }
     
-    // Return all users excluding sensitive data
-    const userList = Object.values(this.users).map(user => ({
-      username: user.username,
-      isAdmin: user.isAdmin,
-      createdAt: user.createdAt
-    }));
-    
-    return userList;
+    return databaseService.getAllUsers();
   }
   
   // Delete a user
-  async deleteUser(username) {
+  async deleteUser(userId) {
     // Ensure the service is initialized
     if (!this.initialized) {
       await this.init();
     }
     
     // Check if user exists
-    if (!this.users[username]) {
+    const user = databaseService.getUserById(userId);
+    if (!user) {
       return { success: false, message: 'User not found' };
     }
     
-    // Delete user
-    delete this.users[username];
+    const username = user.username;
     
-    // Save users to file
-    await this.saveUsers();
+    // Delete user from database
+    const success = databaseService.deleteUser(userId);
     
-    return { success: true, message: 'User deleted successfully' };
+    if (success) {
+      return { success: true, message: `User ${username} deleted successfully` };
+    } else {
+      return { success: false, message: `Failed to delete user ${username}` };
+    }
   }
 }
 

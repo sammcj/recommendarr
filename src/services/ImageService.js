@@ -48,13 +48,13 @@ class ImageService {
       
       // If TMDB isn't already configured, try to load its credentials first
       if (!tmdbService.isConfigured()) {
-        console.log(`TMDB not configured, attempting to load credentials before searching for "${title}" poster`);
+        
         await tmdbService.loadCredentials();
       }
       
       // Check if TMDB is configured - prefer TMDB if available
       if (tmdbService.isConfigured()) {
-        console.log(`Trying TMDB first for "${title}" poster`);
+        
         try {
           showInfo = await tmdbService.findSeriesByTitle(title);
           
@@ -71,10 +71,6 @@ class ImageService {
               showInfo = await tmdbService.findSeriesByTitle(alphanumericTitle);
             }
           }
-          
-          if (showInfo && showInfo.images && showInfo.images.length) {
-            console.log(`Found TV poster via TMDB for "${title}"`);
-          }
         } catch (tmdbError) {
           console.error(`TMDB search failed for "${title}":`, tmdbError);
           showInfo = null;
@@ -83,7 +79,7 @@ class ImageService {
       
       // If TMDB failed or isn't configured, try Sonarr as fallback only if it's configured
       if ((!showInfo || !showInfo.images || !showInfo.images.length) && sonarrService.isConfigured()) {
-        console.log(`No results from TMDB for "${title}", trying Sonarr`);
+        
         
         // Use Sonarr to find the show info
         showInfo = await sonarrService.findSeriesByTitle(title);
@@ -101,15 +97,11 @@ class ImageService {
             showInfo = await sonarrService.findSeriesByTitle(alphanumericTitle);
           }
         }
-        
-        if (showInfo && showInfo.images && showInfo.images.length) {
-          console.log(`Found TV poster via Sonarr for "${title}"`);
-        }
       }
       
       // Return null if we couldn't find anything
       if (!showInfo || !showInfo.images || !showInfo.images.length) {
-        console.log(`No poster found for "${title}" via any method`);
+        
         return null;
       }
       
@@ -122,14 +114,14 @@ class ImageService {
       
       // Get original URL (either from TMDB or Sonarr)
       const originalUrl = poster.remoteUrl;
-      console.log(`Found TV poster URL: ${originalUrl} for title: ${title}`);
+      
       
       // Return either direct URL or proxied URL based on useProxy flag
       if (useProxy) {
         // Create a proxied URL to avoid CORS and network issues
         const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
         const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-        console.log(`Using proxied URL for TV poster: ${proxiedUrl}`);
+        
         
         // Store in cache for future requests
         this.posterCache.set(cacheKey, proxiedUrl);
@@ -183,13 +175,13 @@ class ImageService {
       
       // If TMDB isn't already configured, try to load its credentials first
       if (!tmdbService.isConfigured()) {
-        console.log(`TMDB not configured, attempting to load credentials before searching for "${title}" poster`);
+        
         await tmdbService.loadCredentials();
       }
       
       // Check if TMDB is configured - prefer TMDB if available
       if (tmdbService.isConfigured()) {
-        console.log(`Trying TMDB first for "${title}" poster`);
+        
         try {
           movieInfo = await tmdbService.findMovieByTitle(title);
           
@@ -207,9 +199,6 @@ class ImageService {
             }
           }
           
-          if (movieInfo && movieInfo.images && movieInfo.images.length) {
-            console.log(`Found movie poster via TMDB for "${title}"`);
-          }
         } catch (tmdbError) {
           console.error(`TMDB search failed for "${title}":`, tmdbError);
           movieInfo = null;
@@ -218,7 +207,7 @@ class ImageService {
       
       // If TMDB failed or isn't configured, try Radarr as fallback only if it's configured
       if ((!movieInfo || !movieInfo.images || !movieInfo.images.length) && radarrService.isConfigured()) {
-        console.log(`No results from TMDB for "${title}", trying Radarr`);
+        
         
         // Use Radarr to find the movie info
         movieInfo = await radarrService.findMovieByTitle(title);
@@ -236,15 +225,11 @@ class ImageService {
             movieInfo = await radarrService.findMovieByTitle(alphanumericTitle);
           }
         }
-        
-        if (movieInfo && movieInfo.images && movieInfo.images.length) {
-          console.log(`Found movie poster via Radarr for "${title}"`);
-        }
       }
       
       // Return null if we couldn't find anything
       if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
-        console.log(`No poster found for "${title}" via any method`);
+        
         return null;
       }
       
@@ -257,14 +242,14 @@ class ImageService {
       
       // Get original URL (either from TMDB or Radarr)
       const originalUrl = poster.remoteUrl;
-      console.log(`Found movie poster URL: ${originalUrl} for title: ${title}`);
+      
       
       // Return either direct URL or proxied URL based on useProxy flag
       if (useProxy) {
         // Create a proxied URL to avoid CORS and network issues
         const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
         const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-        console.log(`Using proxied URL for movie poster: ${proxiedUrl}`);
+        
         
         // Store in cache for future requests
         this.posterCache.set(cacheKey, proxiedUrl);

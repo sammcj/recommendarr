@@ -4,10 +4,13 @@ const axios = require('axios');
 const dns = require('dns').promises;
 const fs = require('fs').promises;
 const path = require('path');
+const expressSession = require('express-session');
 const encryptionService = require('./utils/encryption');
+const databaseService = require('./utils/databaseService');
 const authService = require('./utils/auth');
 const sessionManager = require('./utils/sessionManager');
-const proxyService = require('./services/ProxyService');
+const userDataManager = require('./utils/userDataManager');
+const { setupPassport } = require('./utils/oauth');
 
 const app = express();
 const PORT = process.env.PORT || process.env.BACKEND_PORT || 3050;
@@ -23,290 +26,53 @@ let appConfig = {
 };
 
 // Simple logging message for startup
-console.log(`API Server starting up in ${process.env.NODE_ENV || 'development'} mode`);
 
-// Create a data directory for storing user credentials
+
+// Data directory path for reference
 const DATA_DIR = path.join(__dirname, 'data');
-const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.json');
-const USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
 
-// Initialize storage
-let credentials = {};
-let userData = {
-  tvRecommendations: [],
-  movieRecommendations: [],
-  likedTV: [],
-  dislikedTV: [],
-  hiddenTV: [],
-  likedMovies: [],
-  dislikedMovies: [],
-  hiddenMovies: [],
-  watchHistory: {
-    movies: [],
-    shows: []
-  },
-  settings: {
-    numRecommendations: 6,
-    columnsCount: 3,
-    historyColumnsCount: 3,
-    historyHideExisting: true,
-    historyHideLiked: false,
-    historyHideDisliked: false,
-    historyHideHidden: true,
-    contentTypePreference: 'tv',
-    isMovieMode: false,
-    tvGenrePreferences: [],
-    tvCustomVibe: '',
-    tvLanguagePreference: 'en',
-    movieGenrePreferences: [],
-    movieCustomVibe: '',
-    movieLanguagePreference: 'en'
-  }
-};
-
-// Create data directory if it doesn't exist and load credentials and user data
+// Initialize storage and services
 async function initStorage() {
   try {
+    
+    
     // Initialize encryption service first
     await encryptionService.init();
     
     // Ensure data directory exists
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
-      console.log(`Created data directory: ${DATA_DIR}`);
+      
     } catch (err) {
       if (err.code !== 'EEXIST') {
         console.error('Error creating data directory:', err);
       }
     }
-
-    // Try to load existing credentials
-    try {
-      const data = await fs.readFile(CREDENTIALS_FILE, 'utf8');
-      const fileData = JSON.parse(data);
-      
-      // Check if data is already encrypted
-      if (fileData.encrypted && fileData.iv && fileData.authTag) {
-        // Decrypt the data
-        credentials = encryptionService.decrypt(fileData);
-        console.log('Loaded and decrypted existing credentials');
-        
-        // App-config feature has been removed - use environment vars only
-        console.log('Using environment variables for application configuration');
-      } else {
-        // Legacy unencrypted data - encrypt it now
-        credentials = fileData;
-        await saveCredentials();
-        console.log('Migrated unencrypted credentials to encrypted format');
-      }
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        // File doesn't exist yet, initialize with empty object
-        credentials = {};
-        await saveCredentials();
-        console.log('Created new encrypted credentials file');
-      } else {
-        console.error('Error reading credentials file:', err);
-      }
-    }
-
-    // Try to load existing user data
-    try {
-      const data = await fs.readFile(USER_DATA_FILE, 'utf8');
-      const fileData = JSON.parse(data);
-      
-      // Check if data is already encrypted
-      if (fileData.encrypted && fileData.iv && fileData.authTag) {
-        // Decrypt the data
-        userData = encryptionService.decrypt(fileData);
-        console.log('Loaded and decrypted existing user data');
-      } else {
-        // Legacy unencrypted data - encrypt it now
-        userData = fileData;
-        await saveUserData();
-        console.log('Migrated unencrypted user data to encrypted format');
-      }
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        // File doesn't exist yet, initialize with default values
-        await saveUserData();
-        console.log('Created new encrypted user data file');
-      } else {
-        console.error('Error reading user data file:', err);
-      }
-    }
+    
+    // Initialize database service
+    await databaseService.init();
+    
+    // Migrate data from JSON files to database
+    await databaseService.migrateData();
+    
+    // Initialize other services
+    await authService.init();
+    await userDataManager.init();
+    await sessionManager.init();
+    
+    // Schedule periodic session cleanup (every hour)
+    setInterval(() => {
+      sessionManager.cleanupSessions();
+    }, 60 * 60 * 1000);
+    
+    
   } catch (err) {
-    console.error('Error initializing data storage:', err);
-  }
-}
-
-// Save credentials to file with encryption
-async function saveCredentials() {
-  try {
-    // Encrypt the credentials object
-    const encryptedData = encryptionService.encrypt(credentials);
-    
-    // Write encrypted data to file
-    await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(encryptedData, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error saving credentials:', err);
-  }
-}
-
-// Save user data to file with encryption
-async function saveUserData() {
-  try {
-    // Make sure userData is valid before saving
-    if (!userData || typeof userData !== 'object') {
-      throw new Error('Invalid userData object');
-    }
-    
-    // Ensure required properties exist
-    if (!Array.isArray(userData.tvRecommendations)) userData.tvRecommendations = [];
-    if (!Array.isArray(userData.movieRecommendations)) userData.movieRecommendations = [];
-    if (!Array.isArray(userData.likedTV)) userData.likedTV = [];
-    if (!Array.isArray(userData.dislikedTV)) userData.dislikedTV = [];
-    if (!Array.isArray(userData.hiddenTV)) userData.hiddenTV = [];
-    if (!Array.isArray(userData.likedMovies)) userData.likedMovies = [];
-    if (!Array.isArray(userData.dislikedMovies)) userData.dislikedMovies = [];
-    if (!Array.isArray(userData.hiddenMovies)) userData.hiddenMovies = [];
-    if (!userData.watchHistory) userData.watchHistory = { movies: [], shows: [] };
-    if (!userData.settings) userData.settings = {};
-    
-    // Ensure historyHideHidden setting exists
-    if (userData.settings.historyHideHidden === undefined) userData.settings.historyHideHidden = true;
-    
-    console.log(`Saving userData (${userData.tvRecommendations.length} TV recommendations, ${userData.movieRecommendations.length} movie recommendations)`);
-    
-    // Encrypt the user data object
-    const encryptedData = encryptionService.encrypt(userData);
-    
-    // Convert to string with pretty formatting
-    const dataToWrite = JSON.stringify(encryptedData, null, 2);
-    
-    if (!dataToWrite || dataToWrite.length < 10) {
-      throw new Error('Generated data is too small, possible encryption error');
-    }
-    
-    console.log(`Writing ${dataToWrite.length} bytes to ${USER_DATA_FILE}`);
-    
-    // Simple direct file write approach
-    try {
-      // Write directly to the file - no deleting, no temp files
-      await fs.writeFile(USER_DATA_FILE, dataToWrite, 'utf8');
-      console.log(`Successfully wrote to ${USER_DATA_FILE}`);
-    } catch (writeErr) {
-      console.error(`Error writing to ${USER_DATA_FILE}: ${writeErr.message}`);
-      throw writeErr;
-    }
-    
-    // Wait a moment to ensure the write completes
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Simple verification - just check if the file exists and has content
-    try {
-      const fileStats = await fs.stat(USER_DATA_FILE);
-      console.log(`✓ ${USER_DATA_FILE} exists, size=${fileStats.size} bytes, modified=${fileStats.mtime}`);
-      return true;
-    } catch (verifyErr) {
-      console.error(`❌ Error verifying saved file: ${verifyErr.message}`);
-      return false; // Return false instead of throwing to allow operation to continue
-    }
-  } catch (err) {
-    console.error('❌ ERROR saving user data:', err);
-    return false; // Return false instead of throwing to allow operation to continue
-  }
-}
-
-// Add migration function to move recommendation data from credentials to userData
-async function migrateRecommendationsFromCredentials() {
-  const recommendationKeys = [
-    'movie-recommendations',
-    'tv-recommendations', 
-    'liked-movies',
-    'disliked-movies', 
-    'liked-tv',
-    'disliked-tv'
-  ];
-  
-  let migrationNeeded = false;
-  
-  // Check if any recommendation data exists in credentials
-  for (const key of recommendationKeys) {
-    if (credentials[key] && credentials[key].titles && credentials[key].titles.length > 0) {
-      migrationNeeded = true;
-      break;
-    }
-  }
-  
-  if (migrationNeeded) {
-    console.log('Found recommendation data in credentials, migrating to user_data...');
-    
-    // Migrate movie recommendations
-    if (credentials['movie-recommendations'] && credentials['movie-recommendations'].titles) {
-      userData.movieRecommendations = [
-        ...new Set([...userData.movieRecommendations, ...credentials['movie-recommendations'].titles])
-      ];
-      console.log(`Migrated ${credentials['movie-recommendations'].titles.length} movie recommendations`);
-    }
-    
-    // Migrate TV recommendations
-    if (credentials['tv-recommendations'] && credentials['tv-recommendations'].titles) {
-      userData.tvRecommendations = [
-        ...new Set([...userData.tvRecommendations, ...credentials['tv-recommendations'].titles])
-      ];
-      console.log(`Migrated ${credentials['tv-recommendations'].titles.length} TV recommendations`);
-    }
-    
-    // Migrate liked/disliked movies
-    if (credentials['liked-movies'] && credentials['liked-movies'].titles) {
-      userData.likedMovies = [
-        ...new Set([...userData.likedMovies, ...credentials['liked-movies'].titles])
-      ];
-      console.log(`Migrated ${credentials['liked-movies'].titles.length} liked movies`);
-    }
-    
-    if (credentials['disliked-movies'] && credentials['disliked-movies'].titles) {
-      userData.dislikedMovies = [
-        ...new Set([...userData.dislikedMovies, ...credentials['disliked-movies'].titles])
-      ];
-      console.log(`Migrated ${credentials['disliked-movies'].titles.length} disliked movies`);
-    }
-    
-    // Migrate liked/disliked TV shows
-    if (credentials['liked-tv'] && credentials['liked-tv'].titles) {
-      userData.likedTV = [
-        ...new Set([...userData.likedTV, ...credentials['liked-tv'].titles])
-      ];
-      console.log(`Migrated ${credentials['liked-tv'].titles.length} liked TV shows`);
-    }
-    
-    if (credentials['disliked-tv'] && credentials['disliked-tv'].titles) {
-      userData.dislikedTV = [
-        ...new Set([...userData.dislikedTV, ...credentials['disliked-tv'].titles])
-      ];
-      console.log(`Migrated ${credentials['disliked-tv'].titles.length} disliked TV shows`);
-    }
-    
-    // Save the updated user data
-    await saveUserData();
-    console.log('Migration complete. Recommendations merged into user_data.');
+    console.error('Error initializing storage and services:', err);
   }
 }
 
 // Initialize storage on startup
-initStorage().then(async () => {
-  // After initializing storage, migrate any recommendation data
-  await migrateRecommendationsFromCredentials();
-  
-  // Initialize auth service
-  await authService.init();
-  
-  // Schedule periodic session cleanup (every hour)
-  setInterval(() => {
-    sessionManager.cleanupSessions();
-  }, 60 * 60 * 1000);
-});
+initStorage();
 
 // Enable CORS with credentials
 app.use(cors({
@@ -320,33 +86,97 @@ app.use(cors({
 const cookieParser = require('cookie-parser');
 app.use(cookieParser());
 
-// Parse JSON request body
-app.use(express.json());
+// Add session middleware for OAuth
+app.use(expressSession({
+  secret: process.env.SESSION_SECRET || Math.random().toString(36).substring(2, 15),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  }
+}));
+
+// Set up OAuth
+const { passport, getEnabledProviders } = setupPassport(app);
+
+// Parse JSON request body with increased size limit
+app.use(express.json({ limit: '100mb' }));
+// Increase URL-encoded payload size limit as well
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// Verify session endpoint
+app.get('/api/auth/verify', async (req, res) => {
+  // Check for auth token in cookies
+  const authToken = req.cookies.auth_token;
+  
+  if (!authToken) {
+    return res.status(401).json({ error: 'No session token found' });
+  }
+
+  // Validate the session
+  const session = sessionManager.validateSession(authToken);
+  
+  if (!session) {
+    return res.status(401).json({ error: 'Invalid session' });
+  }
+
+  // Get user data
+  try {
+    const user = await authService.getUserById(session.userId);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    return res.json({ 
+      user: {
+        id: user.userId,
+        username: user.username,
+        isAdmin: user.isAdmin,
+        authProvider: user.authProvider
+      }
+    });
+  } catch (error) {
+    console.error('Error verifying session:', error);
+    return res.status(500).json({ error: 'Error verifying session' });
+  }
+});
 
 // Authentication middleware
 const authenticateUser = (req, res, next) => {
-  console.log(`Authentication check for path: ${req.path}`);
-  console.log('Request headers:', req.headers);
+  
+  
   
   // Skip authentication for public endpoints
   const publicEndpoints = [
     '/api/health',
     '/api/auth/login',
-    '/api/auth/register'
+    '/api/auth/register',
+    '/api/auth/providers',
+    '/api/auth/google',
+    '/api/auth/google/callback',
+    '/api/auth/github',
+    '/api/auth/github/callback',
+    '/api/auth/custom',
+    '/api/auth/custom/callback'
   ];
   
   // Also check if the path ends with these endpoints (for when the /api prefix is already in the path)
   if (publicEndpoints.some(endpoint => req.path === endpoint) || 
       req.path.endsWith('/auth/login') || 
       req.path.endsWith('/auth/register') ||
-      req.path.endsWith('/health')) {
-    console.log('Skipping auth for public endpoint');
+      req.path.endsWith('/auth/providers') ||
+      req.path.endsWith('/health') ||
+      req.path.includes('/auth/google') ||
+      req.path.includes('/auth/github') ||
+      req.path.includes('/auth/custom')) {
+    
     return next();
   }
   
   // Check for auth token in cookies first (preferred), then fall back to headers
-  console.log('Authorization header:', req.headers.authorization);
-  console.log('Cookies:', req.cookies);
+  
+  
   
   // Get token from cookie or header
   const cookieToken = req.cookies.auth_token;
@@ -354,29 +184,31 @@ const authenticateUser = (req, res, next) => {
   const authToken = cookieToken || headerToken;
   
   if (!authToken) {
-    console.log('No auth token found in request (checked both cookies and headers)');
+    
     return res.status(401).json({ error: 'Authentication required' });
   }
   
-  console.log('Auth token found:', authToken.substring(0, 10) + '...');
+  
   
   // Validate the session
   const session = sessionManager.validateSession(authToken);
   
   if (!session) {
-    console.log('Session validation failed');
+    
     return res.status(401).json({ error: 'Invalid or expired session' });
   }
   
-  console.log('Session validated for user:', session.username);
+  
   
   // Set user info in request object
   req.user = {
+    userId: session.userId,
     username: session.username,
-    isAdmin: session.isAdmin
+    isAdmin: session.isAdmin,
+    authProvider: session.authProvider || 'local'
   };
   
-  console.log('Authentication successful, proceeding with request');
+  
   next();
 };
 
@@ -395,18 +227,216 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Get enabled authentication providers
+app.get('/api/auth/providers', (req, res) => {
+  const providers = getEnabledProviders();
+  
+  res.json({
+    providers,
+    localAuth: true
+  });
+});
+
+// OAuth routes
+// Google OAuth routes
+app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/api/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login?error=auth-failed' }),
+  (req, res) => {
+    // Create session after successful OAuth login
+    if (!req.user) {
+      return res.redirect('/login?error=auth-failed');
+    }
+    
+    // Create session
+    const token = sessionManager.createSession(req.user);
+    
+    // Set auth cookie
+    const isSecureConnection = req.secure || 
+                               req.headers['x-forwarded-proto'] === 'https' || 
+                               process.env.FORCE_SECURE_COOKIES === 'true';
+    
+    res.cookie('auth_token', token, {
+      httpOnly: true,          // Prevents JavaScript access
+      secure: isSecureConnection, // Only set secure flag on HTTPS connections
+      sameSite: 'lax',         // Provides some CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/'                // Available across the site
+    });
+    
+    // Check for legacy user data file and migrate if it exists
+    const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+    fs.access(LEGACY_USER_DATA_FILE)
+      .then(async () => {
+        try {
+          // Read and decrypt legacy user data
+          const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+          const fileData = JSON.parse(data);
+          
+          let legacyUserData = {};
+          if (fileData.encrypted && fileData.iv && fileData.authTag) {
+            // Decrypt the data
+            legacyUserData = encryptionService.decrypt(fileData);
+          } else {
+            // Legacy unencrypted data
+            legacyUserData = fileData;
+          }
+          
+          // Migrate to user account
+          await userDataManager.migrateLegacyData(legacyUserData, req.user.userId);
+          
+        } catch (err) {
+          console.error(`Error migrating legacy data: ${err.message}`);
+        }
+      })
+      .catch(() => {
+        // Legacy file doesn't exist, nothing to migrate
+      });
+    
+    // Redirect to home page after successful authentication
+    res.redirect('/');
+  }
+);
+
+// GitHub OAuth routes
+app.get('/api/auth/github', passport.authenticate('github', { scope: ['user:email'] }));
+app.get('/api/auth/github/callback', 
+  passport.authenticate('github', { failureRedirect: '/login?error=auth-failed' }),
+  (req, res) => {
+    // Create session after successful OAuth login
+    if (!req.user) {
+      return res.redirect('/login?error=auth-failed');
+    }
+    
+    // Create session
+    const token = sessionManager.createSession(req.user);
+    
+    // Set auth cookie
+    const isSecureConnection = req.secure || 
+                               req.headers['x-forwarded-proto'] === 'https' || 
+                               process.env.FORCE_SECURE_COOKIES === 'true';
+    
+    res.cookie('auth_token', token, {
+      httpOnly: true,          // Prevents JavaScript access
+      secure: isSecureConnection, // Only set secure flag on HTTPS connections
+      sameSite: 'lax',         // Provides some CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/'                // Available across the site
+    });
+    
+    // Check for legacy user data file and migrate if it exists
+    const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+    fs.access(LEGACY_USER_DATA_FILE)
+      .then(async () => {
+        try {
+          // Read and decrypt legacy user data
+          const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+          const fileData = JSON.parse(data);
+          
+          let legacyUserData = {};
+          if (fileData.encrypted && fileData.iv && fileData.authTag) {
+            // Decrypt the data
+            legacyUserData = encryptionService.decrypt(fileData);
+          } else {
+            // Legacy unencrypted data
+            legacyUserData = fileData;
+          }
+          
+          // Migrate to user account
+          await userDataManager.migrateLegacyData(legacyUserData, req.user.userId);
+          
+        } catch (err) {
+          console.error(`Error migrating legacy data: ${err.message}`);
+        }
+      })
+      .catch(() => {
+        // Legacy file doesn't exist, nothing to migrate
+      });
+    
+    // Redirect to home page after successful authentication
+    res.redirect('/');
+  }
+);
+
+// Custom OAuth routes
+app.get('/api/auth/custom', (req, res, next) => {
+  // Get scope from environment variable or use default
+  const scopeString = process.env.CUSTOM_OAUTH_SCOPE || 'openid profile email';
+  const scope = scopeString.split(' ');
+  
+  passport.authenticate('custom', { scope: scope })(req, res, next);
+});
+
+app.get('/api/auth/custom/callback', 
+  passport.authenticate('custom', { failureRedirect: '/login?error=auth-failed' }),
+  (req, res) => {
+    // Create session after successful OAuth login
+    if (!req.user) {
+      return res.redirect('/login?error=auth-failed');
+    }
+    
+    // Create session
+    const token = sessionManager.createSession(req.user);
+    
+    // Set auth cookie
+    const isSecureConnection = req.secure || 
+                               req.headers['x-forwarded-proto'] === 'https' || 
+                               process.env.FORCE_SECURE_COOKIES === 'true';
+    
+    res.cookie('auth_token', token, {
+      httpOnly: true,          // Prevents JavaScript access
+      secure: isSecureConnection, // Only set secure flag on HTTPS connections
+      sameSite: 'lax',         // Provides some CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/'                // Available across the site
+    });
+    
+    // Check for legacy user data file and migrate if it exists
+    const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+    fs.access(LEGACY_USER_DATA_FILE)
+      .then(async () => {
+        try {
+          // Read and decrypt legacy user data
+          const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+          const fileData = JSON.parse(data);
+          
+          let legacyUserData = {};
+          if (fileData.encrypted && fileData.iv && fileData.authTag) {
+            // Decrypt the data
+            legacyUserData = encryptionService.decrypt(fileData);
+          } else {
+            // Legacy unencrypted data
+            legacyUserData = fileData;
+          }
+          
+          // Migrate to user account
+          await userDataManager.migrateLegacyData(legacyUserData, req.user.userId);
+          
+        } catch (err) {
+          console.error(`Error migrating legacy data: ${err.message}`);
+        }
+      })
+      .catch(() => {
+        // Legacy file doesn't exist, nothing to migrate
+      });
+    
+    // Redirect to home page after successful authentication
+    res.redirect('/');
+  }
+);
+
 // Authentication routes
 // Login endpoint
 app.post('/api/auth/login', async (req, res) => {
-  console.log('Login request received');
+  
   const { username, password } = req.body;
   
   if (!username || !password) {
-    console.log('Login failed: Missing username or password');
+    
     return res.status(400).json({ error: 'Username and password are required' });
   }
   
-  console.log(`Login attempt for user: ${username}`);
+  
   
   try {
     // First clear any existing auth cookie to prevent issues with stale session
@@ -418,26 +448,26 @@ app.post('/api/auth/login', async (req, res) => {
       maxAge: 0,
       expires: new Date(0)
     });
-    console.log('Cleared any existing auth cookie');
+    
     
     // Authenticate user
-    console.log('Authenticating user...');
+    
     const authResult = await authService.authenticate(username, password);
     
     if (authResult.success) {
-      console.log(`User ${username} authenticated successfully`);
+      
       
       // Create session
-      console.log('Creating session...');
+      
       const token = sessionManager.createSession(authResult.user);
-      console.log('Session created with token:', token.substring(0, 10) + '...');
+      
       
       // Determine if we should use secure cookies based on the request's protocol or a config flag
       const isSecureConnection = req.secure || 
                                req.headers['x-forwarded-proto'] === 'https' || 
                                process.env.FORCE_SECURE_COOKIES === 'true';
       
-      console.log(`Setting cookie with secure=${isSecureConnection} based on connection protocol`);
+      
       
       // Set token in an HttpOnly cookie
       res.cookie('auth_token', token, {
@@ -448,19 +478,48 @@ app.post('/api/auth/login', async (req, res) => {
         path: '/'                // Available across the site
       });
       
+      // Check for legacy user data file and migrate if it exists
+      const LEGACY_USER_DATA_FILE = path.join(DATA_DIR, 'user_data.json');
+      try {
+        await fs.access(LEGACY_USER_DATA_FILE);
+        
+        // Read and decrypt legacy user data
+        const data = await fs.readFile(LEGACY_USER_DATA_FILE, 'utf8');
+        const fileData = JSON.parse(data);
+        
+        let legacyUserData = {};
+        if (fileData.encrypted && fileData.iv && fileData.authTag) {
+          // Decrypt the data
+          legacyUserData = encryptionService.decrypt(fileData);
+        } else {
+          // Legacy unencrypted data
+          legacyUserData = fileData;
+        }
+        
+        // Migrate to user account
+        await userDataManager.migrateLegacyData(legacyUserData, authResult.user.userId);
+        
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          console.error(`Error migrating legacy data: ${err.message}`);
+        }
+      }
+      
       // Prepare response (token now sent via cookie, not in response body)
       const response = {
         success: true,
         user: {
+          userId: authResult.user.userId,
           username: authResult.user.username,
-          isAdmin: authResult.user.isAdmin
+          isAdmin: authResult.user.isAdmin,
+          authProvider: authResult.user.authProvider || 'local'
         }
       };
       
-      console.log('Sending successful login response with user info (token set in HttpOnly cookie)');
+      
       res.json(response);
     } else {
-      console.log(`Authentication failed for user ${username}: ${authResult.message}`);
+      
       res.status(401).json({ error: authResult.message });
     }
   } catch (error) {
@@ -478,7 +537,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
   
   try {
-    // Create new user
+    // Create new user - this also creates a default user_data entry
     const result = await authService.createUser(username, password);
     
     if (result.success) {
@@ -494,32 +553,106 @@ app.post('/api/auth/register', async (req, res) => {
 
 // Logout endpoint
 app.post('/api/auth/logout', (req, res) => {
-  // Get auth token from cookie or headers
-  const cookieToken = req.cookies.auth_token;
-  const headerToken = req.headers.authorization?.split('Bearer ')[1];
-  const authToken = cookieToken || headerToken;
   
-  if (authToken) {
-    sessionManager.deleteSession(authToken);
+  
+  try {
+    // Get auth token from cookie or headers
+    const cookieToken = req.cookies.auth_token;
+    const headerToken = req.headers.authorization?.split('Bearer ')[1];
+    const authToken = cookieToken || headerToken;
+    
+    // Get user info before deleting session (for logging)
+    let userId = 'unknown';
+    if (req.user) {
+      userId = req.user.userId;
+      
+    }
+    
+    // Delete the session from the database if a token exists
+    if (authToken) {
+      
+      const deleted = sessionManager.deleteSession(authToken);
+      
+      
+      // Delete all sessions for this user to ensure complete logout
+      if (req.user && req.user.userId) {
+        const sessionsDeleted = sessionManager.deleteUserSessions(req.user.userId);
+        
+      }
+    } else {
+      
+    }
+    
+    // Determine if we should use secure cookies based on the request's protocol or a config flag
+    const isSecureConnection = req.secure || 
+                             req.headers['x-forwarded-proto'] === 'https' || 
+                             process.env.FORCE_SECURE_COOKIES === 'true';
+    
+    // Clear the auth cookie - ensure correct path and domain settings
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: isSecureConnection, // Only set secure flag on HTTPS connections
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0, // Immediately expire the cookie
+      expires: new Date(0) // Set expiration date in the past
+    });
+    
+    // Also clear express session cookie if it exists
+    res.clearCookie('connect.sid', {
+      path: '/',
+      httpOnly: true,
+      secure: isSecureConnection,
+      maxAge: 0,
+      expires: new Date(0)
+    });
+    
+    
+    
+    // Return success response with redirect hint
+    res.json({ 
+      success: true, 
+      message: 'Logged out successfully',
+      redirectTo: '/login?logout=true'  // Add redirect instruction for client
+    });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    
+    // Still try to clear cookies even if an error occurred
+    res.clearCookie('auth_token', { path: '/', expires: new Date(0) });
+    res.clearCookie('connect.sid', { path: '/', expires: new Date(0) });
+    
+    res.status(500).json({ 
+      error: 'An error occurred during logout',
+      redirectTo: '/login?logout=true'  // Still redirect on error
+    });
   }
+});
+
+// Verify session endpoint (used after OAuth redirect)
+app.get('/api/auth/verify', async (req, res) => {
+  // Get auth token from cookie
+  const authToken = req.cookies.auth_token;
   
-  // Determine if we should use secure cookies based on the request's protocol or a config flag
-  const isSecureConnection = req.secure || 
-                           req.headers['x-forwarded-proto'] === 'https' || 
-                           process.env.FORCE_SECURE_COOKIES === 'true';
+  if (!authToken) {
+    return res.status(401).json({ error: 'No session token found' });
+  }
+
+  // Validate the session
+  const session = sessionManager.validateSession(authToken);
   
-  // Clear the auth cookie - ensure correct path and domain settings
-  res.clearCookie('auth_token', {
-    httpOnly: true,
-    secure: isSecureConnection, // Only set secure flag on HTTPS connections
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0, // Immediately expire the cookie
-    expires: new Date(0) // Set expiration date in the past
+  if (!session) {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+
+  res.json({
+    user: {
+      userId: session.userId,
+      username: session.username,
+      isAdmin: session.isAdmin,
+      authProvider: session.authProvider || 'local'
+    }
   });
-  
-  console.log('Auth cookie cleared during logout');
-  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // Get current user info
@@ -539,7 +672,7 @@ app.post('/api/auth/change-password', async (req, res) => {
   
   try {
     // Update password
-    const result = await authService.updatePassword(req.user.username, currentPassword, newPassword);
+    const result = await authService.updatePassword(req.user.userId, currentPassword, newPassword);
     
     if (result.success) {
       res.json({ success: true, message: result.message });
@@ -549,6 +682,35 @@ app.post('/api/auth/change-password', async (req, res) => {
   } catch (error) {
     console.error('Password change error:', error);
     res.status(500).json({ error: 'An error occurred while changing password' });
+  }
+});
+
+// Update user profile endpoint
+app.post('/api/auth/profile', async (req, res) => {
+  try {
+    // Only allow updating the current user's profile, unless admin
+    const userId = req.user.userId;
+    
+    // Filter updates to only allow changing certain fields
+    const updates = {};
+    if (req.body.email) updates.email = req.body.email;
+    if (req.body.profile) updates.profile = req.body.profile;
+    
+    // Check if user is admin for admin-only updates
+    if (req.user.isAdmin && req.body.isAdmin !== undefined) {
+      updates.isAdmin = !!req.body.isAdmin;
+    }
+    
+    const result = await authService.updateUserProfile(userId, updates);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ error: 'An error occurred while updating profile' });
   }
 });
 
@@ -583,11 +745,11 @@ app.post('/api/auth/users', async (req, res) => {
   }
   
   try {
-    // Create new user
+    // Create new user (createUser now also creates user_data entry)
     const result = await authService.createUser(username, password, isAdmin);
     
     if (result.success) {
-      res.json({ success: true, message: result.message });
+      res.json({ success: true, message: result.message, user: result.user });
     } else {
       res.status(400).json({ error: result.message });
     }
@@ -597,20 +759,61 @@ app.post('/api/auth/users', async (req, res) => {
   }
 });
 
-// Delete user (admin only)
-app.delete('/api/auth/users/:username', async (req, res) => {
+// Update user (admin only)
+app.put('/api/auth/users/:userId', async (req, res) => {
   // Check if user is admin
   if (!req.user.isAdmin) {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
   
-  const { username } = req.params;
+  const { userId } = req.params;
+  
+  try {
+    // Filter updates to only allow changing certain fields
+    const updates = {};
+    if (req.body.email) updates.email = req.body.email;
+    if (req.body.isAdmin !== undefined) updates.isAdmin = !!req.body.isAdmin;
+    if (req.body.profile) updates.profile = req.body.profile;
+    
+    const result = await authService.updateUserProfile(userId, updates);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'An error occurred while updating user' });
+  }
+});
+
+// Delete user (admin only)
+app.delete('/api/auth/users/:userId', async (req, res) => {
+  // Check if user is admin
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
+  const { userId } = req.params;
+  
+  // Don't allow deleting your own account
+  if (userId === req.user.userId) {
+    return res.status(400).json({ error: 'Cannot delete your own account' });
+  }
   
   try {
     // Delete user
-    const result = await authService.deleteUser(username);
+    const result = await authService.deleteUser(userId);
     
     if (result.success) {
+      // Also delete user's data
+      await userDataManager.deleteUserData(userId);
+      
+      // Delete user's sessions
+      const deletedSessions = sessionManager.deleteUserSessions(userId);
+      
+      
       res.json({ success: true, message: result.message });
     } else {
       res.status(400).json({ error: result.message });
@@ -624,6 +827,9 @@ app.delete('/api/auth/users/:username', async (req, res) => {
 // API endpoints for credentials management
 // Get all credentials (service IDs only, no secrets)
 app.get('/api/credentials', (req, res) => {
+  // Get credentials from database
+  const credentials = databaseService.getAllCredentials();
+  
   // Return just the service names and their existence, not the actual keys
   const services = {};
   for (const [service, creds] of Object.entries(credentials)) {
@@ -660,7 +866,7 @@ app.post('/api/credentials/:service', async (req, res) => {
   ];
   
   if (recommendationServices.includes(service)) {
-    console.log(`Rejected attempt to store recommendation data '${service}' in credentials. Use /api/recommendations or /api/preferences instead.`);
+    
     return res.status(400).json({ 
       error: 'Recommendation data should not be stored in credentials', 
       message: 'Please use the appropriate API endpoints for recommendations and preferences' 
@@ -671,19 +877,30 @@ app.post('/api/credentials/:service', async (req, res) => {
     return res.status(400).json({ error: 'No credentials provided' });
   }
   
-  // Initialize the service if it doesn't exist
-  if (!credentials[service]) {
-    credentials[service] = {};
+  // Handle Trakt credentials differently - they should be user-specific
+  if (service === 'trakt') {
+    // Store user-specific Trakt credentials
+    
+    databaseService.saveUserCredentials(req.user.userId, service, serviceCredentials);
+    return res.json({ success: true, service });
   }
   
+  // For all other services, only admin users can update global credentials
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
+  // Get existing credentials
+  const existingCredentials = databaseService.getCredentials(service) || {};
+  
   // Update the credentials
-  credentials[service] = {
-    ...credentials[service],
+  const updatedCredentials = {
+    ...existingCredentials,
     ...serviceCredentials
   };
   
-  // Save to file
-  await saveCredentials();
+  // Save to database
+  databaseService.saveCredentials(service, updatedCredentials);
   
   // Return success, but don't echo back the credentials
   res.json({ success: true, service });
@@ -698,25 +915,94 @@ app.get('/api/credentials/:service', (req, res) => {
     return res.json({});
   }
   
-  if (!credentials[service]) {
+  // Handle Trakt credentials differently - they should be user-specific
+  if (service === 'trakt') {
+    // For non-admin users, get user-specific Trakt credentials
+    if (!req.user.isAdmin) {
+      const userCredentials = databaseService.getUserCredentials(req.user.userId, service);
+      
+      if (!userCredentials) {
+        return res.status(404).json({ error: `No credentials found for ${service}` });
+      }
+      
+      return res.json(userCredentials);
+    }
+    
+    // For admin users, check user-specific credentials first, then fall back to global
+    const userCredentials = databaseService.getUserCredentials(req.user.userId, service);
+    
+    if (userCredentials) {
+      return res.json(userCredentials);
+    }
+  }
+  
+  // For all other services, use global credentials
+  const serviceCredentials = databaseService.getCredentials(service);
+  
+  if (!serviceCredentials) {
     return res.status(404).json({ error: `No credentials found for ${service}` });
   }
   
-  res.json(credentials[service]);
+  res.json(serviceCredentials);
 });
 
 // Delete credentials for a service
 app.delete('/api/credentials/:service', async (req, res) => {
   const { service } = req.params;
   
-  if (!credentials[service]) {
+  // Handle Trakt credentials differently - they should be user-specific
+  if (service === 'trakt') {
+    // Delete user-specific Trakt credentials
+    
+    const success = databaseService.deleteUserCredentials(req.user.userId, service);
+    
+    if (!success) {
+      return res.status(404).json({ error: `No credentials found for ${service}` });
+    }
+    
+    return res.json({ success: true, message: `Credentials for ${service} deleted` });
+  }
+  
+  // For all other services, only admin users can delete global credentials
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
+  const success = databaseService.deleteCredentials(service);
+  
+  if (!success) {
     return res.status(404).json({ error: `No credentials found for ${service}` });
   }
   
-  delete credentials[service];
-  await saveCredentials();
-  
   res.json({ success: true, message: `Credentials for ${service} deleted` });
+});
+
+// Service user selection endpoints
+app.post('/api/user-services/:serviceName/selected-user', async (req, res) => {
+  const { serviceName } = req.params;
+  const { userId } = req.user;
+  const selectedUserId = req.body.userId;
+
+  try {
+    await userDataManager.setUserServiceSelection(userId, serviceName, selectedUserId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`Error saving ${serviceName} user selection:`, error);
+    res.status(500).json({ error: 'Failed to save user selection' });
+  }
+});
+
+app.get('/api/user-services/:serviceName/selected-user', async (req, res) => {
+  const { serviceName } = req.params;
+  const { userId } = req.user;
+
+  try {
+    const selectedUserId = await userDataManager.getUserServiceSelection(userId, serviceName);
+    res.json({ userId: selectedUserId });
+  } catch (error) {
+    console.error(`Error getting ${serviceName} user selection:`, error);
+    res.status(500).json({ error: 'Failed to get user selection' });
+  }
 });
 
 // User data endpoints
@@ -724,25 +1010,16 @@ app.delete('/api/credentials/:service', async (req, res) => {
 // Add a special endpoint for read-only recommendations
 app.get('/api/recommendations-readonly/:type', async (req, res) => {
   const { type } = req.params;
+  const userId = req.user.userId;
   
-  console.log(`GET /api/recommendations-readonly/${type} requested (safe read-only mode)`);
   
-  // Force reload from disk to ensure we're using the latest data
-  try {
-    const reloadUserDataSuccess = await reloadUserDataFromDisk();
-    
-    if (reloadUserDataSuccess) {
-      console.log(`Reloaded user_data.json from disk (readonly mode)`);
-    } else {
-      console.warn(`Failed to reload user_data.json - using in-memory data`);
-    }
-  } catch (reloadError) {
-    console.error(`Error reloading data: ${reloadError.message}`);
-  }
+  
+  // Load user data
+  const userData = await userDataManager.getUserData(userId);
   
   // Return the recommendations without any side effects
   if (type === 'tv') {
-    console.log(`Returning ${userData.tvRecommendations ? userData.tvRecommendations.length : 0} TV recommendations (readonly)`);
+    
     
     // Deep copy to ensure we're not sending a reference to the original
     const recommendations = Array.isArray(userData.tvRecommendations) 
@@ -751,7 +1028,7 @@ app.get('/api/recommendations-readonly/:type', async (req, res) => {
       
     res.json(recommendations);
   } else if (type === 'movie') {
-    console.log(`Returning ${userData.movieRecommendations ? userData.movieRecommendations.length : 0} movie recommendations (readonly)`);
+    
     
     // Deep copy to ensure we're not sending a reference to the original
     const recommendations = Array.isArray(userData.movieRecommendations) 
@@ -760,7 +1037,7 @@ app.get('/api/recommendations-readonly/:type', async (req, res) => {
       
     res.json(recommendations);
   } else {
-    console.log(`Invalid recommendation type: ${type}`);
+    
     res.status(400).json({ error: 'Invalid recommendation type' });
   }
 });
@@ -768,31 +1045,15 @@ app.get('/api/recommendations-readonly/:type', async (req, res) => {
 // Regular endpoint
 app.get('/api/recommendations/:type', async (req, res) => {
   const { type } = req.params;
+  const userId = req.user.userId;
   
-  console.log(`GET /api/recommendations/${type} requested`);
   
-  // Force reload from disk to ensure we're using the latest data
-  try {
-    const reloadUserDataSuccess = await reloadUserDataFromDisk();
-    const reloadCredentialsSuccess = await reloadCredentialsFromDisk();
-    
-    if (reloadUserDataSuccess) {
-      console.log(`Reloaded user_data.json from disk`);
-    } else {
-      console.warn(`Failed to reload user_data.json - using in-memory data`);
-    }
-    
-    if (reloadCredentialsSuccess) {
-      console.log(`Reloaded credentials.json from disk`);
-    } else {
-      console.warn(`Failed to reload credentials.json - using in-memory data`);
-    }
-  } catch (reloadError) {
-    console.error(`Error reloading data: ${reloadError.message}`);
-  }
+  
+  // Load user data
+  const userData = await userDataManager.getUserData(userId);
   
   if (type === 'tv') {
-    console.log(`Returning ${userData.tvRecommendations ? userData.tvRecommendations.length : 0} TV recommendations`);
+    
     
     // Deep copy to ensure we're not sending a reference to the original
     const recommendations = Array.isArray(userData.tvRecommendations) 
@@ -801,7 +1062,7 @@ app.get('/api/recommendations/:type', async (req, res) => {
       
     res.json(recommendations);
   } else if (type === 'movie') {
-    console.log(`Returning ${userData.movieRecommendations ? userData.movieRecommendations.length : 0} movie recommendations`);
+    
     
     // Deep copy to ensure we're not sending a reference to the original
     const recommendations = Array.isArray(userData.movieRecommendations) 
@@ -810,7 +1071,7 @@ app.get('/api/recommendations/:type', async (req, res) => {
       
     res.json(recommendations);
   } else {
-    console.log(`Invalid recommendation type: ${type}`);
+    
     res.status(400).json({ error: 'Invalid recommendation type' });
   }
 });
@@ -819,15 +1080,18 @@ app.get('/api/recommendations/:type', async (req, res) => {
 app.post('/api/recommendations/:type', async (req, res) => {
   const { type } = req.params;
   const recommendations = req.body;
+  const userId = req.user.userId;
   
   if (!Array.isArray(recommendations)) {
     return res.status(400).json({ error: 'Recommendations must be an array' });
   }
   
-  console.log(`Saving ${recommendations.length} ${type} recommendations to server`);
+  
   
   // Normalize recommendations to always be an array of strings (titles)
   // This ensures consistent storage format regardless of what client sends
+  
+  
   const normalizedRecommendations = recommendations.map(rec => {
     if (rec === null || rec === undefined) return '';
     if (typeof rec === 'string') return rec;
@@ -835,23 +1099,31 @@ app.post('/api/recommendations/:type', async (req, res) => {
     return String(rec);
   });
   
+  
+  
   // Filter out empty strings and store only the normalized array
   const filteredRecommendations = normalizedRecommendations
     .filter(title => title !== null && title !== undefined && title.trim && typeof title.trim === 'function' && title.trim() !== '')
     .map(item => String(item)); // Ensure everything is a string
+    
   
-  // Make a backup of userData before modifying
-  const userDataBackup = JSON.parse(JSON.stringify(userData));
   
   try {
+    // Load current user data
+    const userData = await userDataManager.getUserData(userId);
+    
     if (type === 'tv') {
       userData.tvRecommendations = filteredRecommendations;
+      
+      
       // Clear any legacy full recommendation objects that might exist
       if (userData.tvRecommendationsDetails) {
         delete userData.tvRecommendationsDetails;
       }
     } else if (type === 'movie') {
       userData.movieRecommendations = filteredRecommendations;
+      
+      
       // Clear any legacy full recommendation objects that might exist
       if (userData.movieRecommendationsDetails) {
         delete userData.movieRecommendationsDetails;
@@ -861,26 +1133,53 @@ app.post('/api/recommendations/:type', async (req, res) => {
     }
     
     // Save the updated user data
-    try {
-      await saveUserData();
+    
+    const saveResult = await userDataManager.saveUserData(userId, userData);
+    
+    
+    if (saveResult) {
+      
+      // Get the data back to verify it's saved correctly
+      const verifiedData = await userDataManager.getUserData(userId);
+      console.log(`Verification - saved ${type} recommendations:`, 
+        type === 'tv' ? verifiedData.tvRecommendations.length : verifiedData.movieRecommendations.length);
+        
       res.json({ success: true });
-    } catch (saveError) {
-      // If saveUserData fails, restore the backup and respond with an error
-      console.error(`Error saving user data: ${saveError.message}`);
-      userData = userDataBackup;
-      res.status(500).json({ error: 'Failed to save user data', details: saveError.message });
+    } else {
+      console.error('Failed to save user data');
+      res.status(500).json({ error: 'Failed to save user data' });
     }
   } catch (error) {
-    // If any other error occurs, restore the backup and respond with an error
     console.error(`Unexpected error handling recommendations: ${error.message}`);
-    userData = userDataBackup;
     res.status(500).json({ error: 'An unexpected error occurred', details: error.message });
   }
 });
 
 // Get liked/disliked/hidden items
-app.get('/api/preferences/:type/:preference', (req, res) => {
+app.get('/api/preferences/:type/:preference', async (req, res) => {
   const { type, preference } = req.params;
+  const { username } = req.query;
+  
+  // Use the authenticated user's ID by default, or look up the user ID by username if provided
+  let userId = req.user.userId;
+  
+  // If a username is provided and it's not the current user, check if the user exists
+  if (username && username !== req.user.username) {
+    try {
+      const user = await authService.getUserByUsername(username);
+      if (user) {
+        userId = user.userId;
+      } else {
+        return res.status(404).json({ error: 'User not found' });
+      }
+    } catch (error) {
+      console.error(`Error looking up user by username: ${username}`, error);
+      return res.status(500).json({ error: 'Error looking up user' });
+    }
+  }
+  
+  // Load user data
+  const userData = await userDataManager.getUserData(userId);
   
   if (type === 'tv' && preference === 'liked') {
     res.json(userData.likedTV || []);
@@ -902,11 +1201,33 @@ app.get('/api/preferences/:type/:preference', (req, res) => {
 // Save liked/disliked/hidden items
 app.post('/api/preferences/:type/:preference', async (req, res) => {
   const { type, preference } = req.params;
+  const { username } = req.query;
   const items = req.body;
+  
+  // Use the authenticated user's ID by default, or look up the user ID by username if provided
+  let userId = req.user.userId;
+  
+  // If a username is provided and it's not the current user, check if the user exists
+  if (username && username !== req.user.username) {
+    try {
+      const user = await authService.getUserByUsername(username);
+      if (user) {
+        userId = user.userId;
+      } else {
+        return res.status(404).json({ error: 'User not found' });
+      }
+    } catch (error) {
+      console.error(`Error looking up user by username: ${username}`, error);
+      return res.status(500).json({ error: 'Error looking up user' });
+    }
+  }
   
   if (!Array.isArray(items)) {
     return res.status(400).json({ error: 'Preferences must be an array' });
   }
+  
+  // Load user data
+  const userData = await userDataManager.getUserData(userId);
   
   if (type === 'tv' && preference === 'liked') {
     userData.likedTV = items;
@@ -924,25 +1245,215 @@ app.post('/api/preferences/:type/:preference', async (req, res) => {
     return res.status(400).json({ error: 'Invalid parameters' });
   }
   
-  await saveUserData();
+  // Save the updated user data
+  await userDataManager.saveUserData(userId, userData);
   res.json({ success: true });
 });
 
 // Get settings
-app.get('/api/settings', (req, res) => {
-  res.json(userData.settings || {});
+app.get('/api/settings', async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    // Load user data (which includes individual columns)
+    const userData = await userDataManager.getUserData(userId);
+
+    // Extract settings from userData.settings
+    const settings = userData.settings || {};
+    
+    // Log the timestamp values for debugging
+    console.log('Timestamp values in settings:', {
+      lastPlexHistoryRefresh: settings.lastPlexHistoryRefresh,
+      lastJellyfinHistoryRefresh: settings.lastJellyfinHistoryRefresh,
+      lastTautulliHistoryRefresh: settings.lastTautulliHistoryRefresh,
+      lastTraktHistoryRefresh: settings.lastTraktHistoryRefresh
+    });
+
+    // Remove null/undefined values to keep the response clean
+    Object.keys(settings).forEach(key => {
+      if (settings[key] === null || settings[key] === undefined) {
+        delete settings[key];
+      }
+    });
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    res.status(500).json({ error: 'Failed to retrieve settings' });
+  }
 });
 
-// Save settings
+// Save settings - Update individual settings instead of the settings blob
 app.post('/api/settings', async (req, res) => {
-  userData.settings = {...userData.settings, ...req.body};
-  await saveUserData();
-  res.json({ success: true });
+  const userId = req.user.userId;
+  const settingsToUpdate = req.body;
+  
+  try {
+    // Update each setting individually using the updateUserSetting method
+    const updatePromises = Object.entries(settingsToUpdate).map(([key, value]) => {
+      return databaseService.updateUserSetting(userId, key, value);
+    });
+    
+    // Wait for all updates to complete
+    await Promise.all(updatePromises);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// Get individual setting directly from database column
+app.get('/api/settings/:settingName', async (req, res) => {
+  
+  
+  
+  
+  const userId = req.user.userId;
+  const { settingName } = req.params;
+  
+  
+  
+  try {
+    // Get the setting value directly from the database
+    // This bypasses any caching issues and ensures we get the actual stored value
+    
+    let value;
+    
+    // Special case handling for recommendations
+    if (settingName === 'tvRecommendations' || settingName === 'movieRecommendations') {
+      // Get from user data directly
+      const userData = await userDataManager.getUserData(userId);
+      value = userData[settingName] || [];
+      
+    } else {
+      // Use regular user setting lookup
+      value = await databaseService.getUserSetting(userId, settingName);
+    }
+    
+    
+    
+    res.json({ value });
+  } catch (error) {
+    console.error(`Error getting setting ${settingName}:`, error);
+    res.status(500).json({ error: 'An error occurred while getting the setting', details: error.message });
+  }
+});
+
+// Save individual setting directly to database column
+app.post('/api/settings/:settingName', async (req, res) => {
+  
+  
+  
+  
+  
+  const userId = req.user.userId;
+  const { settingName } = req.params;
+  // Extract the value from the request body
+  // The client now sends { value: actualValue }
+  const rawValue = req.body.value !== undefined ? req.body.value : req.body;
+  
+  
+  
+  try {
+    // Special handling for timestamp settings
+    const timestampSettings = [
+      'lastPlexHistoryRefresh',
+      'lastJellyfinHistoryRefresh',
+      'lastTautulliHistoryRefresh',
+      'lastTraktHistoryRefresh'
+    ];
+    
+    if (timestampSettings.includes(settingName)) {
+      // Use the existing updateUserSetting method for timestamp settings
+      const success = await databaseService.updateUserSetting(userId, settingName, rawValue);
+      
+      if (success) {
+        return res.json({ success: true });
+      } else {
+        return res.status(500).json({ error: 'Failed to save setting' });
+      }
+    }
+    
+    // Load user data to ensure it exists
+    const userData = await userDataManager.getUserData(userId);
+    
+    // Process the raw value to get the actual value to save
+    let processedValue = rawValue;
+    
+    
+    
+    // If the value comes in as { value: ... } format from our API wrapper
+    if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
+      
+      processedValue = rawValue.value;
+    }
+    
+    // If it's a JSON string that needs parsing
+    else if (typeof rawValue === 'string' && rawValue.startsWith('"') && rawValue.endsWith('"')) {
+      try {
+        processedValue = JSON.parse(rawValue);
+        
+      } catch (e) {
+        
+      }
+    } 
+    
+    // Special case for form-urlencoded date strings
+    else if (typeof rawValue === 'object' && Object.keys(rawValue).length === 1 && rawValue[Object.keys(rawValue)[0]] === '') {
+      // Handle form-urlencoded data where the key is the date string and value is empty
+      const key = Object.keys(rawValue)[0];
+      // Check if the key looks like an ISO date string before assigning
+      if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(key)) {
+        processedValue = key; // Use the key (the date string) as the value
+        
+      } else {
+        
+        processedValue = rawValue; // Fallback to original object if key isn't a date
+      }
+    }
+
+
+    
+
+    try {
+      // Update the specific column in the database
+      const success = await databaseService.updateUserSetting(userId, settingName, processedValue);
+      
+      if (success) {
+        // Also update the in-memory settings object for consistency
+        if (!userData.settings) userData.settings = {};
+        userData.settings[settingName] = processedValue;
+        
+        
+        res.json({ success: true });
+      } else {
+        console.error(`Failed to save ${settingName} directly to database column`);
+        res.status(500).json({ error: 'Failed to save setting' });
+      }
+    } catch (dbError) {
+      console.error(`Database error saving ${settingName}:`, dbError);
+      res.status(500).json({ 
+        error: 'An error occurred while saving to the database', 
+        details: dbError.message,
+        setting: settingName,
+        valueType: typeof processedValue
+      });
+    }
+  } catch (error) {
+    console.error(`Error saving setting ${settingName}:`, error);
+    res.status(500).json({ error: 'An error occurred while saving the setting', details: error.message });
+  }
 });
 
 // Get watch history
-app.get('/api/watch-history/:type', (req, res) => {
+app.get('/api/watch-history/:type', async (req, res) => {
   const { type } = req.params;
+  const userId = req.user.userId;
+  
+  // Load user data
+  const userData = await userDataManager.getUserData(userId);
   
   // Initialize watchHistory if it doesn't exist
   if (!userData.watchHistory) {
@@ -958,16 +1469,213 @@ app.get('/api/watch-history/:type', (req, res) => {
   }
 });
 
+// Sonarr and Radarr library endpoints
+// Get Sonarr library
+app.get('/api/sonarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    // Get library from database
+    const library = await databaseService.getSonarrLibrary(userId);
+    
+    if (library) {
+      res.json(library);
+    } else {
+      res.status(404).json({ error: 'No Sonarr library found' });
+    }
+  } catch (error) {
+    console.error('Error getting Sonarr library:', error);
+    res.status(500).json({ error: 'Error getting Sonarr library' });
+  }
+});
+
+// Save Sonarr library
+app.post('/api/sonarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Save library to database
+    const success = await databaseService.saveSonarrLibrary(userId, library);
+    
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Error saving Sonarr library' });
+    }
+  } catch (error) {
+    console.error('Error saving Sonarr library:', error);
+    res.status(500).json({ error: 'Error saving Sonarr library' });
+  }
+});
+
+// Refresh Sonarr library for all users
+app.post('/api/sonarr/library/refresh-all', async (req, res) => {
+  // Only admin users can refresh library for all users
+  if (!req.user.isAdmin) {
+    // For non-admin users, we'll still allow the operation but log it
+    
+  }
+  
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Get all users
+    const users = await authService.getAllUsers();
+    
+    // Save library for each user
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      try {
+        const success = await databaseService.saveSonarrLibrary(user.userId, library);
+        if (success) {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error(`Failed to save Sonarr library for user: ${user.username} (${user.userId})`);
+        }
+      } catch (userError) {
+        errorCount++;
+        console.error(`Error saving Sonarr library for user: ${user.username} (${user.userId})`, userError);
+      }
+    }
+    
+    
+    
+    if (errorCount === 0) {
+      res.json({ success: true, message: `Library updated for all ${successCount} users` });
+    } else {
+      res.status(207).json({ 
+        partialSuccess: true, 
+        message: `Library updated for ${successCount} users, failed for ${errorCount} users` 
+      });
+    }
+  } catch (error) {
+    console.error('Error refreshing Sonarr library for all users:', error);
+    res.status(500).json({ error: 'Error refreshing Sonarr library for all users' });
+  }
+});
+
+// Get Radarr library
+app.get('/api/radarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    // Get library from database
+    const library = await databaseService.getRadarrLibrary(userId);
+    
+    if (library) {
+      res.json(library);
+    } else {
+      res.status(404).json({ error: 'No Radarr library found' });
+    }
+  } catch (error) {
+    console.error('Error getting Radarr library:', error);
+    res.status(500).json({ error: 'Error getting Radarr library' });
+  }
+});
+
+// Save Radarr library
+app.post('/api/radarr/library', async (req, res) => {
+  const userId = req.user.userId;
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Save library to database
+    const success = await databaseService.saveRadarrLibrary(userId, library);
+    
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Error saving Radarr library' });
+    }
+  } catch (error) {
+    console.error('Error saving Radarr library:', error);
+    res.status(500).json({ error: 'Error saving Radarr library' });
+  }
+});
+
+// Refresh Radarr library for all users
+app.post('/api/radarr/library/refresh-all', async (req, res) => {
+  // Only admin users can refresh library for all users
+  if (!req.user.isAdmin) {
+    // For non-admin users, we'll still allow the operation but log it
+    
+  }
+  
+  const library = req.body;
+  
+  if (!Array.isArray(library)) {
+    return res.status(400).json({ error: 'Library must be an array' });
+  }
+  
+  try {
+    // Get all users
+    const users = await authService.getAllUsers();
+    
+    // Save library for each user
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      try {
+        const success = await databaseService.saveRadarrLibrary(user.userId, library);
+        if (success) {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error(`Failed to save Radarr library for user: ${user.username} (${user.userId})`);
+        }
+      } catch (userError) {
+        errorCount++;
+        console.error(`Error saving Radarr library for user: ${user.username} (${user.userId})`, userError);
+      }
+    }
+    
+    
+    
+    if (errorCount === 0) {
+      res.json({ success: true, message: `Library updated for all ${successCount} users` });
+    } else {
+      res.status(207).json({ 
+        partialSuccess: true, 
+        message: `Library updated for ${successCount} users, failed for ${errorCount} users` 
+      });
+    }
+  } catch (error) {
+    console.error('Error refreshing Radarr library for all users:', error);
+    res.status(500).json({ error: 'Error refreshing Radarr library for all users' });
+  }
+});
+
 // Save watch history
 app.post('/api/watch-history/:type', async (req, res) => {
   const { type } = req.params;
   const items = req.body;
+  const userId = req.user.userId;
   
   if (!Array.isArray(items)) {
     return res.status(400).json({ error: 'Watch history must be an array' });
   }
   
-  console.log(`Saving ${items.length} ${type} watch history items to server`);
+  
+  
+  // Load user data
+  const userData = await userDataManager.getUserData(userId);
   
   // Initialize watchHistory if it doesn't exist
   if (!userData.watchHistory) {
@@ -982,135 +1690,19 @@ app.post('/api/watch-history/:type', async (req, res) => {
     return res.status(400).json({ error: 'Invalid watch history type. Use "movies" or "shows".' });
   }
   
-  await saveUserData();
+  // Save the updated user data
+  await userDataManager.saveUserData(userId, userData);
   res.json({ success: true });
 });
 
-// Force reload userData from disk
-async function reloadUserDataFromDisk() {
-  console.log('⚠️ Force reloading userData from disk');
-  try {
-    // First check if the file exists
-    const fileExists = await fs.access(USER_DATA_FILE).then(() => true).catch(() => false);
-    
-    if (!fileExists) {
-      console.log(`File ${USER_DATA_FILE} doesn't exist, nothing to reload`);
-      return false;
-    }
-    
-    // Read the file
-    const data = await fs.readFile(USER_DATA_FILE, 'utf8');
-    
-    // Parse the file content
-    let fileData;
-    try {
-      fileData = JSON.parse(data);
-    } catch (parseError) {
-      console.error(`Error parsing ${USER_DATA_FILE} as JSON:`, parseError);
-      return false;
-    }
-    
-    // Check if the data is properly encrypted
-    if (!fileData.encrypted || !fileData.iv || !fileData.authTag) {
-      console.error(`File ${USER_DATA_FILE} is not properly encrypted`);
-      return false;
-    }
-    
-    // Decrypt the data
-    try {
-      const decryptedData = encryptionService.decrypt(fileData);
-      userData = decryptedData;
-      console.log(`✓ Reloaded user data from disk: ${userData.tvRecommendations.length} TV recommendations, ${userData.movieRecommendations.length} movie recommendations`);
-      return true;
-    } catch (decryptError) {
-      console.error(`Error decrypting ${USER_DATA_FILE}:`, decryptError);
-      return false;
-    }
-  } catch (err) {
-    console.error('❌ Error reloading user data from disk:', err);
-    return false;
-  }
-}
-
-// Force reload credentials from disk
-async function reloadCredentialsFromDisk() {
-  console.log('⚠️ Force reloading credentials from disk');
-  try {
-    // First check if the file exists
-    const fileExists = await fs.access(CREDENTIALS_FILE).then(() => true).catch(() => false);
-    
-    if (!fileExists) {
-      console.log(`File ${CREDENTIALS_FILE} doesn't exist, nothing to reload`);
-      credentials = {}; // Reset to empty object
-      return true;
-    }
-    
-    // Read the file
-    const data = await fs.readFile(CREDENTIALS_FILE, 'utf8');
-    
-    // Parse the file content
-    let fileData;
-    try {
-      fileData = JSON.parse(data);
-    } catch (parseError) {
-      console.error(`Error parsing ${CREDENTIALS_FILE} as JSON:`, parseError);
-      return false;
-    }
-    
-    // Check if the data is properly encrypted
-    if (!fileData.encrypted || !fileData.iv || !fileData.authTag) {
-      console.error(`File ${CREDENTIALS_FILE} is not properly encrypted`);
-      return false;
-    }
-    
-    // Decrypt the data
-    try {
-      const decryptedData = encryptionService.decrypt(fileData);
-      credentials = decryptedData;
-      const numServices = Object.keys(credentials).length;
-      console.log(`✓ Reloaded credentials from disk: ${numServices} services`);
-      return true;
-    } catch (decryptError) {
-      console.error(`Error decrypting ${CREDENTIALS_FILE}:`, decryptError);
-      return false;
-    }
-  } catch (err) {
-    console.error('❌ Error reloading credentials from disk:', err);
-    return false;
-  }
-}
-
-// Reset all user data (recommendations, preferences, etc.) AND credentials
+// Reset all user data (recommendations, preferences, etc.) - User specific
 app.post('/api/reset', async (req, res) => {
-  console.log('🔄 RESET ENDPOINT CALLED - Clearing ALL DATA (both user_data.json and credentials.json)');
+  const userId = req.user.userId;
+  
   
   try {
-    // PART 1: CLEAR USER_DATA.JSON
-    console.log('PHASE 1: Clearing user_data.json...');
-    
-    // First try direct file deletion to ensure we're not dealing with any caching issues
-    try {
-      await fs.unlink(USER_DATA_FILE);
-      console.log(`✓ Directly deleted ${USER_DATA_FILE}`);
-      // Wait a moment for the filesystem
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (unlinkError) {
-      console.log(`Could not delete user_data.json directly: ${unlinkError.message}`);
-    }
-    
-    // Backup the current user data just in case
-    try {
-      const currentData = await fs.readFile(USER_DATA_FILE, 'utf8');
-      const backupPath = `${USER_DATA_FILE}.backup-${Date.now()}`;
-      await fs.writeFile(backupPath, currentData, 'utf8');
-      console.log(`Current user_data.json backed up to ${backupPath}`);
-    } catch (backupError) {
-      // Only log the error, don't stop the reset process
-      console.log('No existing user_data.json to back up or backup failed:', backupError.message);
-    }
-    
-    // Reset user data to default values with empty arrays
-    userData = {
+    // Reset user data to default values
+    const defaultUserData = {
       tvRecommendations: [],
       movieRecommendations: [],
       likedTV: [],
@@ -1142,124 +1734,71 @@ app.post('/api/reset', async (req, res) => {
       }
     };
     
-    // Save the reset user data to the file
-    console.log('Saving empty userData to user_data.json');
-    const saveUserDataSuccess = await saveUserData();
-    if (!saveUserDataSuccess) {
-      throw new Error('saveUserData returned false - file may not have been written');
-    }
+    // Save the reset user data
+    const saveResult = await userDataManager.saveUserData(userId, defaultUserData);
     
-    // Verification for user data
-    try {
-      const savedData = await fs.readFile(USER_DATA_FILE, 'utf8');
-      console.log(`✓ user_data.json exists and is ${savedData.length} bytes`);
+    if (saveResult) {
       
-      const fileData = JSON.parse(savedData);
-      if (fileData.encrypted && fileData.iv && fileData.authTag) {
-        // Decrypt to verify contents are empty
-        const decryptedData = encryptionService.decrypt(fileData);
-        if (decryptedData.tvRecommendations.length === 0 && decryptedData.movieRecommendations.length === 0) {
-          console.log('✓ Verified user_data.json has empty recommendation arrays');
-        } else {
-          console.error(`❌ user_data.json still has data after reset! TV: ${decryptedData.tvRecommendations.length}, Movie: ${decryptedData.movieRecommendations.length}`);
-        }
-      }
-    } catch (verifyError) {
-      console.error('❌ Error verifying user_data.json:', verifyError);
-    }
-    
-    // PART 2: RESET CREDENTIALS.JSON
-    console.log('PHASE 2: Clearing credentials.json...');
-    
-    // First try direct file deletion to ensure we're not dealing with any caching issues
-    try {
-      await fs.unlink(CREDENTIALS_FILE);
-      console.log(`✓ Directly deleted ${CREDENTIALS_FILE}`);
-      // Wait a moment for the filesystem
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (unlinkError) {
-      console.log(`Could not delete credentials.json directly: ${unlinkError.message}`);
-    }
-    
-    // Backup the current credentials just in case
-    try {
-      const currentCredentials = await fs.readFile(CREDENTIALS_FILE, 'utf8');
-      const backupPath = `${CREDENTIALS_FILE}.backup-${Date.now()}`;
-      await fs.writeFile(backupPath, currentCredentials, 'utf8');
-      console.log(`Current credentials.json backed up to ${backupPath}`);
-    } catch (backupError) {
-      // Only log the error, don't stop the reset process
-      console.log('No existing credentials.json to back up or backup failed:', backupError.message);
-    }
-    
-    // Reset credentials to an empty object
-    credentials = {};
-    
-    // Save the reset credentials to the file
-    console.log('Saving empty credentials to credentials.json');
-    await saveCredentials();
-    
-    // Verification for credentials
-    try {
-      const savedCredentials = await fs.readFile(CREDENTIALS_FILE, 'utf8');
-      console.log(`✓ credentials.json exists and is ${savedCredentials.length} bytes`);
-      
-      const fileData = JSON.parse(savedCredentials);
-      if (fileData.encrypted && fileData.iv && fileData.authTag) {
-        // Decrypt to verify contents are empty
-        const decryptedCredentials = encryptionService.decrypt(fileData);
-        const numServices = Object.keys(decryptedCredentials).length;
-        console.log(`✓ Verified credentials.json has ${numServices} services after reset`);
-      }
-    } catch (verifyError) {
-      console.error('❌ Error verifying credentials.json:', verifyError);
-    }
-    
-    // PART 3: FINAL VERIFICATION
-    console.log('PHASE 3: Final verification...');
-    
-    // Force reload both files from disk
-    await reloadUserDataFromDisk();
-    await reloadCredentialsFromDisk();
-    
-    // Check that userData is empty
-    if (userData.tvRecommendations.length === 0 && userData.movieRecommendations.length === 0) {
-      console.log('✓ Final verification: userData is properly reset in memory');
+      res.json({ 
+        success: true, 
+        message: 'User data reset successfully' 
+      });
     } else {
-      console.error('❌ Final verification failed: userData still has data in memory!');
-      console.log('Forcing userData reset in memory');
-      userData.tvRecommendations = [];
-      userData.movieRecommendations = [];
-      userData.likedTV = [];
-      userData.dislikedTV = [];
-      userData.likedMovies = [];
-      userData.dislikedMovies = [];
-      await saveUserData();
+      console.error(`❌ Failed to save reset data for userId: ${userId}`);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to reset user data'
+      });
     }
-    
-    // Verify credentials is empty
-    const credsCount = Object.keys(credentials).length;
-    console.log(`✓ Final verification: credentials has ${credsCount} services in memory`);
-    
-    console.log('✅ COMPLETE RESET SUCCESSFUL - Both user_data.json and credentials.json have been cleared');
-    res.json({ 
-      success: true, 
-      message: 'All data reset successfully',
-      details: {
-        userData: {
-          tvCount: userData.tvRecommendations.length,
-          movieCount: userData.movieRecommendations.length
-        },
-        credentials: {
-          serviceCount: Object.keys(credentials).length
-        }
-      }
-    });
   } catch (error) {
-    console.error('❌ ERROR DURING COMPLETE RESET:', error);
+    console.error('❌ ERROR DURING USER RESET:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to reset data', 
+      error: 'Failed to reset user data', 
+      details: error.message 
+    });
+  }
+});
+
+// Clear all data - Admin only
+app.post('/api/admin/reset-all', async (req, res) => {
+  // Only admin users can reset all data
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  
+  
+  
+  try {
+    // Get all users
+    const users = await authService.getAllUsers();
+    
+    // Delete all credentials
+    const credentials = databaseService.getAllCredentials();
+    for (const service of Object.keys(credentials)) {
+      databaseService.deleteCredentials(service);
+    }
+    
+    // Delete all user data
+    for (const user of users) {
+      await userDataManager.deleteUserData(user.userId);
+    }
+    
+    // Delete all sessions
+    for (const user of users) {
+      sessionManager.deleteUserSessions(user.userId);
+    }
+    
+    
+    res.json({ 
+      success: true, 
+      message: 'All data reset successfully'
+    });
+  } catch (error) {
+    console.error('❌ ERROR DURING COMPLETE ADMIN RESET:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to reset all data', 
       details: error.message 
     });
   }
@@ -1330,7 +1869,7 @@ app.post('/api/proxy', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
   
-  console.log(`Proxy request to: ${url} (${method})`);
+  
   
   // Debug headers for OpenAI requests
   if (url.includes('openai.com')) {
@@ -1339,7 +1878,7 @@ app.post('/api/proxy', async (req, res) => {
     if (sanitizedHeaders.Authorization) {
       const authHeader = sanitizedHeaders.Authorization;
       sanitizedHeaders.Authorization = authHeader.substring(0, 15) + '...';
-      console.log('OpenAI request headers:', JSON.stringify(sanitizedHeaders));
+      
     } else {
       console.warn('OpenAI request missing Authorization header');
     }
@@ -1350,7 +1889,7 @@ app.post('/api/proxy', async (req, res) => {
   
   // In Docker environment, we need to handle local network references 
   if (process.env.DOCKER_ENV === 'true') {
-    console.log(`Docker environment detected, processing URL: ${url}`);
+    
     
     try {
       // Parse the URL to extract hostname properly
@@ -1360,7 +1899,7 @@ app.post('/api/proxy', async (req, res) => {
       // Only modify localhost/127.0.0.1 URLs
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         processedUrl = url.replace(/(localhost|127\.0\.0\.1)/, 'host.docker.internal');
-        console.log(`Converted localhost URL to Docker-friendly format: ${processedUrl}`);
+        
       } 
       // Handle references to the same host as the server
       else if (hostname === req.hostname) {
@@ -1370,12 +1909,12 @@ app.post('/api/proxy', async (req, res) => {
         if (port) {
           // If it's a different port on the same host, access via host.docker.internal
           processedUrl = url.replace(req.hostname, 'host.docker.internal');
-          console.log(`Converted same-host URL to Docker-friendly format: ${processedUrl}`);
+          
         }
       }
       // For all external URLs (including API providers)
       else {
-        console.log(`External API call detected, using original URL: ${url}`);
+        
         processedUrl = url;
       }
     } catch (error) {
@@ -1388,7 +1927,7 @@ app.post('/api/proxy', async (req, res) => {
   try {
     // Ensure proper headers are set for LMStudio API requests
     if (processedUrl.includes('/v1/models')) {
-      console.log('Adding headers for LMStudio models API request');
+      
       
       // Set Accept header to tell server what response format we want
       headers['Accept'] = 'application/json';
@@ -1398,7 +1937,7 @@ app.post('/api/proxy', async (req, res) => {
         headers['User-Agent'] = 'Mozilla/5.0 (compatible; Reccommendarr/1.0)';
       }
       
-      console.log('Final headers for LMStudio request:', JSON.stringify(headers));
+      
     }
     
     // Add request timeout to prevent hanging connections
@@ -1409,13 +1948,13 @@ app.post('/api/proxy', async (req, res) => {
       params,
       headers,
       // Removed timeout to allow model generation time
-      validateStatus: function (status) {
+      validateStatus: function () {
         // Accept all status codes to handle them in our response
         return true;
       }
     });
     
-    console.log(`Proxy response from: ${processedUrl}, status: ${response.status}`);
+    
     
     // Log detailed information for API errors (OpenAI or LLM-related endpoints)
     if ((processedUrl.includes('openai.com') || processedUrl.includes('/v1/models')) && response.status >= 400) {
@@ -1486,13 +2025,13 @@ app.post('/api/proxy', async (req, res) => {
 
 // Image proxy endpoint (make sure this exactly matches the client request path)
 app.get('/api/image-proxy', async (req, res) => {
-  console.log('Image proxy request received:', req.query.url);
+  
   const imageUrl = req.query.url;
   if (!imageUrl) {
     return res.status(400).json({ error: 'Image URL is required' });
   }
   
-  console.log(`Proxying image request for: ${imageUrl}`);
+  
   
   try {
     // Process URL to handle local network services in Docker
@@ -1504,7 +2043,7 @@ app.get('/api/image-proxy', async (req, res) => {
         const parsedUrl = new URL(imageUrl);
         if (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1') {
           processedUrl = imageUrl.replace(/(localhost|127\.0\.0\.1)/, 'host.docker.internal');
-          console.log(`Converted localhost URL to Docker-friendly format: ${processedUrl}`);
+          
         }
       } catch (error) {
         console.error(`Error parsing image URL ${imageUrl}:`, error.message);
@@ -1561,7 +2100,7 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Unified server running on port ${PORT}`);
-  console.log(`- API available at http://localhost:${PORT}/api`);
-  console.log(`- Frontend available at http://localhost:${PORT}`);
+  
+  
+  
 });

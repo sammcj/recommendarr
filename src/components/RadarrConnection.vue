@@ -32,10 +32,10 @@
     
     <div v-if="connectionStatus" class="connection-status">
       <p v-if="connectionStatus === 'success'" class="success">
-        Connected successfully!
+        {{ connectionMessage || 'Connected successfully!' }}
       </p>
       <p v-else-if="connectionStatus === 'error'" class="error">
-        Connection failed. Please check your URL and API key.
+        {{ connectionMessage || 'Connection failed. Please check your URL and API key.' }}
       </p>
     </div>
     
@@ -64,6 +64,7 @@ export default {
       baseUrl: '',
       apiKey: '',
       connectionStatus: null,
+      connectionMessage: '',
       connecting: false
     };
   },
@@ -102,28 +103,34 @@ export default {
       try {
         // Validate and normalize the URL
         if (!this.validateUrl()) {
-          // Clear invalid credentials
-          this.clearStoredCredentials();
+          console.warn('Invalid Radarr URL format during auto-connect, keeping credentials');
           return;
         }
         
         // Configure the service with saved details
-        await radarrService.configure(this.baseUrl, this.apiKey);
+        const configSuccess = await radarrService.configure(this.baseUrl, this.apiKey);
+        
+        if (!configSuccess) {
+          console.warn('Failed to configure Radarr service during auto-connect, keeping credentials');
+          return;
+        }
         
         // Test the connection
-        const success = await radarrService.testConnection();
+        const result = await radarrService.testConnection();
         
         // Only emit event if successful
-        if (success) {
+        if (result.success) {
+          
           this.$emit('connected');
         } else {
-          // Clear invalid credentials
-          await this.clearStoredCredentials();
+          // Log the error but KEEP the credentials
+          console.warn('Radarr connection test failed during auto-connect:', result.message);
+          console.warn('Keeping credentials despite connection failure');
         }
       } catch (error) {
         console.error('Error auto-connecting to Radarr:', error);
-        // Clear invalid credentials
-        this.clearStoredCredentials();
+        // Log the error but KEEP the credentials
+        console.warn('Exception during Radarr auto-connect, keeping credentials');
       } finally {
         this.connecting = false;
       }
@@ -140,16 +147,30 @@ export default {
         }
         
         // Configure the service with provided details
-        await radarrService.configure(this.baseUrl, this.apiKey);
+        const configSuccess = await radarrService.configure(this.baseUrl, this.apiKey);
+        
+        if (!configSuccess) {
+          console.error('Failed to configure Radarr service with provided credentials');
+          this.connectionStatus = 'error';
+          return;
+        }
         
         // Test the connection
-        const success = await radarrService.testConnection();
+        const result = await radarrService.testConnection();
         
-        // Update status based on response
-        this.connectionStatus = success ? 'success' : 'error';
+        // Update status and message based on response
+        this.connectionStatus = result.success ? 'success' : 'error';
+        this.connectionMessage = result.message;
+        
+        // Log the message for debugging
+        if (result.success) {
+          console.log("Radarr connection successful");
+        } else {
+          console.error('Radarr connection failed:', result.message);
+        }
         
         // If successful, emit connected event
-        if (success) {
+        if (result.success) {
           this.$emit('connected');
         }
       } catch (error) {
@@ -195,6 +216,7 @@ export default {
       
       // Reset component state
       this.connectionStatus = null;
+      this.connectionMessage = '';
       this.baseUrl = '';
       this.apiKey = '';
       

@@ -54,6 +54,8 @@
 <script>
 import plexService from '../services/PlexService';
 import credentialsService from '../services/CredentialsService';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
+import apiService from '../services/ApiService';
 
 export default {
   name: 'PlexConnection',
@@ -74,7 +76,17 @@ export default {
     };
   },
   async created() {
-    const savedRecentLimit = localStorage.getItem('plexRecentLimit');
+    // Load recent limit from database
+    try {
+      const recentLimit = await databaseStorageUtils.getSync('plexRecentLimit');
+      if (recentLimit !== null) {
+        this.recentLimit = recentLimit;
+      }
+    } catch (error) {
+      console.error('Error loading Plex recent limit from database:', error);
+      // Use default value if there's an error
+      this.recentLimit = 50;
+    }
     
     // If connected prop is true, set connection status right away
     if (this.connected) {
@@ -100,16 +112,6 @@ export default {
         }
       } catch (error) {
         console.error('Error loading saved Plex credentials:', error);
-      }
-    }
-
-    if (savedRecentLimit) {
-      this.recentLimit = parseInt(savedRecentLimit, 10);
-      // Validate the value is within range
-      if (isNaN(this.recentLimit) || this.recentLimit < 1) {
-        this.recentLimit = 5;
-      } else if (this.recentLimit > 50) {
-        this.recentLimit = 50;
       }
     }
   },
@@ -221,7 +223,7 @@ export default {
       this.$emit('disconnected');
     },
     increaseLimit() {
-      if (this.recentLimit < 2000) {
+      if (this.recentLimit < 10000) {
         this.recentLimit++;
         this.saveRecentLimit();
       }
@@ -232,12 +234,24 @@ export default {
         this.saveRecentLimit();
       }
     },
-    saveRecentLimit() {
+    async saveRecentLimit() {
       // Ensure limit is within bounds
       if (this.recentLimit < 1) this.recentLimit = 1;
-      if (this.recentLimit > 2000) this.recentLimit = 2000;
+      if (this.recentLimit > 10000) this.recentLimit = 10000;
       
-      localStorage.setItem('plexRecentLimit', this.recentLimit);
+      // Save to database
+      await databaseStorageUtils.set('plexRecentLimit', this.recentLimit);
+      
+      // Save to user settings in database
+      try {
+        const userData = await apiService.getSettings();
+        userData.plexRecentLimit = this.recentLimit;
+        await apiService.saveSettings(userData);
+      } catch (settingsError) {
+        console.error('Error saving Plex limit to user settings:', settingsError);
+        // Continue even if settings save fails
+      }
+      
       this.$emit('limitChanged', this.recentLimit);
     },
     

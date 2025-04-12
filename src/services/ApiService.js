@@ -4,12 +4,14 @@ import axios from 'axios';
  * Client-side API service for communicating with our proxy server
  */
 class ApiService {
+  // Current user information
+  currentUser = null;
   constructor() {
     // Use the same server for both frontend and API by using a relative path
     // This enables both to run on the same port
     this.baseUrl = '/api';
     
-    console.log(`Using relative API path: ${this.baseUrl}`);
+    
     
     // Create axios instance with default config
     this.axiosInstance = axios.create({
@@ -22,7 +24,7 @@ class ApiService {
       error => {
         // Handle 401 Unauthorized or 530 errors - both indicate auth issues
         if (error.response && (error.response.status === 401 || error.response.status === 530)) {
-          console.log(`Auth error (${error.response.status}) detected, checking...`, error.config?.url);
+          
           
           // Skip auth-related paths to prevent loops
           const skipPaths = ['/auth/login', '/auth/logout', '/auth/register'];
@@ -30,14 +32,21 @@ class ApiService {
                                error.config.url && 
                                skipPaths.some(path => error.config.url.includes(path));
           
-          // Only trigger logout for non-auth pages when user is actually logged in 
-          // We need to check if we're on login page to avoid infinite refreshes
-          const isLoginPage = window.location.pathname === '/login' || 
-                             document.querySelector('.login-container') !== null;
-          
-          // Don't trigger logout flow if we're already on the login page or if it's an auth request
-          if (!isAuthRequest && !isLoginPage) {
-            console.log('Session expired, clearing auth data...');
+      // Only trigger logout for non-auth pages when user is actually logged in 
+      // We need to check if we're on login page to avoid infinite refreshes
+      const isLoginPage = window.location.pathname === '/login' || 
+                         window.location.pathname === '/' || 
+                         document.querySelector('.login-container') !== null;
+      
+      // Don't trigger logout flow if we're already on the login page or if it's an auth request
+      // Also don't reload if we're getting credentials or settings
+      const isCredentialsRequest = error.config && 
+                                  error.config.url && 
+                                  (error.config.url.includes('/credentials/') || 
+                                   error.config.url.includes('/settings'));
+      
+      if (!isAuthRequest && !isLoginPage && !isCredentialsRequest) {
+            
             
             // Force clear the auth cookie by setting it to expire in the past
             document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
@@ -66,10 +75,8 @@ class ApiService {
     try {
       const token = localStorage.getItem('auth_token');
       if (token) {
-        console.log('Found token in localStorage (legacy support)');
+        
         this.setHeader('Authorization', `Bearer ${token}`);
-      } else {
-        console.log('No stored auth token found - using HttpOnly cookies');
       }
     } catch (error) {
       console.error('Error accessing localStorage in ApiService:', error);
@@ -110,7 +117,7 @@ class ApiService {
    */
   async loadSavedSettings() {
     // Skip loading saved settings as app-config feature has been removed
-    console.log('Using environment-configured API URL settings');
+    
     return;
   }
   
@@ -200,11 +207,15 @@ class ApiService {
    * (History component should use getRecommendationsReadOnly instead)
    * 
    * @param {string} type - 'tv' or 'movie'
+   * @param {string} [username] - Optional username for user-specific recommendations
    * @returns {Promise<Array>} - Recommendations
    */
-  async getRecommendations(type) {
+  async getRecommendations(type, username) {
     try {
-      const response = await this.get(`/recommendations/${type}`);
+      const endpoint = username 
+        ? `/recommendations/${type}?username=${encodeURIComponent(username)}`
+        : `/recommendations/${type}`;
+      const response = await this.get(endpoint);
       return response.data;
     } catch (error) {
       console.error(`Failed to get ${type} recommendations:`, error);
@@ -217,12 +228,16 @@ class ApiService {
    * This should be used by History component to avoid overwriting data
    * 
    * @param {string} type - 'tv' or 'movie'
+   * @param {string} [username] - Optional username for user-specific recommendations
    * @returns {Promise<Array>} - Recommendations
    */
-  async getRecommendationsReadOnly(type) {
+  async getRecommendationsReadOnly(type, username) {
     try {
       // This calls a different endpoint entirely, ensuring no side effects
-      const response = await this.get(`/recommendations-readonly/${type}`);
+      const endpoint = username 
+        ? `/recommendations-readonly/${type}?username=${encodeURIComponent(username)}`
+        : `/recommendations-readonly/${type}`;
+      const response = await this.get(endpoint);
       return response.data;
     } catch (error) {
       console.error(`Failed to get ${type} recommendations (readonly):`, error);
@@ -235,16 +250,136 @@ class ApiService {
    * 
    * @param {string} type - 'tv' or 'movie'
    * @param {Array} recommendations - Recommendations to save
+   * @param {string} [username] - Optional username for user-specific recommendations
    * @returns {Promise<boolean>} - Whether the save was successful
    */
-  async saveRecommendations(type, recommendations) {
+  async saveRecommendations(type, recommendations, username) {
     try {
-      await this.post(`/recommendations/${type}`, recommendations);
+      const endpoint = username 
+        ? `/recommendations/${type}?username=${encodeURIComponent(username)}`
+        : `/recommendations/${type}`;
+      await this.post(endpoint, recommendations);
       return true;
     } catch (error) {
       console.error(`Failed to save ${type} recommendations:`, error);
       return false;
     }
+  }
+
+  /**
+   * Get a specific user setting
+   * 
+   * @param {string} settingName - The name of the setting to get
+   * @returns {Promise<any>} - The setting value
+   */
+  async getSetting(settingName) {
+    try {
+      const response = await this.get(`/settings/${settingName}`);
+      return response.data.value;
+    } catch (error) {
+      console.error(`Failed to get setting ${settingName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Save user settings
+   * 
+   * @param {Object} settings - Settings to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   * @deprecated Use saveSetting for individual settings instead
+   */
+  async saveSettings(settings) {
+    try {
+      await this.post('/settings', settings);
+      return true;
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Save a specific user setting
+   * 
+   * @param {string} settingName - The name of the setting to save
+   * @param {any} value - The value to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async saveSetting(settingName, value) {
+    try {
+      // Wrap the value in an object to ensure it's sent as JSON
+      await this.post(`/settings/${settingName}`, { value });
+      return true;
+    } catch (error) {
+      console.error(`Failed to save setting ${settingName}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get watch history from the server
+   * 
+   * @param {string} type - 'movies' or 'shows'
+   * @returns {Promise<Array>} - Watch history
+   */
+  async getWatchHistory(type) {
+    try {
+      const response = await this.get(`/watch-history/${type}`);
+      return response.data || [];
+    } catch (error) {
+      console.error(`Failed to get ${type} watch history:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Save watch history to the server
+   * 
+   * @param {string} type - 'movies' or 'shows'
+   * @param {Array} items - Watch history items to save
+   * @returns {Promise<boolean>} - Whether the save was successful
+   */
+  async saveWatchHistory(type, items) {
+    try {
+      await this.post(`/watch-history/${type}`, items);
+      
+      return true;
+    } catch (error) {
+      console.error(`Failed to save ${type} watch history:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Set the current user information
+   * This should be called by AuthService after login/logout
+   * 
+   * @param {Object} user - User information
+   */
+  setCurrentUser(user) {
+    // Check if user is changing
+    const userChanged = 
+      (!this.currentUser && user) || 
+      (this.currentUser && !user) ||
+      (this.currentUser && user && this.currentUser.userId !== user.userId);
+    
+    if (userChanged) {
+      
+      
+      // Clear any internal caches or state here if implemented in the future
+    }
+    
+    this.currentUser = user;
+  }
+
+  /**
+   * Get the current user information
+   * 
+   * @returns {Object|null} - Current user information or null if not logged in
+   */
+  getCurrentUser() {
+    return this.currentUser;
   }
 
   /**
@@ -278,71 +413,6 @@ class ApiService {
       return true;
     } catch (error) {
       console.error(`Failed to save ${type} ${preference} preferences:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Get user settings
-   * 
-   * @returns {Promise<Object>} - User settings
-   */
-  async getSettings() {
-    try {
-      const response = await this.get('/settings');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to get settings:', error);
-      return {};
-    }
-  }
-
-  /**
-   * Save user settings
-   * 
-   * @param {Object} settings - Settings to save
-   * @returns {Promise<boolean>} - Whether the save was successful
-   */
-  async saveSettings(settings) {
-    try {
-      await this.post('/settings', settings);
-      return true;
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get watch history from the server
-   * 
-   * @param {string} type - 'movies' or 'shows'
-   * @returns {Promise<Array>} - Watch history
-   */
-  async getWatchHistory(type) {
-    try {
-      const response = await this.get(`/watch-history/${type}`);
-      return response.data || [];
-    } catch (error) {
-      console.error(`Failed to get ${type} watch history:`, error);
-      return [];
-    }
-  }
-
-  /**
-   * Save watch history to the server
-   * 
-   * @param {string} type - 'movies' or 'shows'
-   * @param {Array} items - Watch history items to save
-   * @returns {Promise<boolean>} - Whether the save was successful
-   */
-  async saveWatchHistory(type, items) {
-    try {
-      await this.post(`/watch-history/${type}`, items);
-      console.log(`Saved ${items.length} ${type} watch history items to server`);
-      return true;
-    } catch (error) {
-      console.error(`Failed to save ${type} watch history:`, error);
       return false;
     }
   }

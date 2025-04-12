@@ -104,8 +104,7 @@ export default {
       try {
         // Validate and normalize the URL
         if (!this.validateUrl()) {
-          // Clear invalid credentials
-          this.clearStoredCredentials();
+          console.warn('Invalid Sonarr URL format during auto-connect, keeping credentials');
           return;
         }
         
@@ -121,13 +120,13 @@ export default {
           await sonarrService.configure(this.baseUrl, this.apiKey);
           this.$emit('connected');
         } else {
-          // Clear invalid credentials
-          this.clearStoredCredentials();
+          // Log the error but KEEP the credentials
+          console.warn('Sonarr connection test failed during auto-connect, keeping credentials');
         }
       } catch (error) {
         console.error('Error auto-connecting to Sonarr:', error);
-        // Clear invalid credentials
-        this.clearStoredCredentials();
+        // Log the error but KEEP the credentials
+        console.warn('Exception during Sonarr auto-connect, keeping credentials');
         
         // No need to show alerts during auto-connect
       } finally {
@@ -183,10 +182,10 @@ export default {
     // Diagnostic helper to test network connectivity
     async diagnoseConnection(host, port) {
       try {
-        console.log(`Diagnosing connection to ${host}:${port}`);
+        
         // Check if the API server can reach the Sonarr host
-        const response = await axios.get(`/api/net-test?target=${host}&port=${port}`);
-        console.log('Connection diagnostic results:', response.data);
+        await axios.get(`/api/net-test?target=${host}&port=${port}`);
+        
       } catch (error) {
         console.error('Error running connection diagnostics:', error);
       }

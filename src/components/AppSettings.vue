@@ -114,7 +114,7 @@ export default {
           this.originalSettings = {...this.settings};
         }
       } catch (error) {
-        console.log('No app settings found, using defaults');
+        
       }
     },
     async saveSettings() {

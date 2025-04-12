@@ -108,6 +108,7 @@
         <!-- Action buttons container on desktop -->
         <div class="action-buttons desktop-only-buttons">
           <button 
+            v-if="isAdmin"
             @click="confirmClearData" 
             class="action-button clear-button"
             title="Clear all saved data"
@@ -205,7 +206,6 @@
         
         <button 
           @click="navigateMobile('settings')" 
-          :class="{ active: activeTab === 'settings' }"
           class="mobile-nav-item"
         >
           <svg class="mobile-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -341,7 +341,7 @@ export default {
         setTimeout(() => {
           bgElement.style.transform = 'scale(2.5)';
           bgElement.style.opacity = '0';
-        }, 10);
+        });
         
         // Reset for next animation
         setTimeout(() => {

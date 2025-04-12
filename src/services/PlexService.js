@@ -3,30 +3,54 @@ import axios from 'axios';
 /* eslint-enable no-unused-vars */
 import credentialsService from './CredentialsService';
 import apiService from './ApiService';
+import AuthService from './AuthService';
+import databaseStorageUtils from '../utils/DatabaseStorageUtils';
 
 class PlexService {
-  constructor() {
+constructor() {
     this.token = '';
     this.baseUrl = '';
-    this.selectedUserId = ''; // Add selectedUserId property
-    // Load credentials when instantiated
-    this.loadCredentials();
+    this.selectedUserId = '';
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
+    // Initialize selectedUserId - keep this as it's using a synchronous method
+    this.initSelectedUserId();
+    // Removed automatic loading of credentials to prevent double loading
+  }
+
+  /**
+   * Initialize selectedUserId from database
+   */
+  async initSelectedUserId() {
+    try {
+      this.selectedUserId = await databaseStorageUtils.getSync('selectedPlexUserId') || '';
+    } catch (error) {
+      console.error('Error initializing selectedPlexUserId:', error);
+      this.selectedUserId = '';
+    }
   }
 
   /**
    * Load credentials from server-side storage
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return;
+    }
+    
     const credentials = await credentialsService.getCredentials('plex');
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.token = credentials.token || '';
-      this.selectedUserId = credentials.selectedUserId || '';
+      // selectedUserId is stored separately via DatabaseStorageUtils
       
       // Load recentLimit if available
       if (credentials.recentLimit) {
-        localStorage.setItem('plexRecentLimit', credentials.recentLimit.toString());
+        await databaseStorageUtils.set('plexRecentLimit', credentials.recentLimit);
       }
+      
+      this.credentialsLoaded = true; // Set flag after successful load
     }
   }
 
@@ -42,20 +66,22 @@ class PlexService {
     this.token = token;
     this.selectedUserId = selectedUserId;
     
+    // Use individual setting API for selectedUserId
+    await databaseStorageUtils.set('selectedPlexUserId', selectedUserId);
+    
     const credentials = {
       baseUrl: this.baseUrl,
-      token: this.token,
-      selectedUserId: this.selectedUserId
+      token: this.token
     };
     
     // If recentLimit is provided, store it with the credentials
     if (recentLimit !== null) {
       credentials.recentLimit = recentLimit;
-      // Also store in localStorage for client-side access
-      localStorage.setItem('plexRecentLimit', recentLimit.toString());
+      // Also store in database using individual setting API
+      await databaseStorageUtils.set('plexRecentLimit', recentLimit);
     }
     
-    // Store credentials server-side
+    // Store credentials server-side (single set of credentials)
     await credentialsService.storeCredentials('plex', credentials);
   }
 
@@ -73,9 +99,12 @@ class PlexService {
    */
   async testConnection() {
     try {
-      // Try to load credentials again in case they weren't ready during init
+      // Try to load credentials if not already configured
       if (!this.isConfigured()) {
-        await this.loadCredentials();
+        // Only load credentials if they haven't been loaded yet
+        if (!this.credentialsLoaded) {
+          await this.loadCredentials();
+        }
         
         if (!this.isConfigured()) {
           throw new Error('Plex service is not configured. Please set baseUrl and token.');
@@ -313,12 +342,24 @@ class PlexService {
    * @returns {Promise<Array>} - List of recently watched movies
    */
   async getRecentlyWatchedMovies(limit = 100, daysAgo = 0, userId = '') {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured()) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
       
       if (!this.isConfigured()) {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
+      }
+    }
+    
+    // For non-admin users, reload credentials to get the admin-set limit
+    if (!AuthService.isAdmin()) {
+      const credentials = await credentialsService.getCredentials('plex');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the admin-set limit
+        limit = credentials.recentLimit;
       }
     }
 
@@ -347,17 +388,17 @@ class PlexService {
       });
 
       // Log response type and structure for debugging
-      console.log('Plex movie response type:', typeof response.data);
+      
       
       // Try to handle both XML and JSON responses
       let movies = [];
       
       if (typeof response.data === 'object') {
         // Handle JSON response
-        console.log('Processing Plex movie response as JSON');
+        
         if (response.data.MediaContainer && response.data.MediaContainer.Metadata) {
           const metadata = response.data.MediaContainer.Metadata;
-          console.log(`Found ${metadata.length} movies in Plex JSON response`);
+          
           
           movies = metadata.map(item => {
             // For movies, we need to make sure we're not getting TV episodes
@@ -382,7 +423,7 @@ class PlexService {
         }
       } else if (typeof response.data === 'string') {
         // Handle XML response
-        console.log('Processing Plex movie response as XML');
+        
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(response.data, "text/xml");
         
@@ -392,7 +433,7 @@ class PlexService {
           // Try to find Metadata elements
           const metadataNodes = mediaContainer.querySelectorAll('Metadata');
           if (metadataNodes.length > 0) {
-            console.log(`Found ${metadataNodes.length} movie Metadata nodes in XML`);
+            
             movies = Array.from(metadataNodes).map(node => {
               // For movies, we need to make sure we're not getting TV episodes
               // Check if this is actually a movie by checking for the absence of grandparentTitle
@@ -417,7 +458,7 @@ class PlexService {
           } else {
             // Fall back to Video nodes
             const videoNodes = xmlDoc.querySelectorAll('Video');
-            console.log(`Found ${videoNodes.length} movie Video nodes in XML`);
+            
             movies = Array.from(videoNodes).map(node => {
               // For movies, check if this is actually a movie by looking for absence of TV show attributes
               const hasGrandparentTitle = node.getAttribute('grandparentTitle');
@@ -451,24 +492,16 @@ class PlexService {
         const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
         const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
         
-        console.log(`Filtering movies watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
         
         validMovies = validMovies.filter(movie => {
-          // Enhanced logging to debug viewedAt issues
-          console.log(`Movie "${movie.title}" has viewedAt: ${movie.viewedAt}`);
           
           if (!movie.viewedAt) {
-            console.warn(`Movie "${movie.title}" missing viewedAt timestamp, using current time`);
-            // If viewedAt is missing, assume it's recent to avoid filtering out content
             return true;
           }
           
-          const viewedAtTimestamp = parseInt(movie.viewedAt, 10);
+          const viewedAtTimestamp = parseInt(movie.viewedAt);
           const isRecent = viewedAtTimestamp >= cutoffTimestamp;
-          
-          if (!isRecent) {
-            console.log(`Filtering out movie "${movie.title}" watched at ${viewedAtTimestamp} (before cutoff ${cutoffTimestamp})`);
-          }
           
           return isRecent;
         });
@@ -482,7 +515,7 @@ class PlexService {
       // Apply the limit after filtering
       const limitedMovies = uniqueMovies.slice(0, limit);
       
-      console.log(`Returning ${limitedMovies.length} unique recently watched movies`);
+      
       return limitedMovies;
     } catch (error) {
       console.error('Error fetching recently watched movies from Plex:', error);
@@ -498,11 +531,24 @@ class PlexService {
    * @returns {Promise<Array>} - List of recently watched TV shows
    */
   async getRecentlyWatchedShows(limit = 100, daysAgo = 0, userId = '') {
-    // Try to load credentials again in case they weren't ready during init
+    // Try to load credentials if not already configured
     if (!this.isConfigured()) {
-      await this.loadCredentials();
+      // Only load credentials if they haven't been loaded yet
+      if (!this.credentialsLoaded) {
+        await this.loadCredentials();
+      }
+      
       if (!this.isConfigured()) {
         throw new Error('Plex service is not configured. Please set baseUrl and token.');
+      }
+    }
+    
+    // For non-admin users, reload credentials to get the admin-set limit
+    if (!AuthService.isAdmin()) {
+      const credentials = await credentialsService.getCredentials('plex');
+      if (credentials && credentials.recentLimit !== undefined) {
+        // Override the provided limit with the admin-set limit
+        limit = credentials.recentLimit;
       }
     }
     
@@ -531,17 +577,17 @@ class PlexService {
       });
       
       // Log response type and structure for debugging
-      console.log('Plex TV response type:', typeof response.data);
+      
       
       // Store episodes with their timestamps for filtering
       const episodes = [];
       
       if (typeof response.data === 'object') {
         // Handle JSON response
-        console.log('Processing Plex TV response as JSON');
+        
         if (response.data.MediaContainer && response.data.MediaContainer.Metadata) {
           const metadata = response.data.MediaContainer.Metadata;
-          console.log(`Found ${metadata.length} episodes in Plex JSON response`);
+          
           
           // Process each episode and extract show information
           metadata.forEach(item => {
@@ -561,7 +607,7 @@ class PlexService {
         }
       } else if (typeof response.data === 'string') {
         // Handle XML response
-        console.log('Processing Plex TV response as XML');
+        
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(response.data, "text/xml");
         
@@ -571,7 +617,7 @@ class PlexService {
           // Try to find Metadata elements
           const metadataNodes = mediaContainer.querySelectorAll('Metadata');
           if (metadataNodes.length > 0) {
-            console.log(`Found ${metadataNodes.length} episode Metadata nodes in XML`);
+            
             
             // Process each episode metadata node
             Array.from(metadataNodes).forEach(node => {
@@ -591,7 +637,7 @@ class PlexService {
           } else {
             // Fall back to Video nodes
             const videoNodes = xmlDoc.querySelectorAll('Video');
-            console.log(`Found ${videoNodes.length} episode Video nodes in XML`);
+            
             
             // Process each video node
             Array.from(videoNodes).forEach(node => {
@@ -616,24 +662,15 @@ class PlexService {
         const daysAgoInSeconds = daysAgo * 24 * 60 * 60;
         const cutoffTimestamp = nowInSeconds - daysAgoInSeconds;
         
-        console.log(`Filtering TV shows watched in the last ${daysAgo} days (after timestamp ${cutoffTimestamp})`);
+        
         
         filteredEpisodes = episodes.filter(episode => {
-          // Enhanced logging to debug viewedAt issues
-          console.log(`Episode/Show "${episode.title}" has viewedAt: ${episode.viewedAt}`);
-          
           if (!episode.viewedAt) {
-            console.warn(`Episode/Show "${episode.title}" missing viewedAt timestamp, using current time`);
-            // If viewedAt is missing, assume it's recent to avoid filtering out content
             return true;
           }
           
-          const viewedAtTimestamp = parseInt(episode.viewedAt, 10);
+          const viewedAtTimestamp = parseInt(episode.viewedAt);
           const isRecent = viewedAtTimestamp >= cutoffTimestamp;
-          
-          if (!isRecent) {
-            console.log(`Filtering out episode of "${episode.title}" watched at ${viewedAtTimestamp} (before cutoff ${cutoffTimestamp})`);
-          }
           
           return isRecent;
         });
@@ -653,7 +690,7 @@ class PlexService {
       // Apply the limit after filtering
       const limitedShows = shows.slice(0, limit);
       
-      console.log(`Returning ${limitedShows.length} unique recently watched TV shows`);
+      
       return limitedShows;
     } catch (error) {
       console.error('Error fetching recently watched shows from Plex:', error);

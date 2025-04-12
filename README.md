@@ -184,7 +184,101 @@ You can connect to any combination of these services based on your needs.
    - **Parameters**: Adjust max tokens and temperature as needed
 4. Click "Save Settings"
 
-### 3. Get Recommendations
+### 3. Set Up OAuth Login (Optional)
+
+Recommendarr supports social login via Google, GitHub, and custom OAuth2 providers. To enable:
+
+#### Generating a Secure SESSION_SECRET
+The SESSION_SECRET is used to encrypt session cookies and should be:
+- At least 32 characters long
+- Randomly generated
+- Kept secret
+
+Generate one using:
+```bash
+# On Linux/macOS:
+openssl rand -hex 32
+```
+
+#### Setting Up OAuth Providers
+
+1. **Create OAuth Applications**:
+   - **Google**:
+     1. Go to [Google Developer Console](https://console.developers.google.com/)
+     2. Create a new project
+     3. Navigate to "Credentials" → "Create Credentials" → "OAuth client ID"
+     4. Select "Web application" type
+     5. Add authorized JavaScript origins and redirect URIs (see below)
+   
+   - **GitHub**:
+     1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+     2. Click "New OAuth App"
+     3. Fill in application details
+     4. Set callback URL (see below)
+   
+   - **Custom OAuth2 Provider**:
+     1. Go to your OAuth2 provider's developer console
+     2. Create a new OAuth2 application
+     3. Configure the redirect URI (see below)
+     4. Note the authorization URL, token URL, and userinfo URL
+     5. Configure appropriate scopes for your provider
+     6. Save the application and note the Client ID and Client Secret
+
+2. **Configure Callback URLs**:
+   The callback URL must match exactly with what you configure in the OAuth provider:
+   ```
+   {PUBLIC_URL}/api/auth/{provider}/callback
+   ```
+   Where:
+   - `{PUBLIC_URL}` is your Recommendarr's public URL (e.g., `http://localhost:3000` or `https://recommendarr.yourdomain.com`)
+   - `{provider}` is either `google`, `github`, or `custom`
+
+   Example callback URLs:
+   - Development: `http://localhost:3000/api/auth/google/callback`
+   - Production: `https://recommendarr.yourdomain.com/api/auth/github/callback`
+   - Custom: `https://recommendarr.yourdomain.com/api/auth/custom/callback`
+
+3. **Set Environment Variables**:
+   Add these to your docker-compose.yml or .env file:
+   ```bash
+   # Required for all OAuth providers
+   SESSION_SECRET=your-generated-secret-here
+
+   # Google OAuth
+   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=your-client-secret
+
+   # GitHub OAuth
+   GITHUB_CLIENT_ID=your-github-client-id
+   GITHUB_CLIENT_SECRET=your-github-client-secret
+   
+   # Custom OAuth2 Provider
+   CUSTOM_OAUTH_AUTH_URL=https://your-oauth-provider.com/oauth/authorize
+   CUSTOM_OAUTH_TOKEN_URL=https://your-oauth-provider.com/oauth/token
+   CUSTOM_OAUTH_USERINFO_URL=https://your-oauth-provider.com/oauth/userinfo
+   CUSTOM_OAUTH_CLIENT_ID=your-client-id
+   CUSTOM_OAUTH_CLIENT_SECRET=your-client-secret
+   CUSTOM_OAUTH_SCOPE=openid profile email
+
+   # Public URL (must match callback URL domain)
+   PUBLIC_URL=http://localhost:3000  # Or your production domain
+   ```
+
+4. **Restart the Application**:
+   After setting the environment variables, restart Recommendarr for changes to take effect.
+
+5. **Verify OAuth Login**:
+   - Visit the login page - you should see Google/GitHub login buttons
+   - Test the login flow with each provider
+   - Check server logs for any authentication errors
+
+> **Important Notes**:
+> - The SESSION_SECRET should remain the same across restarts or users will be logged out
+> - For production, set `FORCE_SECURE_COOKIES=true` when using HTTPS
+> - OAuth users are created with regular privileges by default (admins can promote them)
+> - If changing PUBLIC_URL, you must update the callback URLs in your OAuth provider settings
+
+### 4. Get Recommendations
 
 1. Navigate to TV Recommendations or Movie Recommendations page
 2. Adjust the number of recommendations you'd like to receive using the slider
@@ -276,7 +370,18 @@ volumes:
 | `BASE_URL` | Base path for the application (for sub-path deployment) | / |
 | `FORCE_SECURE_COOKIES` | Force secure cookies even on HTTP (for HTTPS reverse proxies) | false |
 | `NODE_ENV` | Node.js environment | production |
-| `DOCKER_ENV` | Flag to enable Docker-specific features | true |
+| `DOCKER_ENV` | Flag to enable Docker-specific features | false |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID for social login | |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret for social login | |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID for social login | |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret for social login | |
+| `CUSTOM_OAUTH_AUTH_URL` | Custom OAuth2 provider authorization URL | |
+| `CUSTOM_OAUTH_TOKEN_URL` | Custom OAuth2 provider token URL | |
+| `CUSTOM_OAUTH_USERINFO_URL` | Custom OAuth2 provider userinfo URL | |
+| `CUSTOM_OAUTH_CLIENT_ID` | Custom OAuth2 provider client ID | |
+| `CUSTOM_OAUTH_CLIENT_SECRET` | Custom OAuth2 provider client secret | |
+| `CUSTOM_OAUTH_SCOPE` | Custom OAuth2 provider scopes (space-separated) | openid profile email |
+| `SESSION_SECRET` | Secret for session encryption (highly recommended to set this) | random string |
 
 ## 🖥️ Compatible AI Services
 

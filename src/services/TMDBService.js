@@ -3,13 +3,15 @@ import apiService from './ApiService';
 import credentialsService from './CredentialsService';
 
 class TMDBService {
-  constructor() {
+constructor() {
     this.apiKey = '';
     this.baseUrl = 'https://api.themoviedb.org/3';
     this.imageBaseUrl = 'https://image.tmdb.org/t/p/w500'; // Default image base URL
     this.useProxy = true;
     this.initialized = false;
     this.initPromise = null;
+    // Flag to track if credentials have been loaded
+    this.credentialsLoaded = false;
     
     // Initialize the service asynchronously
     this.initPromise = this.initialize();
@@ -36,11 +38,16 @@ class TMDBService {
    * @returns {Promise<boolean>} - Whether credentials were loaded successfully
    */
   async loadCredentials() {
+    // Skip if already loaded to prevent double loading
+    if (this.credentialsLoaded) {
+      return true;
+    }
+    
     try {
       const credentials = await credentialsService.getCredentials('tmdb');
       
       if (credentials && credentials.apiKey) {
-        console.log('Found TMDB credentials in server storage');
+        
         
         // Only update if the credentials are valid (non-empty)
         this.apiKey = credentials.apiKey;
@@ -48,7 +55,8 @@ class TMDBService {
         // If we have a valid API key, fetch the configuration for image URLs
         try {
           await this.fetchConfiguration();
-          console.log('Successfully loaded and validated TMDB configuration');
+          
+          this.credentialsLoaded = true; // Set flag after successful load
           return true;
         } catch (configError) {
           console.error('Failed to validate TMDB credentials:', configError);
@@ -58,7 +66,7 @@ class TMDBService {
           return false;
         }
       } else {
-        console.log('No valid TMDB credentials found in server storage');
+        
         return false;
       }
     } catch (error) {
@@ -104,17 +112,17 @@ class TMDBService {
   async fetchConfiguration() {
     // Check if we have an API key synchronously to avoid unnecessary calls
     if (!this.isConfiguredSync()) {
-      console.log('TMDB not configured, skipping configuration fetch');
+      
       return false;
     }
     
     try {
-      console.log('Fetching TMDB configuration to validate API key');
+      
       const config = await this._apiRequest('/configuration');
       
       if (config && config.images && config.images.secure_base_url) {
         this.imageBaseUrl = config.images.secure_base_url + 'w500';
-        console.log(`TMDB configuration validated successfully, image base URL: ${this.imageBaseUrl}`);
+        
         return true;
       } else {
         console.error('Invalid TMDB configuration response:', config);
@@ -162,7 +170,7 @@ class TMDBService {
     try {
       if (this.useProxy) {
         // Use proxy to avoid CORS issues
-        console.log(`Making request to TMDB via proxy: ${endpoint}`);
+        
         
         const response = await apiService.proxyRequest({
           url,
@@ -173,7 +181,7 @@ class TMDBService {
         return response.data;
       } else {
         // Direct API request
-        console.log(`Making direct request to TMDB: ${endpoint}`);
+        
         
         const response = await axios({
           url,
@@ -196,7 +204,7 @@ class TMDBService {
    */
   async findMovieByTitle(title) {
     try {
-      console.log(`Searching TMDB for movie: ${title}`);
+      
       
       const results = await this._apiRequest('/search/movie', {
         query: title,
@@ -238,7 +246,7 @@ class TMDBService {
    */
   async findSeriesByTitle(title) {
     try {
-      console.log(`Searching TMDB for TV show: ${title}`);
+      
       
       const results = await this._apiRequest('/search/tv', {
         query: title,

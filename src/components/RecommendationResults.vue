@@ -1,166 +1,168 @@
 <template>
-  <div v-if="!error && recommendations.length > 0" class="recommendation-list" :style="gridStyle">
-    <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card" :class="{ 'compact-mode': shouldUseCompactMode, 'expanded': expandedCards.has(index) }">
-      <!-- Whole card content is clickable for TMDB -->
-      <div class="card-content" 
-        @click="openTMDBDetailModal(rec)" 
-        :class="{ 'clickable': isTMDBAvailable, 'compact-layout': shouldUseCompactMode, 'horizontal-layout': !shouldUseCompactMode }"
-        :title="isTMDBAvailable ? 'Click for more details' : ''"
-      >
-        <!-- Poster container -->
-        <div class="poster-container" :class="{ 'poster-left': !shouldUseCompactMode }">
-          <div 
-            class="poster" 
-            :style="getPosterStyle(rec.title)"
-            @click.stop="openTMDBDetailModal(rec)"
-            :class="{ 'clickable-poster': isTMDBAvailable }"
-          >
-            <div v-if="!hasPoster(rec.title)" class="title-fallback" @click.stop="openTMDBDetailModal(rec)">
-              {{ getInitials(rec.title) }}
-            </div>
-            
-            <button 
-              v-if="isPosterFallback(rec.title)" 
-              class="retry-poster-button" 
-              :class="{ 'loading': loadingPosters.get(cleanTitle(rec.title)) }"
-              @click.stop.prevent="retryPoster(rec.title)"
-              title="Retry loading poster"
+  <div class="recommendations-container">
+    <div v-if="!error && recommendations.length > 0" class="recommendation-list" :style="gridStyle">
+      <div v-for="(rec, index) in recommendations" :key="index" class="recommendation-card" :class="{ 'compact-mode': shouldUseCompactMode, 'expanded': expandedCards.has(index) }">
+        <!-- Whole card content is clickable for TMDB -->
+        <div class="card-content" 
+          @click="openTMDBDetailModal(rec)" 
+          :class="{ 'clickable': isTMDBAvailable, 'compact-layout': shouldUseCompactMode, 'horizontal-layout': !shouldUseCompactMode }"
+          :title="isTMDBAvailable ? 'Click for more details' : ''"
+        >
+          <!-- Poster container -->
+          <div class="poster-container" :class="{ 'poster-left': !shouldUseCompactMode }">
+            <div 
+              class="poster" 
+              :style="getPosterStyle(rec.title)"
+              @click.stop="openTMDBDetailModal(rec)"
+              :class="{ 'clickable-poster': isTMDBAvailable }"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 12c0 6.075-4.925 11-11 11S1 18.075 1 12 5.925 1 12 1s11 4.925 11 11z"/>
-                <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/>
-                <path d="M12 8v4l3 3"/>
-                <path d="M7 6.7l1.5 1.5M17 6.7L15.5 8.2M7 17.3l1.5-1.5M17 17.3l-1.5-1.5"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        
-        <div class="details-container">
-          <div class="card-header">
-            <h3>{{ rec.title }}</h3>
-            <div class="card-actions">
-              <div class="like-dislike-buttons">
-                <button 
-                  @click.stop="likeRecommendation(rec.title)" 
-                  class="action-btn like-btn"
-                  :class="{'active': isLiked(rec.title)}"
-                  title="Like this recommendation">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                  </svg>
-                </button>
-                <button 
-                  @click.stop="dislikeRecommendation(rec.title)" 
-                  class="action-btn dislike-btn"
-                  :class="{'active': isDisliked(rec.title)}"
-                  title="Dislike this recommendation">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm10-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path>
-                  </svg>
-                </button>
+              <div v-if="!hasPoster(rec.title)" class="title-fallback" @click.stop="openTMDBDetailModal(rec)">
+                {{ getInitials(rec.title) }}
               </div>
+              
               <button 
-                @click.stop="requestSeries(rec.title)" 
-                class="request-button"
-                :class="{'loading': requestingSeries === rec.title, 'requested': requestStatus[rec.title]?.success}"
-                :disabled="requestingSeries || requestStatus[rec.title]?.success"
-                :title="isMovieMode ? 'Add to Radarr' : 'Add to Sonarr'">
-                <span v-if="requestingSeries === rec.title">
-                  <div class="small-spinner"></div>
-                </span>
-                <span v-else-if="requestStatus[rec.title]?.success">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </span>
-                <span v-else class="add-button-content">
-                  <span class="add-text">
-                    Add</span>
-                </span>
+                v-if="isPosterFallback(rec.title)" 
+                class="retry-poster-button" 
+                :class="{ 'loading': loadingPosters.get(cleanTitle(rec.title)) }"
+                @click.stop.prevent="retryPoster(rec.title)"
+                title="Retry loading poster"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 12c0 6.075-4.925 11-11 11S1 18.075 1 12 5.925 1 12 1s11 4.925 11 11z"/>
+                  <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/>
+                  <path d="M12 8v4l3 3"/>
+                  <path d="M7 6.7l1.5 1.5M17 6.7L15.5 8.2M7 17.3l1.5-1.5M17 17.3l-1.5-1.5"/>
+                </svg>
               </button>
             </div>
           </div>
           
-          <div class="content-container">
-            <div v-if="rec.description" class="description">
-              <p>{{ rec.description }}</p>
+          <div class="details-container">
+            <div class="card-header">
+              <h3>{{ rec.title }}</h3>
+              <div class="card-actions">
+                <div class="like-dislike-buttons">
+                  <button 
+                    @click.stop="likeRecommendation(rec.title)" 
+                    class="action-btn like-btn"
+                    :class="{'active': isLiked(rec.title)}"
+                    title="Like this recommendation">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                    </svg>
+                  </button>
+                  <button 
+                    @click.stop="dislikeRecommendation(rec.title)" 
+                    class="action-btn dislike-btn"
+                    :class="{'active': isDisliked(rec.title)}"
+                    title="Dislike this recommendation">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm10-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path>
+                    </svg>
+                  </button>
+                </div>
+                <button 
+                  @click.stop="requestSeries(rec.title)" 
+                  class="request-button"
+                  :class="{'loading': requestingSeries === rec.title, 'requested': requestStatus[rec.title]?.success}"
+                  :disabled="requestingSeries || requestStatus[rec.title]?.success"
+                  :title="isMovieMode ? 'Add to Radarr' : 'Add to Sonarr'">
+                  <span v-if="requestingSeries === rec.title">
+                    <div class="small-spinner"></div>
+                  </span>
+                  <span v-else-if="requestStatus[rec.title]?.success">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </span>
+                  <span v-else class="add-button-content">
+                    <span class="add-text">
+                      Add</span>
+                  </span>
+                </button>
+              </div>
             </div>
             
-            <div v-if="rec.reasoning" class="reasoning">
-              <div class="reasoning-header">
-                <div class="reasoning-icon">✨</div>
-                <span class="reasoning-label">Why you might like it</span>
+            <div class="content-container">
+              <div v-if="rec.description" class="description">
+                <p>{{ rec.description }}</p>
               </div>
-              <div class="reasoning-content">
-                <p>{{ rec.reasoning }}</p>
+              
+              <div v-if="rec.reasoning" class="reasoning">
+                <div class="reasoning-header">
+                  <div class="reasoning-icon">✨</div>
+                  <span class="reasoning-label">Why you might like it</span>
+                </div>
+                <div class="reasoning-content">
+                  <p>{{ rec.reasoning }}</p>
+                </div>
               </div>
-            </div>
-            
-            <!-- Updated v-if to check rec.rating OR the presence of any rating in rec.ratings -->
-            <div v-if="rec.rating || (rec.ratings && (rec.ratings.imdb || rec.ratings.rottenTomatoes || rec.ratings.metacritic || rec.ratings.tmdb))" class="rating-info">
-              <div class="ratings-container">
-                <!-- Recommendarr Rating -->
-                <div v-if="rec.rating" class="rating-item recommendarr-rating">
-                  <div class="rating-service-icon recommendarr-icon">
-                    <span>RR</span>
+              
+              <!-- Updated v-if to check rec.rating OR the presence of any rating in rec.ratings -->
+              <div v-if="rec.rating || (rec.ratings && (rec.ratings.imdb || rec.ratings.rottenTomatoes || rec.ratings.metacritic || rec.ratings.tmdb))" class="rating-info">
+                <div class="ratings-container">
+                  <!-- Recommendarr Rating -->
+                  <div v-if="rec.rating" class="rating-item recommendarr-rating">
+                    <div class="rating-service-icon recommendarr-icon">
+                      <span>RR</span>
+                    </div>
+                    <span class="rating-text">{{ extractScore(rec.rating) }}%</span>
                   </div>
-                  <span class="rating-text">{{ extractScore(rec.rating) }}%</span>
-                </div>
-                
-                <!-- IMDB Rating - Now checks rec.ratings.imdb -->
-                <div v-if="rec.ratings && rec.ratings.imdb" class="rating-item imdb-rating">
-                  <div class="rating-service-icon imdb-icon">
-                    <span>IMDb</span>
+                  
+                  <!-- IMDB Rating - Now checks rec.ratings.imdb -->
+                  <div v-if="rec.ratings && rec.ratings.imdb" class="rating-item imdb-rating">
+                    <div class="rating-service-icon imdb-icon">
+                      <span>IMDb</span>
+                    </div>
+                    <span class="rating-text">{{ rec.ratings.imdb.value }}</span>
                   </div>
-                  <span class="rating-text">{{ rec.ratings.imdb.value }}</span>
-                </div>
-                
-                <!-- Rotten Tomatoes Rating - Now checks rec.ratings.rottenTomatoes -->
-                <div v-if="rec.ratings && rec.ratings.rottenTomatoes" class="rating-item rt-rating">
-                  <div class="rating-service-icon rt-icon">
-                    <span>RT</span>
+                  
+                  <!-- Rotten Tomatoes Rating - Now checks rec.ratings.rottenTomatoes -->
+                  <div v-if="rec.ratings && rec.ratings.rottenTomatoes" class="rating-item rt-rating">
+                    <div class="rating-service-icon rt-icon">
+                      <span>RT</span>
+                    </div>
+                    <span class="rating-text">{{ rec.ratings.rottenTomatoes.value }}%</span> <!-- Assuming RT value is percentage -->
                   </div>
-                  <span class="rating-text">{{ rec.ratings.rottenTomatoes.value }}%</span> <!-- Assuming RT value is percentage -->
-                </div>
 
-                <!-- Metacritic Rating - New -->
-                <div v-if="rec.ratings && rec.ratings.metacritic" class="rating-item metacritic-rating">
-                  <div class="rating-service-icon metacritic-icon">
-                    <span>MC</span>
+                  <!-- Metacritic Rating - New -->
+                  <div v-if="rec.ratings && rec.ratings.metacritic" class="rating-item metacritic-rating">
+                    <div class="rating-service-icon metacritic-icon">
+                      <span>MC</span>
+                    </div>
+                    <span class="rating-text">{{ rec.ratings.metacritic.value }}</span>
                   </div>
-                  <span class="rating-text">{{ rec.ratings.metacritic.value }}</span>
-                </div>
 
-                <!-- TMDB Rating - New -->
-                <div v-if="rec.ratings && rec.ratings.tmdb" class="rating-item tmdb-rating">
-                  <div class="rating-service-icon tmdb-icon">
-                    <span>TMDB</span>
+                  <!-- TMDB Rating - New -->
+                  <div v-if="rec.ratings && rec.ratings.tmdb" class="rating-item tmdb-rating">
+                    <div class="rating-service-icon tmdb-icon">
+                      <span>TMDB</span>
+                    </div>
+                    <span class="rating-text">{{ rec.ratings.tmdb.value }}</span>
                   </div>
-                  <span class="rating-text">{{ rec.ratings.tmdb.value }}</span>
                 </div>
+              </div>
+              
+              <div v-if="!rec.description && !rec.reasoning" class="full-text">
+                <p>{{ rec.fullText }}</p>
               </div>
             </div>
             
-            <div v-if="!rec.description && !rec.reasoning" class="full-text">
-              <p>{{ rec.fullText }}</p>
-            </div>
+            <!-- Full-width expand button at bottom of card for compact mode -->
+            <button v-if="shouldUseCompactMode" 
+                    class="full-width-expand-button" 
+                    @click.stop="toggleCardExpansion(index)"
+                    :title="expandedCards.has(index) ? 'Hide details' : 'Show more details'"
+                    :class="{ 'expanded': expandedCards.has(index) }">
+              <span>{{ expandedCards.has(index) ? 'Show Less' : 'Show More' }}</span>
+              <svg v-if="!expandedCards.has(index)" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="7 13 12 18 17 13"></polyline>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="7 11 12 6 17 11"></polyline>
+              </svg>
+            </button>
           </div>
-          
-          <!-- Full-width expand button at bottom of card for compact mode -->
-          <button v-if="shouldUseCompactMode" 
-                  class="full-width-expand-button" 
-                  @click.stop="toggleCardExpansion(index)"
-                  :title="expandedCards.has(index) ? 'Hide details' : 'Show more details'"
-                  :class="{ 'expanded': expandedCards.has(index) }">
-            <span>{{ expandedCards.has(index) ? 'Show Less' : 'Show More' }}</span>
-            <svg v-if="!expandedCards.has(index)" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="7 13 12 18 17 13"></polyline>
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="7 11 12 6 17 11"></polyline>
-            </svg>
-          </button>
         </div>
       </div>
     </div>
@@ -559,6 +561,45 @@ export default {
 </script>
 
 <style scoped>
+/* Add these styles at the top of your existing <style> section */
+.recommendations-container {
+  height: calc(100vh - 100px); /* Adjust 100px based on your header/navigation height */
+  overflow-y: auto;
+  padding: 20px;
+  /* Improve scrolling experience */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Update existing .recommendation-list styles */
+.recommendation-list {
+  display: grid;
+  width: 100%;
+  gap: 30px;
+  align-items: start;
+  /* Remove any existing margin-top/bottom */
+  margin: 0;
+}
+
+/* Add custom scrollbar styles */
+.recommendations-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.recommendations-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.recommendations-container::-webkit-scrollbar-thumb {
+  background: rgba(var(--primary-color-rgb), 0.3);
+  border-radius: 4px;
+}
+
+.recommendations-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--primary-color-rgb), 0.5);
+}
+
 /* Recommendation list grid layout */
 .recommendation-list {
   display: grid;

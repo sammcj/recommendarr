@@ -23,7 +23,7 @@ constructor() {
    */
   async initSelectedUserId() {
     try {
-      this.selectedUserId = await databaseStorageUtils.getSync('selectedPlexUserId') || '';
+      this.selectedUserId = await databaseStorageUtils.get('selectedPlexUserId') || '';
     } catch (error) {
       console.error('Error initializing selectedPlexUserId:', error);
       this.selectedUserId = '';

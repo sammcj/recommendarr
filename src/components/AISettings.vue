@@ -82,188 +82,7 @@
       >
         TMDB
       </button>
-      <button 
-        v-if="isAdmin && (sonarrConnected || radarrConnected || plexConnected || jellyfinConnected || tautulliConnected || traktConnected)"
-        @click="activeTab = 'connections'" 
-        :class="{ active: activeTab === 'connections' }" 
-        class="tab-button"
-      >
-        Connections
-      </button>
     </div>
-    <!-- Connections Tab -->
-    <div v-if="activeTab === 'connections' && isAdmin" class="settings-section">
-      <div class="settings-intro">
-        <p>Manage your connected services. You can disconnect any service you no longer want to use.</p>
-      </div>
-      
-      <div class="connected-services-wrapper section-card">
-        <div class="collapsible-header" @click="toggleConnectionsPanel">
-          <div class="header-content">
-            <h3>Manage Connected Services</h3>
-            <p class="section-description">You can disconnect any service you no longer want to use.</p>
-          </div>
-          <button class="collapse-toggle" @click.stop="toggleConnectionsPanel">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ rotate: !connectionsCollapsed }">
-              <path d="M6 9l6 6 6-6"></path>
-            </svg>
-          </button>
-        </div>
-        <div class="collapsible-content" v-show="!connectionsCollapsed">
-          <div class="connected-services">
-          <button v-if="plexConnected" class="connection-button plex-button" @click="showPlexConnectModal">
-            <span class="connection-name">Plex</span>
-            <span class="connection-action">Manage Connection</span>
-          </button>
-          <button v-if="jellyfinConnected" class="connection-button jellyfin-button" @click="showJellyfinConnectModal">
-            <span class="connection-name">Jellyfin</span>
-            <span class="connection-action">Manage Connection</span>
-          </button>
-          <button v-if="tautulliConnected" class="connection-button tautulli-button" @click="showTautulliConnectModal">
-            <span class="connection-name">Tautulli</span>
-            <span class="connection-action">Manage Connection</span>
-          </button>
-          <button v-if="sonarrConnected" class="connection-button sonarr-button" @click="showSonarrConnectModal">
-            <span class="connection-name">Sonarr</span>
-            <span class="connection-action">Manage Connection</span>
-          </button>
-          <button v-if="radarrConnected" class="connection-button radarr-button" @click="showRadarrConnectModal">
-            <span class="connection-name">Radarr</span>
-            <span class="connection-action">Manage Connection</span>
-          </button>
-          <button v-if="traktConnected" class="connection-button trakt-button" @click="showTraktConnectModal">
-            <span class="connection-name">Trakt</span>
-            <span class="connection-action">Manage Connection</span>
-          </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Connection Management Modals - These remain fixed position overlays -->
-    <teleport to="body">
-      <!-- Plex Connection Management Modal -->
-      <div v-if="showPlexConnect" class="connection-modal-overlay" @click.self="closePlexModal">
-        <div class="connection-modal">
-          <div class="modal-header">
-            <h3>Manage Plex Connection</h3>
-            <button class="modal-close-x" @click="closePlexModal">&times;</button>
-          </div>
-          <div class="modal-body">
-            <PlexConnection 
-              :connected="plexConnected" 
-              @connected="handlePlexConnected" 
-              @disconnected="handlePlexDisconnected" 
-            />
-          </div>
-          <div class="modal-footer">
-            <button class="modal-close-button" @click="closePlexModal">Close</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Jellyfin Connection Management Modal -->
-      <div v-if="showJellyfinConnect" class="connection-modal-overlay" @click.self="closeJellyfinModal">
-        <div class="connection-modal">
-          <div class="modal-header">
-            <h3>Manage Jellyfin Connection</h3>
-            <button class="modal-close-x" @click="closeJellyfinModal">&times;</button>
-          </div>
-          <div class="modal-body">
-            <JellyfinConnection 
-              :connected="jellyfinConnected" 
-              @connected="handleJellyfinConnected" 
-              @disconnected="handleJellyfinDisconnected" 
-            />
-          </div>
-          <div class="modal-footer">
-            <button class="modal-close-button" @click="closeJellyfinModal">Close</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Sonarr Connection Management Modal -->
-      <div v-if="showSonarrConnect" class="connection-modal-overlay" @click.self="closeSonarrModal">
-        <div class="connection-modal">
-          <div class="modal-header">
-            <h3>Manage Sonarr Connection</h3>
-            <button class="modal-close-x" @click="closeSonarrModal">&times;</button>
-          </div>
-          <div class="modal-body">
-            <SonarrConnection 
-              :connected="sonarrConnected" 
-              @connected="handleSonarrConnected" 
-              @disconnected="handleSonarrDisconnected" 
-            />
-          </div>
-          <div class="modal-footer">
-            <button class="modal-close-button" @click="closeSonarrModal">Close</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Radarr Connection Management Modal -->
-      <div v-if="showRadarrConnect" class="connection-modal-overlay" @click.self="closeRadarrModal">
-        <div class="connection-modal">
-          <div class="modal-header">
-            <h3>Manage Radarr Connection</h3>
-            <button class="modal-close-x" @click="closeRadarrModal">&times;</button>
-          </div>
-          <div class="modal-body">
-            <RadarrConnection 
-              :connected="radarrConnected" 
-              @connected="handleRadarrConnected" 
-              @disconnected="handleRadarrDisconnected" 
-            />
-          </div>
-          <div class="modal-footer">
-            <button class="modal-close-button" @click="closeRadarrModal">Close</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Tautulli Connection Management Modal -->
-      <div v-if="showTautulliConnect" class="connection-modal-overlay" @click.self="closeTautulliModal">
-        <div class="connection-modal">
-          <div class="modal-header">
-            <h3>Manage Tautulli Connection</h3>
-            <button class="modal-close-x" @click="closeTautulliModal">&times;</button>
-          </div>
-          <div class="modal-body">
-            <TautulliConnection 
-              :connected="tautulliConnected" 
-              @connected="handleTautulliConnected" 
-              @disconnected="handleTautulliDisconnected" 
-              @limitChanged="handleTautulliLimitChanged"
-            />
-          </div>
-          <div class="modal-footer">
-            <button class="modal-close-button" @click="closeTautulliModal">Close</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Trakt Connection Management Modal -->
-      <div v-if="showTraktConnect" class="connection-modal-overlay" @click.self="closeTraktConnectModal">
-        <div class="connection-modal">
-          <div class="modal-header">
-            <h3>Manage Trakt Connection</h3>
-            <button class="modal-close-x" @click="closeTraktConnectModal">&times;</button>
-          </div>
-          <div class="modal-body">
-            <TraktConnection 
-              :connected="traktConnected" 
-              @connected="onTraktConnectionSuccessful" 
-              @disconnected="disconnectTrakt" 
-              @limitChanged="onTraktLimitChange"
-            />
-          </div>
-          <div class="modal-footer">
-            <button class="modal-close-button" @click="closeTraktConnectModal">Close</button>
-          </div>
-        </div>
-      </div>
-    </teleport>
     
     <!-- User Management Tab (Admin Only) -->
     <div v-if="activeTab === 'users' && isAdmin" class="settings-section">
@@ -545,6 +364,9 @@
           <button type="button" @click="saveSonarrSettings" class="save-button" :disabled="testingSonarr">
             Save Sonarr Settings
           </button>
+          <button type="button" @click="clearStoredCredentials('sonarr')" class="disconnect-button" :disabled="testingSonarr">
+            Disconnect
+          </button>
         </div>
         
         <div v-if="sonarrConnectionMessage" class="connection-message" :class="{ 'success': sonarrConnectionStatus, 'error': !sonarrConnectionStatus }">
@@ -607,6 +429,10 @@
           <button type="button" @click="saveRadarrSettings" class="save-button" :disabled="testingRadarr">
             Save Radarr Settings
           </button>
+          <button type="button" @click="clearStoredCredentials('radarr')" class="disconnect-button" :disabled="testingRadarr">
+            Disconnect
+          </button>
+          
         </div>
         
         <div v-if="radarrConnectionMessage" class="connection-message" :class="{ 'success': radarrConnectionStatus, 'error': !radarrConnectionStatus }">
@@ -685,6 +511,9 @@
           </button>
           <button type="button" @click="savePlexSettings" class="save-button" :disabled="testingPlex">
             Save Plex Settings
+          </button>
+          <button type="button" @click="clearStoredCredentials('plex')" class="disconnect-button" :disabled="testingPlex">
+            Disconnect
           </button>
         </div>
         
@@ -779,6 +608,9 @@
           <button type="button" @click="saveJellyfinSettings" class="save-button" :disabled="testingJellyfin">
             Save Jellyfin Settings
           </button>
+          <button type="button" @click="clearStoredCredentials('jellyfin')" class="disconnect-button" :disabled="testingJellyfin">
+            Disconnect
+          </button>
         </div>
         
         <div v-if="jellyfinConnectionMessage" class="connection-message" :class="{ 'success': jellyfinConnectionStatus, 'error': !jellyfinConnectionStatus }">
@@ -856,6 +688,9 @@
           </button>
           <button type="button" @click="saveTautulliSettings" class="save-button" :disabled="testingTautulli">
             Save Tautulli Settings
+          </button>
+          <button type="button" @click="clearStoredCredentials('tautulli')" class="disconnect-button" :disabled="testingTautulli">
+            Disconnect
           </button>
         </div>
         
@@ -1005,11 +840,6 @@ import credentialsService from '../services/CredentialsService';
 import authService from '../services/AuthService';
 import apiService from '../services/ApiService';
 import databaseStorageUtils from '../utils/DatabaseStorageUtils';
-import PlexConnection from './PlexConnection.vue';
-import JellyfinConnection from './JellyfinConnection.vue';
-import TautulliConnection from './TautulliConnection.vue';
-import SonarrConnection from './SonarrConnection.vue';
-import RadarrConnection from './RadarrConnection.vue';
 import TraktConnection from './TraktConnection.vue';
 import TMDBConnection from './TMDBConnection.vue';
 import UserManagement from './UserManagement.vue';
@@ -1017,11 +847,6 @@ import UserManagement from './UserManagement.vue';
 export default {
   name: 'AIServiceSettings',
   components: {
-    PlexConnection,
-    JellyfinConnection,
-    TautulliConnection,
-    SonarrConnection,
-    RadarrConnection,
     TraktConnection,
     TMDBConnection,
     UserManagement
@@ -1232,8 +1057,30 @@ export default {
     }
   },
   methods: {
-    // Collapsible Panel Methods
-    // Collapsible Panel Methods
+    async clearStoredCredentials(serviceName) {
+      // Delete credentials from server instead of localStorage
+      await credentialsService.deleteCredentials(serviceName);
+
+      switch (serviceName) {
+        case 'sonarr':
+          this.handleSonarrDisconnected();
+          break;
+        case 'radarr':
+          this.handleRadarrDisconnected();
+          break;
+        case 'plex':
+          this.handlePlexDisconnected();
+          break;
+        case 'jellyfin':
+          this.handleJellyfinDisconnected();
+          break;
+        case 'tautulli':
+          this.handleTautulliDisconnected();
+          break;
+        default:
+          console.warn(`Unknown service: ${serviceName}`);
+      }
+    },
     toggleConnectionsPanel() {
       this.connectionsCollapsed = !this.connectionsCollapsed;
     },
@@ -1500,7 +1347,7 @@ export default {
         if (plexService.isConfigured()) {
           this.plexSettings.baseUrl = plexService.baseUrl;
           this.plexSettings.token = plexService.token;
-          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit');
+          this.plexSettings.recentLimit = await databaseStorageUtils.get('plexRecentLimit');
           return;
         }
         
@@ -1508,7 +1355,7 @@ export default {
         const credentials = await credentialsService.getCredentials('plex');
         if (credentials) {
           this.plexSettings.token = credentials.token || '';
-          this.plexSettings.recentLimit = databaseStorageUtils.getSync('plexRecentLimit');
+          this.plexSettings.recentLimit = await databaseStorageUtils.get('plexRecentLimit');
         }
       } catch (error) {
         console.error('Error loading Plex settings:', error);
@@ -1525,7 +1372,7 @@ export default {
           this.jellyfinSettings.apiKey = jellyfinService.apiKey;
           this.jellyfinSettings.userId = jellyfinService.userId;
           this.jellyfinSettings.username = jellyfinService.username; // Load username directly from service
-          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit');
+          this.jellyfinSettings.recentLimit = await databaseStorageUtils.get('jellyfinRecentLimit');
           return;
         }
         
@@ -1536,7 +1383,7 @@ export default {
           this.jellyfinSettings.apiKey = credentials.apiKey || '';
           this.jellyfinSettings.username = credentials.username || ''; // Load username from credentials
           this.jellyfinSettings.userId = credentials.userId || ''; // Keep loading userId for potential future use
-          this.jellyfinSettings.recentLimit = databaseStorageUtils.getSync('jellyfinRecentLimit');
+          this.jellyfinSettings.recentLimit = await databaseStorageUtils.get('jellyfinRecentLimit');
         }
       } catch (error) {
         console.error('Error loading Jellyfin settings:', error);
@@ -1549,7 +1396,7 @@ export default {
         if (tautulliService.isConfigured()) {
           this.tautulliSettings.baseUrl = tautulliService.baseUrl;
           this.tautulliSettings.apiKey = tautulliService.apiKey;
-          this.tautulliSettings.recentLimit = databaseStorageUtils.getSync('tautulliRecentLimit', 50);
+          this.tautulliSettings.recentLimit = await databaseStorageUtils.get('tautulliRecentLimit', 50);
           return;
         }
         
@@ -1558,7 +1405,7 @@ export default {
         if (credentials) {
           this.tautulliSettings.baseUrl = credentials.baseUrl || '';
           this.tautulliSettings.apiKey = credentials.apiKey || '';
-          this.tautulliSettings.recentLimit = databaseStorageUtils.getSync('tautulliRecentLimit', 50);
+          this.tautulliSettings.recentLimit = await databaseStorageUtils.get('tautulliRecentLimit', 50);
         }
       } catch (error) {
         console.error('Error loading Tautulli settings:', error);

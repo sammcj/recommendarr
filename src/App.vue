@@ -296,11 +296,6 @@
 </template>
 
 <script>
-import SonarrConnection from './components/SonarrConnection.vue'
-import RadarrConnection from './components/RadarrConnection.vue'
-import PlexConnection from './components/PlexConnection.vue'
-import JellyfinConnection from './components/JellyfinConnection.vue'
-import TautulliConnection from './components/TautulliConnection.vue'
 import TraktConnection from './components/TraktConnection.vue'
 import TraktCallback from './components/TraktCallback.vue'
 import AppNavigation from './components/Navigation.vue'
@@ -323,11 +318,6 @@ import databaseStorageUtils from './utils/DatabaseStorageUtils'
 export default {
   name: 'App',
   components: {
-    SonarrConnection,
-    RadarrConnection,
-    PlexConnection,
-    JellyfinConnection,
-    TautulliConnection,
     TraktConnection,
     TraktCallback,
     AppNavigation,

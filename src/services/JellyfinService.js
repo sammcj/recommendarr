@@ -10,6 +10,7 @@ class JellyfinService {
     this.baseUrl = '';
     this.apiKey = '';
     this.userId = '';
+    this.username = ''; // Add username property
     // Flag to track if credentials have been loaded
     this.credentialsLoaded = false;
 
@@ -43,6 +44,7 @@ class JellyfinService {
     if (credentials) {
       this.baseUrl = credentials.baseUrl || '';
       this.apiKey = credentials.apiKey || '';
+      this.username = credentials.username || ''; // Load username
       // userId is now stored separately via DatabaseStorageUtils
       
       // Load recentLimit if available
@@ -73,16 +75,18 @@ class JellyfinService {
     }
   }
 
-  async configure(baseUrl, apiKey, userId, recentLimit = null) {
+  async configure(baseUrl, apiKey, userId, username, recentLimit = null) { // Add username parameter
     // Ensure baseUrl doesn't end with a slash
     this.baseUrl = baseUrl ? baseUrl.replace(/\/$/, '') : '';
     this.apiKey = apiKey || '';
+    this.username = username || ''; // Set username
     this.userId = userId || '';
     await databaseStorageUtils.set('selectedJellyfinUserId', this.userId);
 
     const credentials = {
       baseUrl: this.baseUrl,
-      apiKey: this.apiKey
+      apiKey: this.apiKey,
+      username: this.username // Add username to credentials object
     };
     
     // If recentLimit is provided, store it with the credentials

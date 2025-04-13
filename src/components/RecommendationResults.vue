@@ -909,15 +909,31 @@ export default {
   gap: 10px; /* Tighter spacing between sections */
 }
 
-/* Make description more concise in horizontal layout */
+/* Remove ellipsis and line clamping for all content sections in horizontal layout */
 .horizontal-layout .description p,
 .horizontal-layout .reasoning-content p,
 .horizontal-layout .full-text p {
-  display: -webkit-box;
-  -webkit-line-clamp: 3; /* Limit to 3 lines */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+/* Remove any max-height constraints */
+.horizontal-layout .description,
+.horizontal-layout .reasoning,
+.horizontal-layout .full-text {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Remove the ellipsis limitation specifically for reasoning-content */
+.horizontal-layout .reasoning-content p {
+  display: block; /* Override the -webkit-box display */
+  -webkit-line-clamp: unset; /* Remove line clamp */
+  overflow: visible; /* Allow content to be fully visible */
+  text-overflow: unset; /* Remove ellipsis */
 }
 
 .description {

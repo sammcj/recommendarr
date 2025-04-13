@@ -163,6 +163,12 @@ class DatabaseService {
         -- Migration flags
         fullDatabaseStorageMigrationComplete INTEGER DEFAULT 0,
 
+        -- Watch history usage flags
+        plexUseHistory INTEGER DEFAULT 1,
+        jellyfinUseHistory INTEGER DEFAULT 1,
+        traktUseHistory INTEGER DEFAULT 1,
+        tautulliUseHistory INTEGER DEFAULT 1,
+
         FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
       )
     `);
@@ -902,6 +908,12 @@ class DatabaseService {
         previousTVRecommendations: JSON.parse(userData.previousTVRecommendations || '[]'),
         currentTVRecommendations: JSON.parse(userData.currentTVRecommendations || '[]'),
         
+        // Watch history usage flags
+        plexUseHistory: Boolean(userData.plexUseHistory),
+        jellyfinUseHistory: Boolean(userData.jellyfinUseHistory),
+        traktUseHistory: Boolean(userData.traktUseHistory),
+        tautulliUseHistory: Boolean(userData.tautulliUseHistory),
+
         // Migration flags
         fullDatabaseStorageMigrationComplete: Boolean(userData.fullDatabaseStorageMigrationComplete)
       };
@@ -1162,6 +1174,18 @@ class DatabaseService {
             break;
           case 'fullDatabaseStorageMigrationComplete':
             values.push(settings.fullDatabaseStorageMigrationComplete ? 1 : 0);
+            break;
+          case 'plexUseHistory': // Add this case
+            values.push(settings.plexUseHistory ? 1 : 0);
+            break;
+          case 'jellyfinUseHistory': // Add this case
+            values.push(settings.jellyfinUseHistory ? 1 : 0);
+            break;
+          case 'traktUseHistory': // Add this case
+            values.push(settings.traktUseHistory ? 1 : 0);
+            break;
+          case 'tautulliUseHistory': // Add this case
+            values.push(settings.tautulliUseHistory ? 1 : 0);
             break;
           default:
             // For any other columns, push null or a default value
@@ -1601,7 +1625,11 @@ class DatabaseService {
       'traktOnlyMode',
       'useCustomPromptOnly',
       'useStructuredOutput',
-      'fullDatabaseStorageMigrationComplete'
+      'fullDatabaseStorageMigrationComplete',
+      'plexUseHistory',
+      'jellyfinUseHistory',
+      'traktUseHistory',
+      'tautulliUseHistory'
     ];
     
     // Number settings
@@ -1686,7 +1714,11 @@ class DatabaseService {
         'traktOnlyMode',
         'useCustomPromptOnly',
         'useStructuredOutput',
-        'fullDatabaseStorageMigrationComplete'
+        'fullDatabaseStorageMigrationComplete',
+        'plexUseHistory',
+        'jellyfinUseHistory',
+        'traktUseHistory',
+        'tautulliUseHistory'
       ];
       
       // For timestamp values, ensure they are properly formatted as strings
@@ -1854,6 +1886,26 @@ class DatabaseService {
           name: 'traktRecentLimit',
           type: 'INTEGER',
           default: '50'
+        },
+        {
+          name: 'plexUseHistory',
+          type: 'INTEGER',
+          default: '1'
+        },
+        {
+          name: 'jellyfinUseHistory',
+          type: 'INTEGER',
+          default: '1'
+        },
+        {
+          name: 'traktUseHistory',
+          type: 'INTEGER',
+          default: '1'
+        },
+        {
+          name: 'tautulliUseHistory',
+          type: 'INTEGER',
+          default: '1'
         }
       ];
       

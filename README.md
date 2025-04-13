@@ -8,7 +8,7 @@ Recommendarr is a web application that generates personalized TV show and movie 
 
 ## [🎮 Join our Discord Community!](https://discord.gg/uHy3KFbgPR)
 
-> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open the application port on your router/firewall (default: 3000). See the [Reverse Proxy Setup](https://github.com/fingerthief/recommendarr/wiki/Reverse-Proxy-Setup) wiki page for secure setup guidance.
+> **⚠️ IMPORTANT**: When accessing this application from outside your network, you must open the application port on your router/firewall (default: 3000). Alternatively, see the [Reverse Proxy Setup](https://github.com/fingerthief/recommendarr/wiki/Reverse-Proxy-Setup) wiki page for secure setup guidance.
 
 > **⚠️ PORT CONFIGURATION**: The application now uses a single port (default: 3000) for both the frontend and API, configurable via the `PORT` environment variable. See [Environment Variables](https://github.com/fingerthief/recommendarr/wiki/Environment-Variables).
 

@@ -46,25 +46,18 @@ class ImageService {
     try {
       let showInfo = null;
       
-      // If TMDB isn't already configured, try to load its credentials first
-      if (!tmdbService.isConfigured()) {
-        
-        await tmdbService.loadCredentials();
-      }
-      
-      // Check if TMDB is configured - prefer TMDB if available
-      if (tmdbService.isConfigured()) {
-        
+      // First check if TMDB is already configured before trying to load or use it
+      if (tmdbService.isConfiguredSync()) {
         try {
           showInfo = await tmdbService.findSeriesByTitle(title);
           
-          // If first attempt fails, try with a simplified title (remove everything after ":")
+          // Try simplified title only if TMDB failed but is configured
           if ((!showInfo || !showInfo.images || !showInfo.images.length) && title.includes(':')) {
             const simplifiedTitle = title.split(':')[0].trim();
             showInfo = await tmdbService.findSeriesByTitle(simplifiedTitle);
           }
           
-          // If still no results, try without special characters
+          // Try alphanumeric only if TMDB failed but is configured
           if (!showInfo || !showInfo.images || !showInfo.images.length) {
             const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
             if (alphanumericTitle !== title) {
@@ -77,10 +70,8 @@ class ImageService {
         }
       }
       
-      // If TMDB failed or isn't configured, try Sonarr as fallback only if it's configured
+      // Only try Sonarr if TMDB failed or isn't configured
       if ((!showInfo || !showInfo.images || !showInfo.images.length) && sonarrService.isConfigured()) {
-        
-        
         // Use Sonarr to find the show info
         showInfo = await sonarrService.findSeriesByTitle(title);
         
@@ -101,7 +92,6 @@ class ImageService {
       
       // Return null if we couldn't find anything
       if (!showInfo || !showInfo.images || !showInfo.images.length) {
-        
         return null;
       }
       
@@ -115,13 +105,11 @@ class ImageService {
       // Get original URL (either from TMDB or Sonarr)
       const originalUrl = poster.remoteUrl;
       
-      
       // Return either direct URL or proxied URL based on useProxy flag
       if (useProxy) {
         // Create a proxied URL to avoid CORS and network issues
         const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
         const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-        
         
         // Store in cache for future requests
         this.posterCache.set(cacheKey, proxiedUrl);
@@ -173,42 +161,32 @@ class ImageService {
     try {
       let movieInfo = null;
       
-      // If TMDB isn't already configured, try to load its credentials first
-      if (!tmdbService.isConfigured()) {
-        
-        await tmdbService.loadCredentials();
-      }
-      
-      // Check if TMDB is configured - prefer TMDB if available
-      if (tmdbService.isConfigured()) {
-        
+      // First check if TMDB is already configured before trying to load or use it
+      if (tmdbService.isConfiguredSync()) {
         try {
           movieInfo = await tmdbService.findMovieByTitle(title);
           
-          // If first attempt fails, try with a simplified title (remove everything after ":")
+          // Try simplified title only if TMDB failed but is configured
           if ((!movieInfo || !movieInfo.images || !movieInfo.images.length) && title.includes(':')) {
             const simplifiedTitle = title.split(':')[0].trim();
             movieInfo = await tmdbService.findMovieByTitle(simplifiedTitle);
           }
           
-          // If still no results, try without special characters
+          // Try alphanumeric only if TMDB failed but is configured
           if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
             const alphanumericTitle = title.replace(/[^\w\s]/g, ' ').trim().replace(/\s+/g, ' ');
             if (alphanumericTitle !== title) {
               movieInfo = await tmdbService.findMovieByTitle(alphanumericTitle);
             }
           }
-          
         } catch (tmdbError) {
           console.error(`TMDB search failed for "${title}":`, tmdbError);
           movieInfo = null;
         }
       }
       
-      // If TMDB failed or isn't configured, try Radarr as fallback only if it's configured
+      // Only try Radarr if TMDB failed or isn't configured
       if ((!movieInfo || !movieInfo.images || !movieInfo.images.length) && radarrService.isConfigured()) {
-        
-        
         // Use Radarr to find the movie info
         movieInfo = await radarrService.findMovieByTitle(title);
         
@@ -229,7 +207,6 @@ class ImageService {
       
       // Return null if we couldn't find anything
       if (!movieInfo || !movieInfo.images || !movieInfo.images.length) {
-        
         return null;
       }
       
@@ -243,13 +220,11 @@ class ImageService {
       // Get original URL (either from TMDB or Radarr)
       const originalUrl = poster.remoteUrl;
       
-      
       // Return either direct URL or proxied URL based on useProxy flag
       if (useProxy) {
         // Create a proxied URL to avoid CORS and network issues
         const apiBaseUrl = process.env.VUE_APP_API_URL || window.location.origin + '/api';
         const proxiedUrl = `${apiBaseUrl}/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-        
         
         // Store in cache for future requests
         this.posterCache.set(cacheKey, proxiedUrl);
